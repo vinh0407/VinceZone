@@ -140,6 +140,42 @@
   ],
   "logs": [
     {
+      "id": "log_af9c2eb6c963",
+      "timestamp": "2026-10-30T15:22:25.124Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free ➜ nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free (Chuyển sang Vision)",
+      "provider": "Kilo Gateway ➜ Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 3814,
+      "stream": false,
+      "tokens": 384
+    },
+    {
+      "id": "log_bd66bb94dcc7",
+      "timestamp": "2026-10-30T15:11:32.387Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free ➜ kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenCode ➜ Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 5983,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_ea64a23b0197",
+      "timestamp": "2026-10-30T15:11:18.197Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "glm-5.3-flash-free ➜ kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenCode ➜ Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 2980,
+      "stream": true,
+      "tokens": null
+    },
+    {
       "id": "log_64c18ca1fae1",
       "timestamp": "2026-10-30T14:47:17.789Z",
       "endpoint": "/v1/chat/completions",
@@ -426,6 +462,33 @@
     }
   ],
   "chatSessions": [
+    {
+      "id": "chat_470f260d76cf",
+      "title": "hi",
+      "model": "beam-free",
+      "provider": "OpenCode (8 models • ✓)",
+      "userId": "usr_admin",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "Chào Vince Dev! Tôi đã sẵn sàng hỗ trợ bạn với Node.js, Express, Docker và các dự án VinceZone AI Workplay Platform. Bạn cần giúp gì hôm nay?"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "Chào Vince Dev! Tôi đã sẵn sàng hỗ trợ bạn với Node.js, Express, Docker và các dự án VinceZone AI Workplay Platform. Bạn cần giúp gì hôm nay?"
+        }
+      ],
+      "createdAt": "2026-10-30T15:11:18.207Z",
+      "updatedAt": "2026-10-30T15:11:32.393Z"
+    },
     {
       "id": "chat_e7755ea48e71",
       "title": "heo",

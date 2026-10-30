@@ -185,8 +185,12 @@
 
           <!-- 3. Right Sidebar: Controls & Model Selection -->
           <aside class="playground-sidebar">
+            <!-- BƯỚC 1: Chọn Nhà cung cấp (Provider) -->
             <div class="sidebar-section">
-              <label class="control-label">Nhà cung cấp (Provider)</label>
+              <div class="label-with-val">
+                <label class="control-label">1. Nhà cung cấp (Provider)</label>
+                <span class="val-badge" style="font-size:0.65rem;">Bước 1</span>
+              </div>
               <div class="select-wrapper">
                 <select id="playground-provider-select">
                   <option value="" disabled selected>Đang tải danh sách Provider...</option>
@@ -194,9 +198,28 @@
               </div>
             </div>
 
+            <!-- BƯỚC 2: Chọn Dùng Để Làm Gì (Mục đích / Tác vụ) -->
             <div class="sidebar-section">
               <div class="label-with-val">
-                <label class="control-label">Mô hình AI (Model)</label>
+                <label class="control-label">2. Dùng để làm gì? (Tác vụ)</label>
+                <span id="purpose-badge" class="val-badge" style="font-size:0.65rem; color:#60a5fa;">Bước 2</span>
+              </div>
+              <div class="select-wrapper">
+                <select id="playground-purpose-select">
+                  <option value="all" selected>🌐 Tất cả tác vụ & năng lực</option>
+                  <option value="vision">🖼️ Phân tích hình ảnh & Đọc ảnh (Vision)</option>
+                  <option value="code">💻 Lập trình & Viết mã nguồn (Coding)</option>
+                  <option value="reasoning">🧠 Suy luận logic & Toán học (Reasoning)</option>
+                  <option value="general">⚡ Chat nhanh & Tổng quát (Fast Chat)</option>
+                </select>
+              </div>
+              <p class="field-hint" id="purpose-hint" style="font-size:0.7rem; color:var(--text-secondary);">Chọn mục đích để hệ thống lọc các model hỗ trợ chuẩn xác</p>
+            </div>
+
+            <!-- BƯỚC 3: Chọn Mô hình AI (Model) -->
+            <div class="sidebar-section">
+              <div class="label-with-val">
+                <label class="control-label">3. Mô hình AI (Model)</label>
                 <label class="filter-free-wrapper" title="Chỉ lọc danh sách các Model miễn phí">
                   <input type="checkbox" id="filter-free-only">
                   <span class="badge-free">Chỉ hiện FREE</span>
@@ -207,7 +230,7 @@
                   <option value="" disabled selected>Đang tải danh sách Model...</option>
                 </select>
               </div>
-              <p class="field-hint" id="selected-provider-info">Chọn Provider để tải danh sách Model tương ứng</p>
+              <p class="field-hint" id="selected-provider-info">Chọn Provider và Tác vụ để tải danh sách Model tương ứng</p>
             </div>
 
             <div class="sidebar-section">

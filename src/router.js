@@ -131,7 +131,62 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
       err.message.includes('rate limit')
     );
 
-    // TỰ ĐỘNG CHUYỂN ĐỔI DỰ PHÒNG (SMART FAILOVER) KHI GẶP LỖI 429 HẠN MỨC
+    const hasImageInput = enrichedMessages.some(m => 
+      Array.isArray(m.content) && m.content.some(part => part.type === 'image_url')
+    );
+    const isVisionError = err.message && (
+      err.message.includes('supports text input only') ||
+      err.message.includes('image input') ||
+      err.message.includes('This conversation contains an image')
+    );
+
+    // 1. TỰ ĐỘNG CHUYỂN TIẾP SANG MÔ HÌNH VISION NẾU ĐÍNH KÈM ẢNH MÀ MODEL KHÔNG HỖ TRỢ
+    if (hasImageInput && isVisionError && (!res || !res.headersSent)) {
+      const allActiveProviders = Store.getProviders().filter(p => p.enabled && p.apiKey);
+      for (const p of allActiveProviders) {
+        const vModel = (p.models || []).find(m => 
+          m.includes('omni') || 
+          m.includes('dots-3-note') || 
+          m.includes('super-vl') || 
+          m.includes('gemini') || 
+          m.includes('gpt-4o') || 
+          m.includes('claude')
+        );
+
+        if (vModel) {
+          console.warn(`[Auto-Vision-Failover] Mô hình "${resolvedModel}" không hỗ trợ ảnh. Đang tự động chuyển tiếp sang mô hình Vision "${vModel}" của "${p.name}"...`);
+          try {
+            const vAdapter = getAdapter(p.type);
+            const vResult = await vAdapter.callChat({
+              provider: p,
+              model: vModel,
+              messages: enrichedMessages,
+              temperature,
+              max_tokens,
+              stream,
+              res
+            });
+
+            Store.logRequest({
+              endpoint: '/v1/chat/completions',
+              model: `${resolvedModel} ➜ ${vModel} (Chuyển sang Vision)`,
+              provider: `${provider.name} ➜ ${p.name}`,
+              clientIp,
+              status: 200,
+              latency: Date.now() - startTime,
+              stream: Boolean(stream),
+              tokens: vResult?.usage?.total_tokens || null
+            });
+
+            return vResult;
+          } catch (vErr) {
+            console.error('[Auto-Vision-Failover] Chuyển đổi Vision thất bại:', vErr.message);
+          }
+        }
+      }
+    }
+
+    // 2. TỰ ĐỘNG CHUYỂN ĐỔI DỰ PHÒNG (SMART FAILOVER) KHI GẶP LỖI 429 HẠN MỨC
     if (isRateLimit && (!res || !res.headersSent)) {
       const allProviders = Store.getProviders().filter(p => p.enabled && p.id !== provider.id && p.apiKey);
       const fallbackProvider = allProviders.find(p => 
@@ -175,7 +230,9 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
     }
 
     let userFacingError = err.message;
-    if (err.message && (err.message.includes('Free usage limit reached') || (err.message.includes('429') && err.message.includes('OpenCode')))) {
+    if (isVisionError) {
+      userFacingError = `[Tác vụ Thị giác] Mô hình "${resolvedModel}" chỉ hỗ trợ văn bản (text-only). Bạn hãy chọn tác vụ "🖼️ Phân tích hình ảnh (Vision)" ở bước 2 để chọn mô hình đọc ảnh (như "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" hoặc Google Gemini / GPT-4o).`;
+    } else if (err.message && (err.message.includes('Free usage limit reached') || (err.message.includes('429') && err.message.includes('OpenCode')))) {
       userFacingError = `[OpenCode] Đã đạt giới hạn gọi miễn phí (HTTP 429: Free usage limit reached). Bạn hãy chuyển sang chọn Provider "Kilo Gateway" (chọn model "kilo-auto/free" hoặc "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free") ở cột bên phải để tiếp tục sử dụng miễn phí không giới hạn.`;
     }
 

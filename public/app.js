@@ -68,6 +68,9 @@ const btnDeleteCurrentChat = document.getElementById('btn-delete-current-chat');
 
 // Playground Elements
 const providerSelect = document.getElementById('playground-provider-select');
+const purposeSelect = document.getElementById('playground-purpose-select');
+const purposeBadge = document.getElementById('purpose-badge');
+const purposeHint = document.getElementById('purpose-hint');
 const modelSelect = document.getElementById('playground-model-select');
 const filterFreeOnly = document.getElementById('filter-free-only');
 const selectedProviderInfo = document.getElementById('selected-provider-info');
@@ -409,6 +412,12 @@ function setupPlaygroundEvents() {
     updateModelDropdownForSelectedProvider();
   });
 
+  if (purposeSelect) {
+    purposeSelect.addEventListener('change', () => {
+      updateModelDropdownForSelectedProvider();
+    });
+  }
+
   modelSelect.addEventListener('change', () => {
     renderSnippets();
   });
@@ -708,6 +717,8 @@ function readDocumentAsText(file) {
 function renderAttachmentsBar() {
   if (!chatAttachmentsBar) return;
   chatAttachmentsBar.innerHTML = '';
+
+  checkAndAutoSwitchToVisionModel();
 
   if (state.pendingAttachments.length === 0) {
     chatAttachmentsBar.style.display = 'none';
@@ -1143,6 +1154,90 @@ function updateProviderAndModelDropdowns() {
   updateModelDropdownForSelectedProvider();
 }
 
+function getModelCapabilities(model) {
+  const m = (model || '').toLowerCase();
+  
+  // Vision / Multimodal detection (ảnh, video, sơ đồ)
+  const isVision = m.includes('omni') || 
+                   m.includes('vl') || 
+                   m.includes('vision') || 
+                   m.includes('dots-3-note') || 
+                   m.includes('dots3') ||
+                   m.includes('gpt-4o') || 
+                   m.includes('gemini') || 
+                   m.includes('claude-3') || 
+                   m.includes('claude-3.5') || 
+                   m.includes('claude-3-7') || 
+                   m.includes('super-vl');
+
+  // Coding detection (lập trình, refactor, debug)
+  const isCode = m.includes('code') || 
+                 m.includes('coder') || 
+                 m.includes('laguna') || 
+                 m.includes('flint') || 
+                 m.includes('deepseek') || 
+                 m.includes('qwen') || 
+                 m.includes('claude') || 
+                 m.includes('gpt-4o') || 
+                 m.includes('gemini');
+
+  // Reasoning detection (suy luận logic sâu, toán, r1, o1, o3)
+  const isReasoning = m.includes('reason') || 
+                      m.includes('r1') || 
+                      m.includes('o1') || 
+                      m.includes('o3') || 
+                      m.includes('ultra') || 
+                      m.includes('deepseek-reasoner') || 
+                      m.includes('xing');
+
+  // General / Fast Chat (hội thoại nhanh, tổng quát)
+  const isGeneral = m.includes('auto') || 
+                    m.includes('flash') || 
+                    m.includes('mini') || 
+                    m.includes('lightning') || 
+                    m.includes('lfm') || 
+                    m.includes('chat') || 
+                    m.includes('mimo') || 
+                    m.includes('beam') || 
+                    m.includes('pickle');
+
+  return { isVision, isCode, isReasoning, isGeneral };
+}
+
+function checkAndAutoSwitchToVisionModel() {
+  const hasImage = state.pendingAttachments.some(a => a.type === 'image');
+  if (!hasImage) return;
+
+  const curProv = state.providers.find(p => p.id === providerSelect.value);
+  const curModel = modelSelect.value;
+  const isCurModelVision = curModel && getModelCapabilities(curModel).isVision;
+
+  if (!isCurModelVision) {
+    if (purposeSelect) purposeSelect.value = 'vision';
+
+    const hasVisionModel = curProv && curProv.models.some(m => getModelCapabilities(m).isVision);
+    if (!hasVisionModel) {
+      // Switch provider to Kilo Gateway which has working free vision models
+      const kiloProv = state.providers.find(p => p.id === 'prov_kilo_gateway' && p.enabled);
+      if (kiloProv) {
+        providerSelect.value = kiloProv.id;
+      }
+    }
+
+    updateModelDropdownForSelectedProvider();
+
+    // Select the best vision model in dropdown
+    const visionOpt = Array.from(modelSelect.options).find(o => 
+      o.value.includes('omni') || o.value.includes('dots-3-note') || o.value.includes('vision') || o.value.includes('vl')
+    );
+    if (visionOpt) {
+      modelSelect.value = visionOpt.value;
+    }
+
+    showToast('📸 Đã phát hiện ảnh đính kèm: Hệ thống tự động chuyển sang Tác vụ Vision và chọn mô hình hỗ trợ đọc ảnh!');
+  }
+}
+
 function updateModelDropdownForSelectedProvider() {
   const selectedProvId = providerSelect.value;
   const prov = state.providers.find(p => p.id === selectedProvId);
@@ -1155,14 +1250,57 @@ function updateModelDropdownForSelectedProvider() {
     return;
   }
 
+  const selectedPurpose = purposeSelect ? purposeSelect.value : 'all';
   const isFilterFree = filterFreeOnly && filterFreeOnly.checked;
+
+  // 1. Lọc danh sách theo Tác vụ / Dùng để làm gì
+  let modelsByPurpose = prov.models;
+  if (selectedPurpose === 'vision') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isVision);
+  } else if (selectedPurpose === 'code') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isCode);
+  } else if (selectedPurpose === 'reasoning') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isReasoning);
+  } else if (selectedPurpose === 'general') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isGeneral);
+  }
+
+  // 2. Lọc theo Free-only nếu được bật
   const modelsToRender = isFilterFree 
-    ? prov.models.filter(m => isFreeModel(m)) 
-    : prov.models;
+    ? modelsByPurpose.filter(m => isFreeModel(m)) 
+    : modelsByPurpose;
+
+  // Cập nhật Purpose Hint & Trạng thái hướng dẫn
+  if (purposeHint) {
+    if (selectedPurpose === 'vision') {
+      if (modelsByPurpose.length > 0) {
+        purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model có khả năng nhìn & phân tích ảnh (Multimodal Vision)`;
+        purposeHint.style.color = 'var(--status-green)';
+      } else {
+        purposeHint.textContent = `⚠️ Provider "${prov.name}" không có model đọc ảnh. Hãy chuyển Provider sang Kilo Gateway (Omni) hoặc Gemini / GPT-4o`;
+        purposeHint.style.color = '#f87171';
+      }
+    } else if (selectedPurpose === 'code') {
+      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model tối ưu cho lập trình, debug & refactor code`;
+      purposeHint.style.color = '#60a5fa';
+    } else if (selectedPurpose === 'reasoning') {
+      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model có chuỗi tư duy suy luận logic sâu (Reasoning)`;
+      purposeHint.style.color = '#c084fc';
+    } else if (selectedPurpose === 'general') {
+      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model phản hồi nhanh & tiết kiệm tài nguyên`;
+      purposeHint.style.color = '#fbbf24';
+    } else {
+      purposeHint.textContent = `Hiển thị toàn bộ ${prov.models.length} model của ${prov.name}`;
+      purposeHint.style.color = 'var(--text-secondary)';
+    }
+  }
 
   if (modelsToRender.length === 0) {
-    modelSelect.innerHTML = '<option value="" disabled selected>Không có Model Free nào</option>';
-    if (selectedProviderInfo) selectedProviderInfo.textContent = `Provider "${prov.name}" không có Model Free nào`;
+    const reasonText = selectedPurpose !== 'all' 
+      ? `Không có model nào cho tác vụ này trong ${prov.name}` 
+      : 'Không có Model Free nào';
+    modelSelect.innerHTML = `<option value="" disabled selected>${reasonText}</option>`;
+    if (selectedProviderInfo) selectedProviderInfo.textContent = `Vui lòng chọn tác vụ khác hoặc đổi Provider`;
     return;
   }
 
@@ -1170,7 +1308,14 @@ function updateModelDropdownForSelectedProvider() {
     const opt = document.createElement('option');
     opt.value = model;
     const isFree = isFreeModel(model);
-    opt.textContent = isFree ? `✨ [FREE] ${model}` : model;
+    const caps = getModelCapabilities(model);
+
+    let tagStr = '';
+    if (caps.isVision) tagStr += ' 👁️ Vision';
+    if (caps.isCode) tagStr += ' 💻 Code';
+    if (caps.isReasoning) tagStr += ' 🧠 Logic';
+
+    opt.textContent = `${isFree ? '✨ [FREE] ' : ''}${model}${tagStr}`;
     modelSelect.appendChild(opt);
   });
 
@@ -1180,8 +1325,8 @@ function updateModelDropdownForSelectedProvider() {
 
   if (selectedProviderInfo) {
     const keyNotice = prov.hasKey ? '✓ Sẵn sàng' : '⚠️ Cần nhập API Key trong Hub';
-    const filterNotice = isFilterFree ? `(Đang lọc: ${modelsToRender.length} Free)` : `${prov.models.length} models`;
-    selectedProviderInfo.textContent = `${prov.name} (${prov.type}) • ${filterNotice} • ${keyNotice}`;
+    const filterNotice = isFilterFree ? `(Đang lọc: ${modelsToRender.length} Free)` : `${modelsToRender.length} models phù hợp`;
+    selectedProviderInfo.textContent = `${prov.name} • ${filterNotice} • ${keyNotice}`;
   }
 
   renderSnippets();
