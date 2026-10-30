@@ -459,7 +459,7 @@ function updateMobileModelLabel() {
   if (!labelEl || !modelSelectEl) return;
   const selOption = modelSelectEl.options[modelSelectEl.selectedIndex];
   if (selOption && selOption.text) {
-    let cleanName = selOption.text.replace(/✨\s*\[FREE\]\s*/i, '').replace(/👁️.*|💻.*|🧠.*/g, '').trim();
+    let cleanName = selOption.text.replace(/\[FREE\]\s*/i, '').replace(/\[Vision\]|\[Code\]|\[Logic\]/gi, '').trim();
     if (cleanName.includes('/')) {
       const parts = cleanName.split('/');
       cleanName = parts[parts.length - 1];
@@ -667,7 +667,7 @@ function setupPlaygroundEvents() {
       }
       await autoSaveCurrentChat();
     } catch (err) {
-      renderMarkdown(assistantBubble, `❌ **Lỗi:** ${err.message}`);
+      renderMarkdown(assistantBubble, `**Lỗi:** ${err.message}`);
       chatStatusIndicator.textContent = 'Lỗi';
     } finally {
       state.isGenerating = false;
@@ -687,14 +687,14 @@ function appendMessage(role, text, attachments = []) {
 
   const author = document.createElement('div');
   author.className = 'chat-author';
-  const authorTitle = role === 'user' ? '👤 BẠN' : `⚡ ${modelSelect.value || 'AI'}`;
+  const authorTitle = role === 'user' ? 'BẠN' : (modelSelect.value || 'AI');
   author.innerHTML = `<span>${authorTitle}</span>`;
 
   if (role === 'user' && text) {
     const btnRem = document.createElement('button');
     btnRem.type = 'button';
     btnRem.className = 'btn-remember-chat';
-    btnRem.textContent = '🧠 Ghi nhớ';
+    btnRem.textContent = 'Ghi nhớ';
     btnRem.title = 'Lưu ý này vào Bộ nhớ dùng chung của VinceZone';
     btnRem.onclick = () => quickRememberText(text, modelSelect.value);
     author.appendChild(btnRem);
@@ -722,12 +722,12 @@ function appendMessage(role, text, attachments = []) {
       } else if (att.type === 'file') {
         const badge = document.createElement('span');
         badge.className = 'msg-attachment-badge';
-        badge.innerHTML = `📄 <strong>${escapeHtml(att.name)}</strong> <small>(${formatBytes(att.size)})</small>`;
+        badge.innerHTML = `<strong>${escapeHtml(att.name)}</strong> <small>(${formatBytes(att.size)})</small>`;
         attContainer.appendChild(badge);
       } else if (att.type === 'folder') {
         const badge = document.createElement('span');
         badge.className = 'msg-attachment-badge';
-        badge.innerHTML = `📁 <strong>${escapeHtml(att.name)}</strong> <small>(${att.fileCount} tệp)</small>`;
+        badge.innerHTML = `<strong>${escapeHtml(att.name)}</strong> <small>(${att.fileCount} tệp)</small>`;
         attContainer.appendChild(badge);
       } else if (att.type === 'link') {
         const link = document.createElement('a');
@@ -735,7 +735,7 @@ function appendMessage(role, text, attachments = []) {
         link.href = att.url;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.innerHTML = `🌐 <strong>${escapeHtml(att.title || att.url)}</strong>`;
+        link.innerHTML = `<strong>${escapeHtml(att.title || att.url)}</strong>`;
         attContainer.appendChild(link);
       } else if (att.type === 'gdrive') {
         const link = document.createElement('a');
@@ -743,7 +743,7 @@ function appendMessage(role, text, attachments = []) {
         link.href = att.url;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.innerHTML = `📁 <strong>GG Drive: ${escapeHtml(att.title || 'Tài liệu')}</strong>`;
+        link.innerHTML = `<strong>GG Drive: ${escapeHtml(att.title || 'Tài liệu')}</strong>`;
         attContainer.appendChild(link);
       }
     });
@@ -826,27 +826,27 @@ function renderAttachmentsBar() {
       `;
     } else if (att.type === 'file') {
       chip.innerHTML = `
-        <span>📄</span>
+        
         <span class="chip-name" title="${escapeHtml(att.name)}">${escapeHtml(att.name)}</span>
         <span class="chip-meta">${formatBytes(att.size)}</span>
         <button type="button" class="chip-remove" onclick="removePendingAttachment(${idx})" title="Xóa">&times;</button>
       `;
     } else if (att.type === 'folder') {
       chip.innerHTML = `
-        <span>📁</span>
+        
         <span class="chip-name" title="${escapeHtml(att.name)}">${escapeHtml(att.name)}</span>
         <span class="chip-meta">${att.fileCount} tệp</span>
         <button type="button" class="chip-remove" onclick="removePendingAttachment(${idx})" title="Xóa">&times;</button>
       `;
     } else if (att.type === 'link') {
       chip.innerHTML = `
-        <span>🌐</span>
+        <span></span>
         <span class="chip-name" title="${escapeHtml(att.title || att.url)}">${escapeHtml(att.title || att.url)}</span>
         <button type="button" class="chip-remove" onclick="removePendingAttachment(${idx})" title="Xóa">&times;</button>
       `;
     } else if (att.type === 'gdrive') {
       chip.innerHTML = `
-        <span>📁</span>
+        
         <span class="chip-name" title="${escapeHtml(att.title || 'Google Drive')}">GG Drive: ${escapeHtml(att.title || 'Tài liệu')}</span>
         <button type="button" class="chip-remove" onclick="removePendingAttachment(${idx})" title="Xóa">&times;</button>
       `;
@@ -1222,7 +1222,7 @@ function updateProviderAndModelDropdowns() {
   const totalModelsCount = enabledProviders.reduce((acc, p) => acc + (p.models ? p.models.length : 0), 0);
   const allOpt = document.createElement('option');
   allOpt.value = 'all';
-  allOpt.textContent = `🌐 Tất cả nhà cung cấp có sẵn (Gom ${enabledProviders.length} Providers • ${totalModelsCount} Models)`;
+  allOpt.textContent = ` Tất cả nhà cung cấp có sẵn (Gom ${enabledProviders.length} Providers • ${totalModelsCount} Models)`;
   providerSelect.appendChild(allOpt);
 
   // 2. Thêm từng Provider riêng lẻ
@@ -1230,7 +1230,7 @@ function updateProviderAndModelDropdowns() {
     const opt = document.createElement('option');
     opt.value = prov.id;
     const modelCount = prov.models ? prov.models.length : 0;
-    const keyTag = prov.hasKey ? '✓' : '⚠️ Chưa key';
+    const keyTag = prov.hasKey ? '' : ' Chưa key';
     opt.textContent = `${prov.name} (${modelCount} models • ${keyTag})`;
     providerSelect.appendChild(opt);
   });
@@ -1326,7 +1326,7 @@ function checkAndAutoSwitchToVisionModel() {
       modelSelect.value = visionOpt.value;
     }
 
-    showToast('📸 Đã phát hiện ảnh đính kèm: Hệ thống tự động chuyển sang Tác vụ Vision và chọn mô hình hỗ trợ đọc ảnh!');
+    showToast(' Đã phát hiện ảnh đính kèm: Hệ thống tự động chuyển sang Tác vụ Vision và chọn mô hình hỗ trợ đọc ảnh!');
   }
 }
 
@@ -1365,8 +1365,8 @@ function updateModelDropdownForSelectedProvider() {
       if (modelsToRender.length > 0) {
         totalMatchingModels += modelsToRender.length;
         const group = document.createElement('optgroup');
-        const keyTag = prov.hasKey ? '✓ Sẵn sàng' : '⚠️ Cần Key';
-        group.label = `⚡ ${prov.name} (${modelsToRender.length} models • ${keyTag})`;
+        const keyTag = prov.hasKey ? 'Sẵn sàng' : 'Cần Key';
+        group.label = `${prov.name} (${modelsToRender.length} models • ${keyTag})`;
 
         modelsToRender.forEach(model => {
           const opt = document.createElement('option');
@@ -1378,11 +1378,11 @@ function updateModelDropdownForSelectedProvider() {
           const caps = getModelCapabilities(model);
 
           let tagStr = '';
-          if (caps.isVision) tagStr += ' 👁️ Vision';
-          if (caps.isCode) tagStr += ' 💻 Code';
-          if (caps.isReasoning) tagStr += ' 🧠 Logic';
+          if (caps.isVision) tagStr += ' [Vision]';
+          if (caps.isCode) tagStr += ' [Code]';
+          if (caps.isReasoning) tagStr += ' [Logic]';
 
-          opt.textContent = `${isFree ? '✨ [FREE] ' : ''}${model}${tagStr}`;
+          opt.textContent = `${isFree ? '[FREE] ' : ''}${model}${tagStr}`;
           group.appendChild(opt);
         });
 
@@ -1392,16 +1392,16 @@ function updateModelDropdownForSelectedProvider() {
 
     if (purposeHint) {
       if (selectedPurpose === 'vision') {
-        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model có khả năng đọc & phân tích ảnh (Vision) từ tất cả Provider`;
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model có khả năng đọc & phân tích ảnh (Vision) từ tất cả Provider`;
         purposeHint.style.color = 'var(--status-green)';
       } else if (selectedPurpose === 'code') {
-        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model chuyên sâu về viết code, refactor & debug từ tất cả Provider`;
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model chuyên sâu về viết code, refactor & debug từ tất cả Provider`;
         purposeHint.style.color = '#60a5fa';
       } else if (selectedPurpose === 'reasoning') {
-        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model suy luận logic sâu (Reasoning) từ tất cả Provider`;
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model suy luận logic sâu (Reasoning) từ tất cả Provider`;
         purposeHint.style.color = '#c084fc';
       } else if (selectedPurpose === 'general') {
-        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model phản hồi nhanh & tổng quát từ tất cả Provider`;
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model phản hồi nhanh & tổng quát từ tất cả Provider`;
         purposeHint.style.color = '#fbbf24';
       } else {
         purposeHint.textContent = `Gom toàn bộ ${totalMatchingModels} model từ ${enabledProviders.length} Nhà cung cấp có sẵn`;
@@ -1424,7 +1424,7 @@ function updateModelDropdownForSelectedProvider() {
 
     if (selectedProviderInfo) {
       const filterNotice = isFilterFree ? `(Đang lọc: ${totalMatchingModels} Free)` : `${totalMatchingModels} models sẵn sàng`;
-      selectedProviderInfo.textContent = `🌐 Tất cả Nhà cung cấp • ${filterNotice} • Gateway tự động điều hướng`;
+      selectedProviderInfo.textContent = `Tất cả Nhà cung cấp • ${filterNotice} • Gateway tự động điều hướng`;
     }
 
     renderSnippets();
@@ -1462,20 +1462,20 @@ function updateModelDropdownForSelectedProvider() {
   if (purposeHint) {
     if (selectedPurpose === 'vision') {
       if (modelsByPurpose.length > 0) {
-        purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model có khả năng nhìn & phân tích ảnh (Multimodal Vision)`;
+        purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model có khả năng nhìn & phân tích ảnh (Multimodal Vision)`;
         purposeHint.style.color = 'var(--status-green)';
       } else {
-        purposeHint.textContent = `⚠️ Provider "${prov.name}" không có model đọc ảnh. Hãy chuyển sang "Tất cả nhà cung cấp" hoặc Kilo Gateway`;
+        purposeHint.textContent = `Provider "${prov.name}" không có model đọc ảnh. Hãy chuyển sang "Tất cả nhà cung cấp" hoặc Kilo Gateway`;
         purposeHint.style.color = '#f87171';
       }
     } else if (selectedPurpose === 'code') {
-      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model tối ưu cho lập trình, debug & refactor code`;
+      purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model tối ưu cho lập trình, debug & refactor code`;
       purposeHint.style.color = '#60a5fa';
     } else if (selectedPurpose === 'reasoning') {
-      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model có chuỗi tư duy suy luận logic sâu (Reasoning)`;
+      purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model có chuỗi tư duy suy luận logic sâu (Reasoning)`;
       purposeHint.style.color = '#c084fc';
     } else if (selectedPurpose === 'general') {
-      purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model phản hồi nhanh & tiết kiệm tài nguyên`;
+      purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model phản hồi nhanh & tiết kiệm tài nguyên`;
       purposeHint.style.color = '#fbbf24';
     } else {
       purposeHint.textContent = `Hiển thị toàn bộ ${prov.models.length} model của ${prov.name}`;
@@ -1502,11 +1502,11 @@ function updateModelDropdownForSelectedProvider() {
     const caps = getModelCapabilities(model);
 
     let tagStr = '';
-    if (caps.isVision) tagStr += ' 👁️ Vision';
-    if (caps.isCode) tagStr += ' 💻 Code';
-    if (caps.isReasoning) tagStr += ' 🧠 Logic';
+    if (caps.isVision) tagStr += ' [Vision]';
+    if (caps.isCode) tagStr += ' [Code]';
+    if (caps.isReasoning) tagStr += ' [Logic]';
 
-    opt.textContent = `${isFree ? '✨ [FREE] ' : ''}${model}${tagStr}`;
+    opt.textContent = `${isFree ? '[FREE] ' : ''}${model}${tagStr}`;
     modelSelect.appendChild(opt);
   });
 
@@ -1515,7 +1515,7 @@ function updateModelDropdownForSelectedProvider() {
   }
 
   if (selectedProviderInfo) {
-    const keyNotice = prov.hasKey ? '✓ Sẵn sàng' : '⚠️ Cần nhập API Key trong Hub';
+    const keyNotice = prov.hasKey ? 'Sẵn sàng' : 'Cần nhập API Key trong Hub';
     const filterNotice = isFilterFree ? `(Đang lọc: ${modelsToRender.length} Free)` : `${modelsToRender.length} models phù hợp`;
     selectedProviderInfo.textContent = `${prov.name} • ${filterNotice} • ${keyNotice}`;
   }
@@ -1584,7 +1584,7 @@ function renderProviders() {
 
       <div class="provider-actions">
         <button class="btn-ghost" onclick="testProvider('${p.id}')">
-          ⚡ Ping Test
+          Ping Test
         </button>
         <div style="display:flex; gap:0.4rem;">
           <button class="btn-small" onclick="openEditProvider('${p.id}')">Sửa</button>
@@ -1693,12 +1693,12 @@ window.testProvider = async (id) => {
     const res = await fetch(`/api/providers/${id}/test`, { method: 'POST' });
     const result = await res.json();
     if (result.ok) {
-      alert(`✅ KẾT NỐI THÀNH CÔNG!\n${result.message}`);
+      alert(` KẾT NỐI THÀNH CÔNG!\n${result.message}`);
     } else {
-      alert(`❌ THẤT BẠI:\n${result.message}`);
+      alert(` THẤT BẠI:\n${result.message}`);
     }
   } catch (err) {
-    alert(`❌ Lỗi: ${err.message}`);
+    alert(` Lỗi: ${err.message}`);
   }
 };
 
@@ -1952,7 +1952,7 @@ function renderMemories() {
   if (list.length === 0) {
     memoriesGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; color: var(--text-muted); background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 10px;">
-        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🧠</div>
+        
         <h4 style="color: var(--text-white); margin-bottom: 0.35rem;">Chưa có mục ghi nhớ nào phù hợp</h4>
         <p style="font-size: 0.8rem;">Bấm "+ Thêm Ghi Nhớ" hoặc gửi tin nhắn có câu "hãy nhớ là...", "dự án của tôi..." để VinceZone tự động học hỏi.</p>
       </div>
@@ -1961,7 +1961,7 @@ function renderMemories() {
   }
 
   const categoryLabels = {
-    conversation: '💬 Đoạn chat & Hội thoại',
+    conversation: 'Đoạn chat & Hội thoại',
     preference: 'Sở thích & Phong cách',
     project: 'Dự án',
     rule: 'Quy tắc',
@@ -2008,7 +2008,7 @@ function setupMemoryEvents() {
     btnSyncChatMemory.addEventListener('click', async () => {
       btnSyncChatMemory.disabled = true;
       const originalText = btnSyncChatMemory.innerHTML;
-      btnSyncChatMemory.innerHTML = '⏳ Đang quét lịch sử chat...';
+      btnSyncChatMemory.innerHTML = 'Đang quét lịch sử chat...';
 
       try {
         const res = await authFetch('/api/memories/sync-from-chats', { method: 'POST' });
@@ -2034,7 +2034,7 @@ function setupMemoryEvents() {
       if (!confirm('CẢNH BÁO NGUY HIỂM: Hành động này sẽ XÓA VĨNH VIỄN toàn bộ bộ nhớ nhận thức của VinceZone!\n\nLưu ý: Ngay cả khi bạn đã xóa lịch sử chat, các ghi nhớ hội thoại cũng sẽ bị xóa sạch hoàn toàn nếu bạn tiếp tục.\n\nBạn có chắc chắn muốn xóa vĩnh viễn?')) return;
       try {
         await authFetch('/api/memories', { method: 'DELETE' });
-        alert('🗑️ Toàn bộ bộ nhớ nhận thức đã bị xóa vĩnh viễn!');
+        alert('Toàn bộ bộ nhớ nhận thức đã bị xóa vĩnh viễn!');
         await fetchMemories();
       } catch (err) {
         alert('Lỗi xóa bộ nhớ: ' + err.message);
@@ -2167,7 +2167,7 @@ window.quickRememberText = async (text, currentModel) => {
       })
     });
     if (res.ok) {
-      alert(`🧠 Đã lưu vào Bộ nhớ VinceZone!\n\n"${text}"\n\nTất cả các AI khác (OpenCode, Kilo, ZenMux, Gemini...) khi bạn trò chuyện sẽ tự động áp dụng ghi nhớ này.`);
+      alert(` Đã lưu vào Bộ nhớ VinceZone!\n\n"${text}"\n\nTất cả các AI khác (OpenCode, Kilo, ZenMux, Gemini...) khi bạn trò chuyện sẽ tự động áp dụng ghi nhớ này.`);
       await fetchMemories();
     }
   } catch (err) {
@@ -2362,7 +2362,7 @@ async function saveUserProfile(e) {
 
   if (btnSaveProfile) {
     btnSaveProfile.disabled = true;
-    btnSaveProfile.innerHTML = '⏳ Đang lưu dữ liệu...';
+    btnSaveProfile.innerHTML = ' Đang lưu dữ liệu...';
   }
 
   try {
@@ -2381,7 +2381,7 @@ async function saveUserProfile(e) {
         if (profileActiveUsername) profileActiveUsername.textContent = data.profile.displayName;
       }
       if (profileSaveStatus) {
-        profileSaveStatus.textContent = '✓ Đã lưu thành công! Toàn bộ AI sẽ ghi nhớ dữ liệu này.';
+        profileSaveStatus.textContent = ' Đã lưu thành công! Toàn bộ AI sẽ ghi nhớ dữ liệu này.';
         profileSaveStatus.style.display = 'inline';
         setTimeout(() => {
           if (profileSaveStatus) profileSaveStatus.style.display = 'none';
@@ -2401,7 +2401,7 @@ async function saveUserProfile(e) {
     if (btnSaveProfile) {
       btnSaveProfile.disabled = false;
       btnSaveProfile.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        
         Lưu Thông Tin & Hồ Sơ AI
       `;
     }
@@ -2461,11 +2461,11 @@ function renderChatHistoryList() {
   if (retentionPill && retentionText) {
     if (state.currentUser && !state.isGuest) {
       retentionPill.className = 'history-retention-pill permanent';
-      retentionText.textContent = '🔒 Lưu vĩnh viễn (Đã đăng nhập)';
+      retentionText.textContent = 'Lưu vĩnh viễn (Đã đăng nhập)';
       retentionPill.title = 'Tài khoản đã đăng nhập, lịch sử trò chuyện được lưu trữ an toàn lâu dài.';
     } else {
       retentionPill.className = 'history-retention-pill';
-      retentionText.textContent = '⏳ Khách: Lưu 3 ngày (Đăng nhập để lưu lâu dài)';
+      retentionText.textContent = ' Khách: Lưu 3 ngày (Đăng nhập để lưu lâu dài)';
       retentionPill.title = 'Tài khoản khách chỉ lưu tạm trong 3 ngày. Hãy đăng nhập để lưu trữ vĩnh viễn.';
     }
   }
@@ -2486,8 +2486,8 @@ function renderChatHistoryList() {
     
     const timeStr = formatRelativeTime(chat.updatedAt || chat.createdAt);
     const retentionBadge = chat.isGuest 
-      ? `<span style="color:#eab308;font-size:0.65rem;" title="${chat.retention || 'Tạm lưu 3 ngày'}">• 3 ngày</span>`
-      : `<span style="color:#22c55e;font-size:0.65rem;" title="Lưu vĩnh viễn">• Vĩnh viễn</span>`;
+      ? `<span style="color:#eab308;font-size:0.65rem;" title="${chat.retention || 'Tạm lưu 3 ngày'}">3 ngày</span>`
+      : `<span style="color:#22c55e;font-size:0.65rem;" title="Lưu vĩnh viễn">Vĩnh viễn</span>`;
 
     item.innerHTML = `
       <div class="history-item-body">
@@ -2583,7 +2583,7 @@ async function loadChatSession(id) {
     if (state.chatHistory.length === 0) {
       chatMessages.innerHTML = `
         <div class="welcome-banner">
-          <div class="welcome-icon">💬</div>
+          <div class="welcome-icon"></div>
           <h3>${escapeHtml(chat.title)}</h3>
           <p>Chưa có tin nhắn trong phiên này. Nhập câu hỏi bên dưới để chat tiếp!</p>
         </div>
@@ -2607,7 +2607,7 @@ function renderCanvasMessageBubble(role, content, modelName) {
 
   const author = document.createElement('div');
   author.className = 'chat-author';
-  const authorTitle = role === 'user' ? '👤 BẠN' : `⚡ ${modelName || modelSelect.value || 'AI'}`;
+  const authorTitle = role === 'user' ? ' BẠN' : ` ${modelName || modelSelect.value || 'AI'}`;
   author.innerHTML = `<span>${authorTitle}</span>`;
 
   let textToDisplay = '';
@@ -2626,7 +2626,7 @@ function renderCanvasMessageBubble(role, content, modelName) {
     const btnRem = document.createElement('button');
     btnRem.type = 'button';
     btnRem.className = 'btn-remember-chat';
-    btnRem.textContent = '🧠 Ghi nhớ';
+    btnRem.textContent = ' Ghi nhớ';
     btnRem.title = 'Lưu ý này vào Bộ nhớ dùng chung của VinceZone';
     btnRem.onclick = () => quickRememberText(textToDisplay, modelSelect.value);
     author.appendChild(btnRem);
@@ -2676,7 +2676,7 @@ function startNewChat() {
 
   chatMessages.innerHTML = `
     <div class="welcome-banner">
-      <div class="welcome-icon">⚡</div>
+      <div class="welcome-icon"></div>
       <h3>VinceZone Workplay Canvas</h3>
       <p>Nơi thử nghiệm trực tiếp các AI Model đã gom từ các Provider (OpenCode, Kilo Gateway, ZenMux, OpenAI, Gemini...).</p>
       <p class="sub-hint">Mẹo: Bạn có thể chọn Model bất kỳ từ thanh bên phải và bắt đầu trò chuyện ngay lập tức. Toàn bộ lịch sử sẽ tự động lưu lại ở thanh bên trái để chat tiếp bất kỳ lúc nào.</p>
@@ -2756,7 +2756,7 @@ function showToast(msg, duration = 3500) {
   const toast = document.createElement('div');
   toast.className = 'toast-item';
   toast.innerHTML = `
-    <span style="font-size: 1.15rem; color: var(--status-green);">✓</span>
+    <span style="font-size: 1.15rem; color: var(--status-green);"></span>
     <span style="flex: 1;">${escapeHtml(msg)}</span>
   `;
   container.appendChild(toast);
@@ -2775,8 +2775,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_img_1',
     category: 'image',
-    catLabel: '🖼️ Chỉnh ảnh & Vision',
-    icon: '📸',
+    catLabel: 'Chỉnh ảnh & Vision',
+    icon: '',
     title: 'Tạo Ảnh Chân Dung Điện Ảnh 8K (Cinematic Portrait)',
     desc: 'Tạo câu lệnh mô tả chi tiết bằng tiếng Anh theo phong cách nhiếp ảnh điện ảnh 8K, ánh sáng hoàng hôn, độ sâu trường ảnh mờ ảo.',
     tags: ['Midjourney', 'Photorealism', 'Cinematic', '8K Bokeh'],
@@ -2786,8 +2786,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_img_2',
     category: 'image',
-    catLabel: '🖼️ Chỉnh ảnh & Vision',
-    icon: '🎨',
+    catLabel: 'Chỉnh ảnh & Vision',
+    icon: '',
     title: 'Phân Tích Thị Giác & Tinh Chỉnh Lightroom/Photoshop',
     desc: 'Quan sát ảnh đính kèm, phân tích bố cục, màu sắc và gợi ý bảng thông số tinh chỉnh cụ thể kèm prompt tái tạo ảnh.',
     tags: ['Vision AI', 'Lightroom Presets', 'Photoshop', 'Color Grading'],
@@ -2801,8 +2801,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_img_3',
     category: 'image',
-    catLabel: '🖼️ Chỉnh ảnh & Vision',
-    icon: '✨',
+    catLabel: 'Chỉnh ảnh & Vision',
+    icon: '',
     title: 'Phục Chế & Nâng Cấp Chi Tiết Ảnh Cũ / Mờ (Restoration)',
     desc: 'Tái tạo và khử nhiễu ảnh cũ, phục hồi đường nét khuôn mặt, tăng độ phân giải siêu nét và tô màu tự nhiên.',
     tags: ['Restoration', 'Upscale', 'Face Enhance', 'Colorize'],
@@ -2815,8 +2815,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_img_4',
     category: 'image',
-    catLabel: '🖼️ Chỉnh ảnh & Vision',
-    icon: '🎭',
+    catLabel: 'Chỉnh ảnh & Vision',
+    icon: '',
     title: 'Chuyển Đổi Phong Cách Ảnh Thật Sang Anime / 3D Pixar / Cyberpunk',
     desc: 'Tạo prompt biến đổi ảnh chân dung người thật sang các phong cách hoạt hình 3D Pixar hoặc Anime Nhật Bản cao cấp.',
     tags: ['Style Transfer', '3D Pixar', 'Anime Makoto Shinkai', 'Cyberpunk'],
@@ -2829,8 +2829,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_img_5',
     category: 'image',
-    catLabel: '🖼️ Chỉnh ảnh & Vision',
-    icon: '🖼️',
+    catLabel: 'Chỉnh ảnh & Vision',
+    icon: '',
     title: 'Thiết Kế Poster Quảng Cáo & Typography Thương Mại',
     desc: 'Thiết lập bố cục hình ảnh thương mại cao cấp với không gian chừa sẵn cho logo và tiêu đề sản phẩm (Negative Space).',
     tags: ['Commercial', 'Poster Design', 'Negative Space', 'Product Ads'],
@@ -2845,8 +2845,8 @@ const BUILTIN_PROMPTS = [
   {
     id: 'p_exam_1',
     category: 'exam',
-    catLabel: '📚 Tạo đề thi & Giáo dục',
-    icon: '📝',
+    catLabel: 'Tạo đề thi & Giáo dục',
+    icon: '',
     title: 'Biên Soạn Đề Thi Trắc Nghiệm Chuẩn Ma Trận Bloom',
     desc: 'Tạo bộ 10 câu trắc nghiệm 4 đáp án theo đúng 4 mức độ nhận thức (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao) kèm lời giải.',
     tags: ['Ma trận Bloom', 'Khảo thí', 'Đáp án & Lời giải', '4 Cấp độ'],
@@ -2864,8 +2864,8 @@ Phần cuối đề: Trình bày bảng đáp án chuẩn kèm lời giải thí
   {
     id: 'p_exam_2',
     category: 'exam',
-    catLabel: '📚 Tạo đề thi & Giáo dục',
-    icon: '📊',
+    catLabel: 'Tạo đề thi & Giáo dục',
+    icon: '',
     title: 'Đề Thi Tự Luận & Bảng Tiêu Chí Chấm Điểm (Rubric)',
     desc: 'Thiết kế 3 câu hỏi tự luận đào sâu tư duy phản biện và giải quyết tình huống kèm biểu điểm chi tiết thang điểm 10.',
     tags: ['Tự luận', 'Rubric Thang 10', 'Tư duy phản biện', 'Tình huống'],
@@ -2880,8 +2880,8 @@ Kèm theo: Bảng tiêu chí chấm điểm (Rubric) chi tiết đến từng 0.
   {
     id: 'p_exam_3',
     category: 'exam',
-    catLabel: '📚 Tạo đề thi & Giáo dục',
-    icon: '💡',
+    catLabel: 'Tạo đề thi & Giáo dục',
+    icon: '',
     title: 'Gia Sư Phương Pháp Vấn Đáp Socrates (Socratic Tutor)',
     desc: 'Đóng vai gia sư thông thái hỏi đáp từng câu một để kích thích người học tự tư duy tìm ra câu trả lời thay vì cho đáp án ngay.',
     tags: ['Socrates', 'Vấn đáp gợi mở', 'Gia sư AI', 'Tư duy sâu'],
@@ -2895,8 +2895,8 @@ Quy tắc:
   {
     id: 'p_exam_4',
     category: 'exam',
-    catLabel: '📚 Tạo đề thi & Giáo dục',
-    icon: '📇',
+    catLabel: 'Tạo đề thi & Giáo dục',
+    icon: '',
     title: 'Tạo Bộ Flashcards Ghi Nhớ Nhanh & Thuật Ngữ Cốt Lõi',
     desc: 'Chắt lọc tài liệu thành các cặp thẻ Mặt trước (Khái niệm/Câu hỏi) và Mặt sau (Giải nghĩa ngắn gọn/Ví dụ) tương thích Anki.',
     tags: ['Flashcard', 'Anki CSV', 'Ghi nhớ Spaced Repetition', 'Từ vựng'],
@@ -2910,8 +2910,8 @@ Quy tắc:
   {
     id: 'p_exam_5',
     category: 'exam',
-    catLabel: '📚 Tạo đề thi & Giáo dục',
-    icon: '📑',
+    catLabel: 'Tạo đề thi & Giáo dục',
+    icon: '',
     title: 'Tóm Tắt Tài Liệu & Sách Học Thuật Chuẩn Cornell Notes',
     desc: 'Ghi chép và tóm lược sách vở theo hệ thống Cornell gồm Cột ghi chú, Cột từ khóa câu hỏi gợi nhớ và Khối đúc kết cuối trang.',
     tags: ['Cornell Notes', 'Tóm tắt sách', 'Học tập thông minh', 'Tư duy hệ thống'],
@@ -2926,8 +2926,8 @@ Quy tắc:
   {
     id: 'p_doc_1',
     category: 'document',
-    catLabel: '📄 Chuyển PDF sang Word',
-    icon: '📑',
+    catLabel: 'Chuyển PDF sang Word',
+    icon: '',
     title: 'Chuyển Đổi PDF / Scan Sang Word Giữ Nguyên Bảng Biểu',
     desc: 'Trích xuất toàn bộ văn bản từ file PDF hoặc ảnh chụp, tái tạo bảng Markdown chuẩn và sửa lỗi xuống dòng ngắt quãng.',
     tags: ['PDF to Word', 'OCR Clean', 'Bảng biểu Markdown', 'Chữa lỗi ngắt dòng'],
@@ -2941,8 +2941,8 @@ Quy tắc:
   {
     id: 'p_doc_2',
     category: 'document',
-    catLabel: '📄 Chuyển PDF sang Word',
-    icon: '⚖️',
+    catLabel: 'Chuyển PDF sang Word',
+    icon: '',
     title: 'Trích Xuất Hợp Đồng & Văn Bản Pháp Lý Chuẩn Thể Thức',
     desc: 'Đọc tệp hợp đồng/văn bản PDF, trích xuất điều khoản, quyền & nghĩa vụ, số tiền và chuẩn hóa thể thức hành chính.',
     tags: ['Hợp đồng', 'Pháp lý', 'Điều khoản', 'Thể thức hành chính'],
@@ -2955,8 +2955,8 @@ Quy tắc:
   {
     id: 'p_doc_3',
     category: 'document',
-    catLabel: '📄 Chuyển PDF sang Word',
-    icon: '🧾',
+    catLabel: 'Chuyển PDF sang Word',
+    icon: '',
     title: 'Trích Xuất Hóa Đơn / Sao Kê Ngân Hàng Thành Bảng Excel / CSV',
     desc: 'Bóc tách dữ liệu từ ảnh chụp hóa đơn GTGT hoặc sao kê PDF thành bảng dữ liệu có cấu trúc chuẩn cột Excel.',
     tags: ['Invoice OCR', 'Sao kê ngân hàng', 'Bóc tách hóa đơn', 'Excel CSV'],
@@ -2974,8 +2974,8 @@ Cuối bảng có dòng Tổng cộng tiền hàng, Tiền thuế và Tổng tha
   {
     id: 'p_doc_4',
     category: 'document',
-    catLabel: '📄 Chuyển PDF sang Word',
-    icon: '🔍',
+    catLabel: 'Chuyển PDF sang Word',
+    icon: '',
     title: 'So Sánh & Đối Chiếu Khác Biệt Giữa 2 Phiên Bản Văn Bản (Diff)',
     desc: 'Chỉ ra tất cả các điểm thay đổi, thêm vào, bớt đi hoặc sửa đổi giữa 2 tài liệu / hợp đồng được cung cấp.',
     tags: ['Document Diff', 'So sánh hợp đồng', 'Kiểm tra phiên bản', 'Bảo đảm an toàn'],
@@ -2990,8 +2990,8 @@ Cuối bảng có dòng Tổng cộng tiền hàng, Tiền thuế và Tổng tha
   {
     id: 'p_code_1',
     category: 'code',
-    catLabel: '💻 Lập trình & Debug',
-    icon: '🐛',
+    catLabel: 'Lập trình & Debug',
+    icon: '',
     title: 'Senior Code Review & Tối Ưu Hóa Clean Code',
     desc: 'Phân tích lỗi tiềm ẩn, tìm Memory Leak/Race Condition, refactor code sạch và đánh giá độ phức tạp Big-O.',
     tags: ['Code Review', 'Clean Code', 'Performance', 'Big-O', 'Refactor'],
@@ -3005,8 +3005,8 @@ Cuối bảng có dòng Tổng cộng tiền hàng, Tiền thuế và Tổng tha
   {
     id: 'p_code_2',
     category: 'code',
-    catLabel: '💻 Lập trình & Debug',
-    icon: '🧪',
+    catLabel: 'Lập trình & Debug',
+    icon: '',
     title: 'Viết Bộ Unit Test Toàn Diện (Full Coverage Unit Testing)',
     desc: 'Tự động tạo bộ test cases bao gồm Happy Path, Edge Cases, Mocking và Error Handling bằng Jest/PyTest.',
     tags: ['Unit Test', 'Jest', 'PyTest', 'Mocking', 'Edge Cases'],
@@ -3019,8 +3019,8 @@ Cuối bảng có dòng Tổng cộng tiền hàng, Tiền thuế và Tổng tha
   {
     id: 'p_code_3',
     category: 'code',
-    catLabel: '💻 Lập trình & Debug',
-    icon: '🏛️',
+    catLabel: 'Lập trình & Debug',
+    icon: '',
     title: 'Thiết Kế Kiến Trúc Hệ Thống & Lược Đồ Database (Schema Designer)',
     desc: 'Thiết kế kiến trúc ứng dụng (Microservices / Modular Monolith) kèm lược đồ SQL / NoSQL và chỉ mục Indexing tối ưu.',
     tags: ['System Architecture', 'Database Schema', 'PostgreSQL', 'Indexing', 'Scalability'],
@@ -3034,8 +3034,8 @@ Hãy thiết kế:
   {
     id: 'p_code_4',
     category: 'code',
-    catLabel: '💻 Lập trình & Debug',
-    icon: '📖',
+    catLabel: 'Lập trình & Debug',
+    icon: '',
     title: 'Soạn Tài Liệu API Chuẩn OpenAPI / Swagger Kèm Ví Dụ Curl',
     desc: 'Biến các đoạn code backend controller thành tài liệu API chi tiết chuẩn RESTful, có schema request/response và mã lỗi HTTP.',
     tags: ['API Docs', 'Swagger', 'OpenAPI 3.0', 'cURL examples'],
@@ -3050,8 +3050,8 @@ Hãy thiết kế:
   {
     id: 'p_code_5',
     category: 'code',
-    catLabel: '💻 Lập trình & Debug',
-    icon: '⚡',
+    catLabel: 'Lập trình & Debug',
+    icon: '',
     title: 'Chuyên Gia Tối Ưu Truy Vấn SQL & Database Bottleneck',
     desc: 'Phân tích câu lệnh SQL bị chậm, giải thích EXPLAIN ANALYZE, đề xuất Index tối ưu và cấu trúc lại câu lệnh.',
     tags: ['SQL Optimization', 'EXPLAIN ANALYZE', 'Indexing', 'Performance Tuning'],
@@ -3068,8 +3068,8 @@ Hãy giúp tôi:
   {
     id: 'p_mkt_1',
     category: 'marketing',
-    catLabel: '✍️ Marketing & Content',
-    icon: '🚀',
+    catLabel: 'Marketing & Content',
+    icon: '',
     title: 'Bài Viết Chuẩn SEO Chuyên Sâu Tối Ưu E-E-A-T',
     desc: 'Xây dựng bài viết chuẩn SEO đầy đủ tiêu đề giật tít, mở bài lôi cuốn, thẻ H2/H3 giá trị và kêu gọi hành động CTA.',
     tags: ['Google SEO', 'E-E-A-T', 'Content Pillar', 'High CTR'],
@@ -3084,8 +3084,8 @@ Hãy giúp tôi:
   {
     id: 'p_mkt_2',
     category: 'marketing',
-    catLabel: '✍️ Marketing & Content',
-    icon: '🎬',
+    catLabel: 'Marketing & Content',
+    icon: '',
     title: 'Kịch Bản Video Ngắn 60 Giây Triệu View (TikTok / Reels / Shorts)',
     desc: 'Kịch bản video ngắn phân chia rõ khung hình thị giác (Visual) và lời thoại (Voiceover) với Hook cực mạnh.',
     tags: ['TikTok Script', 'Reels', 'Shorts', '3s Hook', 'Viral'],
@@ -3099,8 +3099,8 @@ Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [L�
   {
     id: 'p_mkt_3',
     category: 'marketing',
-    catLabel: '✍️ Marketing & Content',
-    icon: '🎯',
+    catLabel: 'Marketing & Content',
+    icon: '',
     title: 'Copywriting Bán Hàng Thuyết Phục Theo Công Thức PAS',
     desc: 'Viết bài bán hàng đánh trúng nỗi đau khách hàng theo mô hình PAS (Problem - Agitate - Solve) kích thích chốt đơn.',
     tags: ['Copywriting', 'Công thức PAS', 'Tâm lý khách hàng', 'Chuyển đổi'],
@@ -3113,8 +3113,8 @@ Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [L�
   {
     id: 'p_mkt_4',
     category: 'marketing',
-    catLabel: '✍️ Marketing & Content',
-    icon: '📧',
+    catLabel: 'Marketing & Content',
+    icon: '',
     title: 'Chuỗi Email Nuôi Dưỡng & Chăm Sóc Khách Hàng (Email Sequence)',
     desc: 'Thiết kế chuỗi 3 email chào mừng và chuyển đổi khách hàng tiềm năng với tiêu đề mở mail trên 45%.',
     tags: ['Email Marketing', 'Cold Outreach', 'Nurture Sequence', 'Conversion'],
@@ -3129,8 +3129,8 @@ Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [L�
   {
     id: 'p_data_1',
     category: 'data',
-    catLabel: '📊 Phân tích dữ liệu & Excel',
-    icon: '📈',
+    catLabel: 'Phân tích dữ liệu & Excel',
+    icon: '',
     title: 'Phù Thủy Công Thức Excel & Google Sheets Nâng Cao',
     desc: 'Giải quyết bài toán dò tìm phức tạp, mảng động (XLOOKUP, FILTER, INDEX-MATCH) kèm script tự động hóa.',
     tags: ['Excel Formulas', 'XLOOKUP', 'FILTER', 'Mảng động', 'Google Sheets'],
@@ -3144,8 +3144,8 @@ Hãy cung cấp:
   {
     id: 'p_data_2',
     category: 'data',
-    catLabel: '📊 Phân tích dữ liệu & Excel',
-    icon: '🤖',
+    catLabel: 'Phân tích dữ liệu & Excel',
+    icon: '',
     title: 'Viết Macro VBA & Google Apps Script Tự Động Hóa Báo Cáo',
     desc: 'Tự động tổng hợp dữ liệu từ nhiều sheet, định dạng bảng biểu, gửi email báo cáo hàng ngày chỉ với 1 click.',
     tags: ['VBA Macro', 'Google Apps Script', 'Tự động hóa', 'Auto Reporting'],
@@ -3158,8 +3158,8 @@ Hãy cung cấp:
   {
     id: 'p_data_3',
     category: 'data',
-    catLabel: '📊 Phân tích dữ liệu & Excel',
-    icon: '📊',
+    catLabel: 'Phân tích dữ liệu & Excel',
+    icon: '',
     title: 'Phân Tích Chỉ Số Tài Chính & Tăng Trưởng Kinh Doanh (Financial Modeling)',
     desc: 'Tính toán các chỉ số kinh doanh quan trọng (CAC, LTV, Churn rate, Runway, ROI) và đề xuất phương án cải thiện.',
     tags: ['Financial Analysis', 'SaaS Metrics', 'LTV & CAC', 'ROI Optimization'],
@@ -3175,8 +3175,8 @@ Hãy tính toán và phân tích:
   {
     id: 'p_trans_1',
     category: 'translation',
-    catLabel: '💼 Dịch thuật chuyên sâu',
-    icon: '🌐',
+    catLabel: 'Dịch thuật chuyên sâu',
+    icon: '',
     title: 'Dịch Thuật Bản Địa Hóa Song Ngữ Anh - Việt Chuyên Ngành',
     desc: 'Dịch thuật thoát ý, đúng ngữ cảnh chuyên ngành, văn phong tự nhiên như người bản xứ thay vì dịch máy thô cứng.',
     tags: ['Bản địa hóa', 'Anh - Việt', 'Thoát ý tự nhiên', 'Chuẩn thuật ngữ'],
@@ -3190,8 +3190,8 @@ Yêu cầu bắt buộc:
   {
     id: 'p_trans_2',
     category: 'translation',
-    catLabel: '💼 Dịch thuật chuyên sâu',
-    icon: '🎓',
+    catLabel: 'Dịch thuật chuyên sâu',
+    icon: '',
     title: 'Hiệu Đính & Nâng Cấp Luận Văn Học Thuật Chuẩn Quốc Tế',
     desc: 'Sửa lỗi ngữ pháp, cải thiện vốn từ vựng học thuật cao cấp (C1/C2), trau chuốt cấu trúc câu cho bài báo khoa học.',
     tags: ['Academic Proofreading', 'IELTS / TOEFL', 'Bài báo khoa học', 'C1/C2 Vocab'],
@@ -3205,8 +3205,8 @@ Yêu cầu bắt buộc:
   {
     id: 'p_trans_3',
     category: 'translation',
-    catLabel: '💼 Dịch thuật chuyên sâu',
-    icon: '✉️',
+    catLabel: 'Dịch thuật chuyên sâu',
+    icon: '',
     title: 'Viết Email Giao Tiếp Thương Mại Quốc Tế Trang Trọng',
     desc: 'Soạn thảo email tiếng Anh ngoại giao, đàm phán hợp đồng hoặc khiếu nại đối tác một cách khéo léo, dứt khoát.',
     tags: ['Business English', 'Đàm phán thương mại', 'Email ngoại giao', 'Chuyên nghiệp'],
@@ -3222,8 +3222,8 @@ Yêu cầu bắt buộc:
   {
     id: 'skill_ui_craft',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🏗️',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable craft - Xây dựng trọn gói giao diện & Dashboard',
     desc: 'AI tự làm từ đầu đến cuối: phân tích dự án hiện tại, thiết kế UX/UI, triển khai trực tiếp vào code, kiểm tra responsive PC/tablet/mobile và tự sửa lỗi.',
     tags: ['Impeccable', 'Craft', 'Full Dashboard', 'UX/UI', 'Responsive'],
@@ -3234,8 +3234,8 @@ Xây dựng hoàn chỉnh giao diện dashboard quản lý. Hãy phân tích pro
   {
     id: 'skill_ui_polish',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '✨',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable polish - Đánh bóng UI & Tinh chỉnh chi tiết vi mô',
     desc: 'Làm sạch CSS, chuẩn hóa spacing 4px/8px, viền mờ tinh tế, border-radius, shadows và visual hierarchy đạt độ thẩm mỹ cao nhất.',
     tags: ['Impeccable', 'Polish', 'Micro-interactions', 'Spacing', 'Shadows'],
@@ -3246,8 +3246,8 @@ Hãy rà soát toàn bộ giao diện hiện tại: chuẩn hóa spacing theo th
   {
     id: 'skill_ui_layout',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '📐',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable layout - Tái cấu trúc Layout & Grid Responsive',
     desc: 'Chuẩn hóa cấu trúc Flexbox / CSS Grid, Bento-grid hiện đại, chống vỡ khung và chống tràn văn bản trên mọi thiết bị.',
     tags: ['Impeccable', 'Layout', 'CSS Grid', 'Flexbox', 'Responsive'],
@@ -3258,8 +3258,8 @@ Hãy tối ưu lại toàn bộ hệ thống layout: sử dụng Flexbox/CSS Gri
   {
     id: 'skill_ui_typeset',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🔤',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable typeset - Hệ thống Typography & Phân cấp thị giác',
     desc: 'Thiết lập font chữ cao cấp (Inter, Geist, SF Pro), tỷ lệ font-size, line-height và letter-spacing chuyên nghiệp.',
     tags: ['Impeccable', 'Typography', 'Hierarchy', 'Font Pairing'],
@@ -3270,8 +3270,8 @@ Hãy nâng cấp hệ thống Typography: chọn font chữ phù hợp (Inter, G
   {
     id: 'skill_ui_colorize',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🎨',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable colorize - Bảng màu Dark/Light Theme & Contrast',
     desc: 'Xây dựng hệ màu hiện đại, Dark Theme sâu sang trọng (#09090b), viền mờ tinh tế và điểm nhấn tương phản cao.',
     tags: ['Impeccable', 'Colorize', 'Dark Mode', 'Contrast', 'Theme'],
@@ -3282,8 +3282,8 @@ Hãy tối ưu hóa bảng màu giao diện: thiết lập Dark Theme cao cấp 
   {
     id: 'skill_ui_animate',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '⚡',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable animate - Chuyển động vi mô mượt mà & Skeletons',
     desc: 'Bổ sung các chuyển động tinh tế, hover state, loading skeletons, modal enter/leave transitions 150-250ms.',
     tags: ['Impeccable', 'Animate', 'Transitions', 'Skeleton', 'Micro-interactions'],
@@ -3294,8 +3294,8 @@ Bổ sung hiệu ứng chuyển động vi mô (Micro-interactions): hover lift,
   {
     id: 'skill_ui_distill',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🧼',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable distill - Tinh giản tối đa & Loại bỏ chi tiết thừa',
     desc: 'Lược bớt các thành phần gây rối mắt, giảm tải nhận thức (Cognitive Load), giữ lại những gì giá trị nhất.',
     tags: ['Impeccable', 'Distill', 'Minimalism', 'Cognitive Load'],
@@ -3306,8 +3306,8 @@ Hãy lược bỏ toàn bộ các chi tiết thừa thãi, viền phân cách kh
   {
     id: 'skill_ui_harden',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🛡️',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable harden - Tăng độ vững chắc UX & Xử lý mọi Edge Cases',
     desc: 'Bổ sung trạng thái rỗng (Empty States), Error States, Loading spinners, phòng tránh crash và lỗi mất mạng.',
     tags: ['Impeccable', 'Harden', 'Empty States', 'Error Handling', 'Edge Cases'],
@@ -3318,8 +3318,8 @@ Hãy củng cố độ tin cậy của giao diện: bổ sung empty state đẹp
   {
     id: 'skill_ui_audit',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '🔍',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: '/impeccable audit & critique - Đánh giá toàn diện UI/UX',
     desc: 'Báo cáo phân tích chuyên sâu về thẩm mỹ, tính khả dụng, độ trễ và khả năng tiếp cận (Accessibility).',
     tags: ['Impeccable', 'Audit', 'Critique', 'UX Review', 'Accessibility'],
@@ -3330,8 +3330,8 @@ Hãy phân tích và đánh giá chi tiết UI/UX hiện tại: chỉ ra 5 đi�
   {
     id: 'skill_ui_taste_frontend',
     category: 'ui-taste',
-    catLabel: '🎨 Skill Giao Diện',
-    icon: '💎',
+    catLabel: 'Skill Giao Diện',
+    icon: '',
     title: 'design-taste-frontend & high-end-visual-design',
     desc: 'Bộ quy chuẩn thẩm mỹ hàng đầu: loại bỏ giao diện generic, áp dụng ngôn ngữ thiết kế Stripe, Linear, Vercel, Apple.',
     tags: ['Taste Skill', 'Visual Frontend', 'High-End Design', 'Modern Web'],
@@ -3349,8 +3349,8 @@ Hãy phân tích và đánh giá chi tiết UI/UX hiện tại: chỉ ra 5 đi�
   {
     id: 'skill_sp_anthropic',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '📑',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '1. Anthropic Skills - Xử lý tài liệu, PDF, Excel & Thiết kế',
     desc: 'Làm việc với tài liệu phức tạp, trích xuất cấu trúc văn bản dài, chuẩn hóa dữ liệu bảng tính và phân tích báo cáo.',
     tags: ['Anthropic', 'PDF', 'Spreadsheet', 'Báo cáo', 'Phân tích'],
@@ -3364,9 +3364,9 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_superpowers',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🚀',
-    title: '2. Superpowers - Quy trình Spec ➔ Plan ➔ TDD ➔ Review',
+    catLabel: '10 Siêu Skills',
+    icon: '',
+    title: '2. Superpowers - Quy trình Spec  Plan  TDD  Review',
     desc: 'Quy trình kỹ thuật phần mềm chuẩn mực để xây dựng các feature lớn từ con số 0 mà không phát sinh lỗi tiềm ẩn.',
     tags: ['Superpowers', 'Spec', 'Plan', 'TDD', 'Code Review'],
     level: 'Siêu Skill #2',
@@ -3379,8 +3379,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_karpathy',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🧠',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '3. Karpathy Skills - Code đơn giản, ít abstraction, nghĩ sâu trước khi viết',
     desc: 'Tránh AI viết code rườm rà, hạn chế over-engineering, ưu tiên giải pháp trực tiếp, dễ đọc và dễ debug nhất.',
     tags: ['Karpathy', 'KISS', 'Minimalist', 'No Overengineering'],
@@ -3394,8 +3394,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_real_engineers',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🛠️',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '4. Real Engineers - Debugging thực chiến, testing & Production ready',
     desc: 'Tư duy kỹ sư công nghệ thực chiến: truy tìm nguyên nhân gốc rễ (Root Cause), kiểm tra chịu tải và bảo mật.',
     tags: ['Real Engineers', 'Debugging', 'Root Cause', 'Production'],
@@ -3408,8 +3408,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_uiux_promax',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '📱',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '5. UI/UX Pro Max - Responsive đa nền tảng & Design System',
     desc: 'Xây dựng frontend và mobile app với trải nghiệm mượt mà, tối ưu khả năng tiếp cận và hệ thống tokens bài bản.',
     tags: ['UI/UX Pro Max', 'Design System', 'Accessibility', 'Mobile First'],
@@ -3422,8 +3422,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_caveman',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🗿',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '6. Caveman - Output cực ngắn, giảm token & đi thẳng vào đáp án',
     desc: 'Loại bỏ hoàn toàn lời chào hỏi xã giao, giải thích dài dòng. Chỉ đưa ra câu trả lời trực tiếp và code chạy được.',
     tags: ['Caveman', 'Súc tích', 'Tiết kiệm Token', 'Tập trung'],
@@ -3436,8 +3436,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_addy_osmani',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🏎️',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '7. Addy Osmani Skills - Tối ưu hiệu năng Web & Core Web Vitals',
     desc: 'Tối ưu LCP, FID, CLS, lazy loading, code-splitting, tree-shaking và giảm bundle size tối đa.',
     tags: ['Addy Osmani', 'Performance', 'Core Web Vitals', 'Tối ưu web'],
@@ -3450,8 +3450,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_taste_skill',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '💎',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '8. Taste Skill - Thẩm mỹ cao cấp, typography & tránh UI generic',
     desc: 'Biến sản phẩm số thành tác phẩm có cá tính thị giác riêng biệt, giàu cảm xúc và thẩm mỹ hiện đại.',
     tags: ['Taste Skill', 'Typography', 'Visual Hierarchy', 'High Quality'],
@@ -3464,8 +3464,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_awesome_claude',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🧰',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '9. Awesome Claude Skills - Kho mở rộng công cụ & tự động hóa',
     desc: 'Khai thác tối đa các công cụ tích hợp, MCP server, web search và script tự động hóa chuyên biệt.',
     tags: ['Awesome Skills', 'MCP', 'Tool Calling', 'Automation'],
@@ -3478,8 +3478,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_sp_adhd',
     category: 'super-skills',
-    catLabel: '⚡ 10 Siêu Skills',
-    icon: '🎯',
+    catLabel: '10 Siêu Skills',
+    icon: '',
     title: '10. I Have ADHD - Trình bày ngắn gọn, chia nhỏ task, 100% Actionable',
     desc: 'Cách truyền đạt tối ưu cho người bận rộn: checklist cụ thể, không khối văn bản dài, làm bước nào xong bước đó.',
     tags: ['ADHD', 'Actionable', 'Checklist', 'Rõ ràng'],
@@ -3497,8 +3497,8 @@ Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệ
   {
     id: 'skill_aff_grand_slam',
     category: 'affiliate',
-    catLabel: '💼 Affiliate Skills',
-    icon: '🏆',
+    catLabel: 'Affiliate Skills',
+    icon: '',
     title: 'Grand Slam Offer Generator - Lời đề nghị không thể từ chối',
     desc: 'Áp dụng công thức Hormozi $100M Offers: Dream Outcome, Perceived Likelihood, Time Delay và Effort & Sacrifice.',
     tags: ['Affiliate', 'Grand Slam Offer', 'Conversion', 'Hormozi'],
@@ -3518,8 +3518,8 @@ Hãy giúp tôi xây dựng một Lời đề nghị không thể chối từ ch
   {
     id: 'skill_aff_viral_post',
     category: 'affiliate',
-    catLabel: '💼 Affiliate Skills',
-    icon: '🔥',
+    catLabel: 'Affiliate Skills',
+    icon: '',
     title: 'Viral Post & Hook Writer - Viết bài mạng xã hội triệu view',
     desc: 'Tạo hook mở đầu gây tò mò cực mạnh, giữ chân người đọc với nhịp điệu lôi cuốn và call-to-action chuyển đổi cao.',
     tags: ['Viral Hook', 'Social Media', 'Facebook', 'LinkedIn', 'X'],
@@ -3534,8 +3534,8 @@ Yêu cầu:
   {
     id: 'skill_aff_tiktok_script',
     category: 'affiliate',
-    catLabel: '💼 Affiliate Skills',
-    icon: '🎬',
+    catLabel: 'Affiliate Skills',
+    icon: '',
     title: 'TikTok & Short-Form Video Script Writer',
     desc: 'Kịch bản video ngắn 30-60 giây: Hook 3 giây đầu, Body giữ nhịp cao, và CTA tự nhiên không gượng ép.',
     tags: ['TikTok', 'Reels', 'Shorts', 'Video Script', 'Kịch bản'],
@@ -3549,8 +3549,8 @@ Cấu trúc kịch bản 3 cột: [Thời gian | Hình ảnh/Hành động | L�
   {
     id: 'skill_aff_seo_audit',
     category: 'affiliate',
-    catLabel: '💼 Affiliate Skills',
-    icon: '📊',
+    catLabel: 'Affiliate Skills',
+    icon: '',
     title: 'SEO Audit & Keyword Optimization cho bài viết Affiliate',
     desc: 'Kiểm toán SEO toàn diện: Search Intent, On-Page SEO, thẻ H1/H2/H3, FAQ schema và tối ưu tỷ lệ Click (CTR).',
     tags: ['SEO', 'Keyword Research', 'Affiliate Blog', 'On-page'],
@@ -3565,10 +3565,10 @@ Phân tích và tối ưu hóa bài viết blog cho từ khóa: [Điền từ kh
   {
     id: 'skill_aff_email_drip',
     category: 'affiliate',
-    catLabel: '💼 Affiliate Skills',
-    icon: '📧',
+    catLabel: 'Affiliate Skills',
+    icon: '',
     title: 'Email Drip Sequence - Chuỗi 5 email nuôi dưỡng & bán hàng',
-    desc: 'Chuỗi email tự động: Chào mừng ➔ Câu chuyện cá nhân ➔ Giá trị chuyên sâu ➔ Case Study ➔ Chốt ưu đãi.',
+    desc: 'Chuỗi email tự động: Chào mừng  Câu chuyện cá nhân  Giá trị chuyên sâu  Case Study  Chốt ưu đãi.',
     tags: ['Email Automation', 'Drip Sequence', 'Nurturing', 'Sales Funnel'],
     level: 'Tự động hóa',
     prompt: `Hãy thiết kế chuỗi 5 Email Drip Sequence tự động nuôi dưỡng và chuyển đổi khách hàng tiềm năng cho: [Sản phẩm/Khóa học/Phần mềm]:
@@ -3640,7 +3640,7 @@ function renderPrompts() {
 
   const emptyHtml = `
     <div style="grid-column: 1/-1; text-align: center; padding: 3.5rem 1rem; color: var(--text-muted); background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 12px; width: 100%;">
-      <div style="font-size: 2.2rem; margin-bottom: 0.65rem;">🔍</div>
+      
       <h4 style="color: var(--text-white); margin-bottom: 0.35rem;">Không tìm thấy Prompt phù hợp</h4>
       <p style="font-size: 0.85rem;">Hãy thử tìm từ khóa khác hoặc bấm "+ Tạo Prompt Mới" để lưu công thức của riêng bạn.</p>
     </div>
@@ -3666,7 +3666,7 @@ function renderPrompts() {
       row.innerHTML = `
         <div class="prompt-list-main">
           <div class="prompt-list-left">
-            <span class="prompt-list-icon">${item.icon || '💡'}</span>
+            
             <div class="prompt-list-info">
               <div class="prompt-list-title-line">
                 <span class="prompt-list-title" onclick="window.togglePromptDetail('${item.id}')">${escapeHtml(item.title)}</span>
@@ -3679,19 +3679,19 @@ function renderPrompts() {
 
           <div class="prompt-list-actions">
             <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              
               <span>Sao chép</span>
             </button>
             <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
-              <span>⚙️ System</span>
+              <span>System</span>
             </button>
             <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
               <span>Áp dụng vào Playground</span>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              
             </button>
             <button class="prompt-list-expand-btn" id="btn-exp-${item.id}" title="Xem trước nội dung chi tiết" onclick="window.togglePromptDetail('${item.id}')">
               <span>Chi tiết</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              
             </button>
           </div>
         </div>
@@ -3713,7 +3713,7 @@ function renderPrompts() {
       card.innerHTML = `
         <div class="prompt-card-header">
           <div class="prompt-title-group">
-            <span class="prompt-icon">${item.icon || '💡'}</span>
+            
             <div>
               <h4 class="prompt-card-title">${escapeHtml(item.title)}</h4>
             </div>
@@ -3735,17 +3735,17 @@ function renderPrompts() {
         <div class="prompt-card-footer">
           <div style="display: flex; gap: 0.4rem; align-items: center;">
             <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              
               <span>Sao chép</span>
             </button>
             <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
-              <span>⚙️ System</span>
+              <span>System</span>
             </button>
           </div>
 
           <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
             <span>Áp dụng vào Playground</span>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            
           </button>
         </div>
       `;
@@ -3836,7 +3836,7 @@ function setupPromptEvents() {
       localStorage.setItem('vz_custom_prompts', JSON.stringify(state.customPrompts));
 
       promptModal.classList.remove('active');
-      showToast(`⭐ Đã lưu Prompt cá nhân: "${title}"!`);
+      showToast(` Đã lưu Prompt cá nhân: "${title}"!`);
       renderPrompts();
     });
   }
@@ -3844,37 +3844,22 @@ function setupPromptEvents() {
 
 function getCatLabel(cat) {
   const map = {
-    'ui-taste': '🎨 Skill Giao Diện',
-    'super-skills': '⚡ 10 Siêu Skills',
-    'affiliate': '💼 Affiliate Skills',
-    'image': '🖼️ Chỉnh ảnh & Vision',
-    'exam': '📚 Tạo đề thi & Giáo dục',
-    'document': '📄 Chuyển PDF sang Word',
-    'code': '💻 Lập trình & Debug',
-    'marketing': '✍️ Marketing & Content',
-    'data': '📊 Phân tích dữ liệu & Excel',
-    'translation': '🌐 Dịch thuật & Ngoại ngữ',
-    'custom': '⭐ Tùy chỉnh của tôi'
+    'ui-taste': 'Skill Giao Diện',
+    'super-skills': '10 Siêu Skills',
+    'affiliate': 'Affiliate Skills',
+    'image': 'Chỉnh ảnh & Vision',
+    'exam': 'Tạo đề thi & Giáo dục',
+    'document': 'Chuyển PDF sang Word',
+    'code': 'Lập trình & Debug',
+    'marketing': 'Marketing & Content',
+    'data': 'Phân tích dữ liệu & Excel',
+    'translation': 'Dịch thuật & Ngoại ngữ',
+    'custom': ' Tùy chỉnh của tôi'
   };
-  return map[cat] || '⭐ Tùy chỉnh';
+  return map[cat] || ' Tùy chỉnh';
 }
 
-function getCatIcon(cat) {
-  const map = {
-    'ui-taste': '🎨',
-    'super-skills': '⚡',
-    'affiliate': '💼',
-    'image': '🎨',
-    'exam': '📝',
-    'document': '📑',
-    'code': '💻',
-    'marketing': '🚀',
-    'data': '📈',
-    'translation': '🌐',
-    'custom': '⭐'
-  };
-  return map[cat] || '💡';
-}
+function getCatIcon(cat) { return ''; }
 
 window.togglePromptDetail = function(rowId) {
   const detailEl = document.getElementById('detail-' + rowId);
@@ -3884,8 +3869,8 @@ window.togglePromptDetail = function(rowId) {
   if (btnEl) {
     btnEl.classList.toggle('expanded', isOpen);
     btnEl.innerHTML = isOpen ? 
-      `<span>Thu gọn</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>` : 
-      `<span>Chi tiết</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+      `<span>Thu gọn</span> ` : 
+      `<span>Chi tiết</span> `;
   }
 };
 
@@ -3916,13 +3901,13 @@ window.copyPromptCardText = async function(btnEl, text) {
       await navigator.clipboard.writeText(text);
     }
     const original = btnEl.innerHTML;
-    btnEl.innerHTML = `<span style="color:#22c55e;">✓ Đã chép!</span>`;
-    showToast('📋 Đã sao chép nội dung Prompt vào bộ nhớ tạm!');
+    btnEl.innerHTML = `<span style="color:#22c55e;"> Đã chép!</span>`;
+    showToast(' Đã sao chép nội dung Prompt vào bộ nhớ tạm!');
     setTimeout(() => {
       btnEl.innerHTML = original;
     }, 1800);
   } catch {
-    showToast('⚠️ Đã sao chép prompt!');
+    showToast(' Đã sao chép prompt!');
   }
 };
 
@@ -3973,7 +3958,7 @@ window.applyPromptToPlayground = async function(promptText, title) {
   }
 
   // 4. Hiển thị thông báo Toast xác nhận
-  showToast(`🚀 Đã sao chép & điền sẵn Prompt: "${title || 'Mẫu'}" vào ô chat. Hãy chỉnh sửa nếu cần và bấm Gửi!`);
+  showToast(` Đã sao chép & điền sẵn Prompt: "${title || 'Mẫu'}" vào ô chat. Hãy chỉnh sửa nếu cần và bấm Gửi!`);
 };
 
 /**
@@ -4005,5 +3990,5 @@ window.applyAsSystemPrompt = async function(promptText, title) {
     sysPromptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  showToast(`⚙️ Đã thiết lập Prompt làm System Prompt cho Playground!`);
+  showToast(` Đã thiết lập Prompt làm System Prompt cho Playground!`);
 };

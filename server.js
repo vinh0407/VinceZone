@@ -536,8 +536,8 @@ try {
 // Start Server
 app.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`⚡ VinceZone AI Workplay & Gateway running on:`);
-  console.log(`   ➜ UI Playground:  http://localhost:${PORT}`);
-  console.log(`   ➜ Gateway API:    http://localhost:${PORT}/v1/chat/completions`);
+  console.log(` VinceZone AI Workplay & Gateway running on:`);
+  console.log(`   -> UI Playground:  http://localhost:${PORT}`);
+  console.log(`   -> Gateway API:    http://localhost:${PORT}/v1/chat/completions`);
   console.log(`====================================================`);
 });

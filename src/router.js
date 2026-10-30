@@ -169,8 +169,8 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
 
             Store.logRequest({
               endpoint: '/v1/chat/completions',
-              model: `${resolvedModel} ➜ ${vModel} (Chuyển sang Vision)`,
-              provider: `${provider.name} ➜ ${p.name}`,
+              model: `${resolvedModel}  ${vModel} (Chuyển sang Vision)`,
+              provider: `${provider.name} -> ${p.name}`,
               clientIp,
               status: 200,
               latency: Date.now() - startTime,
@@ -213,8 +213,8 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
 
           Store.logRequest({
             endpoint: '/v1/chat/completions',
-            model: `${resolvedModel} ➜ ${fallbackModel} (Tự động chuyển tiếp)`,
-            provider: `${provider.name} ➜ ${fallbackProvider.name}`,
+            model: `${resolvedModel} -> ${fallbackModel} (Tự động chuyển tiếp)`,
+            provider: `${provider.name} -> ${fallbackProvider.name}`,
             clientIp,
             status: 200,
             latency: Date.now() - startTime,
@@ -231,7 +231,7 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
 
     let userFacingError = err.message;
     if (isVisionError) {
-      userFacingError = `[Tác vụ Thị giác] Mô hình "${resolvedModel}" chỉ hỗ trợ văn bản (text-only). Bạn hãy chọn tác vụ "🖼️ Phân tích hình ảnh (Vision)" ở bước 2 để chọn mô hình đọc ảnh (như "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" hoặc Google Gemini / GPT-4o).`;
+      userFacingError = `[Tác vụ Thị giác] Mô hình "${resolvedModel}" chỉ hỗ trợ văn bản (text-only). Bạn hãy chọn tác vụ "Phân tích hình ảnh (Vision)" ở bước 2 để chọn mô hình đọc ảnh (như "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" hoặc Google Gemini / GPT-4o).`;
     } else if (err.message && (err.message.includes('Free usage limit reached') || (err.message.includes('429') && err.message.includes('OpenCode')))) {
       userFacingError = `[OpenCode] Đã đạt giới hạn gọi miễn phí (HTTP 429: Free usage limit reached). Bạn hãy chuyển sang chọn Provider "Kilo Gateway" (chọn model "kilo-auto/free" hoặc "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free") ở cột bên phải để tiếp tục sử dụng miễn phí không giới hạn.`;
     }
