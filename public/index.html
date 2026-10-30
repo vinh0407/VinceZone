@@ -2,7 +2,10 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#09090b">
   <title>VinceZone AI Workplay & Gateway</title>
   <link rel="stylesheet" href="style.css">
   <!-- Markdown & Code Highlight Support -->
@@ -60,7 +63,12 @@
       <section id="tab-playground" class="tab-pane active">
         <div class="playground-layout">
           <!-- 1. Left Sidebar: Chat History Sessions (Bộ nhớ lịch sử chat) -->
-          <aside class="chat-history-sidebar">
+          <aside class="chat-history-sidebar" id="chat-history-sidebar">
+            <div class="mobile-drawer-header">
+              <span class="mobile-drawer-title">📜 Lịch Sử Chat</span>
+              <button type="button" class="btn-close-drawer" id="btn-close-history-drawer" title="Đóng">✕</button>
+            </div>
+
             <div class="history-header">
               <button id="btn-new-chat" class="btn-new-chat">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -92,6 +100,25 @@
 
           <!-- 2. Middle Panel: Chat Conversation Canvas -->
           <div class="playground-chat-panel">
+            <!-- Mobile Chat Header Bar (Hiện trên màn hình điện thoại) -->
+            <div class="mobile-chat-header">
+              <button type="button" id="btn-open-history-drawer" class="mobile-icon-btn" title="Mở danh sách lịch sử chat">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <span>Lịch sử</span>
+              </button>
+
+              <div class="mobile-active-model-pill" id="mobile-model-pill" title="Chạm để đổi Provider hoặc Model AI">
+                <span class="mobile-model-dot"></span>
+                <span id="mobile-model-name-label">Chọn Model AI</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+
+              <button type="button" id="btn-open-model-drawer" class="mobile-icon-btn" title="Cài đặt Model & Tham số">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Model</span>
+              </button>
+            </div>
+
             <div id="chat-messages" class="chat-messages">
               <div class="welcome-banner">
                 <div class="welcome-icon">⚡</div>
@@ -185,7 +212,12 @@
           </div>
 
           <!-- 3. Right Sidebar: Controls & Model Selection -->
-          <aside class="playground-sidebar">
+          <aside class="playground-sidebar" id="playground-sidebar">
+            <div class="mobile-drawer-header">
+              <span class="mobile-drawer-title">⚡ Cấu Hình Model AI</span>
+              <button type="button" class="btn-close-drawer" id="btn-close-model-drawer" title="Đóng">✕</button>
+            </div>
+
             <!-- BƯỚC 1: Chọn Nhà cung cấp (Provider) -->
             <div class="sidebar-section">
               <div class="label-with-val">
@@ -915,6 +947,28 @@
 
     <!-- TOAST NOTIFICATION CONTAINER -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- MOBILE BOTTOM NAVIGATION (Hiện trên điện thoại) -->
+    <nav class="mobile-bottom-nav">
+      <button class="mobile-nav-btn active" data-tab="playground">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Playground</span>
+      </button>
+      <button class="mobile-nav-btn" data-tab="prompts">
+        <div style="position: relative; display: inline-flex;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="mobile-badge-dot"></span>
+        </div>
+        <span>Kho Prompt</span>
+      </button>
+      <button class="mobile-nav-btn" data-tab="settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Cài Đặt</span>
+      </button>
+    </nav>
+
+    <!-- MOBILE DRAWER BACKDROP OVERLAY -->
+    <div id="mobile-drawer-backdrop" class="mobile-drawer-backdrop"></div>
 
   </div>
 

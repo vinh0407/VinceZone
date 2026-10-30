@@ -336,17 +336,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 // -------------------------------------------------------------
 
 function setupNavigation() {
-  // Top nav (Playground vs Prompt Hub vs Cài Đặt)
-  tabButtons.forEach(btn => {
+  // Top nav & Mobile bottom nav sync
+  const allNavButtons = document.querySelectorAll('.nav-btn, .mobile-nav-btn');
+  allNavButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
 
-      tabButtons.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(p => p.classList.remove('active'));
+      // Sync active state on both top bar and bottom mobile bar
+      allNavButtons.forEach(b => {
+        if (b.getAttribute('data-tab') === targetTab) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
 
-      btn.classList.add('active');
+      tabPanes.forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${targetTab}`);
       if (pane) pane.classList.add('active');
+
+      // Tự động đóng drawer trên mobile khi chuyển tab
+      closeMobileDrawers();
 
       if (targetTab === 'prompts') {
         renderPrompts();
@@ -363,6 +373,21 @@ function setupNavigation() {
       }
     });
   });
+
+  // Mobile Drawers Toggle Handlers
+  const btnOpenHistory = document.getElementById('btn-open-history-drawer');
+  const btnCloseHistory = document.getElementById('btn-close-history-drawer');
+  const btnOpenModel = document.getElementById('btn-open-model-drawer');
+  const mobileModelPill = document.getElementById('mobile-model-pill');
+  const btnCloseModel = document.getElementById('btn-close-model-drawer');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+
+  if (btnOpenHistory) btnOpenHistory.addEventListener('click', openHistoryDrawer);
+  if (btnCloseHistory) btnCloseHistory.addEventListener('click', closeMobileDrawers);
+  if (btnOpenModel) btnOpenModel.addEventListener('click', openModelDrawer);
+  if (mobileModelPill) mobileModelPill.addEventListener('click', openModelDrawer);
+  if (btnCloseModel) btnCloseModel.addEventListener('click', closeMobileDrawers);
+  if (backdrop) backdrop.addEventListener('click', closeMobileDrawers);
 
   // Settings Sub-Navigation (Thông Tin Người Dùng, Providers Hub, Gateway API, Bộ Nhớ, Logs)
   const settingsNavItems = document.querySelectorAll('.settings-nav-item');
@@ -396,6 +421,56 @@ window.switchSettingsSubtab = function(subtab) {
 };
 
 // -------------------------------------------------------------
+// MOBILE DRAWER CONTROLS (GIAO DIỆN DI ĐỘNG)
+// -------------------------------------------------------------
+
+function closeMobileDrawers() {
+  const historySidebar = document.getElementById('chat-history-sidebar');
+  const modelSidebar = document.getElementById('playground-sidebar');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+
+  if (historySidebar) historySidebar.classList.remove('mobile-drawer-open');
+  if (modelSidebar) modelSidebar.classList.remove('mobile-drawer-open');
+  if (backdrop) backdrop.classList.remove('active');
+  document.body.classList.remove('mobile-drawer-active');
+}
+
+function openHistoryDrawer() {
+  closeMobileDrawers();
+  const historySidebar = document.getElementById('chat-history-sidebar');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+  if (historySidebar) historySidebar.classList.add('mobile-drawer-open');
+  if (backdrop) backdrop.classList.add('active');
+  document.body.classList.add('mobile-drawer-active');
+}
+
+function openModelDrawer() {
+  closeMobileDrawers();
+  const modelSidebar = document.getElementById('playground-sidebar');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+  if (modelSidebar) modelSidebar.classList.add('mobile-drawer-open');
+  if (backdrop) backdrop.classList.add('active');
+  document.body.classList.add('mobile-drawer-active');
+}
+
+function updateMobileModelLabel() {
+  const modelSelectEl = document.getElementById('playground-model-select');
+  const labelEl = document.getElementById('mobile-model-name-label');
+  if (!labelEl || !modelSelectEl) return;
+  const selOption = modelSelectEl.options[modelSelectEl.selectedIndex];
+  if (selOption && selOption.text) {
+    let cleanName = selOption.text.replace(/✨\s*\[FREE\]\s*/i, '').replace(/👁️.*|💻.*|🧠.*/g, '').trim();
+    if (cleanName.includes('/')) {
+      const parts = cleanName.split('/');
+      cleanName = parts[parts.length - 1];
+    }
+    labelEl.textContent = cleanName || 'Chọn Model AI';
+  } else {
+    labelEl.textContent = 'Chọn Model AI';
+  }
+}
+
+// -------------------------------------------------------------
 // 2. PLAYGROUND LOGIC
 // -------------------------------------------------------------
 
@@ -420,6 +495,7 @@ function setupPlaygroundEvents() {
 
   modelSelect.addEventListener('change', () => {
     renderSnippets();
+    updateMobileModelLabel();
   });
 
   if (filterFreeOnly) {
@@ -1330,6 +1406,7 @@ function updateModelDropdownForSelectedProvider() {
   }
 
   renderSnippets();
+  updateMobileModelLabel();
 }
 
 // -------------------------------------------------------------
@@ -2297,6 +2374,7 @@ function renderChatHistoryList() {
     item.onclick = (e) => {
       if (e.target.classList.contains('history-item-del')) return;
       loadChatSession(chat.id);
+      closeMobileDrawers();
     };
 
     chatHistoryList.appendChild(item);
@@ -2307,6 +2385,7 @@ function setupChatHistoryEvents() {
   if (btnNewChat) {
     btnNewChat.addEventListener('click', () => {
       startNewChat();
+      closeMobileDrawers();
     });
   }
 
@@ -3734,16 +3813,23 @@ window.applyPromptToPlayground = async function(promptText, title) {
     console.warn('Clipboard write error:', err);
   }
 
-  // 2. Chuyển thẳng tới tab Playground
-  const tabBtns = document.querySelectorAll('.nav-btn');
+  // 2. Chuyển thẳng tới tab Playground (Đồng bộ cả Mobile Bottom Nav)
+  const allNavs = document.querySelectorAll('.nav-btn, .mobile-nav-btn');
   const panes = document.querySelectorAll('.tab-pane');
-  tabBtns.forEach(b => b.classList.remove('active'));
+  allNavs.forEach(b => {
+    if (b.getAttribute('data-tab') === 'playground') {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
   panes.forEach(p => p.classList.remove('active'));
 
-  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
   const playgroundPane = document.getElementById('tab-playground');
-  if (playgroundBtn) playgroundBtn.classList.add('active');
   if (playgroundPane) playgroundPane.classList.add('active');
+
+  // Đóng các drawer trên mobile
+  closeMobileDrawers();
 
   // 3. Ghi sẵn prompt vào ô chat input nhưng CHƯA nhấn gửi
   const chatInputEl = document.getElementById('chat-input');
