@@ -374,6 +374,12 @@ const Store = {
     writeDb(data);
   },
 
+  clearAllMemories() {
+    const data = readDb();
+    data.memories = [];
+    writeDb(data);
+  },
+
   toggleMemory(id) {
     const data = readDb();
     data.memories = data.memories || [];
@@ -394,16 +400,34 @@ const Store = {
     const activeMemories = this.getMemories().filter(m => m.enabled && m.content);
     if (activeMemories.length === 0) return '';
 
-    const lines = activeMemories.map(m => {
-      let tag = '[Ghi nhớ]';
-      if (m.category === 'preference') tag = '[Sở thích]';
-      if (m.category === 'project') tag = '[Dự án]';
-      if (m.category === 'rule') tag = '[Quy tắc]';
-      return `- ${tag}: ${m.content}`;
-    });
+    const explicitMemories = activeMemories.filter(m => m.category !== 'conversation');
+    const chatMemories = activeMemories.filter(m => m.category === 'conversation');
 
-    return `\n\n### [BỘ NHỚ VINCEZONE - KIẾN THỨC DÙNG CHUNG QUA CÁC AI]:\n` +
-           `Hệ thống VinceZone đã lưu trữ các thông tin và sở thích sau đây của người dùng. Dù bạn là AI nào, hãy luôn áp dụng các ghi nhớ này khi phản hồi:\n` +
+    const lines = [];
+
+    if (explicitMemories.length > 0) {
+      lines.push('--- [QUY TẮC, SỞ THÍCH & KIẾN THỨC DÙNG CHUNG] ---');
+      explicitMemories.forEach(m => {
+        let tag = '[Ghi nhớ]';
+        if (m.category === 'preference') tag = '[Sở thích]';
+        if (m.category === 'project') tag = '[Dự án]';
+        if (m.category === 'rule') tag = '[Quy tắc]';
+        if (m.category === 'learned') tag = '[Tri thức đã học]';
+        lines.push(`- ${tag}: ${m.content}`);
+      });
+    }
+
+    if (chatMemories.length > 0) {
+      lines.push('\n--- [KÝ ỨC CÁC ĐOẠN CHAT TRƯỚC ĐÂY (VẪN LƯU KỂ CẢ KHI XÓA LỊCH SỬ CHAT)]: ---');
+      // Lấy 25 lượt tương tác gần nhất để AI hiểu mạch ngữ cảnh mà không làm quá tải token
+      const recentTurns = chatMemories.slice(0, 25);
+      recentTurns.forEach(m => {
+        lines.push(`- ${m.content}`);
+      });
+    }
+
+    return `\n\n### [BỘ NHỚ NHẬN THỨC VINCEZONE - DÙNG CHUNG QUA CÁC AI]:\n` +
+           `Hệ thống VinceZone đã ghi nhớ toàn bộ thông tin và các cuộc trò chuyện trước đây của người dùng. Dù bạn là AI nào, hãy luôn vận dụng các ký ức này để phản hồi nhất quán, chính xác và không lặp lại câu hỏi cũ:\n` +
            lines.join('\n') +
            `\n### [HẾT BỘ NHỚ VINCEZONE]\n`;
   },
@@ -606,31 +630,100 @@ const Store = {
       target = newChat;
     }
 
-    // Tự động kích hoạt bộ nhớ nhận thức học hỏi từ đoạn chat vừa lưu
-    if (target.messages && target.messages.length > 0) {
-      const lastUserMsg = [...target.messages].reverse().find(m => m.role === 'user');
-      if (lastUserMsg && lastUserMsg.content) {
-        const text = typeof lastUserMsg.content === 'string'
-          ? lastUserMsg.content
-          : (Array.isArray(lastUserMsg.content) ? lastUserMsg.content.filter(p => p.type === 'text').map(p => p.text).join(' ') : '');
-        if (text) {
-          this.autoExtractMemory(text, target.model || 'Chat Memory');
-        }
-      }
-    }
-
     if (data.chatSessions.length > 250) {
       data.chatSessions = data.chatSessions.slice(0, 250);
     }
 
     writeDb(data);
+
+    // ----------------------------------------------------
+    // TỰ ĐỘNG GHI NHỚ TOÀN BỘ ĐOẠN CHAT (CẢ CỦA TÔI VÀ CỦA AI)
+    // Toàn bộ các mục trong lịch sử chat được lưu trực tiếp vào Bộ nhớ nhận thức (data.memories).
+    // Kể cả khi người dùng xóa lịch sử chat, các ghi nhớ này vẫn nằm nguyên trong bộ nhớ!
+    // Chỉ khi người dùng bấm xóa bộ nhớ thì mới mất vĩnh viễn.
+    // ----------------------------------------------------
+    if (target.messages && target.messages.length > 0) {
+      this.autoRecordChatTurnsToMemory(target);
+    }
+
     return target;
+  },
+
+  /**
+   * Tự động lưu từng lượt chat (User & AI) vào Bộ nhớ nhận thức vĩnh viễn
+   */
+  autoRecordChatTurnsToMemory(chat) {
+    if (!chat || !chat.messages || !Array.isArray(chat.messages)) return;
+    const data = readDb();
+    data.memories = data.memories || [];
+    const now = new Date().toISOString();
+    let changed = false;
+
+    chat.messages.forEach((msg, idx) => {
+      if (!msg || !msg.content) return;
+      const rawText = typeof msg.content === 'string'
+        ? msg.content
+        : (Array.isArray(msg.content) ? msg.content.filter(p => p.type === 'text').map(p => p.text).join(' ') : '');
+      const text = rawText.trim();
+      if (!text) return;
+
+      // Tạo ID ổn định theo chat.id, index, role để không bị trùng lặp khi chat tự lưu nhiều lần
+      const safeId = 'mem_chat_' + crypto.createHash('md5').update(`${chat.id}_${idx}_${msg.role}_${text.slice(0, 100)}`).digest('hex').slice(0, 14);
+
+      const isUser = msg.role === 'user';
+      const formattedContent = isUser
+        ? `[Tôi hỏi]: ${text}`
+        : `[AI (${chat.model || msg.model || 'Trợ lý'}) trả lời]: ${text}`;
+
+      const existingIdx = data.memories.findIndex(m => m.id === safeId);
+      if (existingIdx >= 0) {
+        if (data.memories[existingIdx].content !== formattedContent) {
+          data.memories[existingIdx].content = formattedContent;
+          data.memories[existingIdx].updatedAt = now;
+          changed = true;
+        }
+      } else {
+        const newMem = {
+          id: safeId,
+          content: formattedContent,
+          category: 'conversation',
+          sourceModel: isUser ? `Đoạn chat: ${chat.title || 'Hội thoại'}` : `${chat.model || msg.model || 'AI Model'}`,
+          role: msg.role,
+          chatId: chat.id,
+          enabled: true,
+          createdAt: now,
+          updatedAt: now
+        };
+        data.memories.unshift(newMem);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      writeDb(data);
+    }
+  },
+
+  /**
+   * Đồng bộ toàn bộ các cuộc trò chuyện từ trước đến nay vào Bộ nhớ nhận thức
+   */
+  syncAllChatsToMemory(userId = null) {
+    const chats = this.getChats(userId);
+    const beforeCount = (readDb().memories || []).length;
+    for (const chat of chats) {
+      this.autoRecordChatTurnsToMemory(chat);
+    }
+    const afterCount = (readDb().memories || []).length;
+    return { added: Math.max(0, afterCount - beforeCount), total: afterCount };
   },
 
   deleteChat(id) {
     const data = readDb();
     data.chatSessions = (data.chatSessions || []).filter(c => c.id !== id);
     writeDb(data);
+    // GHI CHÚ QUAN TRỌNG:
+    // Tuyệt đối KHÔNG xóa trong data.memories!
+    // Khi xóa lịch sử chat, bộ nhớ nhận thức vẫn còn nguyên vẹn.
   },
 
   clearAllChats(userId = null) {
@@ -641,6 +734,9 @@ const Store = {
       data.chatSessions = [];
     }
     writeDb(data);
+    // GHI CHÚ QUAN TRỌNG:
+    // Tuyệt đối KHÔNG xóa trong data.memories!
+    // Kể cả khi xóa tất cả lịch sử chat, bộ nhớ nhận thức vẫn còn nguyên vẹn.
   },
 
   // ----------------------------------------------------

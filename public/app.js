@@ -1961,6 +1961,7 @@ function renderMemories() {
   }
 
   const categoryLabels = {
+    conversation: '💬 Đoạn chat & Hội thoại',
     preference: 'Sở thích & Phong cách',
     project: 'Dự án',
     rule: 'Quy tắc',
@@ -2023,6 +2024,20 @@ function setupMemoryEvents() {
       } finally {
         btnSyncChatMemory.disabled = false;
         btnSyncChatMemory.innerHTML = originalText;
+      }
+    });
+  }
+
+  const btnClearAllMemories = document.getElementById('btn-clear-all-memories');
+  if (btnClearAllMemories) {
+    btnClearAllMemories.addEventListener('click', async () => {
+      if (!confirm('CẢNH BÁO NGUY HIỂM: Hành động này sẽ XÓA VĨNH VIỄN toàn bộ bộ nhớ nhận thức của VinceZone!\n\nLưu ý: Ngay cả khi bạn đã xóa lịch sử chat, các ghi nhớ hội thoại cũng sẽ bị xóa sạch hoàn toàn nếu bạn tiếp tục.\n\nBạn có chắc chắn muốn xóa vĩnh viễn?')) return;
+      try {
+        await authFetch('/api/memories', { method: 'DELETE' });
+        alert('🗑️ Toàn bộ bộ nhớ nhận thức đã bị xóa vĩnh viễn!');
+        await fetchMemories();
+      } catch (err) {
+        alert('Lỗi xóa bộ nhớ: ' + err.message);
       }
     });
   }

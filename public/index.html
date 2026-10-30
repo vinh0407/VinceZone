@@ -620,16 +620,20 @@
                     <input type="checkbox" id="memory-global-toggle" checked>
                     <span>Bộ Nhớ: <strong>BẬT</strong></span>
                   </label>
-                  <label class="memory-toggle-pill" title="Tự động nhận diện và lưu lại các câu 'hãy nhớ là...', 'tôi tên là...' từ chat">
+                  <label class="memory-toggle-pill" title="Tự động ghi nhớ toàn bộ hội thoại của tôi và của AI">
                     <input type="checkbox" id="memory-autolearn-toggle" checked>
-                    <span>Tự Học: <strong>BẬT</strong></span>
+                    <span>Tự Ghi Nhớ Chat: <strong>BẬT</strong></span>
                   </label>
-                  <button id="btn-sync-chat-memory" class="btn-secondary" title="Tự động quét lịch sử chat để trích xuất các kiến thức, thông tin dự án & sở thích vào bộ nhớ">
+                  <button id="btn-sync-chat-memory" class="btn-secondary" title="Đồng bộ toàn bộ lịch sử chat (của tôi và của AI) vào Bộ nhớ nhận thức vĩnh viễn">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                    Học từ Lịch Sử Chat
+                    Quét & Lưu Chat Vào Bộ Nhớ
                   </button>
                   <button id="btn-open-add-memory" class="btn-primary">
                     + Thêm Ghi Nhớ
+                  </button>
+                  <button id="btn-clear-all-memories" class="btn-ghost" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.25);" title="Chỉ khi bạn bấm nút này, các mục ghi nhớ mới bị xóa vĩnh viễn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Xóa Vĩnh Viễn Bộ Nhớ
                   </button>
                 </div>
               </div>
@@ -637,10 +641,11 @@
               <div class="memory-toolbar">
                 <div class="memory-search-box">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" id="memory-search-input" placeholder="Tìm kiếm kiến thức trong bộ nhớ...">
+                  <input type="text" id="memory-search-input" placeholder="Tìm kiếm kiến thức, đoạn chat trong bộ nhớ...">
                 </div>
                 <div class="memory-filters">
                   <button class="mem-filter-btn active" data-cat="all">Tất cả</button>
+                  <button class="mem-filter-btn" data-cat="conversation">💬 Đoạn chat & Hội thoại</button>
                   <button class="mem-filter-btn" data-cat="preference">Sở thích & Phong cách</button>
                   <button class="mem-filter-btn" data-cat="project">Dự án</button>
                   <button class="mem-filter-btn" data-cat="rule">Quy tắc</button>
@@ -786,6 +791,7 @@
           <div class="form-group">
             <label>Phân loại ghi nhớ</label>
             <select id="mem-category" required>
+              <option value="conversation">💬 Đoạn chat & Lịch sử hội thoại</option>
               <option value="preference">Sở thích & Phong cách (Preferences)</option>
               <option value="project">Thông tin dự án (Project Context)</option>
               <option value="rule">Quy tắc bắt buộc (Rules & Guidelines)</option>

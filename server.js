@@ -360,16 +360,21 @@ app.get('/api/memories', (req, res) => {
 });
 
 /**
- * Trích xuất & đồng bộ tự động kiến thức nhận thức từ lịch sử chat
+ * Trích xuất & đồng bộ tự động toàn bộ lịch sử chat (của tôi & của AI) vào Bộ nhớ nhận thức
  */
 app.post('/api/memories/sync-from-chats', (req, res) => {
   const user = getSessionUser(req);
-  const extracted = Store.extractMemoriesFromAllChats(user?.id);
+  const result = Store.syncAllChatsToMemory(user?.id);
   res.json({
     success: true,
-    count: extracted.length,
-    extracted
+    count: result.added,
+    total: result.total
   });
+});
+
+app.delete('/api/memories', (req, res) => {
+  Store.clearAllMemories();
+  res.json({ success: true, message: 'Đã xóa toàn bộ bộ nhớ vĩnh viễn' });
 });
 
 app.post('/api/memories', (req, res) => {
@@ -520,6 +525,13 @@ app.delete('/api/chats', (req, res) => {
   Store.clearAllChats(user?.id);
   res.json({ success: true });
 });
+
+// Tự động đồng bộ toàn bộ lịch sử chat vào Bộ nhớ nhận thức khi khởi động
+try {
+  Store.syncAllChatsToMemory();
+} catch (e) {
+  console.warn('Initial chat memory sync notice:', e.message);
+}
 
 // Start Server
 app.listen(PORT, () => {
