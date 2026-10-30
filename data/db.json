@@ -1,0 +1,417 @@
+{
+  "providers": [
+    {
+      "id": "prov_openai_default",
+      "name": "OpenAI",
+      "type": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "",
+      "models": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o1",
+        "o3-mini"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.921Z"
+    },
+    {
+      "id": "prov_gemini_default",
+      "name": "Google Gemini",
+      "type": "gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "apiKey": "",
+      "models": [
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.922Z"
+    },
+    {
+      "id": "prov_anthropic_default",
+      "name": "Anthropic Claude",
+      "type": "anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "apiKey": "",
+      "models": [
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.922Z"
+    },
+    {
+      "id": "prov_deepseek_default",
+      "name": "DeepSeek",
+      "type": "openai-compatible",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "",
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.922Z"
+    },
+    {
+      "id": "prov_groq_default",
+      "name": "Groq",
+      "type": "openai-compatible",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "apiKey": "",
+      "models": [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.922Z"
+    },
+    {
+      "id": "prov_ollama_default",
+      "name": "Ollama (Local)",
+      "type": "openai-compatible",
+      "baseUrl": "http://localhost:11434/v1",
+      "apiKey": "ollama",
+      "models": [
+        "qwen2.5:7b",
+        "llama3.2:latest",
+        "deepseek-r1:latest"
+      ],
+      "enabled": false,
+      "createdAt": "2026-10-30T12:39:27.922Z"
+    },
+    {
+      "id": "prov_opencode",
+      "name": "OpenCode",
+      "type": "openai-compatible",
+      "baseUrl": "https://api.opencode.ai/v1",
+      "apiKey": "oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq",
+      "models": [
+        "beam-free",
+        "big-pickle",
+        "deepseek-v4.1-flash-free",
+        "flint-40b-free",
+        "mimo-v2.6-flash-free",
+        "nemotron-3.5-lightning-free",
+        "nemotron-3.5-super-vl-free"
+      ],
+      "enabled": true,
+      "createdAt": "2026-10-30T13:11:54.620Z",
+      "updatedAt": "2026-10-30T14:07:27.048Z"
+    },
+    {
+      "id": "prov_kilo_gateway",
+      "name": "Kilo Gateway",
+      "type": "openai-compatible",
+      "baseUrl": "https://ai-gateway.kilo.ai/api/v1",
+      "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnYiOiJwcm9kdWN0aW9uIiwia2lsb1VzZXJJZCI6ImRiYWNlOTk1LTY2OTctNDNlNi05NWYxLTRmYzg0ZjJmODA4MSIsImFwaVRva2VuUGVwcGVyIjpudWxsLCJ2ZXJzaW9uIjozLCJpYXQiOjE3OTMzNjY1MDEsImV4cCI6MTk1MTA0NjUwMX0.hzpka6FFM-5RJEidHCsRic7LI_MZlMMAeV5OX4-u6ac",
+      "models": [
+        "kilo-auto/free",
+        "cohere/north-mini-code:free",
+        "dots-studio/dots-3-note-preview:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
+        "recursive/flint-v1.0:free",
+        "xingchen-agi/xing4.0-29b-a4b:free"
+      ],
+      "enabled": true,
+      "createdAt": "2026-10-30T13:11:54.620Z",
+      "updatedAt": "2026-10-30T13:22:04.715Z"
+    }
+  ],
+  "gatewayKeys": [
+    {
+      "id": "key_5f6963bcac08",
+      "name": "Vinh",
+      "key": "vz_live_3c9ad12dc74b55006435953619f1475e",
+      "createdAt": "2026-10-30T13:42:07.028Z",
+      "lastUsedAt": null
+    }
+  ],
+  "logs": [
+    {
+      "id": "log_1a4d4f5c6c9f",
+      "timestamp": "2026-10-30T14:17:02.537Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 227,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_5cacedc108e1",
+      "timestamp": "2026-10-30T14:10:17.524Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 121,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_f6428376e6df",
+      "timestamp": "2026-10-30T14:09:57.486Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "poolside/laguna-s-2.1:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 5177,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_79f01db1f485",
+      "timestamp": "2026-10-30T14:09:43.115Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "poolside/laguna-s-2.1:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 4192,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_fd3cd9cd2ec6",
+      "timestamp": "2026-10-30T14:09:32.051Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 938,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_d683cdab4105",
+      "timestamp": "2026-10-30T14:03:40.042Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 7181,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_b0f9ee1618d2",
+      "timestamp": "2026-10-30T14:03:27.374Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 6954,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_ec5d695bd615",
+      "timestamp": "2026-10-30T14:03:15.716Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 2197,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_64d4290d71bc",
+      "timestamp": "2026-10-30T14:02:50.600Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "mimo-v2.6-flash-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 122,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_72e8c6abfd64",
+      "timestamp": "2026-10-30T14:02:42.408Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 1074,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_1559c5bb244c",
+      "timestamp": "2026-10-30T13:43:05.116Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 1949,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_641220a4f001",
+      "timestamp": "2026-10-30T13:42:59.616Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 1092,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_badbcb77538f",
+      "timestamp": "2026-10-30T13:38:33.894Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3-ultra:free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 431,
+      "error": "[Kilo Gateway] HTTP 404: The requested model 'nvidia/nemotron-3-ultra:free' does not exist. Please use an exact model id as listed on /api/gateway/models. If this is a newly released model, please try again in a few minutes."
+    },
+    {
+      "id": "log_18f75c8ee598",
+      "timestamp": "2026-10-30T13:37:49.142Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "deepseek-chat",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 1005,
+      "error": "[OpenCode] HTTP 404: Not Found"
+    },
+    {
+      "id": "log_2cc6b02ad0ca",
+      "timestamp": "2026-10-30T13:22:39.186Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 11038,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_f6dd05881214",
+      "timestamp": "2026-10-30T12:39:47.595Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "gpt-4o",
+      "provider": "None",
+      "clientIp": "::1",
+      "status": 400,
+      "latency": 0,
+      "error": "No active AI provider configured or enabled for model \"gpt-4o\". Please add and enable a provider in the Workplay Hub."
+    }
+  ],
+  "memorySettings": {
+    "enabled": true,
+    "autoLearn": true
+  },
+  "memories": [],
+  "users": [
+    {
+      "id": "usr_admin",
+      "username": "vince",
+      "displayName": "Vince Admin",
+      "email": "vince@vincezone.local",
+      "passwordHash": "75b31793196a2a091b363f5b6b6b398218c6b3ec434270be86bd76a6d4eda3377067449924857cbeda8769a289b37a5694ba89494af769f5ceb54dc26ef0dd62",
+      "salt": "4e86271c8cd31ac794e07b47ecdb869b",
+      "createdAt": "2026-10-30T13:59:15.128Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "vz_sess_47e227aabd4466948588fc28fe081b7c9854402b8416c07c",
+      "userId": "usr_admin",
+      "createdAt": "2026-10-30T13:59:25.190Z"
+    }
+  ],
+  "chatSessions": [
+    {
+      "id": "chat_e7755ea48e71",
+      "title": "heo",
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "Kilo Gateway (11 models • ✓)",
+      "userId": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "heo"
+        },
+        {
+          "role": "assistant",
+          "content": "\"Hi! `'heo'` can mean a few things depending on context — for example, it's a Korean family name (허). \n\nDid you mean to say hello, were you thinking of a specific word, or is there something I can help you with? Let me know!\""
+        }
+      ],
+      "createdAt": "2026-10-30T14:03:40.050Z",
+      "updatedAt": "2026-10-30T14:03:40.050Z"
+    },
+    {
+      "id": "chat_8203dd6f3ec8",
+      "title": "hi",
+      "model": "poolside/laguna-s-2.1:free",
+      "provider": "Kilo Gateway (11 models • ✓)",
+      "userId": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "Hello! How can I help you today?"
+        },
+        {
+          "role": "user",
+          "content": "mèo"
+        },
+        {
+          "role": "assistant",
+          "content": "Mèo! 🐱 \n\nCats are wonderful companions. Are you a cat owner, or is there something specific about cats you'd like to chat about? 😊"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "Hello! 👋 Welcome to our chat. I'm here to help with whatever you'd like to discuss or ask about. What's on your mind today?"
+        },
+        {
+          "role": "user",
+          "content": "đọc lại system prompt chưa"
+        },
+        {
+          "role": "assistant",
+          "content": "Tôi đã đọc lại system prompt rồi. Tôi là một trợ lý AI được thiết kế để giúp bạn với mọi câu hỏi hoặc vấn đề bạn muốn thảo luận. Tôi có thể giúp bạn tìm thông tin, giải quyết vấn đề, hoặc chỉ là lắng nghe nếu bạn cần ai đó để trò chuyện.\n\nBạn cần mình giúp gì hôm nay?"
+        }
+      ],
+      "createdAt": "2026-10-30T14:03:15.722Z",
+      "updatedAt": "2026-10-30T14:09:57.492Z"
+    }
+  ]
+}

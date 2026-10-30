@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VinceZone AI Workplay & Gateway</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Markdown & Code Highlight Support -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Bar -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="logo-box">VZ</div>
+        <div class="brand-text">
+          <h1>VinceZone <span class="badge-accent">WORKPLAY</span></h1>
+          <p class="subtitle">Unified AI Gateway & Playground</p>
+        </div>
+      </div>
+
+      <nav class="nav-tabs">
+        <button class="nav-btn active" data-tab="playground">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Playground
+        </button>
+        <button class="nav-btn" data-tab="settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Cài Đặt (Settings)
+        </button>
+      </nav>
+
+      <div class="header-right">
+        <div class="header-status">
+          <span class="status-indicator"></span>
+          <span class="status-label">Gateway: <strong id="gateway-port-label">Active :3000</strong></span>
+        </div>
+
+        <div class="header-user-widget">
+          <div id="user-logged-in" class="user-pill" style="display: none;">
+            <span class="user-avatar">👤</span>
+            <span id="user-display-name" class="user-name">vince</span>
+            <button id="btn-logout" class="btn-logout" title="Đăng xuất">Đăng xuất</button>
+          </div>
+          <button id="btn-open-auth-modal" class="btn-small">Đăng Nhập / Đăng Ký</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-body">
+
+      <!-- ==================== TAB 1: PLAYGROUND ==================== -->
+      <section id="tab-playground" class="tab-pane active">
+        <div class="playground-layout">
+          <!-- 1. Left Sidebar: Chat History Sessions (Bộ nhớ lịch sử chat) -->
+          <aside class="chat-history-sidebar">
+            <div class="history-header">
+              <button id="btn-new-chat" class="btn-new-chat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                + Đoạn chat mới
+              </button>
+            </div>
+
+            <div class="history-list-title">
+              <span>LỊCH SỬ CHAT</span>
+              <span id="chat-history-count" class="val-badge">0</span>
+            </div>
+            
+            <div id="history-retention-pill" class="history-retention-pill">
+              <span class="retention-dot"></span>
+              <span id="retention-text">Lưu 3 ngày • Đăng nhập để lưu lâu dài</span>
+            </div>
+            
+            <div id="chat-history-list" class="chat-history-list">
+              <!-- Dynamically populated past conversations -->
+            </div>
+
+            <div class="history-footer">
+              <button id="btn-clear-all-history" class="btn-clear-all-history">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Xóa tất cả lịch sử
+              </button>
+            </div>
+          </aside>
+
+          <!-- 2. Middle Panel: Chat Conversation Canvas -->
+          <div class="playground-chat-panel">
+            <div id="chat-messages" class="chat-messages">
+              <div class="welcome-banner">
+                <div class="welcome-icon">⚡</div>
+                <h3>VinceZone Workplay Canvas</h3>
+                <p>Nơi thử nghiệm trực tiếp các AI Model đã gom từ các Provider (OpenCode, Kilo Gateway, ZenMux, OpenAI, Gemini...).</p>
+                <p class="sub-hint">Mẹo: Bạn có thể chọn Model bất kỳ từ thanh bên phải và bắt đầu trò chuyện ngay lập tức. Toàn bộ lịch sử sẽ tự động lưu lại ở thanh bên trái để chat tiếp bất kỳ lúc nào.</p>
+              </div>
+            </div>
+
+            <!-- Input Box & Attachments -->
+            <div class="chat-input-wrapper">
+              <!-- Staging Bar: Active Attached Items -->
+              <div id="chat-attachments-bar" class="chat-attachments-bar" style="display: none;"></div>
+
+              <form id="chat-form" class="chat-form">
+                <!-- Toolbar for attachments -->
+                <div class="chat-input-toolbar">
+                  <!-- Plus / Attach dropdown -->
+                  <div class="attach-dropdown-wrapper">
+                    <button type="button" id="btn-attach-menu" class="btn-attach-trigger" title="Thêm tệp đính kèm">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span>Thêm tệp đính kèm</span>
+                    </button>
+                    
+                    <div id="attach-dropdown-menu" class="attach-dropdown-menu">
+                      <button type="button" class="attach-menu-item" id="menu-attach-image">
+                        <span class="menu-icon">🖼️</span>
+                        <div class="menu-info">
+                          <strong>Tải ảnh lên (Image)</strong>
+                          <small>PNG, JPG, WEBP, GIF (Hỗ trợ Vision AI)</small>
+                        </div>
+                      </button>
+
+                      <button type="button" class="attach-menu-item" id="menu-attach-file">
+                        <span class="menu-icon">📄</span>
+                        <div class="menu-info">
+                          <strong>Tệp & Mã nguồn (File/Doc)</strong>
+                          <small>Code, TXT, MD, PDF, JSON, CSV...</small>
+                        </div>
+                      </button>
+
+                      <button type="button" class="attach-menu-item" id="menu-attach-folder">
+                        <span class="menu-icon">📁</span>
+                        <div class="menu-info">
+                          <strong>Cả thư mục (Folder)</strong>
+                          <small>Quét toàn bộ dự án / source code</small>
+                        </div>
+                      </button>
+
+                      <div class="attach-menu-divider"></div>
+
+                      <button type="button" class="attach-menu-item" id="menu-attach-link">
+                        <span class="menu-icon">🌐</span>
+                        <div class="menu-info">
+                          <strong>Liên kết Web (URL)</strong>
+                          <small>Tự động đọc nội dung trang web</small>
+                        </div>
+                      </button>
+
+                      <button type="button" class="attach-menu-item" id="menu-attach-gdrive">
+                        <span class="menu-icon">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4 16h5.5l5.5-9.5L12 2z" opacity="0.8"/><path d="M4 16l3.5 6h11L15 16H4z"/><path d="M15 6.5l3.5 6-3.5 6H22l-7-12z" opacity="0.6"/></svg>
+                        </span>
+                        <div class="menu-info">
+                          <strong>Liên kết Google Drive</strong>
+                          <small>Docs, Sheets, Slides, Drive Folder hoặc File</small>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hidden file inputs -->
+                <input type="file" id="input-file-image" accept="image/*" multiple style="display: none;">
+                <input type="file" id="input-file-document" accept=".txt,.md,.pdf,.json,.csv,.js,.jsx,.ts,.tsx,.py,.html,.css,.sql,.yaml,.yml,.xml,.sh,.bat,.c,.cpp,.h,.java,.go,.rs,.php" multiple style="display: none;">
+                <input type="file" id="input-file-folder" webkitdirectory directory multiple style="display: none;">
+
+                <!-- Textarea and send row -->
+                <div class="chat-input-row">
+                  <textarea id="chat-input" rows="1" placeholder="Nhập tin nhắn hoặc câu hỏi... (Kéo thả ảnh/tệp/thư mục vào đây, hoặc dán ảnh Ctrl+V)"></textarea>
+                  <div class="chat-actions">
+                    <span id="chat-status-indicator" class="chat-status"></span>
+                    <button type="submit" id="btn-send" class="btn-send">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      Gửi
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- 3. Right Sidebar: Controls & Model Selection -->
+          <aside class="playground-sidebar">
+            <div class="sidebar-section">
+              <label class="control-label">Nhà cung cấp (Provider)</label>
+              <div class="select-wrapper">
+                <select id="playground-provider-select">
+                  <option value="" disabled selected>Đang tải danh sách Provider...</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="sidebar-section">
+              <div class="label-with-val">
+                <label class="control-label">Mô hình AI (Model)</label>
+                <label class="filter-free-wrapper" title="Chỉ lọc danh sách các Model miễn phí">
+                  <input type="checkbox" id="filter-free-only">
+                  <span class="badge-free">Chỉ hiện FREE</span>
+                </label>
+              </div>
+              <div class="select-wrapper">
+                <select id="playground-model-select">
+                  <option value="" disabled selected>Đang tải danh sách Model...</option>
+                </select>
+              </div>
+              <p class="field-hint" id="selected-provider-info">Chọn Provider để tải danh sách Model tương ứng</p>
+            </div>
+
+            <div class="sidebar-section">
+              <label class="control-label">System Prompt</label>
+              <textarea id="playground-system-prompt" rows="4" placeholder="Ví dụ: Bạn là một trợ lý AI thông minh, hỗ trợ lập trình viên..."></textarea>
+            </div>
+
+            <div class="sidebar-section">
+              <div class="label-with-val">
+                <label class="control-label">Temperature</label>
+                <span id="temp-val" class="val-badge">0.7</span>
+              </div>
+              <input type="range" id="playground-temperature" min="0" max="2" step="0.1" value="0.7">
+            </div>
+
+            <div class="sidebar-section">
+              <div class="label-with-val">
+                <label class="control-label">Max Tokens</label>
+                <span id="tokens-val" class="val-badge">2048</span>
+              </div>
+              <input type="number" id="playground-max-tokens" value="2048" min="64" max="8192" step="64">
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 2: CÀI ĐẶT (SETTINGS) ==================== -->
+      <section id="tab-settings" class="tab-pane">
+        <div class="settings-container">
+          <!-- Settings Sidebar Navigation -->
+          <aside class="settings-sidebar">
+            <div class="settings-nav-header">
+              <span class="settings-nav-title">Cài Đặt Hệ Thống</span>
+              <span class="settings-nav-desc">Cấu hình API, Providers, Bộ Nhớ & Giám Sát</span>
+            </div>
+            
+            <nav class="settings-nav-menu">
+              <button class="settings-nav-item active" data-subtab="providers">
+                <div class="settings-nav-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="4" width="20" height="6" rx="2"/><rect x="2" y="14" width="20" height="6" rx="2"/><line x1="6" y1="7" x2="6" y2="7"/><line x1="6" y1="17" x2="6" y2="17"/>
+                  </svg>
+                </div>
+                <div class="settings-nav-item-text">
+                  <span class="settings-nav-item-label">Providers Hub</span>
+                  <span class="settings-nav-item-sub">Quản lý & kết nối AI</span>
+                </div>
+                <span class="settings-nav-badge" id="active-providers-count">0</span>
+              </button>
+
+              <button class="settings-nav-item" data-subtab="gateway">
+                <div class="settings-nav-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                  </svg>
+                </div>
+                <div class="settings-nav-item-text">
+                  <span class="settings-nav-item-label">Gateway API</span>
+                  <span class="settings-nav-item-sub">Khóa API, Endpoints & SDK</span>
+                </div>
+              </button>
+
+              <button class="settings-nav-item" data-subtab="memory">
+                <div class="settings-nav-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7zM9 21h6"/>
+                  </svg>
+                </div>
+                <div class="settings-nav-item-text">
+                  <span class="settings-nav-item-label">Bộ Nhớ Nhận Thức</span>
+                  <span class="settings-nav-item-sub">Cross-AI shared memory</span>
+                </div>
+                <span class="settings-nav-badge" id="active-memories-count">0</span>
+              </button>
+
+              <button class="settings-nav-item" data-subtab="logs">
+                <div class="settings-nav-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                  </svg>
+                </div>
+                <div class="settings-nav-item-text">
+                  <span class="settings-nav-item-label">Logs & Audit</span>
+                  <span class="settings-nav-item-sub">Giám sát & truy vết request</span>
+                </div>
+              </button>
+            </nav>
+          </aside>
+
+          <!-- Settings Main Content Area -->
+          <div class="settings-body">
+            <!-- 1. Providers Hub Subpane -->
+            <div id="subtab-providers" class="settings-subpane active">
+              <div class="pane-header">
+                <div>
+                  <h2>Quản Lý AI Providers (Hub)</h2>
+                  <p class="pane-subtitle">Gom các nhà cung cấp AI vào một nơi (OpenCode, Kilo Gateway, ZenMux, OpenAI, Claude, Gemini, DeepSeek, Ollama...).</p>
+                </div>
+                <button id="btn-open-add-provider" class="btn-primary">
+                  + Thêm Provider Mới
+                </button>
+              </div>
+
+              <div id="providers-grid" class="providers-grid">
+                <!-- Dynamically populated provider cards -->
+              </div>
+            </div>
+
+            <!-- 2. Gateway API Subpane -->
+            <div id="subtab-gateway" class="settings-subpane">
+              <div class="gateway-container">
+                <div class="pane-header">
+                  <div>
+                    <h2>AI Gateway & API Proxy</h2>
+                    <p class="pane-subtitle">Gọi API vào ứng dụng này như một điểm đến duy nhất. Toàn bộ các mô hình AI gom được đều tương thích chuẩn OpenAI.</p>
+                  </div>
+                </div>
+
+                <div class="gateway-grid">
+                  <!-- Left: Gateway Keys -->
+                  <div class="gateway-card">
+                    <div class="card-title-bar">
+                      <h3>Khóa Truy Cập Gateway (API Keys)</h3>
+                      <button id="btn-new-key" class="btn-small">+ Tạo Key Mới</button>
+                    </div>
+                    <p class="card-desc">Sử dụng API Key này trong header <code>Authorization: Bearer vz_live_...</code> khi gọi từ ứng dụng bên ngoài.</p>
+                    
+                    <div id="keys-list" class="keys-list">
+                      <!-- Populated dynamically -->
+                    </div>
+                  </div>
+
+                  <!-- Right: Endpoint Info & Quick Code Snippets -->
+                  <div class="gateway-card">
+                    <h3>Gateway Endpoints</h3>
+                    <div class="endpoint-box">
+                      <span class="badge-post">POST</span>
+                      <code id="endpoint-url">http://localhost:3000/v1/chat/completions</code>
+                      <button class="btn-copy-code" onclick="copyText('endpoint-url')">Copy</button>
+                    </div>
+
+                    <div class="code-snippets-container">
+                      <div class="snippet-tabs">
+                        <button class="snippet-tab active" data-lang="curl">cURL</button>
+                        <button class="snippet-tab" data-lang="python">Python (OpenAI SDK)</button>
+                        <button class="snippet-tab" data-lang="js">Node.js (OpenAI SDK)</button>
+                      </div>
+                      
+                      <div class="snippet-content">
+                        <pre id="snippet-box"><code id="code-snippet-pre"></code></pre>
+                        <button class="btn-copy-code" id="btn-copy-snippet">Copy Code</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. VinceZone Cognitive Memory Subpane -->
+            <div id="subtab-memory" class="settings-subpane">
+              <div class="pane-header">
+                <div>
+                  <h2>Bộ Nhớ Dùng Chung VinceZone (Cross-AI Memory)</h2>
+                  <p class="pane-subtitle">Kiến thức, phong cách và thông tin dự án được lưu trữ dùng chung. Dù bạn chuyển đổi sang bất kỳ AI nào (Claude, Gemini, DeepSeek, OpenCode...), AI mới vẫn nhớ rõ bạn.</p>
+                </div>
+                <div class="memory-header-actions">
+                  <label class="memory-toggle-pill" title="Tự động tiêm thông tin bộ nhớ vào mọi lượt gọi AI">
+                    <input type="checkbox" id="memory-global-toggle" checked>
+                    <span>Bộ Nhớ: <strong>BẬT</strong></span>
+                  </label>
+                  <label class="memory-toggle-pill" title="Tự động nhận diện và lưu lại các câu 'hãy nhớ là...', 'tôi tên là...' từ chat">
+                    <input type="checkbox" id="memory-autolearn-toggle" checked>
+                    <span>Tự Học: <strong>BẬT</strong></span>
+                  </label>
+                  <button id="btn-sync-chat-memory" class="btn-secondary" title="Tự động quét lịch sử chat để trích xuất các kiến thức, thông tin dự án & sở thích vào bộ nhớ">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                    Học từ Lịch Sử Chat
+                  </button>
+                  <button id="btn-open-add-memory" class="btn-primary">
+                    + Thêm Ghi Nhớ
+                  </button>
+                </div>
+              </div>
+
+              <div class="memory-toolbar">
+                <div class="memory-search-box">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="memory-search-input" placeholder="Tìm kiếm kiến thức trong bộ nhớ...">
+                </div>
+                <div class="memory-filters">
+                  <button class="mem-filter-btn active" data-cat="all">Tất cả</button>
+                  <button class="mem-filter-btn" data-cat="preference">Sở thích & Phong cách</button>
+                  <button class="mem-filter-btn" data-cat="project">Dự án</button>
+                  <button class="mem-filter-btn" data-cat="rule">Quy tắc</button>
+                  <button class="mem-filter-btn" data-cat="learned">Đã học hỏi</button>
+                </div>
+              </div>
+
+              <div class="memory-grid-container">
+                <div id="memories-grid" class="memories-grid">
+                  <!-- Dynamically populated memory cards -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Audit Logs Subpane -->
+            <div id="subtab-logs" class="settings-subpane">
+              <div class="pane-header">
+                <div>
+                  <h2>Lịch Sử Gọi API (Audit Logs)</h2>
+                  <p class="pane-subtitle">Giám sát các request được gửi vào Gateway theo thời gian thực (Status, Latency, Token Usage, Client IP).</p>
+                </div>
+                <button id="btn-refresh-logs" class="btn-secondary">
+                  Làm mới Logs
+                </button>
+              </div>
+
+              <div class="table-container">
+                <table class="logs-table">
+                  <thead>
+                    <tr>
+                      <th>Thời Gian</th>
+                      <th>Endpoint</th>
+                      <th>Model</th>
+                      <th>Provider</th>
+                      <th>Client IP</th>
+                      <th>Status</th>
+                      <th>Độ Trễ</th>
+                      <th>Tokens</th>
+                    </tr>
+                  </thead>
+                  <tbody id="logs-tbody">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL: ADD / EDIT PROVIDER -->
+    <div id="provider-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-provider-title">Thêm AI Provider</h3>
+          <button id="btn-close-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="provider-form">
+          <input type="hidden" id="p-id">
+          
+          <div class="form-group">
+            <label>Tên hiển thị</label>
+            <input type="text" id="p-name" placeholder="Ví dụ: OpenAI Chính, DeepSeek API, Ollama..." required>
+          </div>
+
+          <div class="form-group">
+            <label>Loại Provider</label>
+            <select id="p-type" required>
+              <option value="openai">OpenAI (Official)</option>
+              <option value="gemini">Google Gemini (Official)</option>
+              <option value="anthropic">Anthropic Claude (Official)</option>
+              <option value="opencode">OpenCode (Free Tiers & Open Models)</option>
+              <option value="kilo">Kilo Gateway (kilo-auto/free & 500+ Models)</option>
+              <option value="zenmux">ZenMux (zenmux/auto-free & Gateway)</option>
+              <option value="openai-compatible">OpenAI-Compatible / Custom (DeepSeek, Groq, Ollama, vLLM)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>API Key / Token</label>
+            <input type="password" id="p-apikey" placeholder="sk-... hoặc API Key của bạn (Để trống nếu dùng Ollama local)">
+            <small class="field-hint">Được lưu trữ cục bộ tại server của bạn, không gửi ra ngoài.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Base URL (Endpoint)</label>
+            <input type="text" id="p-baseurl" placeholder="https://api.openai.com/v1" required>
+          </div>
+
+          <div class="form-group">
+            <label>Danh sách Model ID (Phân cách bằng dấu phẩy)</label>
+            <input type="text" id="p-models" placeholder="gpt-4o, gpt-4o-mini, o3-mini" required>
+            <small class="field-hint">Các model này sẽ xuất hiện trong Playground và danh sách định tuyến.</small>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="p-enabled" checked>
+              Kích hoạt Provider này (Enabled)
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary">Lưu Provider</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ADD GATEWAY KEY -->
+    <div id="key-modal" class="modal-overlay">
+      <div class="modal-content key-modal-box">
+        <div class="modal-header">
+          <h3>Tạo Gateway API Key Mới</h3>
+          <button id="btn-close-key-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="key-form">
+          <div class="form-group">
+            <label>Tên định danh (Ví dụ: Cursor App, Python Script, n8n Agent)</label>
+            <input type="text" id="key-name-input" placeholder="Tên ứng dụng của bạn" required>
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-key-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary">Tạo Khóa</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ADD / EDIT MEMORY -->
+    <div id="memory-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-memory-title">Thêm Ghi Nhớ Vào VinceZone</h3>
+          <button id="btn-close-memory-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="memory-form">
+          <input type="hidden" id="mem-id">
+
+          <div class="form-group">
+            <label>Phân loại ghi nhớ</label>
+            <select id="mem-category" required>
+              <option value="preference">Sở thích & Phong cách (Preferences)</option>
+              <option value="project">Thông tin dự án (Project Context)</option>
+              <option value="rule">Quy tắc bắt buộc (Rules & Guidelines)</option>
+              <option value="learned">Kiến thức đã học hỏi (Learned Facts)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Nội dung ghi nhớ</label>
+            <textarea id="mem-content" rows="4" placeholder="Ví dụ: Người dùng thích code sạch có comment giải thích, dự án đang xây dựng bằng Node.js..." required></textarea>
+            <small class="field-hint">Thông tin này sẽ được tự động nhắc nhở cho tất cả các AI khi bạn trò chuyện.</small>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-memory-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary">Lưu Ghi Nhớ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ADD WEB LINK -->
+    <div id="link-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Chèn Liên Kết Web (URL)</h3>
+          <button id="btn-close-link-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="link-form">
+          <div class="form-group">
+            <label>Địa chỉ liên kết (URL)</label>
+            <input type="url" id="link-url-input" placeholder="https://example.com/bai-viet-hoac-tai-lieu" required>
+            <small class="field-hint">Hệ thống sẽ tự động quét tiêu đề và trích xuất nội dung văn bản từ trang web này để AI phân tích.</small>
+          </div>
+          <div class="form-group">
+            <label>Ghi chú / Tiêu đề (Tùy chọn)</label>
+            <input type="text" id="link-title-input" placeholder="Ví dụ: Tài liệu API, Bài viết hướng dẫn...">
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-link-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-link">Trích xuất & Đính kèm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ADD GOOGLE DRIVE LINK -->
+    <div id="gdrive-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Chèn Liên Kết Google Drive</h3>
+          <button id="btn-close-gdrive-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="gdrive-form">
+          <div class="form-group">
+            <label>Đường dẫn Google Drive (Docs, Sheets, Slides, Folder hoặc File)</label>
+            <input type="url" id="gdrive-url-input" placeholder="https://docs.google.com/document/d/... hoặc https://drive.google.com/..." required>
+            <small class="field-hint">Nếu tài liệu ở chế độ công khai (Anyone with link), hệ thống sẽ đọc trực tiếp nội dung văn bản cho AI.</small>
+          </div>
+          <div class="form-group">
+            <label>Tên tệp / Mô tả tài liệu (Tùy chọn)</label>
+            <input type="text" id="gdrive-title-input" placeholder="Ví dụ: Bảng kế hoạch dự án 2026, Tài liệu thiết kế...">
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-gdrive-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary" id="btn-submit-gdrive">Đính kèm GG Drive</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: AUTHENTICATION (LOGIN / REGISTER) -->
+    <div id="auth-modal" class="modal-overlay">
+      <div class="modal-content auth-modal-box">
+        <div class="modal-header">
+          <div class="auth-tabs">
+            <button type="button" class="auth-tab-btn active" id="tab-login" data-mode="login">Đăng Nhập</button>
+            <button type="button" class="auth-tab-btn" id="tab-register" data-mode="register">Đăng Ký</button>
+          </div>
+          <button id="btn-close-auth-modal" class="btn-close">&times;</button>
+        </div>
+        
+        <form id="auth-form">
+          <div class="form-group">
+            <label>Tên đăng nhập</label>
+            <input type="text" id="auth-username" placeholder="Nhập username" required autocomplete="username">
+          </div>
+          
+          <div class="form-group" id="auth-email-group" style="display: none;">
+            <label>Email (Tùy chọn)</label>
+            <input type="email" id="auth-email" placeholder="email@example.com" autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label>Mật khẩu</label>
+            <input type="password" id="auth-password" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1.5rem;">
+            <button type="button" id="btn-cancel-auth-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" id="btn-auth-submit" class="btn-primary">Đăng Nhập</button>
+          </div>
+
+          <p class="auth-hint" id="auth-hint">Tài khoản mặc định: <code>vince</code> / mật khẩu: <code>vince123</code></p>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
