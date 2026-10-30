@@ -180,9 +180,9 @@ const TYPE_PRESETS = {
     type: 'anthropic'
   },
   opencode: {
-    name: 'OpenCode',
-    baseUrl: 'https://api.opencode.ai/v1',
-    models: 'beam-free, big-pickle, deepseek-v4.1-flash-free, flint-40b-free, mimo-v2.6-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free',
+    name: 'OpenCode (v2 Zen)',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    models: 'beam-free, big-pickle, deepseek-v4.1-flash-free, flint-40b-free, glm-5.3-flash-free, mimo-v2.6-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free',
     type: 'openai-compatible'
   },
   kilo: {
@@ -216,6 +216,8 @@ const LIST_FREE_MODELS = [
   'deepseek v4.1 flash free',
   'flint-40b-free',
   'flint 40b free',
+  'glm-5.3-flash-free',
+  'glm 5.3 flash free',
   'mimo-v2.6-flash-free',
   'mimo v2.6 flash free',
   'nemotron-3.5-lightning-free',

@@ -89,13 +89,14 @@
       "id": "prov_opencode",
       "name": "OpenCode",
       "type": "openai-compatible",
-      "baseUrl": "https://api.opencode.ai/v1",
+      "baseUrl": "https://opencode.ai/zen/v1",
       "apiKey": "oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq",
       "models": [
         "beam-free",
         "big-pickle",
         "deepseek-v4.1-flash-free",
         "flint-40b-free",
+        "glm-5.3-flash-free",
         "mimo-v2.6-flash-free",
         "nemotron-3.5-lightning-free",
         "nemotron-3.5-super-vl-free"

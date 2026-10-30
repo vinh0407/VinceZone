@@ -4,10 +4,30 @@
  */
 
 async function callChat({ provider, model, messages, temperature = 0.7, max_tokens, stream = false, res }) {
-  const url = `${provider.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  // Normalize base URL
+  let baseUrl = provider.baseUrl.replace(/\/+$/, '');
+  
+  // OpenCode v2 automatic migration if using legacy 404 URL
+  if (baseUrl === 'https://api.opencode.ai/v1' || baseUrl === 'https://api.opencode.ai') {
+    baseUrl = 'https://opencode.ai/zen/v1';
+  }
+
+  const url = `${baseUrl}/chat/completions`;
   const headers = {
     'Content-Type': 'application/json'
   };
+
+  // OpenCode v2 client signature header emulation
+  const isOpenCode = provider.type === 'opencode' || 
+                     (provider.baseUrl && provider.baseUrl.includes('opencode')) || 
+                     (provider.name && provider.name.toLowerCase().includes('opencode'));
+
+  if (isOpenCode) {
+    headers['User-Agent'] = 'opencode/2.1.0';
+    headers['x-opencode-client'] = 'opencode-desktop/2.1.0';
+    headers['x-client-version'] = '2.1.0';
+  }
+
   if (provider.apiKey && provider.apiKey.trim() !== '') {
     headers['Authorization'] = `Bearer ${provider.apiKey.trim()}`;
   }
