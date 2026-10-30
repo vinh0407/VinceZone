@@ -2393,6 +2393,26 @@ function escapeHtml(str) {
 }
 
 // -------------------------------------------------------------
+// TOAST NOTIFICATION SYSTEM
+// -------------------------------------------------------------
+
+function showToast(msg, duration = 3500) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast-item';
+  toast.innerHTML = `
+    <span style="font-size: 1.15rem; color: var(--status-green);">✓</span>
+    <span style="flex: 1;">${escapeHtml(msg)}</span>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// -------------------------------------------------------------
 // KHO THƯ VIỆN PROMPT (PROMPT HUB)
 // -------------------------------------------------------------
 
@@ -2403,8 +2423,10 @@ const BUILTIN_PROMPTS = [
     category: 'image',
     catLabel: '🖼️ Chỉnh ảnh & Vision',
     icon: '📸',
-    title: 'Tạo Ảnh Chân Dung Điện Ảnh (Cinematic Photo Master)',
+    title: 'Tạo Ảnh Chân Dung Điện Ảnh 8K (Cinematic Portrait)',
     desc: 'Tạo câu lệnh mô tả chi tiết bằng tiếng Anh theo phong cách nhiếp ảnh điện ảnh 8K, ánh sáng hoàng hôn, độ sâu trường ảnh mờ ảo.',
+    tags: ['Midjourney', 'Photorealism', 'Cinematic', '8K Bokeh'],
+    level: 'Chuyên sâu',
     prompt: `Một bức ảnh chân dung phong cách điện ảnh (Cinematic photography), chụp bằng ống kính 85mm f/1.4, ánh sáng vàng lúc hoàng hôn (golden hour lighting), chi tiết khuôn mặt sắc nét 8K, độ sâu trường ảnh nông (bokeh mềm mịn), tông màu moody ấm áp, tương phản cao, phong cách nghệ thuật nhiếp ảnh đoạt giải National Geographic, chân thực không tì vết.`
   },
   {
@@ -2412,8 +2434,10 @@ const BUILTIN_PROMPTS = [
     category: 'image',
     catLabel: '🖼️ Chỉnh ảnh & Vision',
     icon: '🎨',
-    title: 'Chuyên Gia Phân Tích & Hướng Dẫn Chỉnh Ảnh (Vision Photo Enhancer)',
-    desc: 'Quan sát ảnh đính kèm, phân tích bố cục, màu sắc và gợi ý bảng thông số Lightroom/Photoshop kèm prompt tái tạo ảnh.',
+    title: 'Phân Tích Thị Giác & Tinh Chỉnh Lightroom/Photoshop',
+    desc: 'Quan sát ảnh đính kèm, phân tích bố cục, màu sắc và gợi ý bảng thông số tinh chỉnh cụ thể kèm prompt tái tạo ảnh.',
+    tags: ['Vision AI', 'Lightroom Presets', 'Photoshop', 'Color Grading'],
+    level: 'Chuyên sâu',
     prompt: `Bạn là chuyên gia phân tích thị giác và chỉnh sửa ảnh nghệ thuật chuyên nghiệp. Hãy quan sát bức ảnh tôi đính kèm và thực hiện các yêu cầu:
 1. Đánh giá bố cục, ánh sáng, độ cân bằng trắng và độ tương phản hiện tại.
 2. Chỉ ra các khuyết điểm cần tối ưu (vùng cháy sáng, tối mất chi tiết, nhiễu hạt, góc nghiêng).
@@ -2425,12 +2449,42 @@ const BUILTIN_PROMPTS = [
     category: 'image',
     catLabel: '🖼️ Chỉnh ảnh & Vision',
     icon: '✨',
-    title: 'Phục Chế & Nâng Cấp Chi Tiết Ảnh Cũ / Mờ (Photo Restoration)',
-    desc: 'Mô tả tái tạo và khử nhiễu ảnh cũ, phục hồi đường nét khuôn mặt, tăng độ phân giải và tô màu tự nhiên.',
+    title: 'Phục Chế & Nâng Cấp Chi Tiết Ảnh Cũ / Mờ (Restoration)',
+    desc: 'Tái tạo và khử nhiễu ảnh cũ, phục hồi đường nét khuôn mặt, tăng độ phân giải siêu nét và tô màu tự nhiên.',
+    tags: ['Restoration', 'Upscale', 'Face Enhance', 'Colorize'],
+    level: 'Nâng cao',
     prompt: `Đóng vai trò chuyên gia phục chế hình ảnh kỹ thuật số (Digital Photo Restoration Expert). Phân tích bức ảnh cũ/mờ đính kèm:
 1. Xác định niên đại, phong cách và các hư tổn chính (trầy xước, ố vàng, mất nét, vỡ hạt pixel).
 2. Đề xuất quy trình phục dựng: Khử nhiễu, tái tạo đường nét mắt mũi miệng, và phương án lên màu (colorization) tự nhiên.
 3. Tạo câu prompt tiếng Anh chi tiết để đưa vào các công cụ AI Upscale & Inpainting phục hồi bức ảnh về độ phân giải siêu nét.`
+  },
+  {
+    id: 'p_img_4',
+    category: 'image',
+    catLabel: '🖼️ Chỉnh ảnh & Vision',
+    icon: '🎭',
+    title: 'Chuyển Đổi Phong Cách Ảnh Thật Sang Anime / 3D Pixar / Cyberpunk',
+    desc: 'Tạo prompt biến đổi ảnh chân dung người thật sang các phong cách hoạt hình 3D Pixar hoặc Anime Nhật Bản cao cấp.',
+    tags: ['Style Transfer', '3D Pixar', 'Anime Makoto Shinkai', 'Cyberpunk'],
+    level: 'Sáng tạo',
+    prompt: `Hãy chuyển đổi bức ảnh chân dung/khung cảnh tôi đính kèm sang phong cách nghệ thuật [Chọn: 3D Pixar Animation / Anime phong cách Makoto Shinkai / Cyberpunk Neon]:
+- Giữ nguyên các đặc điểm nhận dạng khuôn mặt, thần thái và trang phục gốc.
+- Tái tạo với ánh sáng nghệ thuật đặc trưng, bảng màu rực rỡ, đường nét cách điệu mượt mà.
+- Cung cấp prompt tiếng Anh hoàn chỉnh có đầy đủ các thông số stylize, quality và aspect ratio để tôi dán vào Midjourney v6.`
+  },
+  {
+    id: 'p_img_5',
+    category: 'image',
+    catLabel: '🖼️ Chỉnh ảnh & Vision',
+    icon: '🖼️',
+    title: 'Thiết Kế Poster Quảng Cáo & Typography Thương Mại',
+    desc: 'Thiết lập bố cục hình ảnh thương mại cao cấp với không gian chừa sẵn cho logo và tiêu đề sản phẩm (Negative Space).',
+    tags: ['Commercial', 'Poster Design', 'Negative Space', 'Product Ads'],
+    level: 'Thương mại',
+    prompt: `Tạo câu lệnh hình ảnh quảng cáo sản phẩm thương mại cao cấp (Commercial Product Ad) cho sản phẩm [Tên sản phẩm]:
+- Phong cách: Studio tối giản, phông nền đơn sắc sang trọng, đổ bóng mềm mại, ánh sáng viền (rim light) làm nổi bật chất liệu sản phẩm.
+- Bố cục: Chừa khoảng không gian trống phía trên hoặc một bên (Copy space / Negative space) để thiết kế thêm chữ và logo thương hiệu.
+- Độ phân giải: Siêu chi tiết 8K, thể hiện rõ texture bề mặt vật liệu (kim loại bóng, thủy tinh trong suốt hoặc mờ sang trọng).`
   },
 
   // 2. Giáo dục & Tạo đề thi
@@ -2439,8 +2493,10 @@ const BUILTIN_PROMPTS = [
     category: 'exam',
     catLabel: '📚 Tạo đề thi & Giáo dục',
     icon: '📝',
-    title: 'Biên Soạn Đề Thi Trắc Nghiệm Chuẩn Ma Trận Sư Phạm',
-    desc: 'Tạo bộ 10 câu trắc nghiệm 4 đáp án theo chuẩn ma trận (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao) kèm bảng đáp án và giải thích.',
+    title: 'Biên Soạn Đề Thi Trắc Nghiệm Chuẩn Ma Trận Bloom',
+    desc: 'Tạo bộ 10 câu trắc nghiệm 4 đáp án theo đúng 4 mức độ nhận thức (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao) kèm lời giải.',
+    tags: ['Ma trận Bloom', 'Khảo thí', 'Đáp án & Lời giải', '4 Cấp độ'],
+    level: 'Sư phạm',
     prompt: `Bạn là chuyên gia khảo thí và sư phạm giàu kinh nghiệm. Dựa vào nội dung kiến thức được cung cấp (hoặc tài liệu đính kèm), hãy biên soạn đề kiểm tra trắc nghiệm gồm 10 câu hỏi theo đúng ma trận phân hóa chuẩn:
 - 3 câu Nhận biết (30%)
 - 3 câu Thông hiểu (30%)
@@ -2458,6 +2514,8 @@ Phần cuối đề: Trình bày bảng đáp án chuẩn kèm lời giải thí
     icon: '📊',
     title: 'Đề Thi Tự Luận & Bảng Tiêu Chí Chấm Điểm (Rubric)',
     desc: 'Thiết kế 3 câu hỏi tự luận đào sâu tư duy phản biện và giải quyết tình huống kèm biểu điểm chi tiết thang điểm 10.',
+    tags: ['Tự luận', 'Rubric Thang 10', 'Tư duy phản biện', 'Tình huống'],
+    level: 'Chuyên sâu',
     prompt: `Dựa vào tài liệu hoặc chủ đề bài học tôi cung cấp, hãy biên soạn 3 câu hỏi tự luận đánh giá năng lực tư duy phản biện và vận dụng thực tiễn của người học:
 - Câu 1: Câu hỏi lý thuyết chuyên sâu kết hợp so sánh / phân tích (3 điểm)
 - Câu 2: Câu hỏi giải quyết tình huống thực tế (4 điểm)
@@ -2470,13 +2528,44 @@ Kèm theo: Bảng tiêu chí chấm điểm (Rubric) chi tiết đến từng 0.
     category: 'exam',
     catLabel: '📚 Tạo đề thi & Giáo dục',
     icon: '💡',
-    title: 'Gia Sư Phản Xạ & Vấn Đáp Ôn Tập (Socratic Tutor)',
+    title: 'Gia Sư Phương Pháp Vấn Đáp Socrates (Socratic Tutor)',
     desc: 'Đóng vai gia sư thông thái hỏi đáp từng câu một để kích thích người học tự tư duy tìm ra câu trả lời thay vì cho đáp án ngay.',
+    tags: ['Socrates', 'Vấn đáp gợi mở', 'Gia sư AI', 'Tư duy sâu'],
+    level: 'Tương tác',
     prompt: `Hãy đóng vai trò một gia sư thông thái áp dụng phương pháp vấn đáp Socrates. Chủ đề hôm nay là: [Tên bài học hoặc tài liệu đính kèm].
 Quy tắc:
 1. Không đưa ra ngay bài giảng dài hay đáp án trực tiếp.
 2. Hãy đặt cho tôi từng câu hỏi một (từ dễ đến khó) để gợi mở và kiểm tra hiểu biết của tôi.
 3. Sau mỗi lần tôi trả lời, hãy nhận xét ngắn gọn và đặt câu hỏi tiếp theo để dẫn dắt tôi tự khám phá ra bản chất vấn đề.`
+  },
+  {
+    id: 'p_exam_4',
+    category: 'exam',
+    catLabel: '📚 Tạo đề thi & Giáo dục',
+    icon: '📇',
+    title: 'Tạo Bộ Flashcards Ghi Nhớ Nhanh & Thuật Ngữ Cốt Lõi',
+    desc: 'Chắt lọc tài liệu thành các cặp thẻ Mặt trước (Khái niệm/Câu hỏi) và Mặt sau (Giải nghĩa ngắn gọn/Ví dụ) tương thích Anki.',
+    tags: ['Flashcard', 'Anki CSV', 'Ghi nhớ Spaced Repetition', 'Từ vựng'],
+    level: 'Thực dụng',
+    prompt: `Từ nội dung tài liệu đính kèm, hãy trích xuất thành một bộ gồm 15 Flashcards tối ưu cho phương pháp lặp lại ngắt quãng (Spaced Repetition):
+- Cấu trúc từng thẻ gồm 2 mặt:
+  + Mặt trước (Front): Câu hỏi trọng tâm, khái niệm hoặc tình huống ngắn gọn.
+  + Mặt sau (Back): Định nghĩa cô đọng dưới 35 từ kèm ví dụ minh họa trực quan.
+- Cuối cùng, xuất ra định dạng bảng 2 cột phân cách bằng dấu tab (TSV) để tôi nhập thẳng vào ứng dụng Anki / Quizlet.`
+  },
+  {
+    id: 'p_exam_5',
+    category: 'exam',
+    catLabel: '📚 Tạo đề thi & Giáo dục',
+    icon: '📑',
+    title: 'Tóm Tắt Tài Liệu & Sách Học Thuật Chuẩn Cornell Notes',
+    desc: 'Ghi chép và tóm lược sách vở theo hệ thống Cornell gồm Cột ghi chú, Cột từ khóa câu hỏi gợi nhớ và Khối đúc kết cuối trang.',
+    tags: ['Cornell Notes', 'Tóm tắt sách', 'Học tập thông minh', 'Tư duy hệ thống'],
+    level: 'Học thuật',
+    prompt: `Hãy đọc kỹ tài liệu đính kèm và trình bày lại theo phương pháp ghi chú Cornell Notes chuẩn học thuật:
+1. Cột Cue (Câu hỏi cốt lõi & Từ khóa then chốt): Liệt kê các câu hỏi lớn và thuật ngữ định nghĩa.
+2. Cột Notes (Nội dung ghi chép chi tiết): Tóm tắt các luận điểm, dữ kiện, công thức và ví dụ tương ứng.
+3. Phần Summary (Đúc kết cốt lõi cuối bài): Viết một đoạn tóm tắt từ 3-5 câu cô đọng toàn bộ tinh thần và bài học ứng dụng thực tiễn của tài liệu.`
   },
 
   // 3. Xử lý tài liệu & Chuyển PDF sang Word
@@ -2485,8 +2574,10 @@ Quy tắc:
     category: 'document',
     catLabel: '📄 Chuyển PDF sang Word',
     icon: '📑',
-    title: 'Chuyển Đổi PDF / Scan Sang Word Giữ Nguyên Bảng Biểu (PDF to Word OCR)',
+    title: 'Chuyển Đổi PDF / Scan Sang Word Giữ Nguyên Bảng Biểu',
     desc: 'Trích xuất toàn bộ văn bản từ file PDF hoặc ảnh chụp, tái tạo bảng Markdown chuẩn và sửa lỗi xuống dòng ngắt quãng.',
+    tags: ['PDF to Word', 'OCR Clean', 'Bảng biểu Markdown', 'Chữa lỗi ngắt dòng'],
+    level: 'Chuyên sâu',
     prompt: `Bạn là trợ lý xử lý tài liệu và OCR cấp cao. Từ nội dung hoặc hình ảnh tệp PDF được đính kèm, hãy chuyển đổi sang văn bản hoàn chỉnh để tôi dán trực tiếp vào Microsoft Word với các yêu cầu:
 1. Giữ nguyên 100% cấu trúc phân cấp (Tiêu đề lớn, Tiêu đề phụ, Danh sách gạch đầu dòng 1, 2, 3).
 2. Tái tạo các bảng biểu thành dạng Bảng Markdown chuẩn (đầy đủ các cột, dòng và số liệu chính xác).
@@ -2498,22 +2589,59 @@ Quy tắc:
     category: 'document',
     catLabel: '📄 Chuyển PDF sang Word',
     icon: '⚖️',
-    title: 'Trích Xuất Hợp Đồng & Báo Cáo Tài Chính Chuẩn Thể Thức',
-    desc: 'Đọc tệp hợp đồng/báo cáo PDF, trích xuất các điều khoản, quyền & nghĩa vụ, số tiền và chuẩn hóa thể thức văn bản.',
+    title: 'Trích Xuất Hợp Đồng & Văn Bản Pháp Lý Chuẩn Thể Thức',
+    desc: 'Đọc tệp hợp đồng/văn bản PDF, trích xuất điều khoản, quyền & nghĩa vụ, số tiền và chuẩn hóa thể thức hành chính.',
+    tags: ['Hợp đồng', 'Pháp lý', 'Điều khoản', 'Thể thức hành chính'],
+    level: 'Chuyên gia',
     prompt: `Hãy đóng vai trò chuyên viên pháp chế và tài liệu doanh nghiệp. Đọc kỹ tệp hợp đồng/báo cáo PDF được đính kèm và trích xuất:
 1. Thông tin định danh: Các bên tham gia, đại diện pháp luật, số hợp đồng, ngày hiệu lực.
 2. Bảng tóm tắt các mốc tài chính: Giá trị hợp đồng, các đợt thanh toán, thời hạn và số tài khoản.
 3. Toàn bộ nội dung điều khoản đã được định dạng lại chuẩn thể thức văn bản hành chính Việt Nam (có căn lề, mục rõ ràng) sẵn sàng sao chép vào Word.`
   },
+  {
+    id: 'p_doc_3',
+    category: 'document',
+    catLabel: '📄 Chuyển PDF sang Word',
+    icon: '🧾',
+    title: 'Trích Xuất Hóa Đơn / Sao Kê Ngân Hàng Thành Bảng Excel / CSV',
+    desc: 'Bóc tách dữ liệu từ ảnh chụp hóa đơn GTGT hoặc sao kê PDF thành bảng dữ liệu có cấu trúc chuẩn cột Excel.',
+    tags: ['Invoice OCR', 'Sao kê ngân hàng', 'Bóc tách hóa đơn', 'Excel CSV'],
+    level: 'Kế toán',
+    prompt: `Hãy phân tích hình ảnh hóa đơn / bảng sao kê PDF đính kèm và trích xuất dữ liệu thành một Bảng Markdown sạch chuẩn Excel gồm các cột:
+- [Ngày giao dịch]
+- [Mã hóa đơn / Mã tham chiếu]
+- [Tên hàng hóa / Dịch vụ / Nội dung giao dịch]
+- [Số lượng]
+- [Đơn giá]
+- [Thuế VAT (%)]
+- [Thành tiền (VND)]
+Cuối bảng có dòng Tổng cộng tiền hàng, Tiền thuế và Tổng thanh toán. Không bỏ sót bất kỳ dòng dữ liệu nào.`
+  },
+  {
+    id: 'p_doc_4',
+    category: 'document',
+    catLabel: '📄 Chuyển PDF sang Word',
+    icon: '🔍',
+    title: 'So Sánh & Đối Chiếu Khác Biệt Giữa 2 Phiên Bản Văn Bản (Diff)',
+    desc: 'Chỉ ra tất cả các điểm thay đổi, thêm vào, bớt đi hoặc sửa đổi giữa 2 tài liệu / hợp đồng được cung cấp.',
+    tags: ['Document Diff', 'So sánh hợp đồng', 'Kiểm tra phiên bản', 'Bảo đảm an toàn'],
+    level: 'Kiểm soát',
+    prompt: `Hãy so sánh hai đoạn văn bản / hai tài liệu PDF tôi đính kèm (Phiên bản A và Phiên bản B):
+1. Liệt kê toàn bộ các điểm khác biệt chi tiết theo từng điều khoản/đoạn văn (Nội dung nào bị xóa, nội dung nào được thêm mới, câu từ nào bị sửa đổi).
+2. Đánh giá mức độ rủi ro hoặc tác động pháp lý/nghĩa vụ của những thay đổi này.
+3. Xuất ra bảng đối chiếu 3 cột: [Khoản mục] | [Phiên bản cũ] | [Phiên bản mới] để dễ dàng theo dõi.`
+  },
 
-  // 4. Lập trình & Debug
+  // 4. Lập trình & Kỹ thuật
   {
     id: 'p_code_1',
     category: 'code',
     catLabel: '💻 Lập trình & Debug',
     icon: '🐛',
-    title: 'Kỹ Sư Senior Debug & Tối Ưu Hóa Mã Nguồn (Clean Code & Perf)',
+    title: 'Senior Code Review & Tối Ưu Hóa Clean Code',
     desc: 'Phân tích lỗi tiềm ẩn, tìm Memory Leak/Race Condition, refactor code sạch và đánh giá độ phức tạp Big-O.',
+    tags: ['Code Review', 'Clean Code', 'Performance', 'Big-O', 'Refactor'],
+    level: 'Senior Staff',
     prompt: `Bạn là Kỹ sư phần mềm cao cấp (Senior Staff Engineer). Hãy phân tích đoạn mã nguồn sau đây:
 1. Phát hiện và chỉ ra tất cả các lỗi tiềm ẩn (Logic bugs, Memory leaks, Race conditions, Security vulnerabilities, Edge cases).
 2. Giải thích cặn kẽ nguyên nhân gốc rễ (Root Cause) vì sao lỗi xảy ra.
@@ -2527,10 +2655,59 @@ Quy tắc:
     icon: '🧪',
     title: 'Viết Bộ Unit Test Toàn Diện (Full Coverage Unit Testing)',
     desc: 'Tự động tạo bộ test cases bao gồm Happy Path, Edge Cases, Mocking và Error Handling bằng Jest/PyTest.',
+    tags: ['Unit Test', 'Jest', 'PyTest', 'Mocking', 'Edge Cases'],
+    level: 'QA & Dev',
     prompt: `Đóng vai trò QA Lead & Senior Developer. Hãy viết bộ Unit Test toàn diện cho hàm/mô-đun code được cung cấp:
 - Bao gồm đầy đủ: Happy path (trường hợp chuẩn), Edge cases (giá trị biên, rỗng, null/undefined, số âm, mảng rỗng), và Error Handling (ném lỗi đúng loại).
 - Tạo dữ liệu giả lập (Mock data) thực tế.
 - Viết code test sạch, dễ bảo trì theo chuẩn AAA (Arrange - Act - Assert).`
+  },
+  {
+    id: 'p_code_3',
+    category: 'code',
+    catLabel: '💻 Lập trình & Debug',
+    icon: '🏛️',
+    title: 'Thiết Kế Kiến Trúc Hệ Thống & Lược Đồ Database (Schema Designer)',
+    desc: 'Thiết kế kiến trúc ứng dụng (Microservices / Modular Monolith) kèm lược đồ SQL / NoSQL và chỉ mục Indexing tối ưu.',
+    tags: ['System Architecture', 'Database Schema', 'PostgreSQL', 'Indexing', 'Scalability'],
+    level: 'Architect',
+    prompt: `Đóng vai trò Solution Architect. Với bài toán hệ thống: [Mô tả yêu cầu ứng dụng và quy mô người dùng].
+Hãy thiết kế:
+1. Kiến trúc hệ thống tổng quan (Tech stack đề xuất, giao tiếp giữa các service, cơ chế Cache, Message Queue).
+2. Lược đồ cơ sở dữ liệu chi tiết (Bảng, trường, kiểu dữ liệu, khóa chính, khóa ngoại, chỉ số Index để truy vấn nhanh).
+3. Đề xuất các giải pháp bảo đảm mở rộng (Scalability) và tính sẵn sàng cao (High Availability).`
+  },
+  {
+    id: 'p_code_4',
+    category: 'code',
+    catLabel: '💻 Lập trình & Debug',
+    icon: '📖',
+    title: 'Soạn Tài Liệu API Chuẩn OpenAPI / Swagger Kèm Ví Dụ Curl',
+    desc: 'Biến các đoạn code backend controller thành tài liệu API chi tiết chuẩn RESTful, có schema request/response và mã lỗi HTTP.',
+    tags: ['API Docs', 'Swagger', 'OpenAPI 3.0', 'cURL examples'],
+    level: 'Chuyên nghiệp',
+    prompt: `Dựa vào đoạn code backend hoặc mô tả endpoint sau, hãy biên soạn tài liệu API chuẩn kỹ thuật:
+- Phương thức HTTP & Đường dẫn Endpoint.
+- Header yêu cầu (Authorization, Content-Type).
+- Request Payload (Body / Query params) kèm định dạng kiểu dữ liệu và trường bắt buộc.
+- Bảng mã phản hồi HTTP (200, 201, 400, 401, 404, 500) kèm JSON Response mẫu thực tế.
+- Câu lệnh kiểm thử cURL mẫu hoàn chỉnh có thể copy chạy ngay trong Terminal.`
+  },
+  {
+    id: 'p_code_5',
+    category: 'code',
+    catLabel: '💻 Lập trình & Debug',
+    icon: '⚡',
+    title: 'Chuyên Gia Tối Ưu Truy Vấn SQL & Database Bottleneck',
+    desc: 'Phân tích câu lệnh SQL bị chậm, giải thích EXPLAIN ANALYZE, đề xuất Index tối ưu và cấu trúc lại câu lệnh.',
+    tags: ['SQL Optimization', 'EXPLAIN ANALYZE', 'Indexing', 'Performance Tuning'],
+    level: 'DBA',
+    prompt: `Tôi có câu truy vấn SQL sau đang chạy rất chậm trên cơ sở dữ liệu:
+[Dán câu lệnh SQL và lược đồ bảng].
+Hãy giúp tôi:
+1. Phân tích nguyên nhân gây nghẽn (Table scan, nested loop không hiệu quả, thiếu index, hàm trong mệnh đề WHERE).
+2. Viết lại câu lệnh SQL tối ưu nhất.
+3. Đề xuất câu lệnh tạo Index chính xác (Composite index nếu cần) để tăng tốc độ truy vấn gấp nhiều lần.`
   },
 
   // 5. Marketing & Sáng tạo nội dung
@@ -2539,8 +2716,10 @@ Quy tắc:
     category: 'marketing',
     catLabel: '✍️ Marketing & Content',
     icon: '🚀',
-    title: 'Bài Viết Chuẩn SEO Chuyên Sâu Tối Ưu E-E-A-T (Google SEO Master)',
+    title: 'Bài Viết Chuẩn SEO Chuyên Sâu Tối Ưu E-E-A-T',
     desc: 'Xây dựng bài viết chuẩn SEO đầy đủ tiêu đề giật tít, mở bài lôi cuốn, thẻ H2/H3 giá trị và kêu gọi hành động CTA.',
+    tags: ['Google SEO', 'E-E-A-T', 'Content Pillar', 'High CTR'],
+    level: 'Chuyên sâu',
     prompt: `Bạn là chuyên gia SEO & Content Marketing hàng đầu. Hãy viết bài viết toàn diện, chuyên sâu về chủ đề [Chủ đề] với từ khóa chính: [Từ khóa]:
 - Tiêu đề: Cuốn hút, chứa từ khóa chính, độ dài dưới 60 ký tự.
 - Meta Description: Tóm lược 150 ký tự kích thích tỷ lệ nhấp (CTR).
@@ -2555,11 +2734,41 @@ Quy tắc:
     icon: '🎬',
     title: 'Kịch Bản Video Ngắn 60 Giây Triệu View (TikTok / Reels / Shorts)',
     desc: 'Kịch bản video ngắn phân chia rõ khung hình thị giác (Visual) và lời thoại (Voiceover) với Hook cực mạnh.',
+    tags: ['TikTok Script', 'Reels', 'Shorts', '3s Hook', 'Viral'],
+    level: 'Sáng tạo',
     prompt: `Hãy viết kịch bản video ngắn 60 giây về chủ đề [Chủ đề] theo chuẩn công thức viral:
 - [0 - 3s] Hook cực gắt: Câu nói hoặc hình ảnh gây sốc/bất ngờ khiến người xem không thể lướt qua.
 - [3 - 45s] Thân bài: Chia sẻ 3 bí kíp/sự thật đắt giá được cô đọng, dứt khoát, nhịp điệu nhanh.
 - [45 - 60s] Kêu gọi hành động & Gợi mở tranh luận: Kích thích thả tim, lưu video và để lại bình luận tranh luận.
 Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [Lời thoại/Âm thanh].`
+  },
+  {
+    id: 'p_mkt_3',
+    category: 'marketing',
+    catLabel: '✍️ Marketing & Content',
+    icon: '🎯',
+    title: 'Copywriting Bán Hàng Thuyết Phục Theo Công Thức PAS',
+    desc: 'Viết bài bán hàng đánh trúng nỗi đau khách hàng theo mô hình PAS (Problem - Agitate - Solve) kích thích chốt đơn.',
+    tags: ['Copywriting', 'Công thức PAS', 'Tâm lý khách hàng', 'Chuyển đổi'],
+    level: 'Thuyết phục',
+    prompt: `Hãy viết bài viết bán hàng cho sản phẩm/dịch vụ [Tên sản phẩm] nhắm tới đối tượng [Khách hàng mục tiêu] theo công thức PAS:
+1. Problem (Nêu bật nỗi đau): Nêu chính xác rắc rối phiền toái mà khách hàng đang chịu đựng mỗi ngày.
+2. Agitate (Xoáy sâu nỗi đau): Mô tả hậu quả nghiêm trọng và chi phí nếu tiếp tục trì hoãn không giải quyết.
+3. Solve (Giải pháp hoàn hảo): Giới thiệu sản phẩm như một cứu cánh tự nhiên, minh chứng bằng kết quả thực tế và bảo đảm rủi ro (Risk-free Guarantee).`
+  },
+  {
+    id: 'p_mkt_4',
+    category: 'marketing',
+    catLabel: '✍️ Marketing & Content',
+    icon: '📧',
+    title: 'Chuỗi Email Nuôi Dưỡng & Chăm Sóc Khách Hàng (Email Sequence)',
+    desc: 'Thiết kế chuỗi 3 email chào mừng và chuyển đổi khách hàng tiềm năng với tiêu đề mở mail trên 45%.',
+    tags: ['Email Marketing', 'Cold Outreach', 'Nurture Sequence', 'Conversion'],
+    level: 'B2B & B2C',
+    prompt: `Hãy thiết kế chuỗi 3 email nuôi dưỡng khách hàng mới đăng ký trải nghiệm [Tên dịch vụ/sản phẩm]:
+- Email 1 (Ngay lập tức): Lời chào nồng nhiệt, tặng kèm quà tặng/tài liệu giá trị, hướng dẫn bước đầu tiên đơn giản nhất.
+- Email 2 (Ngày thứ 2): Câu chuyện thành công thực tế (Case study) của một khách hàng đã giải quyết vấn đề tương tự.
+- Email 3 (Ngày thứ 4): Ưu đãi đặc quyền có giới hạn thời gian (Scarcity) kèm lời kêu gọi nâng cấp tài khoản rõ ràng.`
   },
 
   // 6. Phân tích dữ liệu & Excel
@@ -2570,14 +2779,45 @@ Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [L�
     icon: '📈',
     title: 'Phù Thủy Công Thức Excel & Google Sheets Nâng Cao',
     desc: 'Giải quyết bài toán dò tìm phức tạp, mảng động (XLOOKUP, FILTER, INDEX-MATCH) kèm script tự động hóa.',
+    tags: ['Excel Formulas', 'XLOOKUP', 'FILTER', 'Mảng động', 'Google Sheets'],
+    level: 'Nâng cao',
     prompt: `Bạn là chuyên gia phân tích dữ liệu và tự động hóa bảng tính Excel/Google Sheets. Tôi đang gặp bài toán dữ liệu sau: [Mô tả chi tiết cấu trúc cột và mục tiêu cần tính toán].
 Hãy cung cấp:
 1. Công thức tối ưu nhất (sử dụng các hàm hiện đại như XLOOKUP, FILTER, UNIQUE, ARRAYFORMULA).
 2. Hướng dẫn từng bước cách công thức xử lý dữ liệu để tôi hiểu bản chất.
 3. Đoạn mã Python (dùng thư viện Pandas) hoặc Google Apps Script nếu bảng tính quá nhiều dòng cần tự động hóa hàng loạt.`
   },
+  {
+    id: 'p_data_2',
+    category: 'data',
+    catLabel: '📊 Phân tích dữ liệu & Excel',
+    icon: '🤖',
+    title: 'Viết Macro VBA & Google Apps Script Tự Động Hóa Báo Cáo',
+    desc: 'Tự động tổng hợp dữ liệu từ nhiều sheet, định dạng bảng biểu, gửi email báo cáo hàng ngày chỉ với 1 click.',
+    tags: ['VBA Macro', 'Google Apps Script', 'Tự động hóa', 'Auto Reporting'],
+    level: 'Tự động hóa',
+    prompt: `Hãy viết mã nguồn [VBA Macro cho Excel / Google Apps Script cho Google Sheets] để tự động hóa công việc sau:
+[Mô tả quy trình: Ví dụ gom các sheet chi nhánh vào sheet tổng hợp, xóa dòng trống, định dạng cột tiền tệ và tô màu cảnh báo nếu quá hạn].
+- Mã nguồn phải có chú thích bằng tiếng Việt chi tiết từng dòng.
+- Xử lý lỗi an toàn (Error Handling) để không bị crash khi dữ liệu có ô rỗng hoặc lỗi cú pháp.`
+  },
+  {
+    id: 'p_data_3',
+    category: 'data',
+    catLabel: '📊 Phân tích dữ liệu & Excel',
+    icon: '📊',
+    title: 'Phân Tích Chỉ Số Tài Chính & Tăng Trưởng Kinh Doanh (Financial Modeling)',
+    desc: 'Tính toán các chỉ số kinh doanh quan trọng (CAC, LTV, Churn rate, Runway, ROI) và đề xuất phương án cải thiện.',
+    tags: ['Financial Analysis', 'SaaS Metrics', 'LTV & CAC', 'ROI Optimization'],
+    level: 'Chiến lược',
+    prompt: `Đóng vai trò Giám đốc Tài chính (CFO) kiêm Chuyên gia Phân tích Dữ liệu Kinh doanh. Dựa trên số liệu sau: [Cung cấp số liệu doanh thu, chi phí marketing, số lượng khách hàng...].
+Hãy tính toán và phân tích:
+1. Các chỉ số cốt lõi: Chi phí thu hút khách hàng (CAC), Giá trị vòng đời (LTV), Tỷ lệ LTV/CAC, Tỷ lệ rời bỏ (Churn Rate).
+2. Nhận định sức khỏe tài chính và điểm nghẽn lớn nhất trong mô hình kinh doanh hiện tại.
+3. Đề xuất 3 hành động cụ thể để cải thiện biên lợi nhuận trong quý tới.`
+  },
 
-  // 7. Dịch thuật chuyên sâu
+  // 7. Dịch thuật & Học thuật
   {
     id: 'p_trans_1',
     category: 'translation',
@@ -2585,11 +2825,41 @@ Hãy cung cấp:
     icon: '🌐',
     title: 'Dịch Thuật Bản Địa Hóa Song Ngữ Anh - Việt Chuyên Ngành',
     desc: 'Dịch thuật thoát ý, đúng ngữ cảnh chuyên ngành, văn phong tự nhiên như người bản xứ thay vì dịch máy thô cứng.',
+    tags: ['Bản địa hóa', 'Anh - Việt', 'Thoát ý tự nhiên', 'Chuẩn thuật ngữ'],
+    level: 'Chuyên gia',
     prompt: `Bạn là dịch giả song ngữ cao cấp chuyên ngành Công nghệ và Kinh doanh. Hãy dịch đoạn văn bản sau đây sang tiếng Việt:
 Yêu cầu bắt buộc:
 1. Tuyệt đối không dịch thô word-by-word. Dịch thoát ý, tự nhiên, nhuần nhuyễn theo phong cách của chuyên gia bản địa.
 2. Giữ nguyên và dùng chuẩn các thuật ngữ chuyên ngành đã được thị trường công nhận.
 3. Chú thích ngắn gọn trong ngoặc đơn các từ viết tắt hoặc thuật ngữ mới lần đầu xuất hiện.`
+  },
+  {
+    id: 'p_trans_2',
+    category: 'translation',
+    catLabel: '💼 Dịch thuật chuyên sâu',
+    icon: '🎓',
+    title: 'Hiệu Đính & Nâng Cấp Luận Văn Học Thuật Chuẩn Quốc Tế',
+    desc: 'Sửa lỗi ngữ pháp, cải thiện vốn từ vựng học thuật cao cấp (C1/C2), trau chuốt cấu trúc câu cho bài báo khoa học.',
+    tags: ['Academic Proofreading', 'IELTS / TOEFL', 'Bài báo khoa học', 'C1/C2 Vocab'],
+    level: 'Học thuật',
+    prompt: `Hãy đóng vai trò một Giáo sư biên tập bài báo học thuật chuẩn quốc tế (Academic Editor). Đọc đoạn văn bản học thuật tiếng Anh sau:
+1. Sửa toàn bộ lỗi ngữ pháp, dùng từ và cách diễn đạt gượng gạo.
+2. Nâng cấp các từ vựng thông thường thành từ vựng học thuật trang trọng (C1/C2 Academic vocabulary).
+3. Đảm bảo tính mạch lạc, liên kết giữa các câu bằng các từ nối học thuật tinh tế.
+4. Xuất ra bảng so sánh [Câu gốc] vs [Câu đã trau chuốt] kèm lời giải thích ngắn gọn vì sao sửa như vậy.`
+  },
+  {
+    id: 'p_trans_3',
+    category: 'translation',
+    catLabel: '💼 Dịch thuật chuyên sâu',
+    icon: '✉️',
+    title: 'Viết Email Giao Tiếp Thương Mại Quốc Tế Trang Trọng',
+    desc: 'Soạn thảo email tiếng Anh ngoại giao, đàm phán hợp đồng hoặc khiếu nại đối tác một cách khéo léo, dứt khoát.',
+    tags: ['Business English', 'Đàm phán thương mại', 'Email ngoại giao', 'Chuyên nghiệp'],
+    level: 'Thương mại',
+    prompt: `Hãy viết một email bằng tiếng Anh thương mại chuyên nghiệp gửi tới [Đối tác / Khách hàng quốc tế] về vấn đề: [Mục đích email: Đàm phán giá / Thông báo chậm tiến độ / Đề xuất hợp tác].
+- Giọng văn: Lịch thiệp, trang trọng, thể hiện sự tôn trọng nhưng dứt khoát và rõ ràng về quyền lợi.
+- Bố cục: Tiêu đề súc tích, mở đầu chuyên nghiệp, thân bài đi thẳng vào nội dung cốt lõi kèm giải pháp, kết thúc bằng lời kêu gọi hành động (Call to action) cụ thể.`
   }
 ];
 
@@ -2606,20 +2876,45 @@ function renderPrompts() {
   const cat = state.promptsCategoryFilter || 'all';
   const search = (state.promptsSearchTerm || '').toLowerCase();
 
+  // Update category counts on filter buttons
+  const catCounts = { all: all.length };
+  all.forEach(p => {
+    catCounts[p.category] = (catCounts[p.category] || 0) + 1;
+  });
+
+  const filterBtns = document.querySelectorAll('.prompt-filter-btn');
+  filterBtns.forEach(btn => {
+    const c = btn.getAttribute('data-cat');
+    const count = catCounts[c] || 0;
+    // Extract base text
+    let baseText = btn.getAttribute('data-base-label');
+    if (!baseText) {
+      baseText = btn.textContent.replace(/\s*\(\d+\)$/, '').trim();
+      btn.setAttribute('data-base-label', baseText);
+    }
+    btn.innerHTML = `${baseText} <span class="prompt-filter-count">${count}</span>`;
+  });
+
+  // Update stat total count
+  const statTotalEl = document.getElementById('stat-total-prompts');
+  if (statTotalEl) statTotalEl.textContent = `${all.length}+`;
+
   const filtered = all.filter(p => {
     const matchCat = cat === 'all' || p.category === cat;
     const matchSearch = !search || 
       p.title.toLowerCase().includes(search) || 
       p.desc.toLowerCase().includes(search) || 
-      p.prompt.toLowerCase().includes(search);
+      p.prompt.toLowerCase().includes(search) ||
+      (p.tags && p.tags.some(t => t.toLowerCase().includes(search)));
     return matchCat && matchSearch;
   });
 
   if (filtered.length === 0) {
     grid.innerHTML = `
-      <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
-        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
-        <p>Không tìm thấy Prompt phù hợp với bộ lọc hiện tại.</p>
+      <div style="grid-column: 1/-1; text-align: center; padding: 3.5rem 1rem; color: var(--text-muted); background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 12px;">
+        <div style="font-size: 2.2rem; margin-bottom: 0.65rem;">🔍</div>
+        <h4 style="color: var(--text-white); margin-bottom: 0.35rem;">Không tìm thấy Prompt phù hợp</h4>
+        <p style="font-size: 0.85rem;">Hãy thử tìm từ khóa khác hoặc bấm "+ Tạo Prompt Mới" để lưu công thức của riêng bạn.</p>
       </div>
     `;
     return;
@@ -2630,6 +2925,8 @@ function renderPrompts() {
     card.className = 'prompt-card';
 
     const catBadgeClass = `cat-${item.category}`;
+    const wordCount = item.prompt.trim().split(/\s+/).length;
+    const tagsHtml = (item.tags || []).map(t => `<span class="prompt-tag">${escapeHtml(t)}</span>`).join('');
 
     card.innerHTML = `
       <div class="prompt-card-header">
@@ -2644,15 +2941,27 @@ function renderPrompts() {
 
       <p class="prompt-card-desc">${escapeHtml(item.desc || '')}</p>
 
+      ${tagsHtml ? `<div class="prompt-tags-list">${tagsHtml}</div>` : ''}
+
+      <div class="prompt-meta-row">
+        <span>Độ dài: <strong>~${wordCount} từ</strong></span>
+        <span>Cấp độ: <strong>${escapeHtml(item.level || 'Chuẩn hóa')}</strong></span>
+      </div>
+
       <div class="prompt-box">${escapeHtml(item.prompt)}</div>
 
       <div class="prompt-card-footer">
-        <button class="btn-copy-prompt" onclick="copyPromptCardText(this, ${JSON.stringify(item.prompt)})">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <span>Sao chép</span>
-        </button>
+        <div style="display: flex; gap: 0.4rem; align-items: center;">
+          <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="copyPromptCardText(this, ${JSON.stringify(item.prompt)})">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>Sao chép</span>
+          </button>
+          <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="applyAsSystemPrompt(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
+            <span>⚙️ System</span>
+          </button>
+        </div>
 
-        <button class="btn-use-prompt" onclick="applyPromptToPlayground(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
+        <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="applyPromptToPlayground(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
           <span>Áp dụng vào Playground</span>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -2717,6 +3026,8 @@ function setupPromptEvents() {
         title,
         desc,
         prompt: content,
+        tags: ['Tùy chỉnh', getCatLabel(cat).split(' ')[1] || 'Prompt'],
+        level: 'Cá nhân',
         isCustom: true
       };
 
@@ -2724,6 +3035,7 @@ function setupPromptEvents() {
       localStorage.setItem('vz_custom_prompts', JSON.stringify(state.customPrompts));
 
       promptModal.classList.remove('active');
+      showToast(`⭐ Đã lưu Prompt cá nhân: "${title}"!`);
       renderPrompts();
     });
   }
@@ -2757,30 +3069,72 @@ function getCatIcon(cat) {
   return map[cat] || '💡';
 }
 
-window.copyPromptCardText = function(btnEl, text) {
-  navigator.clipboard.writeText(text);
-  const original = btnEl.innerHTML;
-  btnEl.innerHTML = `<span style="color:#22c55e;">✓ Đã chép!</span>`;
-  setTimeout(() => {
-    btnEl.innerHTML = original;
-  }, 1800);
+window.copyPromptCardText = async function(btnEl, text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = btnEl.innerHTML;
+    btnEl.innerHTML = `<span style="color:#22c55e;">✓ Đã chép!</span>`;
+    showToast('📋 Đã sao chép nội dung Prompt vào bộ nhớ tạm!');
+    setTimeout(() => {
+      btnEl.innerHTML = original;
+    }, 1800);
+  } catch {
+    showToast('⚠️ Không thể sao chép tự động.');
+  }
 };
 
-window.applyPromptToPlayground = function(promptText, title) {
-  // Navigate to Playground
-  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
-  if (playgroundBtn) playgroundBtn.click();
+/**
+ * Áp dụng Prompt vào Playground:
+ * 1. Tự động copy nội dung prompt vào clipboard
+ * 2. Chuyển thẳng tới tab Playground
+ * 3. Ghi sẵn nội dung vào ô chat, tự động điều chỉnh độ cao và focus
+ * 4. TUYỆT ĐỐI CHƯA GỬI để người dùng có thể chỉnh sửa/thêm tài liệu trước
+ */
+window.applyPromptToPlayground = async function(promptText, title) {
+  // 1. Tự động sao chép vào clipboard
+  try {
+    await navigator.clipboard.writeText(promptText);
+  } catch (err) {
+    console.warn('Clipboard write error:', err);
+  }
 
-  // Populate prompt into chatInput
+  // 2. Chuyển thẳng tới tab Playground
+  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
+  if (playgroundBtn) {
+    playgroundBtn.click();
+  }
+
+  // 3. Ghi sẵn prompt vào ô chat input nhưng CHƯA nhấn gửi
   if (chatInput) {
     chatInput.value = promptText;
     chatInput.focus();
     chatInput.style.height = 'auto';
-    chatInput.style.height = Math.min(180, chatInput.scrollHeight) + 'px';
+    chatInput.style.height = Math.min(220, Math.max(50, chatInput.scrollHeight)) + 'px';
+    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  if (chatStatusIndicator) {
-    chatStatusIndicator.textContent = `Đã áp dụng: ${title}`;
-    setTimeout(() => { chatStatusIndicator.textContent = ''; }, 3000);
+  // 4. Hiển thị thông báo Toast xác nhận
+  showToast(`🚀 Đã sao chép & điền sẵn Prompt: "${title || 'Mẫu'}" vào ô chat. Hãy chỉnh sửa nếu cần và bấm Gửi!`);
+};
+
+/**
+ * Nạp trực tiếp làm System Prompt của Playground
+ */
+window.applyAsSystemPrompt = async function(promptText, title) {
+  try {
+    await navigator.clipboard.writeText(promptText);
+  } catch (err) {
+    console.warn('Clipboard error:', err);
   }
+
+  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
+  if (playgroundBtn) playgroundBtn.click();
+
+  if (systemPromptInput) {
+    systemPromptInput.value = promptText;
+    systemPromptInput.focus();
+    systemPromptInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  showToast(`⚙️ Đã thiết lập Prompt làm System Prompt cho Playground!`);
 };

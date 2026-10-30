@@ -2159,6 +2159,149 @@ input[type="range"] {
   border-color: var(--border-focus);
 }
 
+.btn-sys-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sys-prompt:hover {
+  background: #1c1c20;
+  color: var(--text-white);
+  border-color: #52525b;
+}
+
+/* Prompts Header Stats Bar */
+.prompts-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.prompts-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prompts-stat-num {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-white);
+  font-family: var(--font-mono);
+}
+
+.prompts-stat-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.prompts-stat-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+}
+
+.prompt-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.prompt-tag {
+  font-size: 0.68rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: #18181b;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.prompt-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.prompt-filter-count {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #27272a;
+  color: #a1a1aa;
+  margin-left: 0.3rem;
+  font-family: var(--font-mono);
+}
+
+.prompt-filter-btn.active .prompt-filter-count {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* Floating Toast System */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  background: #121215;
+  border: 1px solid #3f3f46;
+  border-left: 4px solid var(--status-green);
+  color: var(--text-white);
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 450px;
+  line-height: 1.4;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-item.fade-out {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+}
+
 /* ---------------- USER PROFILE & AI DIRECTIVES ---------------- */
 .profile-locked-card {
   display: flex;

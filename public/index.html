@@ -240,11 +240,28 @@
           <div class="pane-header">
             <div>
               <h2>Kho Thư Viện Prompt (Prompt Hub)</h2>
-              <p class="pane-subtitle">Tổng hợp các bộ Prompt chuyên sâu, chuẩn hóa cho từng công việc thực tế (Chỉnh ảnh, Tạo đề thi, Chuyển PDF sang Word, Lập trình, Marketing, Phân tích dữ liệu...). Bấm "Áp dụng" để đưa ngay vào Playground.</p>
+              <p class="pane-subtitle">Tổng hợp các bộ Prompt chuyên sâu, chuẩn hóa cho từng công việc thực tế (Chỉnh ảnh, Tạo đề thi, Chuyển PDF sang Word, Lập trình, Marketing, Phân tích dữ liệu...). Bấm "Áp dụng vào Playground" để tự động chép và điền sẵn vào ô chat.</p>
             </div>
             <button id="btn-open-add-prompt" class="btn-primary">
               + Tạo Prompt Mới
             </button>
+          </div>
+
+          <div class="prompts-stats-bar">
+            <div class="prompts-stat-item">
+              <span class="prompts-stat-num" id="stat-total-prompts">28+</span>
+              <span class="prompts-stat-label">Prompt Tiêu Chuẩn</span>
+            </div>
+            <div class="prompts-stat-divider"></div>
+            <div class="prompts-stat-item">
+              <span class="prompts-stat-num">8</span>
+              <span class="prompts-stat-label">Lĩnh Vực Chuyên Nghiệp</span>
+            </div>
+            <div class="prompts-stat-divider"></div>
+            <div class="prompts-stat-item">
+              <span class="prompts-stat-num">🚀 1-Click</span>
+              <span class="prompts-stat-label">Chép & Điền sẵn vào Playground</span>
+            </div>
           </div>
 
           <div class="prompts-toolbar">
@@ -851,6 +868,9 @@
         </form>
       </div>
     </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="toast-container"></div>
 
   </div>
 
