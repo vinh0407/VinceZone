@@ -124,6 +124,61 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
     return result;
   } catch (err) {
     const latency = Date.now() - startTime;
+    const isRateLimit = err.message && (
+      err.message.includes('429') || 
+      err.message.includes('Free usage limit reached') || 
+      err.message.includes('quota') ||
+      err.message.includes('rate limit')
+    );
+
+    // TỰ ĐỘNG CHUYỂN ĐỔI DỰ PHÒNG (SMART FAILOVER) KHI GẶP LỖI 429 HẠN MỨC
+    if (isRateLimit && (!res || !res.headersSent)) {
+      const allProviders = Store.getProviders().filter(p => p.enabled && p.id !== provider.id && p.apiKey);
+      const fallbackProvider = allProviders.find(p => 
+        p.id === 'prov_kilo_gateway' || 
+        (p.baseUrl && p.baseUrl.includes('kilo')) || 
+        (p.name && p.name.toLowerCase().includes('kilo'))
+      ) || allProviders[0];
+
+      if (fallbackProvider && fallbackProvider.models && fallbackProvider.models.length > 0) {
+        const fallbackModel = fallbackProvider.models.find(m => m.includes('auto') || m.includes('free')) || fallbackProvider.models[0];
+        console.warn(`[Auto-Failover] Nhà cung cấp "${provider.name}" (${resolvedModel}) gặp lỗi 429 (Hết hạn mức). Hệ thống tự động chuyển sang "${fallbackProvider.name}" (${fallbackModel})...`);
+
+        try {
+          const fallbackAdapter = getAdapter(fallbackProvider.type);
+          const fallbackResult = await fallbackAdapter.callChat({
+            provider: fallbackProvider,
+            model: fallbackModel,
+            messages: enrichedMessages,
+            temperature,
+            max_tokens,
+            stream,
+            res
+          });
+
+          Store.logRequest({
+            endpoint: '/v1/chat/completions',
+            model: `${resolvedModel} ➜ ${fallbackModel} (Tự động chuyển tiếp)`,
+            provider: `${provider.name} ➜ ${fallbackProvider.name}`,
+            clientIp,
+            status: 200,
+            latency: Date.now() - startTime,
+            stream: Boolean(stream),
+            tokens: fallbackResult?.usage?.total_tokens || null
+          });
+
+          return fallbackResult;
+        } catch (fallbackErr) {
+          console.error(`[Auto-Failover] Chuyển đổi sang "${fallbackProvider.name}" không thành công:`, fallbackErr.message);
+        }
+      }
+    }
+
+    let userFacingError = err.message;
+    if (err.message && (err.message.includes('Free usage limit reached') || (err.message.includes('429') && err.message.includes('OpenCode')))) {
+      userFacingError = `[OpenCode] Đã đạt giới hạn gọi miễn phí (HTTP 429: Free usage limit reached). Bạn hãy chuyển sang chọn Provider "Kilo Gateway" (chọn model "kilo-auto/free" hoặc "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free") ở cột bên phải để tiếp tục sử dụng miễn phí không giới hạn.`;
+    }
+
     Store.logRequest({
       endpoint: '/v1/chat/completions',
       model: resolvedModel,
@@ -131,9 +186,9 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
       clientIp,
       status: 500,
       latency,
-      error: err.message
+      error: userFacingError
     });
-    throw err;
+    throw new Error(userFacingError);
   }
 }
 

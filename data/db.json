@@ -86,6 +86,29 @@
       "createdAt": "2026-10-30T12:39:27.922Z"
     },
     {
+      "id": "prov_kilo_gateway",
+      "name": "Kilo Gateway",
+      "type": "openai-compatible",
+      "baseUrl": "https://ai-gateway.kilo.ai/api/v1",
+      "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnYiOiJwcm9kdWN0aW9uIiwia2lsb1VzZXJJZCI6ImRiYWNlOTk1LTY2OTctNDNlNi05NWYxLTRmYzg0ZjJmODA4MSIsImFwaVRva2VuUGVwcGVyIjpudWxsLCJ2ZXJzaW9uIjozLCJpYXQiOjE3OTMzNjY1MDEsImV4cCI6MTk1MTA0NjUwMX0.hzpka6FFM-5RJEidHCsRic7LI_MZlMMAeV5OX4-u6ac",
+      "models": [
+        "kilo-auto/free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "cohere/north-mini-code:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "dots-studio/dots-3-note-preview:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
+        "recursive/flint-v1.0:free",
+        "xingchen-agi/xing4.0-29b-a4b:free"
+      ],
+      "enabled": true,
+      "createdAt": "2026-10-30T13:11:54.620Z",
+      "updatedAt": "2026-10-30T13:22:04.715Z"
+    },
+    {
       "id": "prov_opencode",
       "name": "OpenCode",
       "type": "openai-compatible",
@@ -104,29 +127,6 @@
       "enabled": true,
       "createdAt": "2026-10-30T13:11:54.620Z",
       "updatedAt": "2026-10-30T14:07:27.048Z"
-    },
-    {
-      "id": "prov_kilo_gateway",
-      "name": "Kilo Gateway",
-      "type": "openai-compatible",
-      "baseUrl": "https://ai-gateway.kilo.ai/api/v1",
-      "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnYiOiJwcm9kdWN0aW9uIiwia2lsb1VzZXJJZCI6ImRiYWNlOTk1LTY2OTctNDNlNi05NWYxLTRmYzg0ZjJmODA4MSIsImFwaVRva2VuUGVwcGVyIjpudWxsLCJ2ZXJzaW9uIjozLCJpYXQiOjE3OTMzNjY1MDEsImV4cCI6MTk1MTA0NjUwMX0.hzpka6FFM-5RJEidHCsRic7LI_MZlMMAeV5OX4-u6ac",
-      "models": [
-        "kilo-auto/free",
-        "cohere/north-mini-code:free",
-        "dots-studio/dots-3-note-preview:free",
-        "liquid/lfm-2.5-2.6b:free",
-        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "nvidia/nemotron-3.5-lightning:free",
-        "poolside/laguna-s-2.1:free",
-        "poolside/laguna-xs-2.1:free",
-        "recursive/flint-v1.0:free",
-        "xingchen-agi/xing4.0-29b-a4b:free"
-      ],
-      "enabled": true,
-      "createdAt": "2026-10-30T13:11:54.620Z",
-      "updatedAt": "2026-10-30T13:22:04.715Z"
     }
   ],
   "gatewayKeys": [
@@ -139,6 +139,30 @@
     }
   ],
   "logs": [
+    {
+      "id": "log_64c18ca1fae1",
+      "timestamp": "2026-10-30T14:47:17.789Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free ➜ kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenCode ➜ Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 2857,
+      "stream": true,
+      "tokens": null
+    },
+    {
+      "id": "log_52c76ddc992d",
+      "timestamp": "2026-10-30T14:47:03.906Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free ➜ kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenCode ➜ Kilo Gateway",
+      "clientIp": "playground-ui",
+      "status": 200,
+      "latency": 2355,
+      "stream": false,
+      "tokens": 164
+    },
     {
       "id": "log_3127baefef3c",
       "timestamp": "2026-10-30T14:32:21.347Z",
@@ -380,7 +404,7 @@
         "preferredStyle": "Ngắn gọn, súc tích, đi thẳng vào giải pháp kèm code mẫu Clean Code",
         "criticalRules": "1. Luôn trả lời bằng Tiếng Việt chuẩn\n2. Tuyệt đối không bịa đặt package không có thật\n3. Ưu tiên thư viện thuần",
         "customNotes": "Chạy môi trường Windows và Docker Linux",
-        "updatedAt": "2026-10-30T14:43:11.304Z"
+        "updatedAt": "2026-10-30T14:45:09.827Z"
       }
     }
   ],
@@ -394,6 +418,11 @@
       "token": "vz_sess_92adaea7ca016d584c9df39f2d0b0e3f5c5ee6f2f067e8bf",
       "userId": "usr_admin",
       "createdAt": "2026-10-30T14:43:11.296Z"
+    },
+    {
+      "token": "vz_sess_d4724ab4c99b178aa85f35b799c816e99dd4bbd92818bb9c",
+      "userId": "usr_admin",
+      "createdAt": "2026-10-30T14:44:54.085Z"
     }
   ],
   "chatSessions": [

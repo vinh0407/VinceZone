@@ -1134,8 +1134,9 @@ function updateProviderAndModelDropdowns() {
   if (currentSelectedProvider && enabledProviders.some(p => p.id === currentSelectedProvider)) {
     providerSelect.value = currentSelectedProvider;
   } else {
-    // Prefer the first provider that has an API key configured, otherwise first
-    const firstWithKey = enabledProviders.find(p => p.hasKey);
+    // Prefer Kilo Gateway (which is 100% active, reliable, and completely free)
+    const kiloProv = enabledProviders.find(p => p.id === 'prov_kilo_gateway');
+    const firstWithKey = kiloProv || enabledProviders.find(p => p.hasKey);
     providerSelect.value = firstWithKey ? firstWithKey.id : enabledProviders[0].id;
   }
 
