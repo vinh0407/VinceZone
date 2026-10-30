@@ -18,6 +18,9 @@ let state = {
   currentChatTitle: 'Đoạn chat mới',
   chatHistory: [],
   pendingAttachments: [],
+  promptsCategoryFilter: 'all',
+  promptsSearchTerm: '',
+  customPrompts: JSON.parse(localStorage.getItem('vz_custom_prompts') || '[]'),
   currentSnippetLang: 'curl',
   isGenerating: false
 };
@@ -287,6 +290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupProviderEvents();
   setupGatewayEvents();
   setupMemoryEvents();
+  setupPromptEvents();
   setupAuthEvents();
   setupChatHistoryEvents();
 
@@ -301,6 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ]);
 
   renderSnippets();
+  renderPrompts();
 });
 
 // -------------------------------------------------------------
@@ -308,7 +313,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // -------------------------------------------------------------
 
 function setupNavigation() {
-  // Top nav (Playground vs Cài Đặt)
+  // Top nav (Playground vs Prompt Hub vs Cài Đặt)
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
@@ -319,6 +324,10 @@ function setupNavigation() {
       btn.classList.add('active');
       const pane = document.getElementById(`tab-${targetTab}`);
       if (pane) pane.classList.add('active');
+
+      if (targetTab === 'prompts') {
+        renderPrompts();
+      }
 
       if (targetTab === 'settings') {
         const activeSubtabBtn = document.querySelector('.settings-nav-item.active');
@@ -2223,3 +2232,396 @@ function escapeHtml(str) {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
 }
+
+// -------------------------------------------------------------
+// KHO THƯ VIỆN PROMPT (PROMPT HUB)
+// -------------------------------------------------------------
+
+const BUILTIN_PROMPTS = [
+  // 1. Chỉnh ảnh & Vision AI
+  {
+    id: 'p_img_1',
+    category: 'image',
+    catLabel: '🖼️ Chỉnh ảnh & Vision',
+    icon: '📸',
+    title: 'Tạo Ảnh Chân Dung Điện Ảnh (Cinematic Photo Master)',
+    desc: 'Tạo câu lệnh mô tả chi tiết bằng tiếng Anh theo phong cách nhiếp ảnh điện ảnh 8K, ánh sáng hoàng hôn, độ sâu trường ảnh mờ ảo.',
+    prompt: `Một bức ảnh chân dung phong cách điện ảnh (Cinematic photography), chụp bằng ống kính 85mm f/1.4, ánh sáng vàng lúc hoàng hôn (golden hour lighting), chi tiết khuôn mặt sắc nét 8K, độ sâu trường ảnh nông (bokeh mềm mịn), tông màu moody ấm áp, tương phản cao, phong cách nghệ thuật nhiếp ảnh đoạt giải National Geographic, chân thực không tì vết.`
+  },
+  {
+    id: 'p_img_2',
+    category: 'image',
+    catLabel: '🖼️ Chỉnh ảnh & Vision',
+    icon: '🎨',
+    title: 'Chuyên Gia Phân Tích & Hướng Dẫn Chỉnh Ảnh (Vision Photo Enhancer)',
+    desc: 'Quan sát ảnh đính kèm, phân tích bố cục, màu sắc và gợi ý bảng thông số Lightroom/Photoshop kèm prompt tái tạo ảnh.',
+    prompt: `Bạn là chuyên gia phân tích thị giác và chỉnh sửa ảnh nghệ thuật chuyên nghiệp. Hãy quan sát bức ảnh tôi đính kèm và thực hiện các yêu cầu:
+1. Đánh giá bố cục, ánh sáng, độ cân bằng trắng và độ tương phản hiện tại.
+2. Chỉ ra các khuyết điểm cần tối ưu (vùng cháy sáng, tối mất chi tiết, nhiễu hạt, góc nghiêng).
+3. Gợi ý bảng thông số tinh chỉnh cụ thể (Exposure, Contrast, Highlights, Shadows, Temp, Tint, Clarity, Dehaze).
+4. Viết 1 câu Prompt tiếng Anh hoàn chỉnh (kèm các từ khóa negative prompt) để tôi có thể tạo lại hoặc nâng cấp bức ảnh này trên các AI vẽ ảnh (Midjourney, Stable Diffusion, DALL-E).`
+  },
+  {
+    id: 'p_img_3',
+    category: 'image',
+    catLabel: '🖼️ Chỉnh ảnh & Vision',
+    icon: '✨',
+    title: 'Phục Chế & Nâng Cấp Chi Tiết Ảnh Cũ / Mờ (Photo Restoration)',
+    desc: 'Mô tả tái tạo và khử nhiễu ảnh cũ, phục hồi đường nét khuôn mặt, tăng độ phân giải và tô màu tự nhiên.',
+    prompt: `Đóng vai trò chuyên gia phục chế hình ảnh kỹ thuật số (Digital Photo Restoration Expert). Phân tích bức ảnh cũ/mờ đính kèm:
+1. Xác định niên đại, phong cách và các hư tổn chính (trầy xước, ố vàng, mất nét, vỡ hạt pixel).
+2. Đề xuất quy trình phục dựng: Khử nhiễu, tái tạo đường nét mắt mũi miệng, và phương án lên màu (colorization) tự nhiên.
+3. Tạo câu prompt tiếng Anh chi tiết để đưa vào các công cụ AI Upscale & Inpainting phục hồi bức ảnh về độ phân giải siêu nét.`
+  },
+
+  // 2. Giáo dục & Tạo đề thi
+  {
+    id: 'p_exam_1',
+    category: 'exam',
+    catLabel: '📚 Tạo đề thi & Giáo dục',
+    icon: '📝',
+    title: 'Biên Soạn Đề Thi Trắc Nghiệm Chuẩn Ma Trận Sư Phạm',
+    desc: 'Tạo bộ 10 câu trắc nghiệm 4 đáp án theo chuẩn ma trận (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao) kèm bảng đáp án và giải thích.',
+    prompt: `Bạn là chuyên gia khảo thí và sư phạm giàu kinh nghiệm. Dựa vào nội dung kiến thức được cung cấp (hoặc tài liệu đính kèm), hãy biên soạn đề kiểm tra trắc nghiệm gồm 10 câu hỏi theo đúng ma trận phân hóa chuẩn:
+- 3 câu Nhận biết (30%)
+- 3 câu Thông hiểu (30%)
+- 2 câu Vận dụng (20%)
+- 2 câu Vận dụng cao (20%)
+
+Yêu cầu định dạng:
+Mỗi câu có 4 phương án A, B, C, D rõ ràng. Các phương án nhiễu phải hợp lý, mang tính phân loại học sinh tốt.
+Phần cuối đề: Trình bày bảng đáp án chuẩn kèm lời giải thích chi tiết, logic vì sao chọn đáp án đó.`
+  },
+  {
+    id: 'p_exam_2',
+    category: 'exam',
+    catLabel: '📚 Tạo đề thi & Giáo dục',
+    icon: '📊',
+    title: 'Đề Thi Tự Luận & Bảng Tiêu Chí Chấm Điểm (Rubric)',
+    desc: 'Thiết kế 3 câu hỏi tự luận đào sâu tư duy phản biện và giải quyết tình huống kèm biểu điểm chi tiết thang điểm 10.',
+    prompt: `Dựa vào tài liệu hoặc chủ đề bài học tôi cung cấp, hãy biên soạn 3 câu hỏi tự luận đánh giá năng lực tư duy phản biện và vận dụng thực tiễn của người học:
+- Câu 1: Câu hỏi lý thuyết chuyên sâu kết hợp so sánh / phân tích (3 điểm)
+- Câu 2: Câu hỏi giải quyết tình huống thực tế (4 điểm)
+- Câu 3: Câu hỏi mở đề xuất giải pháp sáng tạo (3 điểm)
+
+Kèm theo: Bảng tiêu chí chấm điểm (Rubric) chi tiết đến từng 0.5 điểm, nêu rõ các ý bắt buộc phải có để học viên đạt điểm tối đa.`
+  },
+  {
+    id: 'p_exam_3',
+    category: 'exam',
+    catLabel: '📚 Tạo đề thi & Giáo dục',
+    icon: '💡',
+    title: 'Gia Sư Phản Xạ & Vấn Đáp Ôn Tập (Socratic Tutor)',
+    desc: 'Đóng vai gia sư thông thái hỏi đáp từng câu một để kích thích người học tự tư duy tìm ra câu trả lời thay vì cho đáp án ngay.',
+    prompt: `Hãy đóng vai trò một gia sư thông thái áp dụng phương pháp vấn đáp Socrates. Chủ đề hôm nay là: [Tên bài học hoặc tài liệu đính kèm].
+Quy tắc:
+1. Không đưa ra ngay bài giảng dài hay đáp án trực tiếp.
+2. Hãy đặt cho tôi từng câu hỏi một (từ dễ đến khó) để gợi mở và kiểm tra hiểu biết của tôi.
+3. Sau mỗi lần tôi trả lời, hãy nhận xét ngắn gọn và đặt câu hỏi tiếp theo để dẫn dắt tôi tự khám phá ra bản chất vấn đề.`
+  },
+
+  // 3. Xử lý tài liệu & Chuyển PDF sang Word
+  {
+    id: 'p_doc_1',
+    category: 'document',
+    catLabel: '📄 Chuyển PDF sang Word',
+    icon: '📑',
+    title: 'Chuyển Đổi PDF / Scan Sang Word Giữ Nguyên Bảng Biểu (PDF to Word OCR)',
+    desc: 'Trích xuất toàn bộ văn bản từ file PDF hoặc ảnh chụp, tái tạo bảng Markdown chuẩn và sửa lỗi xuống dòng ngắt quãng.',
+    prompt: `Bạn là trợ lý xử lý tài liệu và OCR cấp cao. Từ nội dung hoặc hình ảnh tệp PDF được đính kèm, hãy chuyển đổi sang văn bản hoàn chỉnh để tôi dán trực tiếp vào Microsoft Word với các yêu cầu:
+1. Giữ nguyên 100% cấu trúc phân cấp (Tiêu đề lớn, Tiêu đề phụ, Danh sách gạch đầu dòng 1, 2, 3).
+2. Tái tạo các bảng biểu thành dạng Bảng Markdown chuẩn (đầy đủ các cột, dòng và số liệu chính xác).
+3. Tự động khắc phục lỗi xuống dòng ngắt quãng (line-break thừa giữa các câu do PDF chia cột).
+4. Giữ nguyên toàn bộ số liệu, đơn vị tính, ngày tháng và thuật ngữ chuyên môn không được tự ý sửa đổi.`
+  },
+  {
+    id: 'p_doc_2',
+    category: 'document',
+    catLabel: '📄 Chuyển PDF sang Word',
+    icon: '⚖️',
+    title: 'Trích Xuất Hợp Đồng & Báo Cáo Tài Chính Chuẩn Thể Thức',
+    desc: 'Đọc tệp hợp đồng/báo cáo PDF, trích xuất các điều khoản, quyền & nghĩa vụ, số tiền và chuẩn hóa thể thức văn bản.',
+    prompt: `Hãy đóng vai trò chuyên viên pháp chế và tài liệu doanh nghiệp. Đọc kỹ tệp hợp đồng/báo cáo PDF được đính kèm và trích xuất:
+1. Thông tin định danh: Các bên tham gia, đại diện pháp luật, số hợp đồng, ngày hiệu lực.
+2. Bảng tóm tắt các mốc tài chính: Giá trị hợp đồng, các đợt thanh toán, thời hạn và số tài khoản.
+3. Toàn bộ nội dung điều khoản đã được định dạng lại chuẩn thể thức văn bản hành chính Việt Nam (có căn lề, mục rõ ràng) sẵn sàng sao chép vào Word.`
+  },
+
+  // 4. Lập trình & Debug
+  {
+    id: 'p_code_1',
+    category: 'code',
+    catLabel: '💻 Lập trình & Debug',
+    icon: '🐛',
+    title: 'Kỹ Sư Senior Debug & Tối Ưu Hóa Mã Nguồn (Clean Code & Perf)',
+    desc: 'Phân tích lỗi tiềm ẩn, tìm Memory Leak/Race Condition, refactor code sạch và đánh giá độ phức tạp Big-O.',
+    prompt: `Bạn là Kỹ sư phần mềm cao cấp (Senior Staff Engineer). Hãy phân tích đoạn mã nguồn sau đây:
+1. Phát hiện và chỉ ra tất cả các lỗi tiềm ẩn (Logic bugs, Memory leaks, Race conditions, Security vulnerabilities, Edge cases).
+2. Giải thích cặn kẽ nguyên nhân gốc rễ (Root Cause) vì sao lỗi xảy ra.
+3. Cung cấp đoạn mã đã được Refactor hoàn chỉnh: Chuẩn Clean Code, xử lý try/catch an toàn, chú thích rõ ràng.
+4. Đánh giá độ phức tạp thời gian & không gian (Big-O notation) trước và sau khi tối ưu.`
+  },
+  {
+    id: 'p_code_2',
+    category: 'code',
+    catLabel: '💻 Lập trình & Debug',
+    icon: '🧪',
+    title: 'Viết Bộ Unit Test Toàn Diện (Full Coverage Unit Testing)',
+    desc: 'Tự động tạo bộ test cases bao gồm Happy Path, Edge Cases, Mocking và Error Handling bằng Jest/PyTest.',
+    prompt: `Đóng vai trò QA Lead & Senior Developer. Hãy viết bộ Unit Test toàn diện cho hàm/mô-đun code được cung cấp:
+- Bao gồm đầy đủ: Happy path (trường hợp chuẩn), Edge cases (giá trị biên, rỗng, null/undefined, số âm, mảng rỗng), và Error Handling (ném lỗi đúng loại).
+- Tạo dữ liệu giả lập (Mock data) thực tế.
+- Viết code test sạch, dễ bảo trì theo chuẩn AAA (Arrange - Act - Assert).`
+  },
+
+  // 5. Marketing & Sáng tạo nội dung
+  {
+    id: 'p_mkt_1',
+    category: 'marketing',
+    catLabel: '✍️ Marketing & Content',
+    icon: '🚀',
+    title: 'Bài Viết Chuẩn SEO Chuyên Sâu Tối Ưu E-E-A-T (Google SEO Master)',
+    desc: 'Xây dựng bài viết chuẩn SEO đầy đủ tiêu đề giật tít, mở bài lôi cuốn, thẻ H2/H3 giá trị và kêu gọi hành động CTA.',
+    prompt: `Bạn là chuyên gia SEO & Content Marketing hàng đầu. Hãy viết bài viết toàn diện, chuyên sâu về chủ đề [Chủ đề] với từ khóa chính: [Từ khóa]:
+- Tiêu đề: Cuốn hút, chứa từ khóa chính, độ dài dưới 60 ký tự.
+- Meta Description: Tóm lược 150 ký tự kích thích tỷ lệ nhấp (CTR).
+- Mở bài: Dùng kỹ thuật Hook mạnh mẽ giữ chân người đọc ngay 3 giây đầu.
+- Thân bài: Chia thành các thẻ H2, H3 mạch lạc, cung cấp số liệu thực tế, ví dụ trực quan, giải quyết triệt để thắc mắc người đọc.
+- Kết bài & CTA: Đúc kết giá trị và kêu gọi hành động tự nhiên, không gượng ép.`
+  },
+  {
+    id: 'p_mkt_2',
+    category: 'marketing',
+    catLabel: '✍️ Marketing & Content',
+    icon: '🎬',
+    title: 'Kịch Bản Video Ngắn 60 Giây Triệu View (TikTok / Reels / Shorts)',
+    desc: 'Kịch bản video ngắn phân chia rõ khung hình thị giác (Visual) và lời thoại (Voiceover) với Hook cực mạnh.',
+    prompt: `Hãy viết kịch bản video ngắn 60 giây về chủ đề [Chủ đề] theo chuẩn công thức viral:
+- [0 - 3s] Hook cực gắt: Câu nói hoặc hình ảnh gây sốc/bất ngờ khiến người xem không thể lướt qua.
+- [3 - 45s] Thân bài: Chia sẻ 3 bí kíp/sự thật đắt giá được cô đọng, dứt khoát, nhịp điệu nhanh.
+- [45 - 60s] Kêu gọi hành động & Gợi mở tranh luận: Kích thích thả tim, lưu video và để lại bình luận tranh luận.
+Trình bày rõ theo 2 cột: [Hình ảnh/Hành động diễn xuất] và [Lời thoại/Âm thanh].`
+  },
+
+  // 6. Phân tích dữ liệu & Excel
+  {
+    id: 'p_data_1',
+    category: 'data',
+    catLabel: '📊 Phân tích dữ liệu & Excel',
+    icon: '📈',
+    title: 'Phù Thủy Công Thức Excel & Google Sheets Nâng Cao',
+    desc: 'Giải quyết bài toán dò tìm phức tạp, mảng động (XLOOKUP, FILTER, INDEX-MATCH) kèm script tự động hóa.',
+    prompt: `Bạn là chuyên gia phân tích dữ liệu và tự động hóa bảng tính Excel/Google Sheets. Tôi đang gặp bài toán dữ liệu sau: [Mô tả chi tiết cấu trúc cột và mục tiêu cần tính toán].
+Hãy cung cấp:
+1. Công thức tối ưu nhất (sử dụng các hàm hiện đại như XLOOKUP, FILTER, UNIQUE, ARRAYFORMULA).
+2. Hướng dẫn từng bước cách công thức xử lý dữ liệu để tôi hiểu bản chất.
+3. Đoạn mã Python (dùng thư viện Pandas) hoặc Google Apps Script nếu bảng tính quá nhiều dòng cần tự động hóa hàng loạt.`
+  },
+
+  // 7. Dịch thuật chuyên sâu
+  {
+    id: 'p_trans_1',
+    category: 'translation',
+    catLabel: '💼 Dịch thuật chuyên sâu',
+    icon: '🌐',
+    title: 'Dịch Thuật Bản Địa Hóa Song Ngữ Anh - Việt Chuyên Ngành',
+    desc: 'Dịch thuật thoát ý, đúng ngữ cảnh chuyên ngành, văn phong tự nhiên như người bản xứ thay vì dịch máy thô cứng.',
+    prompt: `Bạn là dịch giả song ngữ cao cấp chuyên ngành Công nghệ và Kinh doanh. Hãy dịch đoạn văn bản sau đây sang tiếng Việt:
+Yêu cầu bắt buộc:
+1. Tuyệt đối không dịch thô word-by-word. Dịch thoát ý, tự nhiên, nhuần nhuyễn theo phong cách của chuyên gia bản địa.
+2. Giữ nguyên và dùng chuẩn các thuật ngữ chuyên ngành đã được thị trường công nhận.
+3. Chú thích ngắn gọn trong ngoặc đơn các từ viết tắt hoặc thuật ngữ mới lần đầu xuất hiện.`
+  }
+];
+
+function getAllPrompts() {
+  return [...BUILTIN_PROMPTS, ...state.customPrompts];
+}
+
+function renderPrompts() {
+  const grid = document.getElementById('prompts-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const all = getAllPrompts();
+  const cat = state.promptsCategoryFilter || 'all';
+  const search = (state.promptsSearchTerm || '').toLowerCase();
+
+  const filtered = all.filter(p => {
+    const matchCat = cat === 'all' || p.category === cat;
+    const matchSearch = !search || 
+      p.title.toLowerCase().includes(search) || 
+      p.desc.toLowerCase().includes(search) || 
+      p.prompt.toLowerCase().includes(search);
+    return matchCat && matchSearch;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
+        <p>Không tìm thấy Prompt phù hợp với bộ lọc hiện tại.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'prompt-card';
+
+    const catBadgeClass = `cat-${item.category}`;
+
+    card.innerHTML = `
+      <div class="prompt-card-header">
+        <div class="prompt-title-group">
+          <span class="prompt-icon">${item.icon || '💡'}</span>
+          <div>
+            <h4 class="prompt-card-title">${escapeHtml(item.title)}</h4>
+          </div>
+        </div>
+        <span class="prompt-badge ${catBadgeClass}">${escapeHtml(item.catLabel || item.category)}</span>
+      </div>
+
+      <p class="prompt-card-desc">${escapeHtml(item.desc || '')}</p>
+
+      <div class="prompt-box">${escapeHtml(item.prompt)}</div>
+
+      <div class="prompt-card-footer">
+        <button class="btn-copy-prompt" onclick="copyPromptCardText(this, ${JSON.stringify(item.prompt)})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>Sao chép</span>
+        </button>
+
+        <button class="btn-use-prompt" onclick="applyPromptToPlayground(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
+          <span>Áp dụng vào Playground</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+function setupPromptEvents() {
+  const searchInput = document.getElementById('prompt-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      state.promptsSearchTerm = e.target.value.trim();
+      renderPrompts();
+    });
+  }
+
+  const filterBtns = document.querySelectorAll('.prompt-filter-btn');
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.promptsCategoryFilter = btn.getAttribute('data-cat');
+      renderPrompts();
+    });
+  });
+
+  // Modal events
+  const btnOpenAddPrompt = document.getElementById('btn-open-add-prompt');
+  const promptModal = document.getElementById('prompt-modal');
+  const btnClosePromptModal = document.getElementById('btn-close-prompt-modal');
+  const btnCancelPromptModal = document.getElementById('btn-cancel-prompt-modal');
+  const promptForm = document.getElementById('prompt-form');
+
+  if (btnOpenAddPrompt) {
+    btnOpenAddPrompt.addEventListener('click', () => {
+      promptForm.reset();
+      promptModal.classList.add('active');
+    });
+  }
+
+  if (btnClosePromptModal) btnClosePromptModal.onclick = () => promptModal.classList.remove('active');
+  if (btnCancelPromptModal) btnCancelPromptModal.onclick = () => promptModal.classList.remove('active');
+
+  if (promptForm) {
+    promptForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = document.getElementById('custom-prompt-title').value.trim();
+      const cat = document.getElementById('custom-prompt-cat').value;
+      const desc = document.getElementById('custom-prompt-desc').value.trim();
+      const content = document.getElementById('custom-prompt-content').value.trim();
+
+      if (!title || !content) return;
+
+      const newPrompt = {
+        id: 'cp_' + Date.now(),
+        category: cat,
+        catLabel: getCatLabel(cat),
+        icon: getCatIcon(cat),
+        title,
+        desc,
+        prompt: content,
+        isCustom: true
+      };
+
+      state.customPrompts.unshift(newPrompt);
+      localStorage.setItem('vz_custom_prompts', JSON.stringify(state.customPrompts));
+
+      promptModal.classList.remove('active');
+      renderPrompts();
+    });
+  }
+}
+
+function getCatLabel(cat) {
+  const map = {
+    image: '🖼️ Chỉnh ảnh & Vision',
+    exam: '📚 Tạo đề thi & Giáo dục',
+    document: '📄 Chuyển PDF sang Word',
+    code: '💻 Lập trình & Debug',
+    marketing: '✍️ Marketing & Content',
+    data: '📊 Phân tích dữ liệu & Excel',
+    translation: '💼 Dịch thuật chuyên sâu',
+    custom: '⭐ Tùy chỉnh của tôi'
+  };
+  return map[cat] || '⭐ Tùy chỉnh';
+}
+
+function getCatIcon(cat) {
+  const map = {
+    image: '🎨',
+    exam: '📝',
+    document: '📑',
+    code: '💻',
+    marketing: '🚀',
+    data: '📈',
+    translation: '🌐',
+    custom: '⭐'
+  };
+  return map[cat] || '💡';
+}
+
+window.copyPromptCardText = function(btnEl, text) {
+  navigator.clipboard.writeText(text);
+  const original = btnEl.innerHTML;
+  btnEl.innerHTML = `<span style="color:#22c55e;">✓ Đã chép!</span>`;
+  setTimeout(() => {
+    btnEl.innerHTML = original;
+  }, 1800);
+};
+
+window.applyPromptToPlayground = function(promptText, title) {
+  // Navigate to Playground
+  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
+  if (playgroundBtn) playgroundBtn.click();
+
+  // Populate prompt into chatInput
+  if (chatInput) {
+    chatInput.value = promptText;
+    chatInput.focus();
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(180, chatInput.scrollHeight) + 'px';
+  }
+
+  if (chatStatusIndicator) {
+    chatStatusIndicator.textContent = `Đã áp dụng: ${title}`;
+    setTimeout(() => { chatStatusIndicator.textContent = ''; }, 3000);
+  }
+};

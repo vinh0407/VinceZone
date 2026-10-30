@@ -25,6 +25,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Playground
         </button>
+        <button class="nav-btn" data-tab="prompts">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Prompt Hub
+        </button>
         <button class="nav-btn" data-tab="settings">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Cài Đặt (Settings)
@@ -230,7 +234,47 @@
         </div>
       </section>
 
-      <!-- ==================== TAB 2: CÀI ĐẶT (SETTINGS) ==================== -->
+      <!-- ==================== TAB 2: PROMPT HUB (KHO PROMPT) ==================== -->
+      <section id="tab-prompts" class="tab-pane">
+        <div class="prompts-container">
+          <div class="pane-header">
+            <div>
+              <h2>Kho Thư Viện Prompt (Prompt Hub)</h2>
+              <p class="pane-subtitle">Tổng hợp các bộ Prompt chuyên sâu, chuẩn hóa cho từng công việc thực tế (Chỉnh ảnh, Tạo đề thi, Chuyển PDF sang Word, Lập trình, Marketing, Phân tích dữ liệu...). Bấm "Áp dụng" để đưa ngay vào Playground.</p>
+            </div>
+            <button id="btn-open-add-prompt" class="btn-primary">
+              + Tạo Prompt Mới
+            </button>
+          </div>
+
+          <div class="prompts-toolbar">
+            <div class="prompts-search-box">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="prompt-search-input" placeholder="Tìm kiếm prompt theo tên tác vụ, từ khóa, ngành nghề...">
+            </div>
+
+            <div class="prompts-filters">
+              <button class="prompt-filter-btn active" data-cat="all">Tất cả</button>
+              <button class="prompt-filter-btn" data-cat="image">🖼️ Chỉnh ảnh & Vision</button>
+              <button class="prompt-filter-btn" data-cat="exam">📚 Tạo đề thi & Giáo dục</button>
+              <button class="prompt-filter-btn" data-cat="document">📄 Chuyển PDF sang Word</button>
+              <button class="prompt-filter-btn" data-cat="code">💻 Lập trình & Debug</button>
+              <button class="prompt-filter-btn" data-cat="marketing">✍️ Marketing & Content</button>
+              <button class="prompt-filter-btn" data-cat="data">📊 Phân tích dữ liệu & Excel</button>
+              <button class="prompt-filter-btn" data-cat="translation">💼 Dịch thuật chuyên sâu</button>
+              <button class="prompt-filter-btn" data-cat="custom">⭐ Của tôi</button>
+            </div>
+          </div>
+
+          <div class="prompts-grid-container">
+            <div id="prompts-grid" class="prompts-grid">
+              <!-- Dynamically populated prompt cards -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 3: CÀI ĐẶT (SETTINGS) ==================== -->
       <section id="tab-settings" class="tab-pane">
         <div class="settings-container">
           <!-- Settings Sidebar Navigation -->
@@ -606,6 +650,54 @@
           <div class="modal-actions">
             <button type="button" id="btn-cancel-gdrive-modal" class="btn-ghost">Hủy</button>
             <button type="submit" class="btn-primary" id="btn-submit-gdrive">Đính kèm GG Drive</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ADD CUSTOM PROMPT -->
+    <div id="prompt-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-prompt-title">Thêm Prompt Mới Vào Thư Viện</h3>
+          <button id="btn-close-prompt-modal" class="btn-close">&times;</button>
+        </div>
+        <form id="prompt-form">
+          <input type="hidden" id="custom-prompt-id">
+
+          <div class="form-group">
+            <label>Tiêu đề công việc</label>
+            <input type="text" id="custom-prompt-title" placeholder="Ví dụ: Tạo kịch bản TikTok, Trích xuất bảng điểm..." required>
+          </div>
+
+          <div class="form-group">
+            <label>Danh mục</label>
+            <select id="custom-prompt-cat" required>
+              <option value="image">🖼️ Chỉnh ảnh & Vision AI</option>
+              <option value="exam">📚 Tạo đề thi & Giáo dục</option>
+              <option value="document">📄 Chuyển PDF sang Word & Tài liệu</option>
+              <option value="code">💻 Lập trình & Debug</option>
+              <option value="marketing">✍️ Marketing & Content</option>
+              <option value="data">📊 Phân tích dữ liệu & Excel</option>
+              <option value="translation">💼 Dịch thuật chuyên sâu</option>
+              <option value="custom">⭐ Tùy chỉnh khác</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Mô tả ngắn</label>
+            <input type="text" id="custom-prompt-desc" placeholder="Tóm tắt công dụng của prompt này">
+          </div>
+
+          <div class="form-group">
+            <label>Nội dung Prompt chi tiết</label>
+            <textarea id="custom-prompt-content" rows="6" placeholder="Nhập câu lệnh hướng dẫn chi tiết cho AI..." required></textarea>
+            <small class="field-hint">Mẹo: Sử dụng vai trò (Role-based) và liệt kê rõ các yêu cầu 1, 2, 3 để AI phản hồi chuẩn nhất.</small>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-prompt-modal" class="btn-ghost">Hủy</button>
+            <button type="submit" class="btn-primary">Lưu Vào Kho Prompt</button>
           </div>
         </form>
       </div>

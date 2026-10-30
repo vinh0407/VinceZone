@@ -140,6 +140,39 @@
   ],
   "logs": [
     {
+      "id": "log_3127baefef3c",
+      "timestamp": "2026-10-30T14:32:21.347Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "beam-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 810,
+      "error": "[OpenCode] HTTP 429: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go"
+    },
+    {
+      "id": "log_e62eea28daee",
+      "timestamp": "2026-10-30T14:32:11.192Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "flint-40b-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 761,
+      "error": "[OpenCode] HTTP 429: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go"
+    },
+    {
+      "id": "log_4cd5b1d9c0c0",
+      "timestamp": "2026-10-30T14:31:55.873Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "mimo-v2.6-flash-free",
+      "provider": "OpenCode",
+      "clientIp": "playground-ui",
+      "status": 500,
+      "latency": 762,
+      "error": "[OpenCode] HTTP 429: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go"
+    },
+    {
       "id": "log_1a4d4f5c6c9f",
       "timestamp": "2026-10-30T14:17:02.537Z",
       "endpoint": "/v1/chat/completions",
