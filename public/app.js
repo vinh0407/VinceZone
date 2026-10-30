@@ -525,9 +525,19 @@ function setupPlaygroundEvents() {
       return;
     }
 
-    const currentProv = state.providers.find(p => p.id === providerSelect.value);
+    let currentProv = state.providers.find(p => p.id === providerSelect.value);
+    if (!currentProv || providerSelect.value === 'all') {
+      const selectedOpt = modelSelect.options[modelSelect.selectedIndex];
+      const provId = selectedOpt?.dataset?.providerId;
+      if (provId) {
+        currentProv = state.providers.find(p => p.id === provId);
+      } else {
+        currentProv = state.providers.find(p => p.enabled && p.models && p.models.includes(selectedModel));
+      }
+    }
+
     if (currentProv && !currentProv.hasKey) {
-      alert(`Nhà cung cấp "${currentProv.name}" chưa được cấu hình API Key.\n\nVui lòng chuyển sang tab "Cài Đặt" -> "Providers Hub", bấm nút "Sửa" tại thẻ "${currentProv.name}" để dán API Key của bạn.`);
+      alert(`Nhà cung cấp "${currentProv.name}" chứa model "${selectedModel}" chưa được cấu hình API Key.\n\nVui lòng chuyển sang tab "Cài Đặt" -> "Providers Hub", bấm nút "Sửa" tại thẻ "${currentProv.name}" để dán API Key của bạn.`);
       return;
     }
 
@@ -1208,6 +1218,14 @@ function updateProviderAndModelDropdowns() {
     return;
   }
 
+  // 1. Thêm tùy chọn "Tất cả nhà cung cấp có sẵn" lên đầu tiên
+  const totalModelsCount = enabledProviders.reduce((acc, p) => acc + (p.models ? p.models.length : 0), 0);
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = `🌐 Tất cả nhà cung cấp có sẵn (Gom ${enabledProviders.length} Providers • ${totalModelsCount} Models)`;
+  providerSelect.appendChild(allOpt);
+
+  // 2. Thêm từng Provider riêng lẻ
   enabledProviders.forEach(prov => {
     const opt = document.createElement('option');
     opt.value = prov.id;
@@ -1217,14 +1235,12 @@ function updateProviderAndModelDropdowns() {
     providerSelect.appendChild(opt);
   });
 
-  // Keep existing selection if still valid
-  if (currentSelectedProvider && enabledProviders.some(p => p.id === currentSelectedProvider)) {
+  // Keep existing selection if still valid, or default to 'all'
+  if (currentSelectedProvider && (currentSelectedProvider === 'all' || enabledProviders.some(p => p.id === currentSelectedProvider))) {
     providerSelect.value = currentSelectedProvider;
   } else {
-    // Prefer Kilo Gateway (which is 100% active, reliable, and completely free)
-    const kiloProv = enabledProviders.find(p => p.id === 'prov_kilo_gateway');
-    const firstWithKey = kiloProv || enabledProviders.find(p => p.hasKey);
-    providerSelect.value = firstWithKey ? firstWithKey.id : enabledProviders[0].id;
+    // Mặc định chọn gom tất cả nhà cung cấp có sẵn
+    providerSelect.value = 'all';
   }
 
   updateModelDropdownForSelectedProvider();
@@ -1316,18 +1332,114 @@ function checkAndAutoSwitchToVisionModel() {
 
 function updateModelDropdownForSelectedProvider() {
   const selectedProvId = providerSelect.value;
-  const prov = state.providers.find(p => p.id === selectedProvId);
-
   modelSelect.innerHTML = '';
+
+  const selectedPurpose = purposeSelect ? purposeSelect.value : 'all';
+  const isFilterFree = filterFreeOnly && filterFreeOnly.checked;
+
+  // TRƯỜNG HỢP 1: TẤT CẢ NHÀ CUNG CẤP CÓ SẴN (GOM TOÀN BỘ)
+  if (selectedProvId === 'all') {
+    const enabledProviders = state.providers.filter(p => p.enabled);
+    let totalMatchingModels = 0;
+
+    enabledProviders.forEach(prov => {
+      if (!prov.models || prov.models.length === 0) return;
+
+      // 1. Lọc theo Tác vụ
+      let modelsByPurpose = prov.models;
+      if (selectedPurpose === 'vision') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isVision);
+      } else if (selectedPurpose === 'code') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isCode);
+      } else if (selectedPurpose === 'reasoning') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isReasoning);
+      } else if (selectedPurpose === 'general') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isGeneral);
+      }
+
+      // 2. Lọc theo Free
+      const modelsToRender = isFilterFree 
+        ? modelsByPurpose.filter(m => isFreeModel(m)) 
+        : modelsByPurpose;
+
+      if (modelsToRender.length > 0) {
+        totalMatchingModels += modelsToRender.length;
+        const group = document.createElement('optgroup');
+        const keyTag = prov.hasKey ? '✓ Sẵn sàng' : '⚠️ Cần Key';
+        group.label = `⚡ ${prov.name} (${modelsToRender.length} models • ${keyTag})`;
+
+        modelsToRender.forEach(model => {
+          const opt = document.createElement('option');
+          opt.value = model;
+          opt.dataset.providerId = prov.id;
+          opt.dataset.providerName = prov.name;
+
+          const isFree = isFreeModel(model);
+          const caps = getModelCapabilities(model);
+
+          let tagStr = '';
+          if (caps.isVision) tagStr += ' 👁️ Vision';
+          if (caps.isCode) tagStr += ' 💻 Code';
+          if (caps.isReasoning) tagStr += ' 🧠 Logic';
+
+          opt.textContent = `${isFree ? '✨ [FREE] ' : ''}${model}${tagStr}`;
+          group.appendChild(opt);
+        });
+
+        modelSelect.appendChild(group);
+      }
+    });
+
+    if (purposeHint) {
+      if (selectedPurpose === 'vision') {
+        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model có khả năng đọc & phân tích ảnh (Vision) từ tất cả Provider`;
+        purposeHint.style.color = 'var(--status-green)';
+      } else if (selectedPurpose === 'code') {
+        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model chuyên sâu về viết code, refactor & debug từ tất cả Provider`;
+        purposeHint.style.color = '#60a5fa';
+      } else if (selectedPurpose === 'reasoning') {
+        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model suy luận logic sâu (Reasoning) từ tất cả Provider`;
+        purposeHint.style.color = '#c084fc';
+      } else if (selectedPurpose === 'general') {
+        purposeHint.textContent = `✓ Đã gom ${totalMatchingModels} model phản hồi nhanh & tổng quát từ tất cả Provider`;
+        purposeHint.style.color = '#fbbf24';
+      } else {
+        purposeHint.textContent = `Gom toàn bộ ${totalMatchingModels} model từ ${enabledProviders.length} Nhà cung cấp có sẵn`;
+        purposeHint.style.color = 'var(--text-secondary)';
+      }
+    }
+
+    if (totalMatchingModels === 0) {
+      const reasonText = selectedPurpose !== 'all' 
+        ? `Không tìm thấy model nào cho tác vụ này trên toàn bộ Provider` 
+        : 'Không có Model Free nào trên toàn bộ Provider';
+      modelSelect.innerHTML = `<option value="" disabled selected>${reasonText}</option>`;
+      if (selectedProviderInfo) selectedProviderInfo.textContent = `Vui lòng bỏ chọn "Chỉ hiện FREE" hoặc chọn tác vụ khác`;
+      return;
+    }
+
+    if (modelSelect.options.length > 0) {
+      modelSelect.selectedIndex = 0;
+    }
+
+    if (selectedProviderInfo) {
+      const filterNotice = isFilterFree ? `(Đang lọc: ${totalMatchingModels} Free)` : `${totalMatchingModels} models sẵn sàng`;
+      selectedProviderInfo.textContent = `🌐 Tất cả Nhà cung cấp • ${filterNotice} • Gateway tự động điều hướng`;
+    }
+
+    renderSnippets();
+    updateMobileModelLabel();
+    return;
+  }
+
+  // TRƯỜNG HỢP 2: CHỌN MỘT NHÀ CUNG CẤP CỤ THỂ
+  const prov = state.providers.find(p => p.id === selectedProvId);
 
   if (!prov || !prov.models || prov.models.length === 0) {
     modelSelect.innerHTML = '<option value="" disabled selected>Provider này chưa có Model</option>';
     if (selectedProviderInfo) selectedProviderInfo.textContent = 'Chưa có model nào cho Provider đã chọn';
     return;
   }
-
-  const selectedPurpose = purposeSelect ? purposeSelect.value : 'all';
-  const isFilterFree = filterFreeOnly && filterFreeOnly.checked;
 
   // 1. Lọc danh sách theo Tác vụ / Dùng để làm gì
   let modelsByPurpose = prov.models;
@@ -1353,7 +1465,7 @@ function updateModelDropdownForSelectedProvider() {
         purposeHint.textContent = `✓ Đã lọc ${modelsByPurpose.length} model có khả năng nhìn & phân tích ảnh (Multimodal Vision)`;
         purposeHint.style.color = 'var(--status-green)';
       } else {
-        purposeHint.textContent = `⚠️ Provider "${prov.name}" không có model đọc ảnh. Hãy chuyển Provider sang Kilo Gateway (Omni) hoặc Gemini / GPT-4o`;
+        purposeHint.textContent = `⚠️ Provider "${prov.name}" không có model đọc ảnh. Hãy chuyển sang "Tất cả nhà cung cấp" hoặc Kilo Gateway`;
         purposeHint.style.color = '#f87171';
       }
     } else if (selectedPurpose === 'code') {
@@ -1376,13 +1488,16 @@ function updateModelDropdownForSelectedProvider() {
       ? `Không có model nào cho tác vụ này trong ${prov.name}` 
       : 'Không có Model Free nào';
     modelSelect.innerHTML = `<option value="" disabled selected>${reasonText}</option>`;
-    if (selectedProviderInfo) selectedProviderInfo.textContent = `Vui lòng chọn tác vụ khác hoặc đổi Provider`;
+    if (selectedProviderInfo) selectedProviderInfo.textContent = `Vui lòng chọn tác vụ khác hoặc chọn "Tất cả nhà cung cấp"`;
     return;
   }
 
   modelsToRender.forEach(model => {
     const opt = document.createElement('option');
     opt.value = model;
+    opt.dataset.providerId = prov.id;
+    opt.dataset.providerName = prov.name;
+
     const isFree = isFreeModel(model);
     const caps = getModelCapabilities(model);
 
@@ -2412,7 +2527,7 @@ async function autoSaveCurrentChat() {
       id: state.currentChatId || undefined,
       title: state.currentChatTitle || 'Cuộc trò chuyện mới',
       model: modelSelect.value,
-      provider: providerSelect.options[providerSelect.selectedIndex]?.text || 'Provider',
+      provider: modelSelect.options[modelSelect.selectedIndex]?.dataset?.providerName || (providerSelect.value === 'all' ? 'Tất cả Provider' : providerSelect.options[providerSelect.selectedIndex]?.text || 'Provider'),
       messages: state.chatHistory
     };
 
