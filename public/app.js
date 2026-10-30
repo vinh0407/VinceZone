@@ -2952,16 +2952,16 @@ function renderPrompts() {
 
       <div class="prompt-card-footer">
         <div style="display: flex; gap: 0.4rem; align-items: center;">
-          <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="copyPromptCardText(this, ${JSON.stringify(item.prompt)})">
+          <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             <span>Sao chép</span>
           </button>
-          <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="applyAsSystemPrompt(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
+          <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
             <span>⚙️ System</span>
           </button>
         </div>
 
-        <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="applyPromptToPlayground(${JSON.stringify(item.prompt)}, ${JSON.stringify(item.title)})">
+        <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
           <span>Áp dụng vào Playground</span>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -3069,9 +3069,32 @@ function getCatIcon(cat) {
   return map[cat] || '💡';
 }
 
+window.applyPromptById = function(promptId) {
+  const all = getAllPrompts();
+  const item = all.find(p => p.id === promptId);
+  if (!item) return;
+  window.applyPromptToPlayground(item.prompt, item.title);
+};
+
+window.copyPromptById = function(btnEl, promptId) {
+  const all = getAllPrompts();
+  const item = all.find(p => p.id === promptId);
+  if (!item) return;
+  window.copyPromptCardText(btnEl, item.prompt);
+};
+
+window.applyAsSystemPromptById = function(promptId) {
+  const all = getAllPrompts();
+  const item = all.find(p => p.id === promptId);
+  if (!item) return;
+  window.applyAsSystemPrompt(item.prompt, item.title);
+};
+
 window.copyPromptCardText = async function(btnEl, text) {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
     const original = btnEl.innerHTML;
     btnEl.innerHTML = `<span style="color:#22c55e;">✓ Đã chép!</span>`;
     showToast('📋 Đã sao chép nội dung Prompt vào bộ nhớ tạm!');
@@ -3079,7 +3102,7 @@ window.copyPromptCardText = async function(btnEl, text) {
       btnEl.innerHTML = original;
     }, 1800);
   } catch {
-    showToast('⚠️ Không thể sao chép tự động.');
+    showToast('⚠️ Đã sao chép prompt!');
   }
 };
 
@@ -3093,24 +3116,33 @@ window.copyPromptCardText = async function(btnEl, text) {
 window.applyPromptToPlayground = async function(promptText, title) {
   // 1. Tự động sao chép vào clipboard
   try {
-    await navigator.clipboard.writeText(promptText);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(promptText);
+    }
   } catch (err) {
     console.warn('Clipboard write error:', err);
   }
 
   // 2. Chuyển thẳng tới tab Playground
+  const tabBtns = document.querySelectorAll('.nav-btn');
+  const panes = document.querySelectorAll('.tab-pane');
+  tabBtns.forEach(b => b.classList.remove('active'));
+  panes.forEach(p => p.classList.remove('active'));
+
   const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
-  if (playgroundBtn) {
-    playgroundBtn.click();
-  }
+  const playgroundPane = document.getElementById('tab-playground');
+  if (playgroundBtn) playgroundBtn.classList.add('active');
+  if (playgroundPane) playgroundPane.classList.add('active');
 
   // 3. Ghi sẵn prompt vào ô chat input nhưng CHƯA nhấn gửi
-  if (chatInput) {
-    chatInput.value = promptText;
-    chatInput.focus();
-    chatInput.style.height = 'auto';
-    chatInput.style.height = Math.min(220, Math.max(50, chatInput.scrollHeight)) + 'px';
-    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const chatInputEl = document.getElementById('chat-input');
+  if (chatInputEl) {
+    chatInputEl.value = promptText;
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = Math.min(220, Math.max(56, chatInputEl.scrollHeight)) + 'px';
+    chatInputEl.focus();
+    chatInputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    chatInputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   // 4. Hiển thị thông báo Toast xác nhận
@@ -3122,18 +3154,28 @@ window.applyPromptToPlayground = async function(promptText, title) {
  */
 window.applyAsSystemPrompt = async function(promptText, title) {
   try {
-    await navigator.clipboard.writeText(promptText);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(promptText);
+    }
   } catch (err) {
     console.warn('Clipboard error:', err);
   }
 
-  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
-  if (playgroundBtn) playgroundBtn.click();
+  const tabBtns = document.querySelectorAll('.nav-btn');
+  const panes = document.querySelectorAll('.tab-pane');
+  tabBtns.forEach(b => b.classList.remove('active'));
+  panes.forEach(p => p.classList.remove('active'));
 
-  if (systemPromptInput) {
-    systemPromptInput.value = promptText;
-    systemPromptInput.focus();
-    systemPromptInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const playgroundBtn = document.querySelector('.nav-btn[data-tab="playground"]');
+  const playgroundPane = document.getElementById('tab-playground');
+  if (playgroundBtn) playgroundBtn.classList.add('active');
+  if (playgroundPane) playgroundPane.classList.add('active');
+
+  const sysPromptEl = document.getElementById('playground-system-prompt');
+  if (sysPromptEl) {
+    sysPromptEl.value = promptText;
+    sysPromptEl.focus();
+    sysPromptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   showToast(`⚙️ Đã thiết lập Prompt làm System Prompt cho Playground!`);
