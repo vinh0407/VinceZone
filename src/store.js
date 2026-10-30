@@ -641,6 +641,93 @@ const Store = {
       data.chatSessions = [];
     }
     writeDb(data);
+  },
+
+  // ----------------------------------------------------
+  // USER PROFILE & PERMANENT AI DIRECTIVES
+  // ----------------------------------------------------
+
+  getUserProfile(userId) {
+    if (!userId) return null;
+    const data = readDb();
+    const user = (data.users || []).find(u => u.id === userId);
+    if (!user) return null;
+    return user.profile || {
+      displayName: user.displayName || user.username || '',
+      pronoun: '',
+      role: '',
+      activeProjects: '',
+      techStack: '',
+      preferredStyle: '',
+      criticalRules: '',
+      customNotes: '',
+      updatedAt: null
+    };
+  },
+
+  saveUserProfile(userId, profile) {
+    if (!userId) throw new Error('Yêu cầu định danh người dùng.');
+    const data = readDb();
+    data.users = data.users || [];
+    const userIndex = data.users.findIndex(u => u.id === userId);
+    if (userIndex === -1) {
+      throw new Error('Không tìm thấy người dùng trong hệ thống.');
+    }
+
+    const currentProfile = data.users[userIndex].profile || {};
+    const updatedProfile = {
+      ...currentProfile,
+      displayName: (profile.displayName !== undefined ? profile.displayName : currentProfile.displayName || '').trim(),
+      pronoun: (profile.pronoun !== undefined ? profile.pronoun : currentProfile.pronoun || '').trim(),
+      role: (profile.role !== undefined ? profile.role : currentProfile.role || '').trim(),
+      activeProjects: (profile.activeProjects !== undefined ? profile.activeProjects : currentProfile.activeProjects || '').trim(),
+      techStack: (profile.techStack !== undefined ? profile.techStack : currentProfile.techStack || '').trim(),
+      preferredStyle: (profile.preferredStyle !== undefined ? profile.preferredStyle : currentProfile.preferredStyle || '').trim(),
+      criticalRules: (profile.criticalRules !== undefined ? profile.criticalRules : currentProfile.criticalRules || '').trim(),
+      customNotes: (profile.customNotes !== undefined ? profile.customNotes : currentProfile.customNotes || '').trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    data.users[userIndex].profile = updatedProfile;
+    if (updatedProfile.displayName) {
+      data.users[userIndex].displayName = updatedProfile.displayName;
+    }
+
+    writeDb(data);
+    return updatedProfile;
+  },
+
+  formatUserProfileForPrompt(userId) {
+    if (!userId) return '';
+    const profile = this.getUserProfile(userId);
+    if (!profile) return '';
+
+    const lines = [];
+    if (profile.displayName) {
+      lines.push(`- Tên người dùng / Xưng hô: ${profile.displayName}${profile.pronoun ? ` (Cách xưng hô mong muốn: ${profile.pronoun})` : ''}`);
+    }
+    if (profile.role) {
+      lines.push(`- Nghề nghiệp / Vai trò & Chuyên môn: ${profile.role}`);
+    }
+    if (profile.activeProjects) {
+      lines.push(`- Dự án chính đang làm: ${profile.activeProjects}`);
+    }
+    if (profile.techStack) {
+      lines.push(`- Bộ công nghệ & Ngôn ngữ ưu tiên: ${profile.techStack}`);
+    }
+    if (profile.preferredStyle) {
+      lines.push(`- Phong cách & Định dạng phản hồi mong muốn: ${profile.preferredStyle}`);
+    }
+    if (profile.criticalRules) {
+      lines.push(`- QUY TẮC BẮT BUỘC - TUYỆT ĐỐI KHÔNG ĐƯỢC SAI HOẶC BỎ QUA:\n  ${profile.criticalRules.split('\n').join('\n  ')}`);
+    }
+    if (profile.customNotes) {
+      lines.push(`- Ghi chú cá nhân khác: ${profile.customNotes}`);
+    }
+
+    if (lines.length === 0) return '';
+
+    return `\n\n### [THÔNG TIN & QUY TẮC NGƯỜI DÙNG BẮT BUỘC - USER PROFILE DIRECTIVES]\n(Đây là hồ sơ cá nhân và các nguyên tắc bắt buộc do người dùng cấu hình vĩnh viễn trong Cài Đặt. Mọi mô hình AI BẮT BUỘC phải ghi nhớ chính xác và tuân thủ tuyệt đối, không được tự ý thay đổi hoặc làm sai lệch):\n${lines.join('\n')}\n### [HẾT PHẦN HỒ SƠ NGƯỜI DÙNG - HÃY TUÂN THỦ CHÍNH XÁC KHI TRẢ LỜI]\n`;
   }
 };
 

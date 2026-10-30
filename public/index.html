@@ -285,6 +285,20 @@
             </div>
             
             <nav class="settings-nav-menu">
+              <button class="settings-nav-item" data-subtab="profile">
+                <div class="settings-nav-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
+                <div class="settings-nav-item-text">
+                  <span class="settings-nav-item-label">Thông Tin & Hồ Sơ AI</span>
+                  <span class="settings-nav-item-sub">Ghi nhớ cá nhân vĩnh viễn</span>
+                </div>
+                <span class="settings-nav-badge" id="profile-subtab-badge" style="background:#27272a; color:#a1a1aa; font-size:0.65rem;">Khách</span>
+              </button>
+
               <button class="settings-nav-item active" data-subtab="providers">
                 <div class="settings-nav-item-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -339,6 +353,104 @@
 
           <!-- Settings Main Content Area -->
           <div class="settings-body">
+            <!-- 0. User Profile & AI Directives Subpane -->
+            <div id="subtab-profile" class="settings-subpane">
+              <div class="pane-header">
+                <div>
+                  <h2>Thông Tin Người Dùng & Hồ Sơ AI</h2>
+                  <p class="pane-subtitle">Thiết lập thông tin định danh, chuyên môn, phong cách làm việc và các quy tắc bắt buộc để AI luôn ghi nhớ chính xác và không bao giờ trả lời sai.</p>
+                </div>
+              </div>
+
+              <!-- State 1: Locked banner when logged out -->
+              <div id="profile-locked-box" class="profile-locked-card" style="display: none;">
+                <div class="profile-locked-icon">🔒</div>
+                <h3>Yêu Cầu Đăng Nhập Tài Khoản</h3>
+                <p>Chức năng lưu thông tin cá nhân và thiết lập quy tắc ghi nhớ vĩnh viễn cho AI <strong>chỉ khả dụng khi bạn đã đăng nhập</strong>.</p>
+                <p class="profile-locked-sub">Khi đăng nhập, dữ liệu của bạn sẽ được lưu trữ vĩnh viễn và tự động nạp vào bộ não của toàn bộ các AI (OpenCode, Kilo Gateway, Gemini, Claude, OpenAI, ZenMux...).</p>
+                <button type="button" id="btn-profile-login" class="btn-primary" style="margin-top: 1.25rem; padding: 0.65rem 1.5rem; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                  Đăng Nhập / Đăng Ký Tài Khoản Ngay
+                </button>
+              </div>
+
+              <!-- State 2: Profile Form when logged in -->
+              <div id="profile-form-box" class="profile-form-container" style="display: none;">
+                <div class="profile-user-badge-bar">
+                  <div class="profile-badge-user-info">
+                    <span class="user-avatar-circle">👤</span>
+                    <div>
+                      <div class="profile-active-user" id="profile-active-username">user</div>
+                      <div class="profile-sync-status">🟢 Đang hoạt động • AI Context Router tự động tích hợp hồ sơ này vào mọi cuộc trò chuyện</div>
+                    </div>
+                  </div>
+                  <span class="badge-accent" style="background: rgba(34,197,94,0.15); color: var(--status-green); border: 1px solid rgba(34,197,94,0.3);">✓ Bộ nhớ hoạt động</span>
+                </div>
+
+                <form id="form-user-profile" class="profile-form">
+                  <div class="profile-form-grid">
+                    <div class="form-group">
+                      <label for="prof-display-name">Tên hiển thị & Xưng hô mong muốn</label>
+                      <input type="text" id="prof-display-name" placeholder="Ví dụ: Vince, Hoàng, xưng hô 'tôi - bạn' hoặc 'em - anh'">
+                      <small class="field-hint">Tên AI sẽ gọi bạn và cách xưng hô phù hợp trong hội thoại.</small>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="prof-role">Nghề nghiệp / Chuyên môn chính</label>
+                      <input type="text" id="prof-role" placeholder="Ví dụ: Senior Fullstack Engineer, Sinh viên CNTT, AI Researcher...">
+                      <small class="field-hint">AI sẽ điều chỉnh thuật ngữ và độ sâu kỹ thuật tương xứng.</small>
+                    </div>
+                  </div>
+
+                  <div class="profile-form-grid">
+                    <div class="form-group">
+                      <label for="prof-projects">Dự án chính đang thực hiện</label>
+                      <input type="text" id="prof-projects" placeholder="Ví dụ: Dự án VinceZone AI Gateway, Hệ sinh thái Next.js...">
+                      <small class="field-hint">AI sẽ luôn hiểu ngữ cảnh hệ thống khi bạn đặt câu hỏi liên quan.</small>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="prof-techstack">Bộ công nghệ & Ngôn ngữ ưu tiên</label>
+                      <input type="text" id="prof-techstack" placeholder="Ví dụ: Node.js, Express, TypeScript, Python, React, Docker...">
+                      <small class="field-hint">Khi sinh code, AI sẽ ưu tiên các công nghệ trong danh sách này.</small>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="prof-style">Phong cách & Định dạng phản hồi mong muốn</label>
+                    <textarea id="prof-style" rows="2" placeholder="Ví dụ: Trả lời ngắn gọn, súc tích, đi thẳng vào trọng tâm giải pháp, luôn kèm code ví dụ thực tế chuẩn Clean Code, không giải thích vòng vo sáo rỗng."></textarea>
+                  </div>
+
+                  <div class="form-group critical-rules-group">
+                    <div class="label-with-val" style="margin-bottom: 0.35rem;">
+                      <label for="prof-rules" style="color: #f43f5e; font-weight: 700;">⚠️ QUY TẮC BẮT BUỘC - AI TUYỆT ĐỐI KHÔNG ĐƯỢC LÀM SAI (CRITICAL DIRECTIVES)</label>
+                      <span class="badge-accent" style="background:#881337; color:#fecdd3;">Ưu tiên tối cao</span>
+                    </div>
+                    <textarea id="prof-rules" rows="4" placeholder="Ví dụ:
+1. Luôn trả lời bằng Tiếng Việt chuẩn xác.
+2. Tuyệt đối không tự bịa đặt API key, đường dẫn hoặc thư viện không tồn tại.
+3. Ưu tiên giải pháp dùng thư viện thuần chuẩn, không cài thêm dependency không cần thiết.
+4. Mọi hàm hay logic quan trọng đều phải có comment giải thích rõ ràng."></textarea>
+                    <small class="field-hint" style="color: #a1a1aa;">Các quy tắc này sẽ được truyền vào system prompt với độ ưu tiên cao nhất để AI luôn tuân thủ 100%.</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="prof-notes">Ghi chú cá nhân bổ sung</label>
+                    <textarea id="prof-notes" rows="2" placeholder="Ví dụ: Hệ thống chạy trên Windows và deploy Docker trên Ubuntu Linux; cần lưu ý bảo mật biến môi trường..."></textarea>
+                  </div>
+
+                  <div class="profile-actions-bar">
+                    <button type="submit" id="btn-save-profile" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      Lưu Thông Tin & Hồ Sơ AI
+                    </button>
+                    <button type="button" id="btn-reload-profile" class="btn-ghost">Khôi Phục Ban Đầu</button>
+                    <span id="profile-save-status" class="profile-save-status"></span>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <!-- 1. Providers Hub Subpane -->
             <div id="subtab-providers" class="settings-subpane active">
               <div class="pane-header">

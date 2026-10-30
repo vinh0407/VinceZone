@@ -16,7 +16,7 @@ function getAdapter(type) {
   }
 }
 
-async function routeChatRequest({ model, messages, temperature, max_tokens, stream, res, clientIp = '127.0.0.1' }) {
+async function routeChatRequest({ model, messages, temperature, max_tokens, stream, res, clientIp = '127.0.0.1', userId = null }) {
   const match = Store.findProviderForModel(model);
   const startTime = Date.now();
 
@@ -38,10 +38,32 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
   const adapter = getAdapter(provider.type);
 
   // ----------------------------------------------------
+  // VINCEZONE USER PROFILE & CRITICAL DIRECTIVES INJECTION (ĐÃ ĐĂNG NHẬP)
+  // ----------------------------------------------------
+  let enrichedMessages = [...messages];
+
+  if (userId) {
+    const userDirectives = Store.formatUserProfileForPrompt(userId);
+    if (userDirectives) {
+      const sysIdx = enrichedMessages.findIndex(m => m.role === 'system');
+      if (sysIdx >= 0) {
+        enrichedMessages[sysIdx] = {
+          ...enrichedMessages[sysIdx],
+          content: `${enrichedMessages[sysIdx].content}\n${userDirectives}`
+        };
+      } else {
+        enrichedMessages.unshift({
+          role: 'system',
+          content: `You are an AI assistant routed through VinceZone Gateway.${userDirectives}`
+        });
+      }
+    }
+  }
+
+  // ----------------------------------------------------
   // VINCEZONE SHARED MEMORY INJECTION
   // ----------------------------------------------------
   const memorySettings = Store.getMemorySettings();
-  let enrichedMessages = [...messages];
 
   if (memorySettings.enabled) {
     const memoryPrompt = Store.formatMemoriesForPrompt();

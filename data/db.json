@@ -366,11 +366,22 @@
     {
       "id": "usr_admin",
       "username": "vince",
-      "displayName": "Vince Admin",
+      "displayName": "Vince Dev",
       "email": "vince@vincezone.local",
       "passwordHash": "75b31793196a2a091b363f5b6b6b398218c6b3ec434270be86bd76a6d4eda3377067449924857cbeda8769a289b37a5694ba89494af769f5ceb54dc26ef0dd62",
       "salt": "4e86271c8cd31ac794e07b47ecdb869b",
-      "createdAt": "2026-10-30T13:59:15.128Z"
+      "createdAt": "2026-10-30T13:59:15.128Z",
+      "profile": {
+        "displayName": "Vince Dev",
+        "pronoun": "",
+        "role": "Lead AI Engineer & Architect",
+        "activeProjects": "VinceZone AI Workplay Platform",
+        "techStack": "Node.js, Express, JavaScript, Docker",
+        "preferredStyle": "Ngắn gọn, súc tích, đi thẳng vào giải pháp kèm code mẫu Clean Code",
+        "criticalRules": "1. Luôn trả lời bằng Tiếng Việt chuẩn\n2. Tuyệt đối không bịa đặt package không có thật\n3. Ưu tiên thư viện thuần",
+        "customNotes": "Chạy môi trường Windows và Docker Linux",
+        "updatedAt": "2026-10-30T14:43:11.304Z"
+      }
     }
   ],
   "sessions": [
@@ -378,6 +389,11 @@
       "token": "vz_sess_47e227aabd4466948588fc28fe081b7c9854402b8416c07c",
       "userId": "usr_admin",
       "createdAt": "2026-10-30T13:59:25.190Z"
+    },
+    {
+      "token": "vz_sess_92adaea7ca016d584c9df39f2d0b0e3f5c5ee6f2f067e8bf",
+      "userId": "usr_admin",
+      "createdAt": "2026-10-30T14:43:11.296Z"
     }
   ],
   "chatSessions": [

@@ -162,6 +162,24 @@ const memCategorySelect = document.getElementById('mem-category');
 const memContentInput = document.getElementById('mem-content');
 const modalMemoryTitle = document.getElementById('modal-memory-title');
 
+// User Profile Elements (Hồ sơ người dùng & Chỉ thị AI)
+const profileLockedBox = document.getElementById('profile-locked-box');
+const profileFormBox = document.getElementById('profile-form-box');
+const profileActiveUsername = document.getElementById('profile-active-username');
+const profileSubtabBadge = document.getElementById('profile-subtab-badge');
+const btnProfileLogin = document.getElementById('btn-profile-login');
+const formUserProfile = document.getElementById('form-user-profile');
+const profDisplayName = document.getElementById('prof-display-name');
+const profRole = document.getElementById('prof-role');
+const profProjects = document.getElementById('prof-projects');
+const profTechstack = document.getElementById('prof-techstack');
+const profStyle = document.getElementById('prof-style');
+const profRules = document.getElementById('prof-rules');
+const profNotes = document.getElementById('prof-notes');
+const btnSaveProfile = document.getElementById('btn-save-profile');
+const btnReloadProfile = document.getElementById('btn-reload-profile');
+const profileSaveStatus = document.getElementById('profile-save-status');
+
 // Preset URLs and models for provider types
 const TYPE_PRESETS = {
   openai: {
@@ -292,11 +310,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupMemoryEvents();
   setupPromptEvents();
   setupAuthEvents();
+  setupUserProfileEvents();
   setupChatHistoryEvents();
 
   // Load initial data
   await Promise.all([
     fetchCurrentUser(),
+    fetchUserProfile(),
     fetchProviders(),
     fetchKeys(),
     fetchLogs(),
@@ -331,7 +351,8 @@ function setupNavigation() {
 
       if (targetTab === 'settings') {
         const activeSubtabBtn = document.querySelector('.settings-nav-item.active');
-        const activeSubtab = activeSubtabBtn ? activeSubtabBtn.getAttribute('data-subtab') : 'providers';
+        const activeSubtab = activeSubtabBtn ? activeSubtabBtn.getAttribute('data-subtab') : 'profile';
+        if (activeSubtab === 'profile') fetchUserProfile();
         if (activeSubtab === 'providers') fetchProviders();
         if (activeSubtab === 'gateway') fetchKeys();
         if (activeSubtab === 'memory') fetchMemories();
@@ -340,7 +361,7 @@ function setupNavigation() {
     });
   });
 
-  // Settings Sub-Navigation (Providers Hub, Gateway API, Bộ Nhớ, Logs)
+  // Settings Sub-Navigation (Thông Tin Người Dùng, Providers Hub, Gateway API, Bộ Nhớ, Logs)
   const settingsNavItems = document.querySelectorAll('.settings-nav-item');
   const settingsSubpanes = document.querySelectorAll('.settings-subpane');
 
@@ -355,6 +376,7 @@ function setupNavigation() {
       const targetPane = document.getElementById(`subtab-${subtab}`);
       if (targetPane) targetPane.classList.add('active');
 
+      if (subtab === 'profile') fetchUserProfile();
       if (subtab === 'providers') fetchProviders();
       if (subtab === 'gateway') fetchKeys();
       if (subtab === 'memory') fetchMemories();
@@ -489,7 +511,7 @@ function setupPlaygroundEvents() {
         messagesPayload.push({ role: msg.role, content: msg.content });
       }
 
-      const response = await fetch('/api/playground/chat', {
+      const response = await authFetch('/api/playground/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1834,6 +1856,7 @@ function renderAuthUI(user) {
     if (userLoggedInBox) userLoggedInBox.style.display = 'none';
     if (btnOpenAuthModal) btnOpenAuthModal.style.display = 'block';
   }
+  fetchUserProfile();
 }
 
 function setupAuthEvents() {
@@ -1913,6 +1936,141 @@ function setAuthMode(mode) {
     btnAuthSubmit.textContent = 'Đăng Ký Tài Khoản';
     authEmailGroup.style.display = 'flex';
     authHint.style.display = 'none';
+  }
+}
+
+// -------------------------------------------------------------
+// 7.1 USER PROFILE & PERMANENT AI DIRECTIVES CONTROLLER
+// -------------------------------------------------------------
+
+async function fetchUserProfile() {
+  if (!profileLockedBox || !profileFormBox) return;
+
+  if (!state.authToken || !state.currentUser) {
+    profileLockedBox.style.display = 'flex';
+    profileFormBox.style.display = 'none';
+    if (profileSubtabBadge) {
+      profileSubtabBadge.textContent = 'Khách';
+      profileSubtabBadge.style.background = '#27272a';
+      profileSubtabBadge.style.color = '#a1a1aa';
+    }
+    return;
+  }
+
+  profileLockedBox.style.display = 'none';
+  profileFormBox.style.display = 'flex';
+  if (profileActiveUsername) {
+    profileActiveUsername.textContent = state.currentUser.displayName || state.currentUser.username;
+  }
+
+  try {
+    const res = await authFetch('/api/user/profile');
+    if (res.ok) {
+      const data = await res.json();
+      const prof = data.profile || {};
+      state.userProfile = prof;
+
+      if (profDisplayName) profDisplayName.value = prof.displayName || state.currentUser.displayName || state.currentUser.username || '';
+      if (profRole) profRole.value = prof.role || '';
+      if (profProjects) profProjects.value = prof.activeProjects || '';
+      if (profTechstack) profTechstack.value = prof.techStack || '';
+      if (profStyle) profStyle.value = prof.preferredStyle || '';
+      if (profRules) profRules.value = prof.criticalRules || '';
+      if (profNotes) profNotes.value = prof.customNotes || '';
+
+      const hasContent = Boolean(prof.displayName || prof.role || prof.criticalRules || prof.techStack);
+      if (profileSubtabBadge) {
+        profileSubtabBadge.textContent = hasContent ? 'Đã kích hoạt' : 'Đã đăng nhập';
+        profileSubtabBadge.style.background = hasContent ? 'rgba(34, 197, 94, 0.15)' : '#27272a';
+        profileSubtabBadge.style.color = hasContent ? 'var(--status-green)' : '#a1a1aa';
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi khi tải thông tin hồ sơ người dùng:', err);
+  }
+}
+
+async function saveUserProfile(e) {
+  if (e) e.preventDefault();
+  if (!state.authToken || !state.currentUser) {
+    alert('Vui lòng đăng nhập để lưu thông tin và hồ sơ AI.');
+    return;
+  }
+
+  const payload = {
+    displayName: profDisplayName ? profDisplayName.value.trim() : '',
+    role: profRole ? profRole.value.trim() : '',
+    activeProjects: profProjects ? profProjects.value.trim() : '',
+    techStack: profTechstack ? profTechstack.value.trim() : '',
+    preferredStyle: profStyle ? profStyle.value.trim() : '',
+    criticalRules: profRules ? profRules.value.trim() : '',
+    customNotes: profNotes ? profNotes.value.trim() : ''
+  };
+
+  if (btnSaveProfile) {
+    btnSaveProfile.disabled = true;
+    btnSaveProfile.innerHTML = '⏳ Đang lưu dữ liệu...';
+  }
+
+  try {
+    const res = await authFetch('/api/user/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      state.userProfile = data.profile;
+      if (data.profile.displayName && state.currentUser) {
+        state.currentUser.displayName = data.profile.displayName;
+        if (userDisplayName) userDisplayName.textContent = data.profile.displayName;
+        if (profileActiveUsername) profileActiveUsername.textContent = data.profile.displayName;
+      }
+      if (profileSaveStatus) {
+        profileSaveStatus.textContent = '✓ Đã lưu thành công! Toàn bộ AI sẽ ghi nhớ dữ liệu này.';
+        profileSaveStatus.style.display = 'inline';
+        setTimeout(() => {
+          if (profileSaveStatus) profileSaveStatus.style.display = 'none';
+        }, 4000);
+      }
+      if (profileSubtabBadge) {
+        profileSubtabBadge.textContent = 'Đã kích hoạt';
+        profileSubtabBadge.style.background = 'rgba(34, 197, 94, 0.15)';
+        profileSubtabBadge.style.color = 'var(--status-green)';
+      }
+    } else {
+      alert('Không thể lưu hồ sơ: ' + (data.error || 'Lỗi không xác định'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối lưu hồ sơ: ' + err.message);
+  } finally {
+    if (btnSaveProfile) {
+      btnSaveProfile.disabled = false;
+      btnSaveProfile.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Lưu Thông Tin & Hồ Sơ AI
+      `;
+    }
+  }
+}
+
+function setupUserProfileEvents() {
+  if (btnProfileLogin) {
+    btnProfileLogin.addEventListener('click', () => {
+      setAuthMode('login');
+      if (authModal) authModal.classList.add('active');
+    });
+  }
+
+  if (formUserProfile) {
+    formUserProfile.addEventListener('submit', saveUserProfile);
+  }
+
+  if (btnReloadProfile) {
+    btnReloadProfile.addEventListener('click', () => {
+      fetchUserProfile();
+    });
   }
 }
 

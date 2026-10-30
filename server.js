@@ -70,6 +70,7 @@ app.post('/v1/chat/completions', authenticateGatewayKey, async (req, res) => {
   }
 
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const user = getSessionUser(req);
 
   try {
     const result = await routeChatRequest({
@@ -79,7 +80,8 @@ app.post('/v1/chat/completions', authenticateGatewayKey, async (req, res) => {
       max_tokens,
       stream,
       res,
-      clientIp
+      clientIp,
+      userId: user?.id
     });
 
     if (!stream) {
@@ -137,6 +139,8 @@ app.post('/api/playground/chat', async (req, res) => {
     return res.status(400).json({ error: 'Model and messages are required' });
   }
 
+  const user = getSessionUser(req);
+
   try {
     const result = await routeChatRequest({
       model,
@@ -145,7 +149,8 @@ app.post('/api/playground/chat', async (req, res) => {
       max_tokens,
       stream,
       res,
-      clientIp: 'playground-ui'
+      clientIp: 'playground-ui',
+      userId: user?.id
     });
 
     if (!stream) {
@@ -436,6 +441,44 @@ app.post('/api/auth/logout', (req, res) => {
   const token = req.headers['authorization'];
   Auth.logout(token);
   res.json({ success: true });
+});
+
+// ----------------------------------------------------
+// 7.1 USER PROFILE & AI DIRECTIVES APIS (CHỈ KHI ĐÃ ĐĂNG NHẬP)
+// ----------------------------------------------------
+
+app.get('/api/user/profile', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({
+      error: 'Vui lòng đăng nhập để xem thông tin người dùng và thiết lập hồ sơ AI.'
+    });
+  }
+  const profile = Store.getUserProfile(user.id);
+  res.json({
+    user,
+    profile: profile || {}
+  });
+});
+
+app.post('/api/user/profile', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({
+      error: 'Chỉ người dùng đã đăng nhập mới có quyền lưu thông tin và cấu hình ghi nhớ cho AI.'
+    });
+  }
+
+  try {
+    const updated = Store.saveUserProfile(user.id, req.body);
+    res.json({
+      success: true,
+      profile: updated,
+      message: 'Đã lưu thông tin người dùng thành công! AI sẽ ghi nhớ vĩnh viễn dữ liệu này.'
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ----------------------------------------------------
