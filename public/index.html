@@ -25,9 +25,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Playground
         </button>
-        <button class="nav-btn" data-tab="prompts">
+        <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          Prompt Hub
+          Kho Prompt & Skills
+          <span class="nav-badge-hot">Mới</span>
         </button>
         <button class="nav-btn" data-tab="settings">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -290,25 +291,42 @@
           <div class="prompts-toolbar">
             <div class="prompts-search-box">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="prompt-search-input" placeholder="Tìm kiếm prompt theo tên tác vụ, từ khóa, ngành nghề...">
+              <input type="text" id="prompt-search-input" placeholder="Tìm kiếm prompt theo tên tác vụ, từ khóa, skill, lệnh...">
+            </div>
+
+            <div class="prompts-view-switch">
+              <button id="view-mode-list" class="view-mode-btn active" title="Hiển thị dạng danh sách gọn gàng">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                <span>Danh Sách Gọn</span>
+              </button>
+              <button id="view-mode-grid" class="view-mode-btn" title="Hiển thị dạng thẻ lưới">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span>Thẻ Lưới</span>
+              </button>
             </div>
 
             <div class="prompts-filters">
               <button class="prompt-filter-btn active" data-cat="all">Tất cả</button>
+              <button class="prompt-filter-btn" data-cat="ui-taste">🎨 Skill Giao Diện (Impeccable & Taste)</button>
+              <button class="prompt-filter-btn" data-cat="super-skills">⚡ 10 Siêu Skills</button>
+              <button class="prompt-filter-btn" data-cat="affiliate">💼 Affiliate & Marketing Skills</button>
               <button class="prompt-filter-btn" data-cat="image">🖼️ Chỉnh ảnh & Vision</button>
               <button class="prompt-filter-btn" data-cat="exam">📚 Tạo đề thi & Giáo dục</button>
               <button class="prompt-filter-btn" data-cat="document">📄 Chuyển PDF sang Word</button>
               <button class="prompt-filter-btn" data-cat="code">💻 Lập trình & Debug</button>
-              <button class="prompt-filter-btn" data-cat="marketing">✍️ Marketing & Content</button>
+              <button class="prompt-filter-btn" data-cat="marketing">✍️ Content & Copywriting</button>
               <button class="prompt-filter-btn" data-cat="data">📊 Phân tích dữ liệu & Excel</button>
-              <button class="prompt-filter-btn" data-cat="translation">💼 Dịch thuật chuyên sâu</button>
+              <button class="prompt-filter-btn" data-cat="translation">🌐 Dịch thuật & Ngoại ngữ</button>
               <button class="prompt-filter-btn" data-cat="custom">⭐ Của tôi</button>
             </div>
           </div>
 
-          <div class="prompts-grid-container">
-            <div id="prompts-grid" class="prompts-grid">
-              <!-- Dynamically populated prompt cards -->
+          <div class="prompts-view-container">
+            <div id="prompts-list" class="prompts-list-wrapper">
+              <!-- Dynamically populated prompt rows in List View -->
+            </div>
+            <div id="prompts-grid" class="prompts-grid" style="display: none;">
+              <!-- Dynamically populated prompt cards in Grid View -->
             </div>
           </div>
         </div>
@@ -825,6 +843,9 @@
           <div class="form-group">
             <label>Danh mục</label>
             <select id="custom-prompt-cat" required>
+              <option value="ui-taste">🎨 Skill Giao Diện (Impeccable & Taste)</option>
+              <option value="super-skills">⚡ 10 Siêu Skills</option>
+              <option value="affiliate">💼 Affiliate & Marketing Skills</option>
               <option value="image">🖼️ Chỉnh ảnh & Vision AI</option>
               <option value="exam">📚 Tạo đề thi & Giáo dục</option>
               <option value="document">📄 Chuyển PDF sang Word & Tài liệu</option>

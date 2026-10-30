@@ -3005,6 +3005,369 @@ Yêu cầu bắt buộc:
     prompt: `Hãy viết một email bằng tiếng Anh thương mại chuyên nghiệp gửi tới [Đối tác / Khách hàng quốc tế] về vấn đề: [Mục đích email: Đàm phán giá / Thông báo chậm tiến độ / Đề xuất hợp tác].
 - Giọng văn: Lịch thiệp, trang trọng, thể hiện sự tôn trọng nhưng dứt khoát và rõ ràng về quyền lợi.
 - Bố cục: Tiêu đề súc tích, mở đầu chuyên nghiệp, thân bài đi thẳng vào nội dung cốt lõi kèm giải pháp, kết thúc bằng lời kêu gọi hành động (Call to action) cụ thể.`
+  },
+
+  // -------------------------------------------------------------
+  // SKILL GIAO DIỆN (IMPECCABLE & TASTE)
+  // -------------------------------------------------------------
+  {
+    id: 'skill_ui_craft',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🏗️',
+    title: '/impeccable craft - Xây dựng trọn gói giao diện & Dashboard',
+    desc: 'AI tự làm từ đầu đến cuối: phân tích dự án hiện tại, thiết kế UX/UI, triển khai trực tiếp vào code, kiểm tra responsive PC/tablet/mobile và tự sửa lỗi.',
+    tags: ['Impeccable', 'Craft', 'Full Dashboard', 'UX/UI', 'Responsive'],
+    level: 'Chuyên gia UI/UX',
+    prompt: `/impeccable craft
+Xây dựng hoàn chỉnh giao diện dashboard quản lý. Hãy phân tích project hiện tại, thiết kế UX/UI, triển khai trực tiếp vào code, kiểm tra responsive PC/tablet/mobile và tự sửa các vấn đề phát hiện được. Không phá vỡ chức năng backend hiện tại.`
+  },
+  {
+    id: 'skill_ui_polish',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '✨',
+    title: '/impeccable polish - Đánh bóng UI & Tinh chỉnh chi tiết vi mô',
+    desc: 'Làm sạch CSS, chuẩn hóa spacing 4px/8px, viền mờ tinh tế, border-radius, shadows và visual hierarchy đạt độ thẩm mỹ cao nhất.',
+    tags: ['Impeccable', 'Polish', 'Micro-interactions', 'Spacing', 'Shadows'],
+    level: 'Pixel Perfect',
+    prompt: `/impeccable polish
+Hãy rà soát toàn bộ giao diện hiện tại: chuẩn hóa spacing theo thang 4px/8px, kiểm tra độ tương phản màu sắc (WCAG AAA), làm mềm mại border-radius, tinh chỉnh lại padding/margins và tối ưu các hiệu ứng hover/focus để đạt độ tinh tế vượt trội.`
+  },
+  {
+    id: 'skill_ui_layout',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '📐',
+    title: '/impeccable layout - Tái cấu trúc Layout & Grid Responsive',
+    desc: 'Chuẩn hóa cấu trúc Flexbox / CSS Grid, Bento-grid hiện đại, chống vỡ khung và chống tràn văn bản trên mọi thiết bị.',
+    tags: ['Impeccable', 'Layout', 'CSS Grid', 'Flexbox', 'Responsive'],
+    level: 'Frontend Architect',
+    prompt: `/impeccable layout
+Hãy tối ưu lại toàn bộ hệ thống layout: sử dụng Flexbox/CSS Grid hiện đại, xử lý triệt để overflow và text truncation, canh lề đối xứng, đảm bảo hiển thị hoàn hảo từ màn hình mobile nhỏ (360px) đến Ultra-wide 4K.`
+  },
+  {
+    id: 'skill_ui_typeset',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🔤',
+    title: '/impeccable typeset - Hệ thống Typography & Phân cấp thị giác',
+    desc: 'Thiết lập font chữ cao cấp (Inter, Geist, SF Pro), tỷ lệ font-size, line-height và letter-spacing chuyên nghiệp.',
+    tags: ['Impeccable', 'Typography', 'Hierarchy', 'Font Pairing'],
+    level: 'Chuyên nghiệp',
+    prompt: `/impeccable typeset
+Hãy nâng cấp hệ thống Typography: chọn font chữ phù hợp (Inter, Geist, Plus Jakarta Sans, SF Pro), chuẩn hóa tỷ lệ phân cấp h1 -> h6, cân đối line-height (1.4 - 1.6), tinh chỉnh letter-spacing cho headings và text body để tạo trải nghiệm đọc tốt nhất.`
+  },
+  {
+    id: 'skill_ui_colorize',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🎨',
+    title: '/impeccable colorize - Bảng màu Dark/Light Theme & Contrast',
+    desc: 'Xây dựng hệ màu hiện đại, Dark Theme sâu sang trọng (#09090b), viền mờ tinh tế và điểm nhấn tương phản cao.',
+    tags: ['Impeccable', 'Colorize', 'Dark Mode', 'Contrast', 'Theme'],
+    level: 'Cao cấp',
+    prompt: `/impeccable colorize
+Hãy tối ưu hóa bảng màu giao diện: thiết lập Dark Theme cao cấp với nền đen sâu (#09090b), các lớp thẻ (#121215, #18181b), viền mờ tinh tế (#27272a) và accent color hài hòa, đảm bảo độ tương phản hoàn hảo và bảo vệ mắt.`
+  },
+  {
+    id: 'skill_ui_animate',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '⚡',
+    title: '/impeccable animate - Chuyển động vi mô mượt mà & Skeletons',
+    desc: 'Bổ sung các chuyển động tinh tế, hover state, loading skeletons, modal enter/leave transitions 150-250ms.',
+    tags: ['Impeccable', 'Animate', 'Transitions', 'Skeleton', 'Micro-interactions'],
+    level: 'Chuyên sâu',
+    prompt: `/impeccable animate
+Bổ sung hiệu ứng chuyển động vi mô (Micro-interactions): hover lift, smooth fade-in/out, transitions mượt mà (cubic-bezier(0.16, 1, 0.3, 1)), skeleton loading khi nạp dữ liệu và cảm giác tương tác phản hồi tức thì.`
+  },
+  {
+    id: 'skill_ui_distill',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🧼',
+    title: '/impeccable distill - Tinh giản tối đa & Loại bỏ chi tiết thừa',
+    desc: 'Lược bớt các thành phần gây rối mắt, giảm tải nhận thức (Cognitive Load), giữ lại những gì giá trị nhất.',
+    tags: ['Impeccable', 'Distill', 'Minimalism', 'Cognitive Load'],
+    level: 'Tối giản',
+    prompt: `/impeccable distill
+Hãy lược bỏ toàn bộ các chi tiết thừa thãi, viền phân cách không cần thiết, giảm thiểu số lượng màu sắc và icon thừa, giữ cho giao diện sạch sẽ, thoáng đãng và tập trung 100% vào nội dung cốt lõi của người dùng.`
+  },
+  {
+    id: 'skill_ui_harden',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🛡️',
+    title: '/impeccable harden - Tăng độ vững chắc UX & Xử lý mọi Edge Cases',
+    desc: 'Bổ sung trạng thái rỗng (Empty States), Error States, Loading spinners, phòng tránh crash và lỗi mất mạng.',
+    tags: ['Impeccable', 'Harden', 'Empty States', 'Error Handling', 'Edge Cases'],
+    level: 'Production Ready',
+    prompt: `/impeccable harden
+Hãy củng cố độ tin cậy của giao diện: bổ sung empty state đẹp mắt khi chưa có dữ liệu, thông báo lỗi thân thiện, disable button khi đang xử lý để chống double-click, và bảo vệ form khỏi dữ liệu rỗng hoặc sai định dạng.`
+  },
+  {
+    id: 'skill_ui_audit',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '🔍',
+    title: '/impeccable audit & critique - Đánh giá toàn diện UI/UX',
+    desc: 'Báo cáo phân tích chuyên sâu về thẩm mỹ, tính khả dụng, độ trễ và khả năng tiếp cận (Accessibility).',
+    tags: ['Impeccable', 'Audit', 'Critique', 'UX Review', 'Accessibility'],
+    level: 'Kiểm toán UI',
+    prompt: `/impeccable audit
+Hãy phân tích và đánh giá chi tiết UI/UX hiện tại: chỉ ra 5 điểm yếu lớn nhất về thẩm mỹ, bố cục, trải nghiệm người dùng, độ tương phản và đưa ra kế hoạch khắc phục từng bước kèm mã nguồn cụ thể.`
+  },
+  {
+    id: 'skill_ui_taste_frontend',
+    category: 'ui-taste',
+    catLabel: '🎨 Skill Giao Diện',
+    icon: '💎',
+    title: 'design-taste-frontend & high-end-visual-design',
+    desc: 'Bộ quy chuẩn thẩm mỹ hàng đầu: loại bỏ giao diện generic, áp dụng ngôn ngữ thiết kế Stripe, Linear, Vercel, Apple.',
+    tags: ['Taste Skill', 'Visual Frontend', 'High-End Design', 'Modern Web'],
+    level: 'Thẩm mỹ cao cấp',
+    prompt: `Áp dụng Taste Skill & Visual Frontend Standards:
+1. Tuyệt đối không tạo giao diện generic (Bootstrap thô sơ, màu sắc lòe loẹt, viền đậm lỗi thời).
+2. Phong cách tối giản cao cấp: Dark mode sâu (#09090b), viền siêu mờ (border: 1px solid rgba(255,255,255,0.08)), bóng mềm tự nhiên.
+3. Typography hiện đại, phân cấp rõ ràng bằng font-weight và kích thước.
+4. Trải nghiệm xúc giác số: nút bấm có phản hồi rõ ràng, bo góc hài hòa (border-radius: 8px-12px), spacing thoáng đãng.`
+  },
+
+  // -------------------------------------------------------------
+  // 10 SIÊU SKILLS (SUPER SKILLS)
+  // -------------------------------------------------------------
+  {
+    id: 'skill_sp_anthropic',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '📑',
+    title: '1. Anthropic Skills - Xử lý tài liệu, PDF, Excel & Thiết kế',
+    desc: 'Làm việc với tài liệu phức tạp, trích xuất cấu trúc văn bản dài, chuẩn hóa dữ liệu bảng tính và phân tích báo cáo.',
+    tags: ['Anthropic', 'PDF', 'Spreadsheet', 'Báo cáo', 'Phân tích'],
+    level: 'Siêu Skill #1',
+    prompt: `Áp dụng Anthropic Skills:
+Nhiệm vụ: Phân tích, xử lý và chuẩn hóa tài liệu chuyên nghiệp.
+- Đọc hiểu sâu tài liệu dài, trích xuất cấu trúc rõ ràng.
+- Tổ chức dữ liệu dưới dạng bảng Markdown / Spreadsheet chuẩn hóa.
+- Tránh bỏ sót các chi tiết pháp lý, số liệu tài chính hoặc điều khoản kỹ thuật.`
+  },
+  {
+    id: 'skill_sp_superpowers',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🚀',
+    title: '2. Superpowers - Quy trình Spec ➔ Plan ➔ TDD ➔ Review',
+    desc: 'Quy trình kỹ thuật phần mềm chuẩn mực để xây dựng các feature lớn từ con số 0 mà không phát sinh lỗi tiềm ẩn.',
+    tags: ['Superpowers', 'Spec', 'Plan', 'TDD', 'Code Review'],
+    level: 'Siêu Skill #2',
+    prompt: `Áp dụng Superpowers Workflow:
+1. Spec: Phân tích yêu cầu và viết bản đặc tả tính năng đầy đủ (Input, Output, Edge Cases).
+2. Plan: Chia nhỏ thành các bước triển khai cụ thể, có thể kiểm chứng độc lập.
+3. TDD: Viết test case trước, sau đó viết code để pass toàn bộ test.
+4. Review: Tự kiểm tra lại chất lượng mã nguồn, hiệu năng và tính bảo mật trước khi bàn giao.`
+  },
+  {
+    id: 'skill_sp_karpathy',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🧠',
+    title: '3. Karpathy Skills - Code đơn giản, ít abstraction, nghĩ sâu trước khi viết',
+    desc: 'Tránh AI viết code rườm rà, hạn chế over-engineering, ưu tiên giải pháp trực tiếp, dễ đọc và dễ debug nhất.',
+    tags: ['Karpathy', 'KISS', 'Minimalist', 'No Overengineering'],
+    level: 'Siêu Skill #3',
+    prompt: `Áp dụng Karpathy Skills (Minimalist & First-Principles Engineering):
+- Suy nghĩ thấu đáo về bản chất vấn đề trước khi gõ dòng code đầu tiên.
+- Viết code đơn giản nhất có thể hoạt động (Simple is better than complex).
+- Tránh abstraction không cần thiết, không tạo lớp bọc (wrapper/class) thừa thãi.
+- Tối ưu hóa tính dễ đọc và khả năng gỡ lỗi trực tiếp.`
+  },
+  {
+    id: 'skill_sp_real_engineers',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🛠️',
+    title: '4. Real Engineers - Debugging thực chiến, testing & Production ready',
+    desc: 'Tư duy kỹ sư công nghệ thực chiến: truy tìm nguyên nhân gốc rễ (Root Cause), kiểm tra chịu tải và bảo mật.',
+    tags: ['Real Engineers', 'Debugging', 'Root Cause', 'Production'],
+    level: 'Siêu Skill #4',
+    prompt: `Áp dụng Real Engineers Skill:
+- Tìm và sửa lỗi từ tận gốc (Root Cause Analysis), tuyệt đối không dùng mẹo vá tạm bợ (hack/workaround).
+- Xử lý triệt để Memory Leak, Race Condition, Unhandled Exceptions và Timeout.
+- Đảm bảo code đạt tiêu chuẩn Production: có logging, error handling và zero downtime.`
+  },
+  {
+    id: 'skill_sp_uiux_promax',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '📱',
+    title: '5. UI/UX Pro Max - Responsive đa nền tảng & Design System',
+    desc: 'Xây dựng frontend và mobile app với trải nghiệm mượt mà, tối ưu khả năng tiếp cận và hệ thống tokens bài bản.',
+    tags: ['UI/UX Pro Max', 'Design System', 'Accessibility', 'Mobile First'],
+    level: 'Siêu Skill #5',
+    prompt: `Áp dụng UI/UX Pro Max:
+- Xây dựng Design System nhất quán: Tokens (màu sắc, khoảng cách, font, shadow).
+- Responsive 100% chuẩn Touch trên mobile, bàn phím và chuột trên desktop.
+- Đảm bảo khả năng tiếp cận WCAG (màu tương phản, aria-label, focus indicator).`
+  },
+  {
+    id: 'skill_sp_caveman',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🗿',
+    title: '6. Caveman - Output cực ngắn, giảm token & đi thẳng vào đáp án',
+    desc: 'Loại bỏ hoàn toàn lời chào hỏi xã giao, giải thích dài dòng. Chỉ đưa ra câu trả lời trực tiếp và code chạy được.',
+    tags: ['Caveman', 'Súc tích', 'Tiết kiệm Token', 'Tập trung'],
+    level: 'Siêu Skill #6',
+    prompt: `[Caveman Mode Active]
+- Zero fluff. No greeting. No recap. No conversational filler.
+- Output direct code and minimal bullet points only.
+- Maximize information density per token.`
+  },
+  {
+    id: 'skill_sp_addy_osmani',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🏎️',
+    title: '7. Addy Osmani Skills - Tối ưu hiệu năng Web & Core Web Vitals',
+    desc: 'Tối ưu LCP, FID, CLS, lazy loading, code-splitting, tree-shaking và giảm bundle size tối đa.',
+    tags: ['Addy Osmani', 'Performance', 'Core Web Vitals', 'Tối ưu web'],
+    level: 'Siêu Skill #7',
+    prompt: `Áp dụng Addy Osmani Performance Skills:
+- Tối ưu Core Web Vitals: LCP (Largest Contentful Paint) < 2.5s, CLS < 0.1, INP < 200ms.
+- Giảm thiểu JavaScript blocking, lazy-load tài nguyên nặng.
+- Tận dụng HTTP caching, nén hình ảnh WebP/AVIF và tối ưu critical rendering path.`
+  },
+  {
+    id: 'skill_sp_taste_skill',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '💎',
+    title: '8. Taste Skill - Thẩm mỹ cao cấp, typography & tránh UI generic',
+    desc: 'Biến sản phẩm số thành tác phẩm có cá tính thị giác riêng biệt, giàu cảm xúc và thẩm mỹ hiện đại.',
+    tags: ['Taste Skill', 'Typography', 'Visual Hierarchy', 'High Quality'],
+    level: 'Siêu Skill #8',
+    prompt: `Áp dụng Taste Skill:
+- Tránh các giao diện đại trà, vô hồn.
+- Kết hợp màu sắc tinh tế, phân lớp độ sâu bằng shadow mềm và viền mờ.
+- Tối ưu từng micro-interaction để người dùng cảm nhận được độ mượt và sự trau chuốt.`
+  },
+  {
+    id: 'skill_sp_awesome_claude',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🧰',
+    title: '9. Awesome Claude Skills - Kho mở rộng công cụ & tự động hóa',
+    desc: 'Khai thác tối đa các công cụ tích hợp, MCP server, web search và script tự động hóa chuyên biệt.',
+    tags: ['Awesome Skills', 'MCP', 'Tool Calling', 'Automation'],
+    level: 'Siêu Skill #9',
+    prompt: `Kích hoạt Awesome Skills Workflow:
+- Phân tích bài toán và lựa chọn công cụ tối ưu nhất (Tool calling, script automation, API Gateway).
+- Tự động hóa các tác vụ lặp đi lặp lại bằng code script độc lập.
+- Tối ưu hóa chuỗi thực thi để đạt kết quả chính xác nhất.`
+  },
+  {
+    id: 'skill_sp_adhd',
+    category: 'super-skills',
+    catLabel: '⚡ 10 Siêu Skills',
+    icon: '🎯',
+    title: '10. I Have ADHD - Trình bày ngắn gọn, chia nhỏ task, 100% Actionable',
+    desc: 'Cách truyền đạt tối ưu cho người bận rộn: checklist cụ thể, không khối văn bản dài, làm bước nào xong bước đó.',
+    tags: ['ADHD', 'Actionable', 'Checklist', 'Rõ ràng'],
+    level: 'Siêu Skill #10',
+    prompt: `[I Have ADHD Mode]
+- Trình bày thông tin dưới dạng checklist [ ] ngắn gọn, rõ ràng.
+- Không viết các đoạn văn dài quá 3 dòng.
+- Chia nhỏ dự án thành các bước vi mô (Micro-steps) có thể hoàn thành trong 5-10 phút.
+- Nêu bật rõ: Việc cần làm ngay bây giờ là gì?`
+  },
+
+  // -------------------------------------------------------------
+  // AFFILIATE & MARKETING SKILLS
+  // -------------------------------------------------------------
+  {
+    id: 'skill_aff_grand_slam',
+    category: 'affiliate',
+    catLabel: '💼 Affiliate Skills',
+    icon: '🏆',
+    title: 'Grand Slam Offer Generator - Lời đề nghị không thể từ chối',
+    desc: 'Áp dụng công thức Hormozi $100M Offers: Dream Outcome, Perceived Likelihood, Time Delay và Effort & Sacrifice.',
+    tags: ['Affiliate', 'Grand Slam Offer', 'Conversion', 'Hormozi'],
+    level: 'Marketing Đỉnh Cao',
+    prompt: `Bạn là chuyên gia thiết kế ưu đãi chuyển đổi cao (Grand Slam Offer Generator theo phương pháp $100M Offers):
+Hãy giúp tôi xây dựng một Lời đề nghị không thể chối từ cho sản phẩm/dịch vụ: [Điền sản phẩm/dịch vụ của bạn].
+1. Phân tích 4 biến số cốt lõi:
+   - Dream Outcome: Kết quả trong mơ của khách hàng là gì?
+   - Perceived Likelihood: Khách hàng tin tưởng bao nhiêu % sẽ đạt được kết quả?
+   - Time Delay: Giảm thiểu thời gian từ lúc mua đến khi thấy kết quả.
+   - Effort & Sacrifice: Giảm thiểu công sức và sự hy sinh của khách hàng.
+2. Tạo Gói Giá Trị (Value Stack):
+   - Sản phẩm chính + 3-5 phần thưởng (Bonuses) giá trị cao giải quyết nỗi lo tiếp theo.
+   - Cam kết bảo hành đảo ngược rủi ro (Risk-Reversal Guarantee).
+   - Lý do tạo sự khan hiếm và cấp bách chân thật (Scarcity & Urgency).`
+  },
+  {
+    id: 'skill_aff_viral_post',
+    category: 'affiliate',
+    catLabel: '💼 Affiliate Skills',
+    icon: '🔥',
+    title: 'Viral Post & Hook Writer - Viết bài mạng xã hội triệu view',
+    desc: 'Tạo hook mở đầu gây tò mò cực mạnh, giữ chân người đọc với nhịp điệu lôi cuốn và call-to-action chuyển đổi cao.',
+    tags: ['Viral Hook', 'Social Media', 'Facebook', 'LinkedIn', 'X'],
+    level: 'Lan tỏa cao',
+    prompt: `Bạn là Viral Copywriter hàng đầu. Hãy viết 3 bài post mạng xã hội (Facebook / Threads / LinkedIn) về chủ đề: [Điền chủ đề/sản phẩm].
+Yêu cầu:
+- Dòng Hook mở đầu: Gây tò mò, đảo ngược niềm tin thông thường hoặc chỉ ra một sai lầm phổ biến.
+- Nhịp văn: Câu ngắn, dễ đọc trên di động, ngắt dòng nhịp nhàng, có tính kể chuyện (Storytelling).
+- Giá trị cốt lõi: Chia sẻ 3-5 bài học thực tế, có thể áp dụng được ngay.
+- Kêu gọi hành động (CTA): Khéo léo điều hướng tương tác (Comment nhận tài liệu / Click link bio).`
+  },
+  {
+    id: 'skill_aff_tiktok_script',
+    category: 'affiliate',
+    catLabel: '💼 Affiliate Skills',
+    icon: '🎬',
+    title: 'TikTok & Short-Form Video Script Writer',
+    desc: 'Kịch bản video ngắn 30-60 giây: Hook 3 giây đầu, Body giữ nhịp cao, và CTA tự nhiên không gượng ép.',
+    tags: ['TikTok', 'Reels', 'Shorts', 'Video Script', 'Kịch bản'],
+    level: 'Video Marketing',
+    prompt: `Hãy viết kịch bản video ngắn (TikTok / Facebook Reels / YouTube Shorts) thời lượng 45 giây về: [Sản phẩm / Chủ đề].
+Cấu trúc kịch bản 3 cột: [Thời gian | Hình ảnh/Hành động | Lời thoại/Voiceover]:
+- 00:00 - 00:03: HOOK giữ chân người xem (Câu nói gây sốc hoặc hành động bất ngờ).
+- 00:03 - 00:30: VẤN ĐỀ & GIẢI PHÁP (Nhịp độ nhanh, trực quan, giải thích rõ lợi ích).
+- 00:30 - 00:45: CALL TO ACTION (Kêu gọi follow / xem link trong bio một cách tự nhiên).`
+  },
+  {
+    id: 'skill_aff_seo_audit',
+    category: 'affiliate',
+    catLabel: '💼 Affiliate Skills',
+    icon: '📊',
+    title: 'SEO Audit & Keyword Optimization cho bài viết Affiliate',
+    desc: 'Kiểm toán SEO toàn diện: Search Intent, On-Page SEO, thẻ H1/H2/H3, FAQ schema và tối ưu tỷ lệ Click (CTR).',
+    tags: ['SEO', 'Keyword Research', 'Affiliate Blog', 'On-page'],
+    level: 'Chuyên sâu SEO',
+    prompt: `Hãy đóng vai trò chuyên gia SEO Technical & Affiliate Marketing:
+Phân tích và tối ưu hóa bài viết blog cho từ khóa: [Điền từ khóa mục tiêu]:
+1. Xác định Search Intent chính xác (Commercial / Transactional / Informational).
+2. Đề xuất cấu trúc dàn ý chuẩn SEO (H1, H2, H3) bao phủ toàn bộ Entity liên quan.
+3. Viết 3 tiêu đề Title Tag và Meta Description có CTR cao nhất.
+4. Đề xuất vị trí đặt CTA và bảng so sánh (Comparison Table) để tối ưu tỷ lệ chuyển đổi affiliate link.`
+  },
+  {
+    id: 'skill_aff_email_drip',
+    category: 'affiliate',
+    catLabel: '💼 Affiliate Skills',
+    icon: '📧',
+    title: 'Email Drip Sequence - Chuỗi 5 email nuôi dưỡng & bán hàng',
+    desc: 'Chuỗi email tự động: Chào mừng ➔ Câu chuyện cá nhân ➔ Giá trị chuyên sâu ➔ Case Study ➔ Chốt ưu đãi.',
+    tags: ['Email Automation', 'Drip Sequence', 'Nurturing', 'Sales Funnel'],
+    level: 'Tự động hóa',
+    prompt: `Hãy thiết kế chuỗi 5 Email Drip Sequence tự động nuôi dưỡng và chuyển đổi khách hàng tiềm năng cho: [Sản phẩm/Khóa học/Phần mềm]:
+- Email 1: Welcome & Giao quà Lead Magnet (Tạo ấn tượng ban đầu mạnh mẽ).
+- Email 2: Câu chuyện cá nhân (Thất bại trước đây và bài học bước ngoặt).
+- Email 3: Giá trị cốt lõi (Vạch trần sai lầm phổ biến nhất của thị trường).
+- Email 4: Case Study / Bằng chứng xã hội (Khách hàng đã thay đổi như thế nào).
+- Email 5: Lời chào hàng có hạn (Ưu đãi đặc biệt, giải tỏa thắc mắc cuối cùng).`
   }
 ];
 
@@ -3013,9 +3376,21 @@ function getAllPrompts() {
 }
 
 function renderPrompts() {
-  const grid = document.getElementById('prompts-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
+  const listEl = document.getElementById('prompts-list');
+  const gridEl = document.getElementById('prompts-grid');
+  if (!listEl && !gridEl) return;
+
+  const mode = state.promptViewMode || 'list';
+  if (listEl) listEl.innerHTML = '';
+  if (gridEl) gridEl.innerHTML = '';
+
+  if (mode === 'list') {
+    if (listEl) listEl.style.display = 'flex';
+    if (gridEl) gridEl.style.display = 'none';
+  } else {
+    if (listEl) listEl.style.display = 'none';
+    if (gridEl) gridEl.style.display = 'grid';
+  }
 
   const all = getAllPrompts();
   const cat = state.promptsCategoryFilter || 'all';
@@ -3054,70 +3429,142 @@ function renderPrompts() {
     return matchCat && matchSearch;
   });
 
+  const emptyHtml = `
+    <div style="grid-column: 1/-1; text-align: center; padding: 3.5rem 1rem; color: var(--text-muted); background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 12px; width: 100%;">
+      <div style="font-size: 2.2rem; margin-bottom: 0.65rem;">🔍</div>
+      <h4 style="color: var(--text-white); margin-bottom: 0.35rem;">Không tìm thấy Prompt phù hợp</h4>
+      <p style="font-size: 0.85rem;">Hãy thử tìm từ khóa khác hoặc bấm "+ Tạo Prompt Mới" để lưu công thức của riêng bạn.</p>
+    </div>
+  `;
+
   if (filtered.length === 0) {
-    grid.innerHTML = `
-      <div style="grid-column: 1/-1; text-align: center; padding: 3.5rem 1rem; color: var(--text-muted); background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 12px;">
-        <div style="font-size: 2.2rem; margin-bottom: 0.65rem;">🔍</div>
-        <h4 style="color: var(--text-white); margin-bottom: 0.35rem;">Không tìm thấy Prompt phù hợp</h4>
-        <p style="font-size: 0.85rem;">Hãy thử tìm từ khóa khác hoặc bấm "+ Tạo Prompt Mới" để lưu công thức của riêng bạn.</p>
-      </div>
-    `;
+    if (mode === 'list' && listEl) listEl.innerHTML = emptyHtml;
+    if (mode === 'grid' && gridEl) gridEl.innerHTML = emptyHtml;
     return;
   }
 
   filtered.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'prompt-card';
-
     const catBadgeClass = `cat-${item.category}`;
     const wordCount = item.prompt.trim().split(/\s+/).length;
     const tagsHtml = (item.tags || []).map(t => `<span class="prompt-tag">${escapeHtml(t)}</span>`).join('');
 
-    card.innerHTML = `
-      <div class="prompt-card-header">
-        <div class="prompt-title-group">
-          <span class="prompt-icon">${item.icon || '💡'}</span>
-          <div>
-            <h4 class="prompt-card-title">${escapeHtml(item.title)}</h4>
+    if (mode === 'list' && listEl) {
+      // List Row Render (Gọn gàng theo yêu cầu)
+      const row = document.createElement('div');
+      row.className = 'prompt-list-row';
+      row.id = `row-${item.id}`;
+
+      row.innerHTML = `
+        <div class="prompt-list-main">
+          <div class="prompt-list-left">
+            <span class="prompt-list-icon">${item.icon || '💡'}</span>
+            <div class="prompt-list-info">
+              <div class="prompt-list-title-line">
+                <span class="prompt-list-title" onclick="window.togglePromptDetail('${item.id}')">${escapeHtml(item.title)}</span>
+                <span class="prompt-badge ${catBadgeClass}">${escapeHtml(item.catLabel || item.category)}</span>
+                ${item.level ? `<span class="prompt-tag" style="color: #a1a1aa; border-color: rgba(255,255,255,0.06);">${escapeHtml(item.level)}</span>` : ''}
+              </div>
+              <p class="prompt-list-desc" title="${escapeHtml(item.desc || '')}">${escapeHtml(item.desc || '')}</p>
+            </div>
+          </div>
+
+          <div class="prompt-list-actions">
+            <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Sao chép</span>
+            </button>
+            <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
+              <span>⚙️ System</span>
+            </button>
+            <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
+              <span>Áp dụng vào Playground</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button class="prompt-list-expand-btn" id="btn-exp-${item.id}" title="Xem trước nội dung chi tiết" onclick="window.togglePromptDetail('${item.id}')">
+              <span>Chi tiết</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
           </div>
         </div>
-        <span class="prompt-badge ${catBadgeClass}">${escapeHtml(item.catLabel || item.category)}</span>
-      </div>
 
-      <p class="prompt-card-desc">${escapeHtml(item.desc || '')}</p>
+        <div class="prompt-list-detail" id="detail-${item.id}">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.75rem; color: var(--text-muted);">
+            <div>${tagsHtml}</div>
+            <div>Độ dài: <strong style="color: var(--text-white);">~${wordCount} từ</strong></div>
+          </div>
+          <div class="prompt-box">${escapeHtml(item.prompt)}</div>
+        </div>
+      `;
 
-      ${tagsHtml ? `<div class="prompt-tags-list">${tagsHtml}</div>` : ''}
-
-      <div class="prompt-meta-row">
-        <span>Độ dài: <strong>~${wordCount} từ</strong></span>
-        <span>Cấp độ: <strong>${escapeHtml(item.level || 'Chuẩn hóa')}</strong></span>
-      </div>
-
-      <div class="prompt-box">${escapeHtml(item.prompt)}</div>
-
-      <div class="prompt-card-footer">
-        <div style="display: flex; gap: 0.4rem; align-items: center;">
-          <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <span>Sao chép</span>
-          </button>
-          <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
-            <span>⚙️ System</span>
-          </button>
+      listEl.appendChild(row);
+    } else if (mode === 'grid' && gridEl) {
+      // Grid Card Render
+      const card = document.createElement('div');
+      card.className = 'prompt-card';
+      card.innerHTML = `
+        <div class="prompt-card-header">
+          <div class="prompt-title-group">
+            <span class="prompt-icon">${item.icon || '💡'}</span>
+            <div>
+              <h4 class="prompt-card-title">${escapeHtml(item.title)}</h4>
+            </div>
+          </div>
+          <span class="prompt-badge ${catBadgeClass}">${escapeHtml(item.catLabel || item.category)}</span>
         </div>
 
-        <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
-          <span>Áp dụng vào Playground</span>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-    `;
+        <p class="prompt-card-desc">${escapeHtml(item.desc || '')}</p>
 
-    grid.appendChild(card);
+        ${tagsHtml ? `<div class="prompt-tags-list">${tagsHtml}</div>` : ''}
+
+        <div class="prompt-meta-row">
+          <span>Độ dài: <strong>~${wordCount} từ</strong></span>
+          <span>Cấp độ: <strong>${escapeHtml(item.level || 'Chuẩn hóa')}</strong></span>
+        </div>
+
+        <div class="prompt-box">${escapeHtml(item.prompt)}</div>
+
+        <div class="prompt-card-footer">
+          <div style="display: flex; gap: 0.4rem; align-items: center;">
+            <button class="btn-copy-prompt" title="Sao chép prompt này" onclick="window.copyPromptById(this, '${item.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Sao chép</span>
+            </button>
+            <button class="btn-sys-prompt" title="Nạp vào System Prompt của Playground" onclick="window.applyAsSystemPromptById('${item.id}')">
+              <span>⚙️ System</span>
+            </button>
+          </div>
+
+          <button class="btn-use-prompt" title="Sao chép & chuyển thẳng sang Playground để điền sẵn" onclick="window.applyPromptById('${item.id}')">
+            <span>Áp dụng vào Playground</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      `;
+
+      gridEl.appendChild(card);
+    }
   });
 }
 
 function setupPromptEvents() {
+  // View mode switcher (List / Grid)
+  const btnViewList = document.getElementById('view-mode-list');
+  const btnViewGrid = document.getElementById('view-mode-grid');
+  if (btnViewList && btnViewGrid) {
+    btnViewList.addEventListener('click', () => {
+      state.promptViewMode = 'list';
+      btnViewList.classList.add('active');
+      btnViewGrid.classList.remove('active');
+      renderPrompts();
+    });
+    btnViewGrid.addEventListener('click', () => {
+      state.promptViewMode = 'grid';
+      btnViewGrid.classList.add('active');
+      btnViewList.classList.remove('active');
+      renderPrompts();
+    });
+  }
+
   const searchInput = document.getElementById('prompt-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
@@ -3188,31 +3635,50 @@ function setupPromptEvents() {
 
 function getCatLabel(cat) {
   const map = {
-    image: '🖼️ Chỉnh ảnh & Vision',
-    exam: '📚 Tạo đề thi & Giáo dục',
-    document: '📄 Chuyển PDF sang Word',
-    code: '💻 Lập trình & Debug',
-    marketing: '✍️ Marketing & Content',
-    data: '📊 Phân tích dữ liệu & Excel',
-    translation: '💼 Dịch thuật chuyên sâu',
-    custom: '⭐ Tùy chỉnh của tôi'
+    'ui-taste': '🎨 Skill Giao Diện',
+    'super-skills': '⚡ 10 Siêu Skills',
+    'affiliate': '💼 Affiliate Skills',
+    'image': '🖼️ Chỉnh ảnh & Vision',
+    'exam': '📚 Tạo đề thi & Giáo dục',
+    'document': '📄 Chuyển PDF sang Word',
+    'code': '💻 Lập trình & Debug',
+    'marketing': '✍️ Marketing & Content',
+    'data': '📊 Phân tích dữ liệu & Excel',
+    'translation': '🌐 Dịch thuật & Ngoại ngữ',
+    'custom': '⭐ Tùy chỉnh của tôi'
   };
   return map[cat] || '⭐ Tùy chỉnh';
 }
 
 function getCatIcon(cat) {
   const map = {
-    image: '🎨',
-    exam: '📝',
-    document: '📑',
-    code: '💻',
-    marketing: '🚀',
-    data: '📈',
-    translation: '🌐',
-    custom: '⭐'
+    'ui-taste': '🎨',
+    'super-skills': '⚡',
+    'affiliate': '💼',
+    'image': '🎨',
+    'exam': '📝',
+    'document': '📑',
+    'code': '💻',
+    'marketing': '🚀',
+    'data': '📈',
+    'translation': '🌐',
+    'custom': '⭐'
   };
   return map[cat] || '💡';
 }
+
+window.togglePromptDetail = function(rowId) {
+  const detailEl = document.getElementById('detail-' + rowId);
+  const btnEl = document.getElementById('btn-exp-' + rowId);
+  if (!detailEl) return;
+  const isOpen = detailEl.classList.toggle('open');
+  if (btnEl) {
+    btnEl.classList.toggle('expanded', isOpen);
+    btnEl.innerHTML = isOpen ? 
+      `<span>Thu gọn</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>` : 
+      `<span>Chi tiết</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+  }
+};
 
 window.applyPromptById = function(promptId) {
   const all = getAllPrompts();
