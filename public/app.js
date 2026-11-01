@@ -333,8 +333,77 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // -------------------------------------------------------------
-// 1. NAVIGATION
-// -------------------------------------------------------------
+// 1. NAVIGATION & URL ROUTING
+const tabRoutes = {
+  'playground': '/Playground',
+  'projects': '/Dự Án',
+  'prompts': '/Kho Prompt & Skills',
+  'settings': '/Cài Đặt (Settings)'
+};
+
+function parseCurrentUrlRoute() {
+  const rawPath = decodeURIComponent(window.location.pathname || '').trim().toLowerCase();
+  
+  if (rawPath.includes('dự án') || rawPath.includes('project') || rawPath.includes('du-an')) {
+    return 'projects';
+  }
+  if (rawPath.includes('kho prompt') || rawPath.includes('prompt') || rawPath.includes('skill')) {
+    return 'prompts';
+  }
+  if (rawPath.includes('cài đặt') || rawPath.includes('setting') || rawPath.includes('cai-dat')) {
+    return 'settings';
+  }
+  if (rawPath.includes('playground')) {
+    return 'playground';
+  }
+
+  return 'projects';
+}
+
+window.switchTabByRoute = function(targetTab, updateHistory = true) {
+  if (!targetTab) return;
+
+  const allNavButtons = document.querySelectorAll('.nav-btn, .mobile-nav-btn');
+  allNavButtons.forEach(b => {
+    if (b.getAttribute('data-tab') === targetTab) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  tabPanes.forEach(p => p.classList.remove('active'));
+
+  const pane = document.getElementById(`tab-${targetTab}`);
+  if (pane) pane.classList.add('active');
+  document.body.setAttribute('data-active-tab', targetTab);
+
+  closeMobileDrawers();
+
+  if (targetTab === 'projects') {
+    loadProjects();
+  }
+  if (targetTab === 'prompts') {
+    renderPrompts();
+  }
+  if (targetTab === 'settings') {
+    const activeSubtabBtn = document.querySelector('.settings-nav-item.active');
+    const activeSubtab = activeSubtabBtn ? activeSubtabBtn.getAttribute('data-subtab') : 'profile';
+    if (activeSubtab === 'profile') fetchUserProfile();
+    if (activeSubtab === 'providers') fetchProviders();
+    if (activeSubtab === 'gateway') fetchKeys();
+    if (activeSubtab === 'memory') fetchMemories();
+    if (activeSubtab === 'logs') fetchLogs();
+  }
+
+  if (updateHistory && tabRoutes[targetTab]) {
+    const newPath = tabRoutes[targetTab];
+    if (decodeURIComponent(window.location.pathname) !== newPath) {
+      window.history.pushState({ tab: targetTab }, '', newPath);
+    }
+  }
+};
 
 function setupNavigation() {
   // Top nav & Mobile bottom nav sync
@@ -342,42 +411,14 @@ function setupNavigation() {
   allNavButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
-
-      // Sync active state on both top bar and bottom mobile bar
-      allNavButtons.forEach(b => {
-        if (b.getAttribute('data-tab') === targetTab) {
-          b.classList.add('active');
-        } else {
-          b.classList.remove('active');
-        }
-      });
-
-      tabPanes.forEach(p => p.classList.remove('active'));
-      const pane = document.getElementById(`tab-${targetTab}`);
-      if (pane) pane.classList.add('active');
-      document.body.setAttribute('data-active-tab', targetTab);
-
-      // Tự động đóng drawer trên mobile khi chuyển tab
-      closeMobileDrawers();
-
-      if (targetTab === 'projects') {
-        loadProjects();
-      }
-
-      if (targetTab === 'prompts') {
-        renderPrompts();
-      }
-
-      if (targetTab === 'settings') {
-        const activeSubtabBtn = document.querySelector('.settings-nav-item.active');
-        const activeSubtab = activeSubtabBtn ? activeSubtabBtn.getAttribute('data-subtab') : 'profile';
-        if (activeSubtab === 'profile') fetchUserProfile();
-        if (activeSubtab === 'providers') fetchProviders();
-        if (activeSubtab === 'gateway') fetchKeys();
-        if (activeSubtab === 'memory') fetchMemories();
-        if (activeSubtab === 'logs') fetchLogs();
-      }
+      switchTabByRoute(targetTab, true);
     });
+  });
+
+  // Handle browser back / forward navigation
+  window.addEventListener('popstate', () => {
+    const currentTab = parseCurrentUrlRoute();
+    switchTabByRoute(currentTab, false);
   });
 
   // Mobile Drawers Toggle Handlers
@@ -5172,10 +5213,8 @@ if (document.readyState === 'loading') {
 
 
 
-// Auto set workspace tab on load
+// Auto route to page based on current URL path
 document.addEventListener('DOMContentLoaded', () => {
-  document.body.setAttribute('data-active-tab', 'projects');
-  const projPane = document.getElementById('tab-projects');
-  if (projPane) projPane.classList.add('active');
-  loadProjects();
+  const initialTab = parseCurrentUrlRoute();
+  switchTabByRoute(initialTab, false);
 });
