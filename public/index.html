@@ -18,25 +18,12 @@
  <div class="brand">
  <div class="logo-box">VZ</div>
  <div class="brand-text">
- <h1>VinceZone <span class="badge-accent">WORKPLAY</span></h1>
- <p class="subtitle">Unified AI Gateway & Playground</p>
+ <h1>VinceZone <span class="badge-accent">STUDIO</span></h1>
+ <p class="subtitle">Autonomous AI Agent IDE</p>
  </div>
  </div>
 
- <nav class="nav-tabs">
- <button class="nav-btn active" data-tab="playground">
- Playground
- </button>
- <button class="nav-btn" data-tab="projects" id="nav-btn-projects">
- Dự Án
- </button>
- <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
- Kho Prompt & Skills
- </button>
- <button class="nav-btn" data-tab="settings">
- Cài Đặt (Settings)
- </button>
- </nav>
+ <!-- nav-tabs removed for clean minimalist workspace -->
 
  <div class="header-right">
  <div class="header-status">
@@ -58,7 +45,8 @@
  <!-- MAIN CONTENT -->
  <main class="main-body">
 
- <!-- ==================== TAB 1: PLAYGROUND ==================== -->
+ <div style="display:none !important;" aria-hidden="true">
+<!-- ==================== TAB 1: PLAYGROUND ==================== -->
  <section id="tab-playground" class="tab-pane active">
  <div class="playground-layout">
  <!-- 1. Left Sidebar: Chat History Sessions (Bộ nhớ lịch sử chat) -->
@@ -120,16 +108,6 @@
  </div>
 
             <div id="chat-messages" class="chat-messages">
-              <div class="welcome-banner">
-                <h3>VinceZone</h3>
-                <p>Tôi có thể giúp gì cho bạn hôm nay?</p>
-                <div class="mobile-starter-prompts">
-                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Viết code giải quyết bài toán: ')">Viết code</button>
-                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Phân tích và tóm tắt nội dung sau: ')">Tóm tắt</button>
-                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Dịch đoạn văn này sang tiếng Anh chuẩn: ')">Dịch thuật</button>
-                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Lập kế hoạch chi tiết cho mục tiêu: ')">Kế hoạch</button>
-                </div>
-              </div>
             </div>
 
  <!-- Input Box & Attachments -->
@@ -358,88 +336,61 @@
  </div>
  </section>
 
- <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
- <section id="tab-projects" class="tab-pane">
+ </div>
+<!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
+ <section id="tab-projects" class="tab-pane active" style="display:block;">
  <div class="projects-layout">
    <!-- 1. Left Sidebar: Quản lý Dự Án & Các Luồng Chat -->
    <aside class="projects-sidebar">
-     <div class="projects-sidebar-header">
-       <div class="projects-header-title-row">
-         <span class="projects-sidebar-title">Dự Án Máy Tính</span>
-         <button id="btn-open-create-project" class="btn-small btn-primary" title="Thêm dự án mới trên máy tính">+ Dự Án Mới</button>
-       </div>
-       
-       <!-- Project Selector Dropdown -->
-       <div class="project-picker-box">
-         <label for="project-select-dropdown" class="input-label-micro">Dự Án Đang Mở:</label>
-         <select id="project-select-dropdown" class="select-project-dropdown">
-           <!-- Populated dynamically -->
-         </select>
-       </div>
-     </div>
+      <!-- Nút Thêm Dự Án duy nhất trên đầu -->
+      <div class="projects-sidebar-top">
+        <button id="btn-open-create-project" class="btn-primary btn-add-project-hero" title="Thêm dự án mới trên máy tính">
+          + Thêm Dự Án
+        </button>
+      </div>
 
-     <!-- Active Project Overview Card -->
-     <div class="active-project-card" id="active-project-card">
-       <div class="active-proj-header">
-         <strong id="active-project-name" class="proj-name-text">VinceZone Workspace</strong>
-         <span class="proj-badge-local">Local Folder</span>
-       </div>
-       <div class="active-proj-path-row">
-         <span id="active-project-path" class="proj-path-text" title="Đường dẫn thư mục dự án">C:\VisualStudio\VinceZone</span>
-         <button id="btn-copy-project-path" class="btn-micro" title="Sao chép đường dẫn">Chép</button>
-       </div>
-       <p id="active-project-desc" class="proj-desc-text">Dự án chính đang mở trên máy tính.</p>
+      <!-- Danh Sách Các Dự Án -->
+      <div class="projects-list-section">
+        <div class="section-label-row">
+          <span class="section-label-text">DANH SÁCH DỰ ÁN</span>
+        </div>
+        <div id="projects-list-items" class="projects-list-items">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
 
-       <div class="proj-quick-actions">
-         <button id="btn-toggle-terminal" class="btn-micro-action">Terminal</button>
-         <button id="btn-view-files" class="btn-micro-action">Xem Files</button>
-         <button id="btn-delete-project" class="btn-micro-action action-danger" title="Xóa dự án khỏi danh sách">Xóa</button>
-       </div>
-     </div>
+      <!-- Khu Vực Thao Tác Của Dự Án Đang Chọn (Hiện khi nhấp vào dự án) -->
+      <div id="active-project-workspace" class="active-project-workspace" style="display: none;">
+        <!-- Hai Nút Thao Tác Chính: Thêm Đoạn Chat & Thêm Nhóm -->
+        <div class="project-actions-grid">
+          <button id="btn-open-new-chat-modal" class="btn-primary btn-action-main">+ Thêm Đoạn Chat</button>
+          <button id="btn-open-create-team-modal" class="btn-secondary btn-action-main">+ Thêm Nhóm</button>
+        </div>
 
-     <!-- Hai Nút Thao Tác Chính: Thêm Đoạn Chat & Thêm Nhóm -->
-     <div class="project-actions-grid">
-       <button id="btn-open-new-chat-modal" class="btn-primary btn-action-main">+ Thêm Đoạn Chat</button>
-       <button id="btn-open-create-team-modal" class="btn-secondary btn-action-main">+ Thêm Nhóm</button>
-     </div>
+        <!-- Danh Sách Nhóm Agent Trong Dự Án (Tối đa 5 agent) -->
+        <div class="project-teams-section">
+          <div class="section-label-row">
+            <span class="section-label-text">NHÓM AGENT (TỐI ĐA 5 AGENT)</span>
+          </div>
+          <div class="project-teams-list" id="project-teams-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
 
-     <!-- Danh Sách Nhóm Agent Trong Dự Án -->
-     <div class="project-teams-section">
-       <div class="section-label-row">
-         <span class="section-label-text">NHÓM AGENT (TỐI ĐA 5 AGENT)</span>
-       </div>
-       <div class="project-teams-list" id="project-teams-list">
-         <!-- Populated dynamically -->
-       </div>
-     </div>
-
-     <!-- Danh Sách Đoạn Chat Trong Dự Án -->
-     <div class="project-chats-section">
-       <div class="section-label-row">
-         <span class="section-label-text">CÁC ĐOẠN CHAT</span>
-       </div>
-       <div class="project-chats-list" id="project-chats-list">
-         <!-- Populated dynamically -->
-       </div>
-     </div>
-   </aside>
+        <!-- Danh Sách Đoạn Chat Trong Dự Án -->
+        <div class="project-chats-section">
+          <div class="section-label-row">
+            <span class="section-label-text">CÁC ĐOẠN CHAT</span>
+          </div>
+          <div class="project-chats-list" id="project-chats-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </aside>
 
    <!-- 2. Main Workspace: Chat & Teamwork Execution Canvas -->
    <main class="projects-main">
-     <!-- Top Bar of Main Chat -->
-     <div class="projects-canvas-header">
-       <div class="canvas-header-left">
-         <h3 id="current-chat-title" class="current-chat-title">Hội đồng AI - Lập trình & Nâng cấp</h3>
-         <span id="current-chat-mode-pill" class="proj-mode-pill mode-team">Hội Đồng AI (Teamwork)</span>
-       </div>
-       <div class="canvas-header-right">
-         <select id="project-model-select" class="model-select-compact" title="Chọn Model AI vận hành nhóm Agent">
-           <!-- Populated dynamically -->
-         </select>
-         <button id="btn-clear-project-chat" class="btn-ghost btn-small" title="Xóa sạch tin nhắn trong đoạn chat này">Làm Sạch Chat</button>
-       </div>
-     </div>
-
      <!-- Embedded Terminal Drawer (Toggleable) -->
      <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
        <div class="terminal-drawer-header">
@@ -504,7 +455,8 @@
  </div>
  </section>
 
- <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
+ <div style="display:none !important;" aria-hidden="true">
+<!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
  <section id="tab-prompts" class="tab-pane">
  <div class="prompts-container">
  <div class="pane-header">
@@ -891,7 +843,8 @@
 
  </main>
 
- <!-- MODAL: ADD / EDIT PROVIDER -->
+ </div>
+<!-- MODAL: ADD / EDIT PROVIDER -->
  <div id="provider-modal" class="modal-overlay">
  <div class="modal-content">
  <div class="modal-header">
@@ -1290,21 +1243,7 @@
  <!-- TOAST NOTIFICATION CONTAINER -->
  <div id="toast-container" class="toast-container"></div>
 
- <!-- MOBILE BOTTOM NAVIGATION (Hiện trên điện thoại) -->
- <nav class="mobile-bottom-nav">
- <button class="mobile-nav-btn active" data-tab="playground">
- <span>Playground</span>
- </button>
- <button class="mobile-nav-btn" data-tab="projects">
- <span>Dự Án</span>
- </button>
- <button class="mobile-nav-btn" data-tab="prompts">
- <span>Kho Prompt</span>
- </button>
- <button class="mobile-nav-btn" data-tab="settings">
- <span>Cài Đặt</span>
- </button>
- </nav>
+ <!-- mobile-bottom-nav removed -->
  </div>
 
  <script src="app.js"></script>

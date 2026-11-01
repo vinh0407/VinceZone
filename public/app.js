@@ -2829,15 +2829,7 @@ async function loadChatSession(id) {
     const banner = chatMessages.querySelector('.welcome-banner');
     if (banner) banner.remove();
 
-    if (state.chatHistory.length === 0) {
-      chatMessages.innerHTML = `
-        <div class="welcome-banner">
-          <div class="welcome-icon"></div>
-          <h3>${escapeHtml(chat.title)}</h3>
-          <p>Chưa có tin nhắn trong phiên này. Nhập câu hỏi bên dưới để chat tiếp!</p>
-        </div>
-      `;
-    } else {
+    if (state.chatHistory.length > 0) {
       for (const msg of state.chatHistory) {
         renderCanvasMessageBubble(msg.role, msg.content, msg.model || chat.model);
       }
@@ -2923,14 +2915,7 @@ function startNewChat() {
   state.chatHistory = [];
   if (activeSessionTitle) activeSessionTitle.textContent = 'Đoạn hội thoại mới';
 
-  chatMessages.innerHTML = `
-    <div class="welcome-banner">
-      <div class="welcome-icon"></div>
-      <h3>VinceZone Workplay Canvas</h3>
-      <p>Nơi thử nghiệm trực tiếp các AI Model đã gom từ các Provider (OpenCode, Kilo Gateway, ZenMux, OpenAI, Gemini...).</p>
-      <p class="sub-hint">Mẹo: Bạn có thể chọn Model bất kỳ từ thanh bên phải và bắt đầu trò chuyện ngay lập tức. Toàn bộ lịch sử sẽ tự động lưu lại ở thanh bên trái để chat tiếp bất kỳ lúc nào.</p>
-    </div>
-  `;
+  chatMessages.innerHTML = '';
   renderChatHistoryList();
 }
 
@@ -4262,33 +4247,12 @@ async function loadProjects() {
     const data = await res.json();
     projectsState.projects = data.projects || [];
 
-    // Populate model select
-    populateProjectModelSelect();
-
-    // Populate projects dropdown
-    const selectEl = document.getElementById('project-select-dropdown');
-    if (selectEl) {
-      selectEl.innerHTML = '';
-      if (projectsState.projects.length === 0) {
-        selectEl.innerHTML = '<option value="">(Chưa có dự án nào)</option>';
-      } else {
-        projectsState.projects.forEach(p => {
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = `${p.name} (${p.path || 'Local'})`;
-          selectEl.appendChild(opt);
-        });
-      }
-
-      // Restore active project or pick first
-      if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
-        projectsState.activeProjectId = projectsState.projects[0].id;
-      }
-      if (projectsState.activeProjectId) {
-        selectEl.value = projectsState.activeProjectId;
-      }
+    // Auto-select first project if none selected
+    if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
+      projectsState.activeProjectId = projectsState.projects[0].id;
     }
 
+    renderProjectsList();
     renderActiveProject();
   } catch (err) {
     console.error('Lỗi khi tải danh sách dự án:', err);
@@ -4296,64 +4260,89 @@ async function loadProjects() {
   }
 }
 
-// 2. Điền danh sách Model AI cho Project Workspace
-function populateProjectModelSelect() {
-  const modelSelect = document.getElementById('project-model-select');
-  if (!modelSelect) return;
+// 2. Render Danh Sách Các Dự Án Trong Sidebar
+function renderProjectsList() {
+  const container = document.getElementById('projects-list-items');
+  if (!container) return;
+  container.innerHTML = '';
 
-  const currentVal = modelSelect.value;
-  modelSelect.innerHTML = '';
+  if (projectsState.projects.length === 0) {
+    container.innerHTML = `
+      <div style="background: rgba(255,255,255,0.02); border: 1px dashed #27272a; border-radius: 8px; padding: 0.85rem; text-align: center;">
+        <p style="color:#71717a; font-size:0.8rem; margin:0;">Chưa có dự án nào. Bấm "+ Thêm Dự Án" ở trên để bắt đầu.</p>
+      </div>
+    `;
+    const activeWs = document.getElementById('active-project-workspace');
+    if (activeWs) activeWs.style.display = 'none';
+    return;
+  }
 
-  const defaultModels = [
-    { id: 'kilo-auto/free', label: 'Kilo Gateway (kilo-auto/free) [FREE]' },
-    { id: 'beam-free', label: 'OpenCode (beam-free) [FREE]' },
-    { id: 'deepseek-v4.1-flash-free', label: 'DeepSeek Flash Free [FREE]' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'gpt-4o', label: 'OpenAI GPT-4o' },
-    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' }
-  ];
+  projectsState.projects.forEach(p => {
+    const isSelected = p.id === projectsState.activeProjectId;
+    const card = document.createElement('div');
+    card.className = `project-list-card ${isSelected ? 'active' : ''}`;
+    card.onclick = () => selectProject(p.id);
 
-  defaultModels.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.label;
-    modelSelect.appendChild(opt);
+    card.innerHTML = `
+      <div class="project-list-card-main">
+        <strong class="project-list-name">${escapeHtml(p.name)}</strong>
+        <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
+      </div>
+      <button class="project-list-delete-btn" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án">&times;</button>
+    `;
+    container.appendChild(card);
   });
 
-  if (currentVal) {
-    modelSelect.value = currentVal;
+  const activeWs = document.getElementById('active-project-workspace');
+  if (activeWs) {
+    activeWs.style.display = projectsState.activeProjectId ? 'block' : 'none';
   }
 }
 
-// 3. Render Dự Án Đang Mở
+window.selectProject = function(id) {
+  projectsState.activeProjectId = id;
+  renderProjectsList();
+  renderActiveProject();
+};
+
+window.deleteProjectItem = async function(event, id, name) {
+  event.stopPropagation();
+  if (!confirm(`Bạn có chắc chắn muốn xóa dự án "${name}" không?`)) return;
+  try {
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      projectsState.projects = projectsState.projects.filter(p => p.id !== id);
+      if (projectsState.activeProjectId === id) {
+        projectsState.activeProjectId = projectsState.projects.length > 0 ? projectsState.projects[0].id : null;
+      }
+      renderProjectsList();
+      renderActiveProject();
+      showToast(`Đã xóa dự án "${name}"!`);
+    } else {
+      showToast('Lỗi khi xóa dự án: ' + (data.error || 'Thao tác thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi khi xóa dự án: ' + err.message);
+  }
+};
+
+// 3. Render Dự Án Đang Mở (Nhóm & Đoạn Chat)
 function renderActiveProject() {
   const p = projectsState.projects.find(x => x.id === projectsState.activeProjectId);
   projectsState.activeProject = p || null;
 
-  const nameEl = document.getElementById('active-project-name');
-  const pathEl = document.getElementById('active-project-path');
-  const descEl = document.getElementById('active-project-desc');
-  const termDirEl = document.getElementById('terminal-working-dir');
+  const activeWs = document.getElementById('active-project-workspace');
   const teamsListEl = document.getElementById('project-teams-list');
   const chatsListEl = document.getElementById('project-chats-list');
 
   if (!p) {
-    if (nameEl) nameEl.textContent = 'Chưa chọn dự án';
-    if (pathEl) pathEl.textContent = '---';
-    if (descEl) descEl.textContent = 'Hãy bấm "+ Dự Án Mới" để thêm thư mục code trên máy.';
-    if (teamsListEl) teamsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có nhóm nào.</p>';
-    if (chatsListEl) chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có cuộc trò chuyện nào.</p>';
+    if (activeWs) activeWs.style.display = 'none';
     renderProjectChat(null);
     return;
   }
 
-  if (nameEl) nameEl.textContent = p.name;
-  if (pathEl) {
-    pathEl.textContent = p.path;
-    pathEl.title = p.path;
-  }
-  if (descEl) descEl.textContent = p.description || 'Dự án lập trình AI Agent trên máy tính.';
-  if (termDirEl) termDirEl.textContent = p.path;
+  if (activeWs) activeWs.style.display = 'block';
 
   // 1. Render Danh Sách Các Nhóm Agent Trong Dự Án (Tối đa 5 thành viên)
   if (teamsListEl) {
@@ -4475,77 +4464,20 @@ window.selectProjectChat = function(chatId) {
 // 5. Render Nội Dung Cuộc Trò Chuyện & Tin Nhắn
 function renderProjectChat(chat) {
   projectsState.activeChat = chat;
-  const titleEl = document.getElementById('current-chat-title');
-  const modePillEl = document.getElementById('current-chat-mode-pill');
   const feedEl = document.getElementById('projects-chat-feed');
-
-  if (!chat || !projectsState.activeProject) {
-    if (titleEl) titleEl.textContent = 'Chưa chọn cuộc trò chuyện';
-    if (modePillEl) modePillEl.style.display = 'none';
-    if (feedEl) feedEl.innerHTML = '';
-    return;
-  }
-
-  const p = projectsState.activeProject;
-  const attachedTeam = (p.teams || []).find(t => t.id === chat.teamId);
-
-  if (titleEl) titleEl.textContent = chat.title;
-  if (modePillEl) {
-    modePillEl.style.display = 'inline-block';
-    if (attachedTeam) {
-      modePillEl.className = 'proj-mode-pill mode-team';
-      modePillEl.textContent = `Nhóm: ${attachedTeam.name} (${(attachedTeam.members || []).length} Agent)`;
-    } else {
-      modePillEl.className = 'proj-mode-pill mode-single';
-      modePillEl.textContent = 'Chat Đơn Trực Tiếp';
-    }
-  }
 
   if (!feedEl) return;
   feedEl.innerHTML = '';
 
+  if (!chat || !projectsState.activeProject) {
+    feedEl.innerHTML = '<div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án để bắt đầu.</div>';
+    return;
+  }
+
   const messages = chat.messages || [];
 
   if (messages.length === 0) {
-    // Clean, dynamic team or direct starter card
-    let teamMembersPreview = '';
-    if (attachedTeam && attachedTeam.members && attachedTeam.members.length > 0) {
-      teamMembersPreview = `
-        <div style="display:flex; flex-wrap:wrap; gap:0.4rem; justify-content:center; margin-top:0.6rem;">
-          ${attachedTeam.members.map(m => `
-            <span class="team-member-chip" style="background:#18181b; border-color:#27272a;">
-              <strong style="color:#60a5fa;">[${escapeHtml(m.badge || 'AI')}]</strong> ${escapeHtml(m.name)} 
-              <span style="color:#71717a; font-size:0.65rem;">(${escapeHtml(m.model || 'Auto')})</span>
-            </span>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    feedEl.innerHTML = `
-      <div class="projects-welcome-card" style="max-width: 620px; padding: 1.5rem;">
-        <h3 class="welcome-title" style="font-size: 1.05rem;">${escapeHtml(projectsState.activeProject.name)}</h3>
-        <p class="welcome-desc" style="margin-top: 0.35rem;">
-          ${attachedTeam 
-            ? `Cuộc trò chuyện với <strong>${escapeHtml(attachedTeam.name)}</strong>. Hãy nêu ý tưởng hoặc đề bài, các thành viên trong nhóm sẽ tự động phối hợp xử lý theo thế mạnh.`
-            : 'Đoạn chat đơn: Nhập câu hỏi hoặc yêu cầu lập trình để bắt đầu trao đổi với AI.'}
-        </p>
-
-        ${teamMembersPreview}
-
-        <div style="margin-top: 1rem; display: flex; gap: 0.45rem; justify-content: center; flex-wrap: wrap;">
-          <button class="btn-micro-action" onclick="setProjectPrompt('Kiểm tra tổng quan mã nguồn và cấu trúc thư mục của dự án này.')">
-            Kiểm tra mã nguồn
-          </button>
-          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy cùng nhau thiết kế và viết code cho một tính năng mới trong dự án.')">
-            Viết tính năng mới
-          </button>
-          <button class="btn-micro-action" onclick="setProjectPrompt('Rà soát lỗi tiềm ẩn và chạy thử lệnh terminal kiểm tra dự án.')">
-            Rà soát & Sửa lỗi
-          </button>
-        </div>
-      </div>
-    `;
+    feedEl.innerHTML = '<div class="chat-empty-clean">Nhập ý tưởng hoặc yêu cầu lập trình để bắt đầu...</div>';
     return;
   }
 
@@ -5336,3 +5268,11 @@ if (document.readyState === 'loading') {
 }
 
 
+
+// Auto set workspace tab on load
+document.addEventListener('DOMContentLoaded', () => {
+  document.body.setAttribute('data-active-tab', 'projects');
+  const projPane = document.getElementById('tab-projects');
+  if (projPane) projPane.classList.add('active');
+  loadProjects();
+});
