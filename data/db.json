@@ -582,7 +582,7 @@
   "chatSessions": [],
   "projects": [
     {
-      "id": "proj_39abb3edc621",
+      "id": "proj_d0111af736dc",
       "userId": null,
       "name": "VinceZone Workspace",
       "path": "C:\\VisualStudio\\VinceZone",
@@ -627,7 +627,7 @@
       ],
       "chats": [
         {
-          "id": "chat_c58555e2e048",
+          "id": "chat_511b0e550701",
           "title": "Hội đồng AI - Lập trình & Nâng cấp",
           "mode": "team",
           "targetAgentId": null,
@@ -637,12 +637,71 @@
             "agent_tester",
             "agent_reviewer"
           ],
-          "createdAt": "2026-11-01T22:52:11.527Z",
+          "createdAt": "2026-11-01T23:14:09.225Z",
           "messages": []
         }
       ],
-      "createdAt": "2026-11-01T22:52:11.527Z",
-      "updatedAt": "2026-11-01T22:59:45.271Z"
+      "createdAt": "2026-11-01T23:14:09.225Z",
+      "updatedAt": "2026-11-01T23:15:42.504Z",
+      "teams": [
+        {
+          "id": "team_f8e51b18",
+          "name": "Nhóm Lập Trình & Kiểm Thử",
+          "description": "Nhóm AI chuyên phân tích, viết code và kiểm tra lỗi.",
+          "members": [
+            {
+              "id": "mem_1",
+              "name": "Kiến Trúc Sư",
+              "category": "architect",
+              "roleTitle": "Kiến Trúc Hệ Thống",
+              "badge": "ARCHITECT",
+              "color": "#3b82f6",
+              "model": "kilo-auto/free",
+              "systemPrompt": "Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).\nĐiểm mạnh cốt lõi:\n1. Phân tích ý tưởng của Người Dùng.\n2. Hoạch định cấu trúc module và danh sách file cần tác động.\n3. Chia nhỏ các bước công việc rõ ràng theo thế mạnh của các thành viên trong nhóm."
+            },
+            {
+              "id": "mem_2",
+              "name": "Lập Trình Viên",
+              "category": "coder",
+              "roleTitle": "Lập Trình Fullstack",
+              "badge": "CODER",
+              "color": "#10b981",
+              "model": "deepseek-v4.1-flash-free",
+              "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\nĐiểm mạnh cốt lõi:\n1. Viết code sạch, tối ưu, chuẩn sản xuất.\n2. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh.\n3. Giải quyết logic thuật toán và sửa lỗi triệt để."
+            },
+            {
+              "id": "mem_3",
+              "name": "Kỹ Sư Kiểm Thử",
+              "category": "tester",
+              "roleTitle": "Kiểm Thử & Terminal",
+              "badge": "TESTER",
+              "color": "#f59e0b",
+              "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+              "systemPrompt": "Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).\nĐiểm mạnh cốt lõi:\n1. Rà soát mã nguồn, phát hiện các trường hợp lỗi biên hoặc vấn đề bảo mật.\n2. Đề xuất lệnh Terminal (PowerShell / CMD) để test dự án trong khối ```powershell ... ```.\n3. Phân tích log lỗi và kiểm tra kết quả hoạt động."
+            },
+            {
+              "id": "mem_78438d1f",
+              "name": "Chuyên Gia Review UI/UX",
+              "category": "reviewer",
+              "roleTitle": "Review & Tối Ưu UI/UX (Reviewer & Quality)",
+              "badge": "REVIEWER",
+              "color": "#8b5cf6",
+              "model": "nemotron-3.5-lightning-free",
+              "systemPrompt": "Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).\nĐiểm mạnh cốt lõi:\n1. Đánh giá tính thẩm mỹ và tiện ích của giao diện người dùng.\n2. Rà soát chuẩn clean code, loại bỏ mã dư thừa.\n3. Tổng kết báo cáo hoàn thiện gửi cho Người Dùng."
+            },
+            {
+              "id": "mem_995159fe",
+              "name": "Kỹ Sư DevOps & Terminal",
+              "category": "devops",
+              "roleTitle": "DevOps & Môi Trường (DevOps / Terminal)",
+              "badge": "DEVOPS",
+              "color": "#06b6d4",
+              "model": "flint-40b-free",
+              "systemPrompt": "Bạn là Kỹ Sư DevOps & Hệ Thống (DevOps & Terminal Specialist).\nĐiểm mạnh cốt lõi:\n1. Cấu hình môi trường, script package.json, build và deploy.\n2. Xử lý các câu lệnh git, terminal và biến môi trường."
+            }
+          ]
+        }
+      ]
     }
   ]
 }

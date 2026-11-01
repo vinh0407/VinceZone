@@ -4334,12 +4334,14 @@ function renderActiveProject() {
   const pathEl = document.getElementById('active-project-path');
   const descEl = document.getElementById('active-project-desc');
   const termDirEl = document.getElementById('terminal-working-dir');
+  const teamsListEl = document.getElementById('project-teams-list');
   const chatsListEl = document.getElementById('project-chats-list');
 
   if (!p) {
     if (nameEl) nameEl.textContent = 'Chưa chọn dự án';
     if (pathEl) pathEl.textContent = '---';
     if (descEl) descEl.textContent = 'Hãy bấm "+ Dự Án Mới" để thêm thư mục code trên máy.';
+    if (teamsListEl) teamsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có nhóm nào.</p>';
     if (chatsListEl) chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có cuộc trò chuyện nào.</p>';
     renderProjectChat(null);
     return;
@@ -4353,13 +4355,79 @@ function renderActiveProject() {
   if (descEl) descEl.textContent = p.description || 'Dự án lập trình AI Agent trên máy tính.';
   if (termDirEl) termDirEl.textContent = p.path;
 
-  // Render danh sách các cuộc trò chuyện trong dự án
+  // 1. Render Danh Sách Các Nhóm Agent Trong Dự Án (Tối đa 5 thành viên)
+  if (teamsListEl) {
+    teamsListEl.innerHTML = '';
+    const teams = p.teams || [];
+
+    if (teams.length === 0) {
+      teamsListEl.innerHTML = `
+        <div style="background: rgba(255,255,255,0.02); border: 1px dashed #27272a; border-radius: 8px; padding: 0.75rem; text-align: center;">
+          <p style="color:#71717a;font-size:0.75rem;margin-bottom:0.4rem;">Chưa có nhóm Agent nào.</p>
+          <button class="btn-micro-action" onclick="document.getElementById('btn-open-create-team-modal').click()">+ Tạo Nhóm Đầu Tiên</button>
+        </div>
+      `;
+    } else {
+      teams.forEach(team => {
+        const members = team.members || [];
+        const isFull = members.length >= 5;
+
+        const teamBox = document.createElement('div');
+        teamBox.className = 'team-card-box';
+
+        // Render chips các thành viên trong nhóm
+        let membersHtml = '';
+        if (members.length === 0) {
+          membersHtml = '<span style="color:#71717a;font-size:0.7rem;">Chưa có thành viên nào. Hãy bấm "+ Thêm Thành Viên".</span>';
+        } else {
+          membersHtml = members.map(m => {
+            let badgeClass = 'badge-coder';
+            if ((m.badge || '').includes('ARCH')) badgeClass = 'badge-arch';
+            if ((m.badge || '').includes('TEST')) badgeClass = 'badge-tester';
+            if ((m.badge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
+            if ((m.badge || '').includes('DEVOPS')) badgeClass = 'badge-arch';
+
+            return `
+              <div class="team-member-chip" title="Model: ${escapeHtml(m.model || 'Auto')}">
+                <span class="agent-badge ${badgeClass}" style="padding:0.1rem 0.3rem;font-size:0.58rem;">${escapeHtml(m.badge || 'AI')}</span>
+                <span>${escapeHtml(m.name)}</span>
+                <button type="button" class="chip-remove-btn" onclick="removeMemberFromTeam('${team.id}', '${m.id}')" title="Xóa thành viên khỏi nhóm">&times;</button>
+              </div>
+            `;
+          }).join('');
+        }
+
+        teamBox.innerHTML = `
+          <div class="team-card-header">
+            <div class="team-card-title-row">
+              <strong class="team-name-text">${escapeHtml(team.name)}</strong>
+              <span class="team-count-badge">${members.length}/5 Agent</span>
+            </div>
+          </div>
+          
+          <div class="team-members-pills">
+            ${membersHtml}
+          </div>
+
+          <div class="team-card-actions">
+            ${!isFull ? `<button class="btn-team-action" onclick="openAddMemberModal('${team.id}', '${escapeHtml(team.name)}')">+ Thêm Thành Viên</button>` : ''}
+            <button class="btn-team-action action-chat" onclick="createChatForTeam('${team.id}', '${escapeHtml(team.name)}')">Chat Với Nhóm</button>
+            <button class="btn-team-action" style="color:#ef4444;border-color:rgba(239,68,68,0.2);" onclick="deleteTeam('${team.id}', '${escapeHtml(team.name)}')">Xóa Nhóm</button>
+          </div>
+        `;
+
+        teamsListEl.appendChild(teamBox);
+      });
+    }
+  }
+
+  // 2. Render Danh Sách Các Cuộc Trò Chuyện Trong Dự Án
   if (chatsListEl) {
     chatsListEl.innerHTML = '';
     const chats = p.chats || [];
 
     if (chats.length === 0) {
-      chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có chat nào. Bấm "+ Chat Mới" để bắt đầu.</p>';
+      chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có chat nào. Bấm "+ Thêm Đoạn Chat" để bắt đầu.</p>';
     } else {
       // Pick first chat if none active
       if (!projectsState.activeChatId || !chats.some(c => c.id === projectsState.activeChatId)) {
@@ -4370,12 +4438,16 @@ function renderActiveProject() {
         const item = document.createElement('div');
         item.className = `project-chat-item ${c.id === projectsState.activeChatId ? 'active' : ''}`;
         
-        const modeLabel = c.mode === 'single' ? 'Chat 1-1' : 'Hội Đồng AI';
+        // Find team if attached
+        const attachedTeam = (p.teams || []).find(t => t.id === c.teamId);
+        const tagLabel = attachedTeam 
+          ? `Nhóm: ${attachedTeam.name} (${(attachedTeam.members || []).length} Agent)`
+          : (c.type === 'direct' ? 'Chat Đơn' : 'Hội Đồng AI');
         
         item.innerHTML = `
           <div class="chat-item-main" onclick="selectProjectChat('${c.id}')">
             <span class="chat-item-title">${escapeHtml(c.title)}</span>
-            <span class="chat-item-badge">${modeLabel} • ${(c.messages || []).length} tin nhắn</span>
+            <span class="chat-item-badge">${escapeHtml(tagLabel)} • ${(c.messages || []).length} tin nhắn</span>
           </div>
           <button class="btn-delete-chat" onclick="deleteProjectChat(event, '${c.id}')" title="Xóa đoạn chat này">Xóa</button>
         `;
@@ -4392,7 +4464,6 @@ function renderActiveProject() {
 // 4. Chọn luồng chat trong dự án
 window.selectProjectChat = function(chatId) {
   projectsState.activeChatId = chatId;
-  // Re-highlight list
   const chatsListEl = document.getElementById('project-chats-list');
   if (chatsListEl) {
     const items = chatsListEl.querySelectorAll('.project-chat-item');
@@ -4415,15 +4486,18 @@ function renderProjectChat(chat) {
     return;
   }
 
+  const p = projectsState.activeProject;
+  const attachedTeam = (p.teams || []).find(t => t.id === chat.teamId);
+
   if (titleEl) titleEl.textContent = chat.title;
   if (modePillEl) {
     modePillEl.style.display = 'inline-block';
-    if (chat.mode === 'single') {
-      modePillEl.className = 'proj-mode-pill mode-single';
-      modePillEl.textContent = 'Chat Riêng (1-1)';
-    } else {
+    if (attachedTeam) {
       modePillEl.className = 'proj-mode-pill mode-team';
-      modePillEl.textContent = 'Hội Đồng AI (Teamwork)';
+      modePillEl.textContent = `Nhóm: ${attachedTeam.name} (${(attachedTeam.members || []).length} Agent)`;
+    } else {
+      modePillEl.className = 'proj-mode-pill mode-single';
+      modePillEl.textContent = 'Chat Đơn Trực Tiếp';
     }
   }
 
@@ -4433,44 +4507,41 @@ function renderProjectChat(chat) {
   const messages = chat.messages || [];
 
   if (messages.length === 0) {
-    // Welcome & Starter Guide
-    feedEl.innerHTML = `
-      <div class="projects-welcome-card">
-        <h3 class="welcome-title">Không Gian Làm Việc: ${escapeHtml(projectsState.activeProject.name)}</h3>
-        <p class="welcome-desc">
-          ${chat.mode === 'single'
-            ? 'Chế độ Chat 1-1 với AI Agent chuyên trách. Hãy đặt câu hỏi hoặc yêu cầu sửa đoạn mã cụ thể.'
-            : 'Chế độ Hội Đồng AI (Multi-Agent Teamwork): Bạn chỉ cần nêu ý tưởng hoặc đề bài, 4 Agent chuyên trách sẽ tự động thảo luận, phân chia nhiệm vụ theo thế mạnh và cùng nhau viết code, sửa file và kiểm thử terminal.'}
-        </p>
-        
-        <div class="welcome-steps">
-          <div class="step-card">
-            <strong style="color: #60a5fa;">1. ARCHITECT</strong>
-            <span>Đọc ý tưởng, phân tích kiến trúc tổng thể và chia việc cho Coder & Tester.</span>
-          </div>
-          <div class="step-card">
-            <strong style="color: #34d399;">2. CODER</strong>
-            <span>Nhận phân công, viết mã nguồn chi tiết, sửa file và giải quyết logic.</span>
-          </div>
-          <div class="step-card">
-            <strong style="color: #fbbf24;">3. TESTER</strong>
-            <span>Rà soát lỗi, đề xuất lệnh Terminal PowerShell/CMD để test dự án.</span>
-          </div>
-          <div class="step-card">
-            <strong style="color: #a78bfa;">4. REVIEWER</strong>
-            <span>Đánh giá chuẩn code, tối ưu UI/UX và tổng kết báo cáo cho Bạn.</span>
-          </div>
+    // Clean, dynamic team or direct starter card
+    let teamMembersPreview = '';
+    if (attachedTeam && attachedTeam.members && attachedTeam.members.length > 0) {
+      teamMembersPreview = `
+        <div style="display:flex; flex-wrap:wrap; gap:0.4rem; justify-content:center; margin-top:0.6rem;">
+          ${attachedTeam.members.map(m => `
+            <span class="team-member-chip" style="background:#18181b; border-color:#27272a;">
+              <strong style="color:#60a5fa;">[${escapeHtml(m.badge || 'AI')}]</strong> ${escapeHtml(m.name)} 
+              <span style="color:#71717a; font-size:0.65rem;">(${escapeHtml(m.model || 'Auto')})</span>
+            </span>
+          `).join('')}
         </div>
+      `;
+    }
 
-        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
-          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy kiểm tra cấu trúc toàn bộ dự án này, liệt kê các file chính và đánh giá những điểm có thể tối ưu.')">
-            Kiểm tra cấu trúc dự án
+    feedEl.innerHTML = `
+      <div class="projects-welcome-card" style="max-width: 620px; padding: 1.5rem;">
+        <h3 class="welcome-title" style="font-size: 1.05rem;">${escapeHtml(projectsState.activeProject.name)}</h3>
+        <p class="welcome-desc" style="margin-top: 0.35rem;">
+          ${attachedTeam 
+            ? `Cuộc trò chuyện với <strong>${escapeHtml(attachedTeam.name)}</strong>. Hãy nêu ý tưởng hoặc đề bài, các thành viên trong nhóm sẽ tự động phối hợp xử lý theo thế mạnh.`
+            : 'Đoạn chat đơn: Nhập câu hỏi hoặc yêu cầu lập trình để bắt đầu trao đổi với AI.'}
+        </p>
+
+        ${teamMembersPreview}
+
+        <div style="margin-top: 1rem; display: flex; gap: 0.45rem; justify-content: center; flex-wrap: wrap;">
+          <button class="btn-micro-action" onclick="setProjectPrompt('Kiểm tra tổng quan mã nguồn và cấu trúc thư mục của dự án này.')">
+            Kiểm tra mã nguồn
           </button>
-          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy thiết kế thêm một module mới và viết code chi tiết để tích hợp vào dự án.')">
-            Thiết kế module mới
+          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy cùng nhau thiết kế và viết code cho một tính năng mới trong dự án.')">
+            Viết tính năng mới
           </button>
-          <button class="btn-micro-action" onclick="setProjectPrompt('Dự án đang cần tối ưu hiệu năng và kiểm tra lỗi tiềm ẩn. Nhóm Agent hãy cùng rà soát và fix.')">
-            Tối ưu & Sửa lỗi
+          <button class="btn-micro-action" onclick="setProjectPrompt('Rà soát lỗi tiềm ẩn và chạy thử lệnh terminal kiểm tra dự án.')">
+            Rà soát & Sửa lỗi
           </button>
         </div>
       </div>
@@ -4513,6 +4584,7 @@ function appendProjectMessageToFeed(msg, feedEl) {
     if (badge.toUpperCase().includes('ARCH')) badgeClass = 'badge-arch';
     if (badge.toUpperCase().includes('TEST')) badgeClass = 'badge-tester';
     if (badge.toUpperCase().includes('REVIEW')) badgeClass = 'badge-reviewer';
+    if (badge.toUpperCase().includes('DEVOPS')) badgeClass = 'badge-arch';
 
     let formattedBody = '';
     if (window.marked && typeof window.marked.parse === 'function') {
@@ -4544,7 +4616,6 @@ function appendProjectMessageToFeed(msg, feedEl) {
       const className = codeEl.className || '';
       const text = codeEl.textContent.trim();
       
-      // If code block looks like a terminal command or shell
       if (
         className.includes('powershell') || 
         className.includes('cmd') || 
@@ -4603,7 +4674,6 @@ async function executeInlineTerminalCommand(command, containerEl) {
     });
     const result = await res.json();
 
-    // Render result inline
     const resBox = document.createElement('div');
     resBox.className = 'terminal-inline-result';
     
@@ -4625,7 +4695,7 @@ async function executeInlineTerminalCommand(command, containerEl) {
   }
 }
 
-// 9. Gửi Ý Tưởng cho Nhóm Agent (Hội Đồng AI hoặc Single Agent)
+// 9. Gửi Ý Tưởng cho Nhóm Agent hoặc Single Chat
 async function sendProjectIdea() {
   const inputEl = document.getElementById('project-chat-input');
   const feedEl = document.getElementById('projects-chat-feed');
@@ -4664,9 +4734,7 @@ async function sendProjectIdea() {
   if (progressEl) {
     progressEl.style.display = 'flex';
     if (progressTitleEl) {
-      progressTitleEl.textContent = projectsState.activeChat?.mode === 'single'
-        ? 'Agent đang phân tích và xử lý yêu cầu...'
-        : 'Hội đồng AI đang họp & phối hợp làm việc (Kiến Trúc Sư -> Coder -> Tester -> Reviewer)...';
+      progressTitleEl.textContent = 'Các Agent đang phối hợp làm việc và xử lý theo lượt...';
     }
   }
 
@@ -4694,10 +4762,9 @@ async function sendProjectIdea() {
       setTimeout(() => {
         appendProjectMessageToFeed(msg, feedEl);
         feedEl.scrollTop = feedEl.scrollHeight;
-      }, idx * 150);
+      }, idx * 120);
     });
 
-    // Update state
     if (projectsState.activeChat) {
       projectsState.activeChat.messages = projectsState.activeChat.messages || [];
       projectsState.activeChat.messages.push(tempUserMsg, ...messages);
@@ -4711,7 +4778,116 @@ async function sendProjectIdea() {
   }
 }
 
-// 10. Xóa cuộc trò chuyện trong dự án
+// 10. Quản Lý Thành Viên Nhóm (Tối đa 5 Agent)
+async function fetchSpecializedCatalog() {
+  if (projectsState.specializedCatalog) return projectsState.specializedCatalog;
+  try {
+    const res = await fetch('/api/specialized-roles');
+    const data = await res.json();
+    projectsState.specializedCatalog = data.catalog || {};
+    return projectsState.specializedCatalog;
+  } catch (err) {
+    console.error('Lỗi fetch catalog:', err);
+    return {};
+  }
+}
+
+window.openAddMemberModal = async function(teamId, teamName) {
+  const modal = document.getElementById('modal-add-team-member');
+  const targetIdInput = document.getElementById('target-team-id');
+  const titleEl = document.getElementById('modal-add-member-title');
+  const catSelect = document.getElementById('member-category-select');
+
+  if (!modal || !targetIdInput) return;
+  targetIdInput.value = teamId;
+  if (titleEl) titleEl.textContent = `Thêm Thành Viên Vào "${teamName}" (Tối Đa 5 Agent)`;
+
+  await fetchSpecializedCatalog();
+  updateMemberRoleOptions();
+
+  modal.classList.add('open');
+};
+
+function updateMemberRoleOptions() {
+  const catSelect = document.getElementById('member-category-select');
+  const modelSelect = document.getElementById('member-model-select');
+  const descEl = document.getElementById('member-role-desc');
+  const nameInput = document.getElementById('member-name-input');
+  const catalog = projectsState.specializedCatalog || {};
+
+  if (!catSelect || !modelSelect) return;
+  const cat = catSelect.value;
+  const config = catalog[cat] || catalog.coder;
+
+  if (!config) return;
+
+  if (descEl) descEl.textContent = config.description;
+  if (nameInput) nameInput.value = config.roleTitle.split('(')[0].trim();
+
+  modelSelect.innerHTML = '';
+  (config.recommendedModels || []).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name;
+    modelSelect.appendChild(opt);
+  });
+}
+
+window.removeMemberFromTeam = async function(teamId, memberId) {
+  if (!confirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) return;
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}/members/${memberId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Đã xóa thành viên khỏi nhóm.');
+      loadProjects();
+    }
+  } catch (err) {
+    showToast('Lỗi khi xóa thành viên: ' + err.message);
+  }
+};
+
+window.deleteTeam = async function(teamId, teamName) {
+  if (!confirm(`Bạn có chắc muốn xóa nhóm "${teamName}"?`)) return;
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Đã xóa nhóm.');
+      loadProjects();
+    }
+  } catch (err) {
+    showToast('Lỗi xóa nhóm: ' + err.message);
+  }
+};
+
+window.createChatForTeam = async function(teamId, teamName) {
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `Cuộc họp ${teamName}`,
+        type: 'team',
+        teamId
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.chat) {
+      showToast(`Đã mở cuộc trò chuyện với nhóm "${teamName}"!`);
+      projectsState.activeChatId = data.chat.id;
+      loadProjects();
+    }
+  } catch (err) {
+    showToast('Lỗi tạo chat cho nhóm: ' + err.message);
+  }
+};
+
+// 11. Xóa cuộc trò chuyện trong dự án
 window.deleteProjectChat = async function(event, chatId) {
   event.stopPropagation();
   if (!confirm('Bạn có chắc chắn muốn xóa cuộc trò chuyện này?')) return;
@@ -4736,7 +4912,7 @@ window.deleteProjectChat = async function(event, chatId) {
   }
 };
 
-// 11. Xóa sạch tin nhắn trong chat hiện tại
+// 12. Xóa sạch tin nhắn trong chat hiện tại
 async function clearCurrentProjectChat() {
   if (!projectsState.activeProjectId || !projectsState.activeChatId) return;
   if (!confirm('Bạn có chắc muốn xóa sạch lịch sử tin nhắn trong cuộc trò chuyện này?')) return;
@@ -4758,7 +4934,7 @@ async function clearCurrentProjectChat() {
   }
 }
 
-// 12. Xóa toàn bộ dự án
+// 13. Xóa toàn bộ dự án
 async function deleteActiveProject() {
   const p = projectsState.activeProject;
   if (!p) return;
@@ -4778,7 +4954,7 @@ async function deleteActiveProject() {
   }
 }
 
-// 13. Khởi tạo tất cả Event Listeners cho Projects tab
+// 14. Khởi tạo tất cả Event Listeners cho Projects tab
 function initProjectsEventListeners() {
   // Switch Project Dropdown
   const selectDropdown = document.getElementById('project-select-dropdown');
@@ -4976,15 +5152,124 @@ function initProjectsEventListeners() {
     });
   }
 
-  // Modal: Create Project Chat
+  // Modal: Create Project Team (Thêm Nhóm)
+  const modalCreateTeam = document.getElementById('modal-create-team');
+  const btnOpenCreateTeam = document.getElementById('btn-open-create-team-modal');
+  const btnCloseCreateTeam = document.getElementById('btn-close-create-team-modal');
+  const btnCancelCreateTeam = document.getElementById('btn-cancel-create-team');
+  const formCreateTeam = document.getElementById('create-team-form');
+
+  if (btnOpenCreateTeam && modalCreateTeam) {
+    btnOpenCreateTeam.addEventListener('click', () => {
+      modalCreateTeam.classList.add('open');
+      document.getElementById('new-team-name-input')?.focus();
+    });
+  }
+  const closeCreateTeamModal = () => modalCreateTeam?.classList.remove('open');
+  if (btnCloseCreateTeam) btnCloseCreateTeam.addEventListener('click', closeCreateTeamModal);
+  if (btnCancelCreateTeam) btnCancelCreateTeam.addEventListener('click', closeCreateTeamModal);
+
+  if (formCreateTeam) {
+    formCreateTeam.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('new-team-name-input')?.value.trim();
+      const desc = document.getElementById('new-team-desc-input')?.value.trim();
+
+      if (!name || !projectsState.activeProjectId) return;
+
+      try {
+        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description: desc })
+        });
+        const data = await res.json();
+        if (data.success && data.team) {
+          showToast(`Đã tạo nhóm "${name}"!`);
+          closeCreateTeamModal();
+          formCreateTeam.reset();
+          loadProjects();
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Không thể tạo nhóm'));
+        }
+      } catch (err) {
+        showToast('Lỗi tạo nhóm: ' + err.message);
+      }
+    });
+  }
+
+  // Modal: Add Member to Team (Thêm Thành Viên)
+  const modalAddMember = document.getElementById('modal-add-team-member');
+  const btnCloseAddMember = document.getElementById('btn-close-add-member-modal');
+  const btnCancelAddMember = document.getElementById('btn-cancel-add-member');
+  const formAddMember = document.getElementById('add-team-member-form');
+  const memberCatSelect = document.getElementById('member-category-select');
+
+  const closeAddMemberModal = () => modalAddMember?.classList.remove('open');
+  if (btnCloseAddMember) btnCloseAddMember.addEventListener('click', closeAddMemberModal);
+  if (btnCancelAddMember) btnCancelAddMember.addEventListener('click', closeAddMemberModal);
+
+  if (memberCatSelect) {
+    memberCatSelect.addEventListener('change', updateMemberRoleOptions);
+  }
+
+  if (formAddMember) {
+    formAddMember.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const teamId = document.getElementById('target-team-id')?.value;
+      const category = document.getElementById('member-category-select')?.value;
+      const model = document.getElementById('member-model-select')?.value;
+      const name = document.getElementById('member-name-input')?.value.trim();
+
+      if (!teamId || !projectsState.activeProjectId) return;
+
+      try {
+        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, category, model })
+        });
+        const data = await res.json();
+        if (data.success && data.member) {
+          showToast(`Đã thêm thành viên "${data.member.name}" vào nhóm!`);
+          closeAddMemberModal();
+          formAddMember.reset();
+          loadProjects();
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Không thể thêm thành viên'));
+        }
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
+    });
+  }
+
+  // Modal: Create Project Chat (Thêm Đoạn Chat)
   const modalNewChat = document.getElementById('modal-new-project-chat');
-  const btnOpenNewChat = document.getElementById('btn-new-project-chat');
+  const btnOpenNewChat = document.getElementById('btn-open-new-chat-modal');
   const btnCloseNewChat = document.getElementById('btn-close-new-project-chat-modal');
   const btnCancelNewChat = document.getElementById('btn-cancel-new-project-chat');
   const formNewChat = document.getElementById('new-project-chat-form');
+  const chatTeamSelect = document.getElementById('chat-team-select');
+  const chatTeamGroup = document.getElementById('chat-team-picker-group');
 
   if (btnOpenNewChat && modalNewChat) {
     btnOpenNewChat.addEventListener('click', () => {
+      // Populate team dropdown
+      if (chatTeamSelect && projectsState.activeProject) {
+        chatTeamSelect.innerHTML = '';
+        const teams = projectsState.activeProject.teams || [];
+        if (teams.length === 0) {
+          chatTeamSelect.innerHTML = '<option value="">(Chưa có nhóm nào - vui lòng bấm "+ Thêm Nhóm" trước)</option>';
+        } else {
+          teams.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = `${t.name} (${(t.members || []).length} Agent)`;
+            chatTeamSelect.appendChild(opt);
+          });
+        }
+      }
       modalNewChat.classList.add('open');
       document.getElementById('new-chat-title-input')?.focus();
     });
@@ -4993,13 +5278,11 @@ function initProjectsEventListeners() {
   if (btnCloseNewChat) btnCloseNewChat.addEventListener('click', closeNewChatModal);
   if (btnCancelNewChat) btnCancelNewChat.addEventListener('click', closeNewChatModal);
 
-  // Toggle single agent select visibility in modal
   const modeRadios = document.querySelectorAll('input[name="chat-mode-choice"]');
-  const singlePickerGroup = document.getElementById('single-agent-picker-group');
   modeRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
-      if (singlePickerGroup) {
-        singlePickerGroup.style.display = e.target.value === 'single' ? 'block' : 'none';
+      if (chatTeamGroup) {
+        chatTeamGroup.style.display = e.target.value === 'team' ? 'block' : 'none';
       }
     });
   });
@@ -5009,7 +5292,7 @@ function initProjectsEventListeners() {
       e.preventDefault();
       const title = document.getElementById('new-chat-title-input')?.value.trim();
       const modeChoice = document.querySelector('input[name="chat-mode-choice"]:checked')?.value || 'team';
-      const targetAgentId = modeChoice === 'single' ? document.getElementById('single-agent-select')?.value : null;
+      const teamId = modeChoice === 'team' ? document.getElementById('chat-team-select')?.value : null;
 
       if (!title || !projectsState.activeProjectId) return;
 
@@ -5019,16 +5302,15 @@ function initProjectsEventListeners() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
-            mode: modeChoice,
-            targetAgentId
+            type: modeChoice,
+            teamId: teamId || null
           })
         });
         const data = await res.json();
         if (data.success && data.chat) {
-          showToast(`Đã tạo cuộc trò chuyện "${title}"!`);
+          showToast(`Đã tạo đoạn chat "${title}"!`);
           closeNewChatModal();
           formNewChat.reset();
-          if (singlePickerGroup) singlePickerGroup.style.display = 'none';
 
           if (projectsState.activeProject) {
             projectsState.activeProject.chats = projectsState.activeProject.chats || [];
@@ -5052,4 +5334,5 @@ if (document.readyState === 'loading') {
 } else {
   initProjectsEventListeners();
 }
+
 

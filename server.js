@@ -667,21 +667,71 @@ app.delete('/api/projects/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// 9.6 Lấy danh sách chat của dự án
+// 9.6 Lấy danh mục các lĩnh vực AI chuyên môn
+app.get('/api/specialized-roles', (req, res) => {
+  res.json({ success: true, catalog: Store.getSpecializedCatalog() });
+});
+
+// 9.7 Quản lý Nhóm Agent trong dự án (Teams)
+app.get('/api/projects/:id/teams', (req, res) => {
+  const project = Store.getProjectById(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
+  res.json({ success: true, teams: project.teams || [] });
+});
+
+app.post('/api/projects/:id/teams', (req, res) => {
+  try {
+    const { name, description } = req.body;
+    const team = Store.createProjectTeam(req.params.id, { name, description });
+    res.json({ success: true, team });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id/teams/:teamId', (req, res) => {
+  try {
+    Store.deleteProjectTeam(req.params.id, req.params.teamId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 9.8 Thêm thành viên vào nhóm (Tối đa 5 agent)
+app.post('/api/projects/:id/teams/:teamId/members', (req, res) => {
+  try {
+    const { name, category, model } = req.body;
+    const member = Store.addTeamMember(req.params.id, req.params.teamId, { name, category, model });
+    res.json({ success: true, member });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id/teams/:teamId/members/:memberId', (req, res) => {
+  try {
+    Store.removeTeamMember(req.params.id, req.params.teamId, req.params.memberId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 9.9 Lấy danh sách chat của dự án
 app.get('/api/projects/:id/chats', (req, res) => {
   const chats = Store.getProjectChats(req.params.id);
   res.json({ success: true, chats });
 });
 
-// 9.7 Tạo chat mới trong dự án
+// 9.10 Tạo chat mới trong dự án
 app.post('/api/projects/:id/chats', (req, res) => {
   try {
-    const { title, mode, targetAgentId, activeAgentIds } = req.body;
+    const { title, type, teamId } = req.body;
     const newChat = Store.createProjectChat(req.params.id, {
       title,
-      mode,
-      targetAgentId,
-      activeAgentIds
+      type: type || (teamId ? 'team' : 'direct'),
+      teamId
     });
     res.json({ success: true, chat: newChat });
   } catch (err) {
@@ -689,26 +739,26 @@ app.post('/api/projects/:id/chats', (req, res) => {
   }
 });
 
-// 9.8 Lấy nội dung 1 đoạn chat
+// 9.11 Lấy nội dung 1 đoạn chat
 app.get('/api/projects/:id/chats/:chatId', (req, res) => {
   const chat = Store.getProjectChat(req.params.id, req.params.chatId);
   if (!chat) return res.status(404).json({ error: 'Không tìm thấy cuộc trò chuyện.' });
   res.json({ success: true, chat });
 });
 
-// 9.9 Xóa 1 đoạn chat trong dự án
+// 9.12 Xóa 1 đoạn chat trong dự án
 app.delete('/api/projects/:id/chats/:chatId', (req, res) => {
   Store.deleteProjectChat(req.params.id, req.params.chatId);
   res.json({ success: true });
 });
 
-// 9.10 Xóa sạch tin nhắn trong chat
+// 9.13 Xóa sạch tin nhắn trong chat
 app.post('/api/projects/:id/chats/:chatId/clear', (req, res) => {
   Store.clearProjectChatMessages(req.params.id, req.params.chatId);
   res.json({ success: true });
 });
 
-// 9.11 Chạy lệnh Terminal trong thư mục dự án
+// 9.14 Chạy lệnh Terminal trong thư mục dự án
 app.post('/api/projects/:id/terminal', async (req, res) => {
   const project = Store.getProjectById(req.params.id);
   const workingDir = project ? project.path : process.cwd();
@@ -722,7 +772,7 @@ app.post('/api/projects/:id/terminal', async (req, res) => {
   res.json({ success: true, ...result });
 });
 
-// 9.12 Duyệt danh sách file trong dự án
+// 9.15 Duyệt danh sách file trong dự án
 app.get('/api/projects/:id/files', (req, res) => {
   const project = Store.getProjectById(req.params.id);
   const root = project?.path || process.cwd();
@@ -767,7 +817,7 @@ app.get('/api/projects/:id/files', (req, res) => {
   }
 });
 
-// 9.13 Đọc file trong dự án
+// 9.16 Đọc file trong dự án
 app.post('/api/projects/:id/read-file', (req, res) => {
   const project = Store.getProjectById(req.params.id);
   const root = project?.path || process.cwd();
@@ -785,7 +835,7 @@ app.post('/api/projects/:id/read-file', (req, res) => {
   }
 });
 
-// 9.14 Gửi tin nhắn và điều phối Multi-Agent (Hội đồng AI / Teamwork)
+// 9.17 Gửi tin nhắn và điều phối Nhóm Agent (Tối đa 5 thành viên được chọn)
 app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   const { id: projectId, chatId } = req.params;
   const project = Store.getProjectById(projectId);
@@ -829,23 +879,24 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 `;
 
     // -------------------------------------------------------------------------
-    // CHẾ ĐỘ 1: CHAT VỚI 1 AGENT RIÊNG LẺ (SINGLE AGENT)
+    // KIỂM TRA CHẾ ĐỘ: CHAT VỚI NHÓM HAY CHAT ĐƠN
     // -------------------------------------------------------------------------
-    if (chat.mode === 'single') {
-      const targetAgentId = chat.targetAgentId || 'agent_coder';
-      const agent = (project.agents || []).find(a => a.id === targetAgentId) || {
-        id: targetAgentId,
-        role: 'Lập Trình Viên',
-        badge: 'CODER',
-        color: '#10b981',
-        systemPrompt: 'Bạn là chuyên gia lập trình AI.'
-      };
+    let targetTeam = null;
+    if (chat.type === 'team' || chat.teamId) {
+      targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
+    }
 
-      sendEvent({ type: 'agent_start', agentId: agent.id, role: agent.role, badge: agent.badge });
+    const teamMembers = (targetTeam && targetTeam.members && targetTeam.members.length > 0)
+      ? targetTeam.members.slice(0, 5) // Tối đa nhiều nhất 5 agent
+      : null;
+
+    // A. NẾU LÀ CHAT ĐƠN (DIRECT CHAT HOẶC NHÓM CHƯA CÓ THÀNH VIÊN)
+    if (!teamMembers || chat.type === 'direct') {
+      sendEvent({ type: 'agent_start', role: 'AI Assistant', badge: 'AI' });
 
       const messages = [
-        { role: 'system', content: `${agent.systemPrompt}\n\n${projectContext}` },
-        ...chat.messages.slice(-10).map(m => ({
+        { role: 'system', content: `Bạn là trợ lý lập trình AI trong dự án ${project.name}.\n\n${projectContext}` },
+        ...chat.messages.slice(-8).map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content
         })),
@@ -856,10 +907,9 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 
       const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
-        author: agent.role,
-        agentId: agent.id,
-        agentBadge: agent.badge,
-        agentColor: agent.color,
+        author: 'AI Trợ Lý',
+        agentBadge: 'AI',
+        agentColor: '#3b82f6',
         content: agentResponse
       });
 
@@ -870,187 +920,79 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
         return res.end();
       }
 
-      return res.json({ success: true, mode: 'single', messages: [savedMsg] });
+      return res.json({ success: true, mode: 'direct', messages: [savedMsg] });
     }
 
-    // -------------------------------------------------------------------------
-    // CHẾ ĐỘ 2: GROUP CHAT NHIỀU THÀNH VIÊN (HỘI ĐỒNG AI / TEAMWORK)
-    // Người dùng nêu ý tưởng -> Các Agent tự nói chuyện, chia việc theo thế mạnh và cùng code & sửa
-    // -------------------------------------------------------------------------
-    const activeAgents = (project.agents || []).filter(a => 
-      !chat.activeAgentIds || chat.activeAgentIds.includes(a.id)
-    );
-
+    // B. NẾU LÀ CHAT NHÓM: LẦN LƯỢT CÁC AGENT TRONG NHÓM (TỐI ĐA 5 AGENT) CÙNG NÓI CHUYỆN & FIX CODE
     const generatedMessages = [];
+    const previousTurnsContext = [];
 
-    // Helper tìm agent theo role hoặc badge
-    const findAgent = (badgeOrId) => activeAgents.find(a => 
-      a.id === badgeOrId || a.badge?.toUpperCase() === badgeOrId.toUpperCase()
-    );
+    for (let i = 0; i < teamMembers.length; i++) {
+      const member = teamMembers[i];
+      sendEvent({
+        type: 'agent_start',
+        agentId: member.id,
+        role: member.name,
+        badge: member.badge,
+        category: member.category,
+        index: i + 1,
+        total: teamMembers.length
+      });
 
-    const architect = findAgent('ARCHITECT') || findAgent('agent_architect');
-    const coder = findAgent('CODER') || findAgent('agent_coder');
-    const tester = findAgent('TESTER') || findAgent('agent_tester');
-    const reviewer = findAgent('REVIEWER') || findAgent('agent_reviewer');
+      const memberModel = member.model || model || 'kilo-auto/free';
 
-    // -------------------------------------------------------------------------
-    // BƯỚC 1: KIẾN TRÚC SƯ (ARCHITECT & PLANNER)
-    // Phân tích ý tưởng người dùng, hoạch định kiến trúc, chia việc cho Coder & Tester
-    // -------------------------------------------------------------------------
-    let architectOutput = '';
-    if (architect) {
-      sendEvent({ type: 'agent_start', agentId: architect.id, role: architect.role, badge: architect.badge });
+      const promptInstructions = `
+[VAI TRÒ CỦA BẠN TRONG NHÓM]:
+- Tên thành viên: ${member.name}
+- Lĩnh vực chuyên môn: ${member.roleTitle}
+- Hệ thống AI vận hành: ${memberModel}
+${member.systemPrompt}
 
-      const archMessages = [
+QUY TRÌNH HỢP TÁC NHÓM (Thành viên ${i + 1}/${teamMembers.length} trong nhóm "${targetTeam.name}"):
+Hãy đóng góp ý kiến, code hoặc kiểm thử dựa đúng trên THẾ MẠNH CHUYÊN MÔN của bạn (${member.roleTitle}).
+- Nếu bạn là Kiến Trúc: Đưa ra chiến lược kiến trúc, phân tích bài toán và định hướng cho các thành viên sau.
+- Nếu bạn là Lập Trình: Viết và sửa code cụ thể, chỉ rõ file và tối ưu giải thuật.
+- Nếu bạn là Kiểm Thử: Soát lỗi, viết lệnh Terminal PowerShell/CMD trong khối \`\`\`powershell ... \`\`\` để test dự án.
+- Nếu bạn là Reviewer: Đánh giá clean code, UI/UX và tổng kết.
+- Nếu bạn là DevOps: Cung cấp lệnh môi trường, script build, git.
+`;
+
+      const memberMessages = [
         {
           role: 'system',
-          content: `${architect.systemPrompt}\n\n${projectContext}
-QUY TRÌNH HỘI ĐỒNG AI:
-Bạn là người đầu tiên lên tiếng sau khi Người Dùng (Product Owner/Tech Lead) nêu ý tưởng.
-Nhiệm vụ của bạn:
-1. Đánh giá ý tưởng của Người Dùng.
-2. Thiết kế kiến trúc giải pháp và cấu trúc các file cần tác động.
-3. PHÂN CHIA CÔNG VIỆC RÕ RÀNG THEO THẾ MẠNH:
-   - Giao việc cụ thể cho [CODER]: Cần viết/sửa code những gì, lưu ý thuật toán gì.
-   - Giao việc cụ thể cho [TESTER]: Cần kiểm thử những gì, lưu ý các trường hợp lỗi biên.`
+          content: `${promptInstructions}\n\n${projectContext}`
         },
+        // Lịch sử chat trước đó
         ...chat.messages.slice(-6).map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: `${m.author ? `[${m.author}]: ` : ''}${m.content}`
         })),
-        { role: 'user', content: `[Ý TƯỞNG TỪ NGƯỜI DÙNG]: ${content.trim()}` }
+        // Ý tưởng mới nhất của người dùng
+        { role: 'user', content: `[Ý TƯỞNG CỦA NGƯỜI DÙNG]: ${content.trim()}` }
       ];
 
-      architectOutput = await callInternalAI({ model, messages: archMessages });
+      // Thêm ngữ cảnh của các thành viên vừa nói trước đó trong lượt này
+      if (previousTurnsContext.length > 0) {
+        memberMessages.push({
+          role: 'user',
+          content: `[CÁC THÀNH VIÊN TRƯỚC ĐÓ TRONG NHÓM ĐÃ THẢO LUẬN]:\n${previousTurnsContext.join('\n\n')}\n\nHãy tiếp nối phần việc của bạn dựa trên những thông tin trên.`
+        });
+      }
 
-      const archSavedMsg = Store.saveProjectChatMessage(projectId, chatId, {
+      const agentResponse = await callInternalAI({ model: memberModel, messages: memberMessages });
+
+      const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
-        author: architect.role,
-        agentId: architect.id,
-        agentBadge: architect.badge,
-        agentColor: architect.color,
-        content: architectOutput
+        author: member.name,
+        agentId: member.id,
+        agentBadge: member.badge,
+        agentColor: member.color,
+        content: agentResponse
       });
 
-      generatedMessages.push(archSavedMsg);
-      sendEvent({ type: 'agent_done', message: archSavedMsg });
-    }
-
-    // -------------------------------------------------------------------------
-    // BƯỚC 2: LẬP TRÌNH VIÊN (CODER / FULLSTACK DEVELOPER)
-    // Nhận phân công từ Architect, viết code, triển khai logic và fix bugs
-    // -------------------------------------------------------------------------
-    let coderOutput = '';
-    if (coder) {
-      sendEvent({ type: 'agent_start', agentId: coder.id, role: coder.role, badge: coder.badge });
-
-      const coderMessages = [
-        {
-          role: 'system',
-          content: `${coder.systemPrompt}\n\n${projectContext}
-QUY TRÌNH HỘI ĐỒNG AI:
-Bạn tiếp nhận chỉ đạo và phân công công việc từ [ARCHITECT].
-Nhiệm vụ của bạn:
-1. Xác nhận đã nhận việc từ [ARCHITECT].
-2. Cung cấp giải pháp mã nguồn chi tiết, chỉ rõ tên file, đoạn code cần viết mới hoặc sửa đổi.
-3. Đảm bảo code sạch, chuẩn mực, tối ưu và an toàn.
-4. Bàn giao kết quả cho [TESTER] để chuẩn bị kiểm thử và chạy lệnh terminal.`
-        },
-        { role: 'user', content: `[Ý TƯỞNG BAN ĐẦU CỦA NGƯỜI DÙNG]: ${content.trim()}` },
-        { role: 'assistant', content: `[PHÂN CÔNG TỪ KIẾN TRÚC SƯ]:\n${architectOutput}` },
-        { role: 'user', content: 'Hãy bắt đầu viết code và triển khai chi tiết các nhiệm vụ được giao.' }
-      ];
-
-      coderOutput = await callInternalAI({ model, messages: coderMessages });
-
-      const coderSavedMsg = Store.saveProjectChatMessage(projectId, chatId, {
-        role: 'assistant',
-        author: coder.role,
-        agentId: coder.id,
-        agentBadge: coder.badge,
-        agentColor: coder.color,
-        content: coderOutput
-      });
-
-      generatedMessages.push(coderSavedMsg);
-      sendEvent({ type: 'agent_done', message: coderSavedMsg });
-    }
-
-    // -------------------------------------------------------------------------
-    // BƯỚC 3: KỸ SƯ KIỂM THỬ (TESTER & TERMINAL DEBUGGER)
-    // Kiểm tra code của Coder, đề xuất hoặc viết lệnh PowerShell/CMD để test dự án
-    // -------------------------------------------------------------------------
-    let testerOutput = '';
-    if (tester) {
-      sendEvent({ type: 'agent_start', agentId: tester.id, role: tester.role, badge: tester.badge });
-
-      const testerMessages = [
-        {
-          role: 'system',
-          content: `${tester.systemPrompt}\n\n${projectContext}
-QUY TRÌNH HỘI ĐỒNG AI:
-Bạn tiếp nhận mã nguồn do [CODER] vừa viết.
-Nhiệm vụ của bạn:
-1. Rà soát lỗi logic, lỗi cú pháp, kiểm tra các trường hợp biên hoặc bảo mật.
-2. Đề xuất các lệnh Terminal (PowerShell / CMD) để kiểm tra dự án.
-   QUAN TRỌNG: Hãy bao bọc câu lệnh terminal trong khối \`\`\`powershell ... \`\`\` hoặc \`\`\`cmd ... \`\`\` để giao diện tự động tạo nút "Chạy Lệnh Terminal" cho người dùng hoặc agent bấm chạy.
-3. Đưa ra kết luận (Pass/Fail) và chuyển giao cho [REVIEWER].`
-        },
-        { role: 'assistant', content: `[CODE TRIỂN KHAI TỪ CODER]:\n${coderOutput}` },
-        { role: 'user', content: 'Hãy kiểm thử chất lượng code trên và đề xuất các lệnh terminal để test dự án.' }
-      ];
-
-      testerOutput = await callInternalAI({ model, messages: testerMessages });
-
-      const testerSavedMsg = Store.saveProjectChatMessage(projectId, chatId, {
-        role: 'assistant',
-        author: tester.role,
-        agentId: tester.id,
-        agentBadge: tester.badge,
-        agentColor: tester.color,
-        content: testerOutput
-      });
-
-      generatedMessages.push(testerSavedMsg);
-      sendEvent({ type: 'agent_done', message: testerSavedMsg });
-    }
-
-    // -------------------------------------------------------------------------
-    // BƯỚC 4: CHUYÊN GIA REVIEW & TỔNG KẾT (REVIEWER & UX SPECIALIST)
-    // Đánh giá toàn diện, tối ưu UI/UX, tổng kết báo cáo cho Người Dùng
-    // -------------------------------------------------------------------------
-    if (reviewer) {
-      sendEvent({ type: 'agent_start', agentId: reviewer.id, role: reviewer.role, badge: reviewer.badge });
-
-      const reviewerMessages = [
-        {
-          role: 'system',
-          content: `${reviewer.systemPrompt}\n\n${projectContext}
-QUY TRÌNH HỘI ĐỒNG AI:
-Bạn là người chốt phiên làm việc của Hội đồng AI.
-Nhiệm vụ của bạn:
-1. Đánh giá tính hoàn thiện của giải pháp so với ý tưởng gốc của Người Dùng.
-2. Kiểm tra tính thẩm mỹ và tiện ích UI/UX (nếu có phần giao diện).
-3. Tóm tắt ngắn gọn những gì nhóm Agent đã cùng nhau giải quyết và đưa ra khuyến nghị tiếp theo cho Người Dùng.`
-        },
-        { role: 'user', content: `[Ý TƯỞNG GỐC CỦA NGƯỜI DÙNG]: ${content.trim()}` },
-        { role: 'assistant', content: `[KIẾN TRÚC SƯ]:\n${architectOutput}\n\n[CODER]:\n${coderOutput}\n\n[TESTER]:\n${testerOutput}` },
-        { role: 'user', content: 'Hãy tổng kết, đánh giá hoàn thiện và bàn giao báo cáo cho tôi.' }
-      ];
-
-      const reviewerOutput = await callInternalAI({ model, messages: reviewerMessages });
-
-      const reviewerSavedMsg = Store.saveProjectChatMessage(projectId, chatId, {
-        role: 'assistant',
-        author: reviewer.role,
-        agentId: reviewer.id,
-        agentBadge: reviewer.badge,
-        agentColor: reviewer.color,
-        content: reviewerOutput
-      });
-
-      generatedMessages.push(reviewerSavedMsg);
-      sendEvent({ type: 'agent_done', message: reviewerSavedMsg });
+      generatedMessages.push(savedMsg);
+      previousTurnsContext.push(`[${member.badge} - ${member.name}]:\n${agentResponse}`);
+      sendEvent({ type: 'agent_done', message: savedMsg });
     }
 
     if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
@@ -1058,10 +1000,10 @@ Nhiệm vụ của bạn:
       return res.end();
     }
 
-    return res.json({ success: true, mode: 'team', messages: generatedMessages });
+    return res.json({ success: true, mode: 'team', teamName: targetTeam.name, messages: generatedMessages });
 
   } catch (err) {
-    console.error('Error in multi-agent collaboration flow:', err);
+    console.error('Error in project chat flow:', err);
     sendEvent({ type: 'error', message: err.message });
     if (!res.headersSent) {
       return res.status(500).json({ error: err.message });

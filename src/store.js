@@ -827,90 +827,212 @@ const Store = {
   },
 
   // ----------------------------------------------------
-  // 12. DỰ ÁN & HỆ THỐNG MULTI-AGENT TEAMWORK
+  // 12. DỰ ÁN & HỆ THỐNG NHÓM AGENT (TỐI ĐA 5 THÀNH VIÊN)
   // ----------------------------------------------------
 
-  getDefaultProjectAgents() {
-    return [
-      {
-        id: 'agent_architect',
-        role: 'Kiến Trúc Sư Hệ Thống',
-        title: 'Architect & Planner',
-        badge: 'ARCHITECT',
-        color: '#3b82f6',
-        strengths: 'Phân tích ý tưởng, thiết kế kiến trúc hệ thống, chia nhỏ bài toán (Task Decomposition), điều phối công việc cho Coder và Tester theo thế mạnh.',
-        systemPrompt: `Bạn là Kiến Trúc Sư Phần Mềm Cấp Cao & Trưởng Nhóm Kỹ Thuật (Senior Software Architect & Team Lead).
-Điểm mạnh cốt lõi của bạn:
-1. Đọc và phân tích ý tưởng/yêu cầu của Người Dùng (Tech Lead / Product Owner).
-2. Thiết kế kiến trúc tổng thể, xác định các module, file mã nguồn cần tạo hoặc sửa đổi.
-3. Chia nhỏ nhiệm vụ kỹ thuật rõ ràng, phân công cụ thể cho [CODER] triển khai code và [TESTER] kiểm tra.
-4. Trình bày ngắn gọn, sắc bén, có cấu trúc bullet point rõ ràng, không vòng vo dài dòng.`
-      },
-      {
-        id: 'agent_coder',
-        role: 'Lập Trình Viên Fullstack',
-        title: 'Senior Developer & Coder',
+  getSpecializedCatalog() {
+    return {
+      coder: {
+        category: 'coder',
+        roleTitle: 'Lập Trình (Coder / Developer)',
         badge: 'CODER',
         color: '#10b981',
-        strengths: 'Triển khai mã nguồn chi tiết, viết và sửa file code, giải quyết logic thuật toán, fix bugs, tối ưu hiệu năng.',
-        systemPrompt: `Bạn là Kỹ Sư Lập Trình Fullstack Cấp Cao (Senior Fullstack Developer & Code Fixer).
-Điểm mạnh cốt lõi của bạn:
-1. Tiếp nhận phân công từ [ARCHITECT] hoặc yêu cầu trực tiếp từ Người Dùng.
-2. Viết code hoàn chỉnh, chính xác, sạch đẹp, đúng chuẩn sản xuất (production-ready).
-3. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh để thay thế/thêm mới.
-4. Bàn giao cho [TESTER] kiểm tra và chạy lệnh terminal nếu cần.`
+        description: 'Chuyên gia viết mã nguồn, xử lý logic thuật toán, fix bugs, sửa và cập nhật files.',
+        defaultModel: 'deepseek-v4.1-flash-free',
+        recommendedModels: [
+          { id: 'deepseek-v4.1-flash-free', name: 'DeepSeek Flash Free (Chuyên Code) [FREE]' },
+          { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE]' },
+          { id: 'beam-free', name: 'OpenCode Beam Free [FREE]' },
+          { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
+          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+        ],
+        systemPrompt: `Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).
+Điểm mạnh cốt lõi:
+1. Viết code sạch, tối ưu, chuẩn sản xuất.
+2. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh.
+3. Giải quyết logic thuật toán và sửa lỗi triệt để.`
       },
-      {
-        id: 'agent_tester',
-        role: 'Kỹ Sư Kiểm Thử & Terminal Debugger',
-        title: 'QA Engineer & Terminal Debugger',
+      tester: {
+        category: 'tester',
+        roleTitle: 'Kiểm Thử (Tester / Terminal Debugger)',
         badge: 'TESTER',
         color: '#f59e0b',
-        strengths: 'Kiểm thử cú pháp/logic, chạy lệnh PowerShell/CMD trong terminal, phát hiện lỗi biên dịch/runtime, debug stack trace.',
+        description: 'Chuyên gia rà soát lỗi logic, kiểm tra trường hợp biên, chạy lệnh terminal PowerShell/CMD để test dự án.',
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        recommendedModels: [
+          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'NVIDIA Nemotron 30B Reasoning [FREE]' },
+          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' },
+          { id: 'beam-free', name: 'OpenCode Free [FREE]' },
+          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+        ],
         systemPrompt: `Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).
-Điểm mạnh cốt lõi của bạn:
-1. Đánh giá mã nguồn do [CODER] vừa viết, tìm các trường hợp biên, lỗi tiềm ẩn, lỗi bảo mật hoặc hiệu năng.
-2. Đề xuất hoặc thực thi các lệnh Terminal (PowerShell / CMD / Node / NPM) để kiểm tra dự án.
-3. Nếu phát hiện lỗi hoặc cảnh báo, chỉ rõ nguyên nhân và yêu cầu [CODER] fix lại ngay lập tức.
-4. Xác nhận tình trạng hoạt động (Pass/Fail) rõ ràng.`
+Điểm mạnh cốt lõi:
+1. Rà soát mã nguồn, phát hiện các trường hợp lỗi biên hoặc vấn đề bảo mật.
+2. Đề xuất lệnh Terminal (PowerShell / CMD) để test dự án trong khối \`\`\`powershell ... \`\`\`.
+3. Phân tích log lỗi và kiểm tra kết quả hoạt động.`
       },
-      {
-        id: 'agent_reviewer',
-        role: 'Chuyên Gia Tối Ưu & Reviewer',
-        title: 'Code Reviewer & UI/UX Specialist',
+      architect: {
+        category: 'architect',
+        roleTitle: 'Kiến Trúc (Architect / Planner)',
+        badge: 'ARCHITECT',
+        color: '#3b82f6',
+        description: 'Chuyên gia phân tích bài toán, thiết kế kiến trúc hệ thống, chia nhỏ các bước thực hiện và điều phối công việc.',
+        defaultModel: 'kilo-auto/free',
+        recommendedModels: [
+          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' },
+          { id: 'deepseek-v4.1-flash-free', name: 'DeepSeek Flash Free [FREE]' },
+          { id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash' },
+          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+        ],
+        systemPrompt: `Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).
+Điểm mạnh cốt lõi:
+1. Phân tích ý tưởng của Người Dùng.
+2. Hoạch định cấu trúc module và danh sách file cần tác động.
+3. Chia nhỏ các bước công việc rõ ràng theo thế mạnh của các thành viên trong nhóm.`
+      },
+      reviewer: {
+        category: 'reviewer',
+        roleTitle: 'Review & Tối Ưu UI/UX (Reviewer & Quality)',
         badge: 'REVIEWER',
         color: '#8b5cf6',
-        strengths: 'Đánh giá chất lượng toàn diện, chuẩn hóa clean code, tối ưu trải nghiệm UI/UX, tổng kết báo cáo cho Người Dùng.',
+        description: 'Chuyên gia rà soát tiêu chuẩn clean code, tối ưu giao diện UI/UX và tổng hợp báo cáo hoàn thành.',
+        defaultModel: 'nemotron-3.5-lightning-free',
+        recommendedModels: [
+          { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning [FREE]' },
+          { id: 'liquid/lfm-2.5-2.6b:free', name: 'Liquid LFM [FREE]' },
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' }
+        ],
         systemPrompt: `Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).
-Điểm mạnh cốt lõi của bạn:
-1. Đánh giá tính thẩm mỹ, công thái học (ergonomics) của giao diện người dùng nếu có phần UI.
-2. Rà soát chuẩn mực clean code, loại bỏ mã dư thừa, đảm bảo tính dễ đọc và bảo trì lâu dài.
-3. Tổng kết toàn bộ kết quả mà các Agent trong nhóm đã cùng nhau hoàn thành, gửi báo cáo ngắn gọn, súc tích cho Người Dùng.`
+Điểm mạnh cốt lõi:
+1. Đánh giá tính thẩm mỹ và tiện ích của giao diện người dùng.
+2. Rà soát chuẩn clean code, loại bỏ mã dư thừa.
+3. Tổng kết báo cáo hoàn thiện gửi cho Người Dùng.`
+      },
+      devops: {
+        category: 'devops',
+        roleTitle: 'DevOps & Môi Trường (DevOps / Terminal)',
+        badge: 'DEVOPS',
+        color: '#06b6d4',
+        description: 'Chuyên gia cấu hình môi trường, script build, git status, cài đặt packages (npm, pip) và terminal.',
+        defaultModel: 'flint-40b-free',
+        recommendedModels: [
+          { id: 'flint-40b-free', name: 'Flint 40B Free [FREE]' },
+          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' }
+        ],
+        systemPrompt: `Bạn là Kỹ Sư DevOps & Hệ Thống (DevOps & Terminal Specialist).
+Điểm mạnh cốt lõi:
+1. Cấu hình môi trường, script package.json, build và deploy.
+2. Xử lý các câu lệnh git, terminal và biến môi trường.`
       }
-    ];
+    };
   },
 
   getProjects(userId = null) {
     const data = readDb();
     data.projects = data.projects || [];
 
-    // Nếu chưa có dự án nào, khởi tạo dự án mặc định trỏ tới workspace hiện tại
+    // Đảm bảo cấu trúc teams có mặt ở các dự án hiện có
+    let modified = false;
+    data.projects.forEach(p => {
+      if (!p.teams) {
+        const defaultTeamId = 'team_' + crypto.randomBytes(4).toString('hex');
+        p.teams = [
+          {
+            id: defaultTeamId,
+            name: 'Nhóm Lập Trình & Kiểm Thử',
+            description: 'Nhóm AI chuyên phân tích, viết code và kiểm tra lỗi.',
+            members: [
+              {
+                id: 'mem_1',
+                name: 'Kiến Trúc Sư',
+                category: 'architect',
+                roleTitle: 'Kiến Trúc Hệ Thống',
+                badge: 'ARCHITECT',
+                color: '#3b82f6',
+                model: 'kilo-auto/free',
+                systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
+              },
+              {
+                id: 'mem_2',
+                name: 'Lập Trình Viên',
+                category: 'coder',
+                roleTitle: 'Lập Trình Fullstack',
+                badge: 'CODER',
+                color: '#10b981',
+                model: 'deepseek-v4.1-flash-free',
+                systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
+              },
+              {
+                id: 'mem_3',
+                name: 'Kỹ Sư Kiểm Thử',
+                category: 'tester',
+                roleTitle: 'Kiểm Thử & Terminal',
+                badge: 'TESTER',
+                color: '#f59e0b',
+                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
+              }
+            ]
+          }
+        ];
+        modified = true;
+      }
+    });
+
     if (data.projects.length === 0) {
       const defaultWorkspacePath = path.resolve(__dirname, '..');
+      const defaultTeamId = 'team_' + crypto.randomBytes(4).toString('hex');
       const defaultProject = {
         id: 'proj_' + crypto.randomBytes(6).toString('hex'),
         userId: userId || null,
         name: 'VinceZone Workspace',
         path: defaultWorkspacePath,
         description: 'Dự án chính đang mở trên máy tính. Hỗ trợ chạy terminal, sửa mã nguồn và điều phối nhóm Agent.',
-        agents: this.getDefaultProjectAgents(),
+        teams: [
+          {
+            id: defaultTeamId,
+            name: 'Nhóm Lập Trình & Kiểm Thử',
+            description: 'Nhóm AI chuyên phân tích, viết code và kiểm tra lỗi.',
+            members: [
+              {
+                id: 'mem_1',
+                name: 'Kiến Trúc Sư',
+                category: 'architect',
+                roleTitle: 'Kiến Trúc Hệ Thống',
+                badge: 'ARCHITECT',
+                color: '#3b82f6',
+                model: 'kilo-auto/free',
+                systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
+              },
+              {
+                id: 'mem_2',
+                name: 'Lập Trình Viên',
+                category: 'coder',
+                roleTitle: 'Lập Trình Fullstack',
+                badge: 'CODER',
+                color: '#10b981',
+                model: 'deepseek-v4.1-flash-free',
+                systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
+              },
+              {
+                id: 'mem_3',
+                name: 'Kỹ Sư Kiểm Thử',
+                category: 'tester',
+                roleTitle: 'Kiểm Thử & Terminal',
+                badge: 'TESTER',
+                color: '#f59e0b',
+                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
+              }
+            ]
+          }
+        ],
         chats: [
           {
             id: 'chat_' + crypto.randomBytes(6).toString('hex'),
-            title: 'Hội đồng AI - Lập trình & Nâng cấp',
-            mode: 'team',
-            targetAgentId: null,
-            activeAgentIds: ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+            title: 'Hội đồng Code & Fix lỗi',
+            type: 'team',
+            teamId: defaultTeamId,
             createdAt: new Date().toISOString(),
             messages: []
           }
@@ -919,8 +1041,10 @@ const Store = {
         updatedAt: new Date().toISOString()
       };
       data.projects.push(defaultProject);
-      writeDb(data);
+      modified = true;
     }
+
+    if (modified) writeDb(data);
 
     if (userId) {
       return data.projects.filter(p => !p.userId || p.userId === userId);
@@ -930,32 +1054,59 @@ const Store = {
 
   getProjectById(projectId) {
     if (!projectId) return null;
-    const data = readDb();
-    data.projects = data.projects || [];
-    return data.projects.find(p => p.id === projectId) || null;
+    const projects = this.getProjects();
+    return projects.find(p => p.id === projectId) || null;
   },
 
-  createProject({ name, path: projectPath, description, agents, userId = null }) {
+  createProject({ name, path: projectPath, description, userId = null }) {
     if (!name || !name.trim()) {
       throw new Error('Tên dự án không được để trống.');
     }
     const data = readDb();
     data.projects = data.projects || [];
 
+    const defaultTeamId = 'team_' + crypto.randomBytes(4).toString('hex');
     const newProject = {
       id: 'proj_' + crypto.randomBytes(6).toString('hex'),
       userId: userId || null,
       name: name.trim(),
       path: (projectPath || '').trim() || path.resolve(__dirname, '..'),
       description: (description || '').trim() || 'Dự án lập trình với AI Agent.',
-      agents: (agents && agents.length > 0) ? agents : this.getDefaultProjectAgents(),
+      teams: [
+        {
+          id: defaultTeamId,
+          name: 'Nhóm Lập Trình & Kiểm Thử',
+          description: 'Nhóm AI chuyên xử lý code và kiểm thử.',
+          members: [
+            {
+              id: 'mem_1',
+              name: 'Lập Trình Viên',
+              category: 'coder',
+              roleTitle: 'Lập Trình Fullstack',
+              badge: 'CODER',
+              color: '#10b981',
+              model: 'deepseek-v4.1-flash-free',
+              systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
+            },
+            {
+              id: 'mem_2',
+              name: 'Kỹ Sư Kiểm Thử',
+              category: 'tester',
+              roleTitle: 'Kiểm Thử & Terminal',
+              badge: 'TESTER',
+              color: '#f59e0b',
+              model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+              systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
+            }
+          ]
+        }
+      ],
       chats: [
         {
           id: 'chat_' + crypto.randomBytes(6).toString('hex'),
-          title: 'Hội đồng AI - Thảo luận & Fix code',
-          mode: 'team',
-          targetAgentId: null,
-          activeAgentIds: ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+          title: 'Đoạn chat đầu tiên',
+          type: 'team',
+          teamId: defaultTeamId,
           createdAt: new Date().toISOString(),
           messages: []
         }
@@ -981,7 +1132,6 @@ const Store = {
       name: updateData.name !== undefined ? updateData.name.trim() : current.name,
       path: updateData.path !== undefined ? updateData.path.trim() : current.path,
       description: updateData.description !== undefined ? updateData.description.trim() : current.description,
-      agents: updateData.agents !== undefined ? updateData.agents : current.agents,
       updatedAt: new Date().toISOString()
     };
 
@@ -997,6 +1147,92 @@ const Store = {
     return true;
   },
 
+  // --- QUẢN LÝ NHÓM AGENT (TEAMS) ---
+
+  createProjectTeam(projectId, { name, description }) {
+    if (!name || !name.trim()) throw new Error('Tên nhóm không được để trống.');
+    const data = readDb();
+    data.projects = data.projects || [];
+    const p = data.projects.find(x => x.id === projectId);
+    if (!p) throw new Error('Không tìm thấy dự án.');
+
+    p.teams = p.teams || [];
+    const newTeam = {
+      id: 'team_' + crypto.randomBytes(4).toString('hex'),
+      name: name.trim(),
+      description: (description || '').trim() || 'Nhóm AI Agent làm việc.',
+      members: [] // Người dùng tự thêm tối đa 5 thành viên
+    };
+
+    p.teams.push(newTeam);
+    p.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return newTeam;
+  },
+
+  deleteProjectTeam(projectId, teamId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const p = data.projects.find(x => x.id === projectId);
+    if (!p) throw new Error('Không tìm thấy dự án.');
+
+    p.teams = (p.teams || []).filter(t => t.id !== teamId);
+    p.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
+  },
+
+  addTeamMember(projectId, teamId, { name, category, model }) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const p = data.projects.find(x => x.id === projectId);
+    if (!p) throw new Error('Không tìm thấy dự án.');
+
+    const team = (p.teams || []).find(t => t.id === teamId);
+    if (!team) throw new Error('Không tìm thấy nhóm trong dự án.');
+
+    team.members = team.members || [];
+    if (team.members.length >= 5) {
+      throw new Error('Mỗi nhóm tối đa nhiều nhất 5 agent. Vui lòng xóa bớt thành viên trước khi thêm mới.');
+    }
+
+    const catalog = this.getSpecializedCatalog();
+    const roleConfig = catalog[category] || catalog.coder;
+
+    const newMember = {
+      id: 'mem_' + crypto.randomBytes(4).toString('hex'),
+      name: (name || '').trim() || roleConfig.roleTitle.split('(')[0].trim(),
+      category: roleConfig.category,
+      roleTitle: roleConfig.roleTitle,
+      badge: roleConfig.badge,
+      color: roleConfig.color,
+      model: model || roleConfig.defaultModel,
+      systemPrompt: roleConfig.systemPrompt
+    };
+
+    team.members.push(newMember);
+    p.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return newMember;
+  },
+
+  removeTeamMember(projectId, teamId, memberId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const p = data.projects.find(x => x.id === projectId);
+    if (!p) throw new Error('Không tìm thấy dự án.');
+
+    const team = (p.teams || []).find(t => t.id === teamId);
+    if (!team) throw new Error('Không tìm thấy nhóm.');
+
+    team.members = (team.members || []).filter(m => m.id !== memberId);
+    p.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
+  },
+
+  // --- QUẢN LÝ ĐOẠN CHAT TRONG DỰ ÁN ---
+
   getProjectChats(projectId) {
     const project = this.getProjectById(projectId);
     if (!project) return [];
@@ -1009,7 +1245,7 @@ const Store = {
     return (project.chats || []).find(c => c.id === chatId) || null;
   },
 
-  createProjectChat(projectId, { title, mode = 'team', targetAgentId = null, activeAgentIds = null }) {
+  createProjectChat(projectId, { title, type = 'direct', teamId = null }) {
     const data = readDb();
     data.projects = data.projects || [];
     const index = data.projects.findIndex(p => p.id === projectId);
@@ -1017,10 +1253,9 @@ const Store = {
 
     const newChat = {
       id: 'chat_' + crypto.randomBytes(6).toString('hex'),
-      title: (title || '').trim() || (mode === 'team' ? 'Hội đồng AI mới' : 'Trò chuyện Agent'),
-      mode: mode === 'single' ? 'single' : 'team',
-      targetAgentId: targetAgentId || null,
-      activeAgentIds: activeAgentIds || ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+      title: (title || '').trim() || (type === 'team' ? 'Cuộc họp Nhóm AI' : 'Đoạn chat mới'),
+      type: type === 'team' ? 'team' : 'direct',
+      teamId: teamId || null,
       createdAt: new Date().toISOString(),
       messages: []
     };

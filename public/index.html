@@ -397,49 +397,26 @@
        </div>
      </div>
 
-     <!-- Team of Specialized AI Agents -->
-     <div class="project-agents-section">
+     <!-- Hai Nút Thao Tác Chính: Thêm Đoạn Chat & Thêm Nhóm -->
+     <div class="project-actions-grid">
+       <button id="btn-open-new-chat-modal" class="btn-primary btn-action-main">+ Thêm Đoạn Chat</button>
+       <button id="btn-open-create-team-modal" class="btn-secondary btn-action-main">+ Thêm Nhóm</button>
+     </div>
+
+     <!-- Danh Sách Nhóm Agent Trong Dự Án -->
+     <div class="project-teams-section">
        <div class="section-label-row">
-         <span class="section-label-text">HỘI ĐỒNG AI (4 CHUYÊN GIA)</span>
-         <span class="val-badge">Tự động hợp tác</span>
+         <span class="section-label-text">NHÓM AGENT (TỐI ĐA 5 AGENT)</span>
        </div>
-       <div class="project-agents-list" id="project-agents-list">
-         <div class="agent-card-mini agent-arch">
-           <div class="agent-mini-top">
-             <span class="agent-badge badge-arch">ARCHITECT</span>
-             <span class="agent-mini-title">Kiến Trúc Sư</span>
-           </div>
-           <span class="agent-mini-desc">Phân tích ý tưởng, hoạch định cấu trúc & chia việc cho Coder, Tester</span>
-         </div>
-         <div class="agent-card-mini agent-coder">
-           <div class="agent-mini-top">
-             <span class="agent-badge badge-coder">CODER</span>
-             <span class="agent-mini-title">Lập Trình Viên</span>
-           </div>
-           <span class="agent-mini-desc">Viết & sửa code chi tiết, thuật toán, cập nhật files</span>
-         </div>
-         <div class="agent-card-mini agent-tester">
-           <div class="agent-mini-top">
-             <span class="agent-badge badge-tester">TESTER</span>
-             <span class="agent-mini-title">Kỹ Sư Kiểm Thử</span>
-           </div>
-           <span class="agent-mini-desc">Chạy lệnh terminal PowerShell/CMD, phát hiện lỗi, test kết quả</span>
-         </div>
-         <div class="agent-card-mini agent-reviewer">
-           <div class="agent-mini-top">
-             <span class="agent-badge badge-reviewer">REVIEWER</span>
-             <span class="agent-mini-title">Chuyên Gia Review</span>
-           </div>
-           <span class="agent-mini-desc">Chuẩn hóa code, tối ưu UI/UX, tổng kết báo cáo cho Bạn</span>
-         </div>
+       <div class="project-teams-list" id="project-teams-list">
+         <!-- Populated dynamically -->
        </div>
      </div>
 
-     <!-- Project Chat Threads (Đa luồng chat của dự án) -->
+     <!-- Danh Sách Đoạn Chat Trong Dự Án -->
      <div class="project-chats-section">
        <div class="section-label-row">
-         <span class="section-label-text">CÁC CUỘC TRÒ CHUYỆN</span>
-         <button id="btn-new-project-chat" class="btn-micro-add" title="Tạo cuộc trò chuyện mới trong dự án">+ Chat Mới</button>
+         <span class="section-label-text">CÁC ĐOẠN CHAT</span>
        </div>
        <div class="project-chats-list" id="project-chats-list">
          <!-- Populated dynamically -->
@@ -1196,52 +1173,115 @@
  </div>
  </div>
 
- <!-- MODAL: TẠO CUỘC TRÒ CHUYỆN MỚI TRONG DỰ ÁN -->
+ <!-- MODAL: TẠO ĐOẠN CHAT MỚI TRONG DỰ ÁN -->
  <div id="modal-new-project-chat" class="modal-overlay">
  <div class="modal-content">
  <div class="modal-header">
- <h3>Tạo Cuộc Trò Chuyện Mới Trong Dự Án</h3>
+ <h3>Tạo Đoạn Chat Mới Trong Dự Án</h3>
  <button id="btn-close-new-project-chat-modal" class="btn-close">&times;</button>
  </div>
  <form id="new-project-chat-form">
  <div class="form-group">
- <label>Tiêu Đề Cuộc Trò Chuyện</label>
- <input type="text" id="new-chat-title-input" placeholder="Ví dụ: Sửa lỗi đăng nhập, Thiết kế API thanh toán, Review UI..." required>
+ <label>Tiêu Đề Đoạn Chat</label>
+ <input type="text" id="new-chat-title-input" placeholder="Ví dụ: Fix lỗi đăng nhập, Tối ưu database, Viết tính năng..." required>
  </div>
  
  <div class="form-group">
- <label>Chế Độ Làm Việc Của AI</label>
+ <label>Hình Thức Làm Việc</label>
  <div class="mode-select-grid">
  <label class="mode-card-radio">
  <input type="radio" name="chat-mode-choice" value="team" checked>
  <div class="mode-card-inner">
- <strong>Hội Đồng AI (Teamwork - Khuyên dùng)</strong>
- <p>Cả 4 Agent cùng tham gia: Bạn nêu ý tưởng, Kiến Trúc Sư chia việc, Coder viết mã, Tester chạy terminal và Reviewer hoàn thiện.</p>
+ <strong>Chat Với Nhóm Agent</strong>
+ <p>Các thành viên trong nhóm sẽ cùng nhau thảo luận, phân chia việc và hỗ trợ bạn.</p>
  </div>
  </label>
  <label class="mode-card-radio">
- <input type="radio" name="chat-mode-choice" value="single">
+ <input type="radio" name="chat-mode-choice" value="direct">
  <div class="mode-card-inner">
- <strong>Chat Riêng 1-1 Với 1 Agent Cụ Thể</strong>
- <p>Nói chuyện trực tiếp với 1 chuyên gia (Coder, Tester hoặc Architect) cho tác vụ tập trung.</p>
+ <strong>Chat Đơn Trực Tiếp</strong>
+ <p>Hỏi đáp hoặc code nhanh 1-1 với một Model AI độc lập.</p>
  </div>
  </label>
  </div>
  </div>
 
- <div class="form-group" id="single-agent-picker-group" style="display: none;">
- <label>Chọn Agent Tiếp Nhận:</label>
- <select id="single-agent-select">
- <option value="agent_coder">Lập Trình Viên (Coder - Viết & Sửa Code)</option>
- <option value="agent_architect">Kiến Trúc Sư (Architect - Thiết kế hệ thống)</option>
- <option value="agent_tester">Kỹ Sư Kiểm Thử (Tester - Terminal Debugger)</option>
- <option value="agent_reviewer">Chuyên Gia Review (Reviewer & UI/UX)</option>
+ <div class="form-group" id="chat-team-picker-group">
+ <label>Chọn Nhóm Agent Thực Hiện:</label>
+ <select id="chat-team-select">
+ <!-- Populated dynamically -->
  </select>
  </div>
 
  <div class="modal-actions">
  <button type="button" id="btn-cancel-new-project-chat" class="btn-ghost">Hủy</button>
  <button type="submit" class="btn-primary">Bắt Đầu Trò Chuyện</button>
+ </div>
+ </form>
+ </div>
+ </div>
+
+ <!-- MODAL: TẠO NHÓM AGENT MỚI -->
+ <div id="modal-create-team" class="modal-overlay">
+ <div class="modal-content">
+ <div class="modal-header">
+ <h3>Thêm Nhóm Agent Mới</h3>
+ <button id="btn-close-create-team-modal" class="btn-close">&times;</button>
+ </div>
+ <form id="create-team-form">
+ <div class="form-group">
+ <label>Tên Nhóm (Tối đa 5 Agent)</label>
+ <input type="text" id="new-team-name-input" placeholder="Ví dụ: Nhóm Lập Trình & Kiểm Thử, Đội Ngũ Fullstack..." required>
+ </div>
+ <div class="form-group">
+ <label>Mô Tả / Mục Tiêu Nhóm</label>
+ <textarea id="new-team-desc-input" rows="2" placeholder="Ví dụ: Nhóm chuyên fix lỗi runtime và viết module backend..."></textarea>
+ </div>
+ <div class="modal-actions">
+ <button type="button" id="btn-cancel-create-team" class="btn-ghost">Hủy</button>
+ <button type="submit" class="btn-primary">Tạo Nhóm</button>
+ </div>
+ </form>
+ </div>
+ </div>
+
+ <!-- MODAL: THÊM THÀNH VIÊN VÀO NHÓM (TỐI ĐA 5 AGENT) -->
+ <div id="modal-add-team-member" class="modal-overlay">
+ <div class="modal-content">
+ <div class="modal-header">
+ <h3 id="modal-add-member-title">Thêm Thành Viên Vào Nhóm</h3>
+ <button id="btn-close-add-member-modal" class="btn-close">&times;</button>
+ </div>
+ <form id="add-team-member-form">
+ <input type="hidden" id="target-team-id">
+ 
+ <div class="form-group">
+ <label>Lĩnh Vực Chuyên Môn Của AI</label>
+ <select id="member-category-select">
+ <option value="coder">Lập Trình (Coder / Developer) - Viết mã & Sửa lỗi</option>
+ <option value="tester">Kiểm Thử (Tester / Terminal Debugger) - Chạy terminal & Bắt lỗi</option>
+ <option value="architect">Kiến Trúc (Architect / Planner) - Phân tích & Chia việc</option>
+ <option value="reviewer">Review & UI/UX (Reviewer & Quality) - Chuẩn code & Giao diện</option>
+ <option value="devops">DevOps & Terminal (DevOps / System) - Môi trường & Build</option>
+ </select>
+ </div>
+
+ <div class="form-group">
+ <label>Mô Hình AI Giỏi Nhất Cho Lĩnh Vực Này (Đã tuyển chọn & sắp xếp)</label>
+ <select id="member-model-select">
+ <!-- Populated dynamically based on category -->
+ </select>
+ <small class="field-hint" id="member-role-desc">Chuyên gia viết code, triển khai tính năng và fix bugs.</small>
+ </div>
+
+ <div class="form-group">
+ <label>Tên Gọi / Vai Trò Của Thành Viên (Tùy chỉnh)</label>
+ <input type="text" id="member-name-input" placeholder="Ví dụ: Lập Trình Viên Cấp Cao, Kỹ Sư Kiểm Thử..." required>
+ </div>
+
+ <div class="modal-actions">
+ <button type="button" id="btn-cancel-add-member" class="btn-ghost">Hủy</button>
+ <button type="submit" class="btn-primary">Thêm Vào Nhóm</button>
  </div>
  </form>
  </div>

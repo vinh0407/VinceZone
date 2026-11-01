@@ -4788,6 +4788,150 @@ input[type="range"] {
   margin: 0;
 }
 
+/* Hai Nút Thao Tác Nổi Bật: Thêm Đoạn Chat & Thêm Nhóm */
+.project-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.btn-action-main {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 8px;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+/* Project Teams Section */
+.project-teams-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.project-teams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.team-card-box {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 0.15s;
+}
+
+.team-card-box:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.team-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.team-name-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.team-count-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  background: #27272a;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+}
+
+.team-members-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.team-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  color: #d4d4d8;
+}
+
+.chip-remove-btn {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.chip-remove-btn:hover {
+  color: #ef4444;
+}
+
+.team-card-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+}
+
+.btn-team-action {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+  border-radius: 6px;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.btn-team-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.btn-team-action.action-chat {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.btn-team-action.action-chat:hover {
+  background: rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+}
+
 /* Responsive adjustments for Projects tab */
 @media (max-width: 900px) {
   .projects-layout {
