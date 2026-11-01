@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VinceZone Studio - Autonomous AI Agent IDE</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div class="studio-app">
+    <!-- Top Header Bar -->
+    <header class="studio-header">
+      <div class="header-left">
+        <div class="app-brand">
+          <span class="brand-logo">VZ</span>
+          <span class="brand-name">STUDIO</span>
+          <span class="brand-tag">AGENT IDE</span>
+        </div>
+
+        <button type="button" id="btn-open-workspace" class="btn-header-action" title="Mở thư mục dự án trên máy">
+          Mở Thư Mục Dự Án
+        </button>
+
+        <div class="workspace-pill" id="workspace-badge" style="display: none;">
+          <span class="pill-dot"></span>
+          <span id="workspace-name-label">Chưa mở dự án</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <!-- AI Model Selector -->
+        <div class="model-picker-container">
+          <label class="model-label">Mô hình AI:</label>
+          <select id="agent-model-select" class="header-select">
+            <option value="kilo-auto/free" selected>kilo-auto/free [FREE]</option>
+            <option value="beam-free">beam-free [OpenCode FREE]</option>
+            <option value="deepseek-v4.1-flash-free">deepseek-v4.1-flash-free [FREE]</option>
+            <option value="glm-5.3-flash-free">glm-5.3-flash-free [FREE]</option>
+            <option value="gemini-1.5-flash-free">gemini-1.5-flash-free [FREE]</option>
+            <option value="cohere/north-mini-code:free">cohere/north-mini-code:free [FREE Code]</option>
+            <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nemotron-3-nano-omni [FREE Vision/Logic]</option>
+            <option value="gpt-4o">gpt-4o (OpenAI)</option>
+            <option value="claude-3-7-sonnet">claude-3-7-sonnet (Anthropic)</option>
+          </select>
+        </div>
+
+        <!-- Autonomy Mode Toggle -->
+        <div class="autonomy-toggle" title="Chế độ Tự do: AI tự động chạy PowerShell, tự tạo và sửa file mà không dừng hỏi">
+          <label>
+            <input type="checkbox" id="chk-full-auto" checked>
+            <span>Tự Do Hoàn Toàn (Full Auto)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="gateway-indicator" id="gateway-status-pill">
+          <span class="status-dot active"></span>
+          <span id="gateway-status-text">Gateway: Online :3000</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main 3-Column Studio Workspace -->
+    <main class="studio-body">
+      <!-- 1. LEFT PANEL: File Tree Explorer -->
+      <aside class="panel-explorer" id="panel-explorer">
+        <div class="panel-title-bar">
+          <span class="panel-title">DỰ ÁN & TẬP TIN</span>
+          <div class="explorer-actions">
+            <button type="button" id="btn-new-file" title="Tạo tệp mới">+</button>
+            <button type="button" id="btn-refresh-tree" title="Làm mới thư mục">↺</button>
+          </div>
+        </div>
+
+        <div class="tree-container" id="tree-container">
+          <div class="empty-tree-notice">
+            <p>Chưa có dự án nào được mở.</p>
+            <button type="button" id="btn-empty-open" class="btn-small-primary">Chọn Thư Mục Dự Án</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 2. CENTER PANEL: Multi-tab Code Editor + Integrated Terminal -->
+      <section class="panel-editor-terminal">
+        <!-- Editor Tabs Bar -->
+        <div class="editor-tabs-bar" id="editor-tabs-bar">
+          <!-- Dynamically populated open tabs -->
+        </div>
+
+        <!-- Code Editor Area -->
+        <div class="editor-workspace" id="editor-workspace">
+          <div class="editor-placeholder" id="editor-placeholder">
+            <h3>VinceZone Autonomous Studio</h3>
+            <p>Mở một file từ cột bên trái hoặc yêu cầu AI Agent ở cột bên phải để tự động phân tích và sửa code dự án.</p>
+            <div class="shortcut-hints">
+              <span>Ctrl + S: Lưu file hiện tại</span>
+              <span>Ctrl + \: Bật/Tắt Terminal</span>
+            </div>
+          </div>
+
+          <div class="editor-active-box" id="editor-active-box" style="display: none;">
+            <div class="editor-line-numbers" id="editor-line-numbers">1</div>
+            <textarea id="code-editor-textarea" spellcheck="false" placeholder="Nội dung file..."></textarea>
+          </div>
+        </div>
+
+        <!-- Integrated Terminal Panel (Collapsible) -->
+        <div class="terminal-panel" id="terminal-panel">
+          <div class="terminal-header">
+            <div class="terminal-tabs">
+              <button type="button" class="term-tab active" data-shell="powershell">PowerShell</button>
+              <button type="button" class="term-tab" data-shell="cmd">Command Prompt (CMD)</button>
+            </div>
+            <div class="terminal-header-actions">
+              <button type="button" id="btn-clear-term" title="Xóa màn hình terminal">Xóa Log</button>
+              <button type="button" id="btn-toggle-term" title="Thu gọn / Mở rộng">Thu Gọn</button>
+            </div>
+          </div>
+
+          <div class="terminal-body" id="terminal-body">
+            <div class="terminal-output" id="terminal-output">
+              <span class="term-line-info">VinceZone Studio Terminal Engine ready. Sẵn sàng thực thi lệnh từ bạn hoặc từ AI Agent.</span>
+            </div>
+            <form id="terminal-input-form" class="terminal-input-row">
+              <span class="term-prompt-symbol">&gt;</span>
+              <input type="text" id="terminal-input" placeholder="Nhập câu lệnh PowerShell/CMD (ví dụ: npm test, git status, dir)..." autocomplete="off">
+              <button type="submit" class="btn-term-run">Chạy</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. RIGHT PANEL: Autonomous AI Agent (Cursor / OpenCode Agent) -->
+      <aside class="panel-agent">
+        <div class="panel-title-bar">
+          <div class="agent-title-group">
+            <span class="panel-title">AI AGENT (AUTONOMOUS CODER)</span>
+            <span class="agent-mode-badge" id="agent-mode-badge">Full Auto</span>
+          </div>
+          <button type="button" id="btn-clear-agent-history" class="btn-icon" title="Làm mới hội thoại">Xóa Lịch Sử</button>
+        </div>
+
+        <!-- Agent Thought Chain & Conversation Feed -->
+        <div class="agent-feed" id="agent-feed">
+          <div class="agent-welcome-card">
+            <h4>AI Agent Sẵn Sàng</h4>
+            <p>Agent có toàn quyền đọc code, sửa file, tạo file và chạy lệnh PowerShell/CMD để tự động sửa lỗi và viết tính năng cho bạn.</p>
+            
+            <div class="agent-preset-chips">
+              <button type="button" class="preset-chip" data-task="Hãy kiểm tra toàn bộ cấu trúc dự án này và cho tôi biết các vấn đề hoặc lỗi tiềm ẩn.">
+                Kiểm tra toàn bộ dự án
+              </button>
+              <button type="button" class="preset-chip" data-task="Chạy lệnh kiểm thử hoặc test suite trong dự án này, nếu có lỗi hãy tự động sửa code cho đến khi test pass.">
+                Chạy test & tự sửa lỗi
+              </button>
+              <button type="button" class="preset-chip" data-task="Refactor và chuẩn hóa code trong dự án theo chuẩn clean code, thêm comment giải thích.">
+                Refactor & Tối ưu code
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent Input Form -->
+        <div class="agent-input-container">
+          <form id="agent-form" class="agent-form">
+            <textarea id="agent-input" rows="3" placeholder="Yêu cầu AI Agent (vd: Sửa lỗi trong file login.js, chạy lệnh npm test và kiểm tra kết quả)..."></textarea>
+            
+            <div class="agent-form-footer">
+              <span class="agent-status-label" id="agent-status-label">Sẵn sàng</span>
+              <div class="agent-btn-group">
+                <button type="button" id="btn-stop-agent" class="btn-stop" style="display: none;">Dừng</button>
+                <button type="submit" id="btn-send-agent" class="btn-primary">Gửi Cho Agent</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

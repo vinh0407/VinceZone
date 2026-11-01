@@ -5,7 +5,29 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "desktop": "electron desktop/main.js",
+    "desktop:dist": "electron-builder --win",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "appId": "com.vincezone.studio",
+    "productName": "VinceZone Studio",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "files": [
+      "desktop/**/*",
+      "server.js",
+      "src/**/*",
+      "public/**/*",
+      "package.json"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -14,5 +36,9 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
   }
 }
