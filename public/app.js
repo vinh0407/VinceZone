@@ -360,6 +360,10 @@ function setupNavigation() {
       // Tự động đóng drawer trên mobile khi chuyển tab
       closeMobileDrawers();
 
+      if (targetTab === 'projects') {
+        loadProjects();
+      }
+
       if (targetTab === 'prompts') {
         renderPrompts();
       }
@@ -4237,3 +4241,815 @@ window.applyAsSystemPrompt = async function(promptText, title) {
 
   showToast(` Đã thiết lập Prompt làm System Prompt cho Playground!`);
 };
+
+// =========================================================================
+// DỰ ÁN & MULTI-AGENT TEAMWORK CLIENT IMPLEMENTATION
+// =========================================================================
+
+const projectsState = {
+  projects: [],
+  activeProjectId: null,
+  activeChatId: null,
+  activeProject: null,
+  activeChat: null,
+  isRunning: false
+};
+
+// 1. Tải danh sách dự án
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    const data = await res.json();
+    projectsState.projects = data.projects || [];
+
+    // Populate model select
+    populateProjectModelSelect();
+
+    // Populate projects dropdown
+    const selectEl = document.getElementById('project-select-dropdown');
+    if (selectEl) {
+      selectEl.innerHTML = '';
+      if (projectsState.projects.length === 0) {
+        selectEl.innerHTML = '<option value="">(Chưa có dự án nào)</option>';
+      } else {
+        projectsState.projects.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.path || 'Local'})`;
+          selectEl.appendChild(opt);
+        });
+      }
+
+      // Restore active project or pick first
+      if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
+        projectsState.activeProjectId = projectsState.projects[0].id;
+      }
+      if (projectsState.activeProjectId) {
+        selectEl.value = projectsState.activeProjectId;
+      }
+    }
+
+    renderActiveProject();
+  } catch (err) {
+    console.error('Lỗi khi tải danh sách dự án:', err);
+    showToast('Lỗi khi tải danh sách dự án: ' + err.message);
+  }
+}
+
+// 2. Điền danh sách Model AI cho Project Workspace
+function populateProjectModelSelect() {
+  const modelSelect = document.getElementById('project-model-select');
+  if (!modelSelect) return;
+
+  const currentVal = modelSelect.value;
+  modelSelect.innerHTML = '';
+
+  const defaultModels = [
+    { id: 'kilo-auto/free', label: 'Kilo Gateway (kilo-auto/free) [FREE]' },
+    { id: 'beam-free', label: 'OpenCode (beam-free) [FREE]' },
+    { id: 'deepseek-v4.1-flash-free', label: 'DeepSeek Flash Free [FREE]' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { id: 'gpt-4o', label: 'OpenAI GPT-4o' },
+    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' }
+  ];
+
+  defaultModels.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.label;
+    modelSelect.appendChild(opt);
+  });
+
+  if (currentVal) {
+    modelSelect.value = currentVal;
+  }
+}
+
+// 3. Render Dự Án Đang Mở
+function renderActiveProject() {
+  const p = projectsState.projects.find(x => x.id === projectsState.activeProjectId);
+  projectsState.activeProject = p || null;
+
+  const nameEl = document.getElementById('active-project-name');
+  const pathEl = document.getElementById('active-project-path');
+  const descEl = document.getElementById('active-project-desc');
+  const termDirEl = document.getElementById('terminal-working-dir');
+  const chatsListEl = document.getElementById('project-chats-list');
+
+  if (!p) {
+    if (nameEl) nameEl.textContent = 'Chưa chọn dự án';
+    if (pathEl) pathEl.textContent = '---';
+    if (descEl) descEl.textContent = 'Hãy bấm "+ Dự Án Mới" để thêm thư mục code trên máy.';
+    if (chatsListEl) chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có cuộc trò chuyện nào.</p>';
+    renderProjectChat(null);
+    return;
+  }
+
+  if (nameEl) nameEl.textContent = p.name;
+  if (pathEl) {
+    pathEl.textContent = p.path;
+    pathEl.title = p.path;
+  }
+  if (descEl) descEl.textContent = p.description || 'Dự án lập trình AI Agent trên máy tính.';
+  if (termDirEl) termDirEl.textContent = p.path;
+
+  // Render danh sách các cuộc trò chuyện trong dự án
+  if (chatsListEl) {
+    chatsListEl.innerHTML = '';
+    const chats = p.chats || [];
+
+    if (chats.length === 0) {
+      chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có chat nào. Bấm "+ Chat Mới" để bắt đầu.</p>';
+    } else {
+      // Pick first chat if none active
+      if (!projectsState.activeChatId || !chats.some(c => c.id === projectsState.activeChatId)) {
+        projectsState.activeChatId = chats[0].id;
+      }
+
+      chats.forEach(c => {
+        const item = document.createElement('div');
+        item.className = `project-chat-item ${c.id === projectsState.activeChatId ? 'active' : ''}`;
+        
+        const modeLabel = c.mode === 'single' ? 'Chat 1-1' : 'Hội Đồng AI';
+        
+        item.innerHTML = `
+          <div class="chat-item-main" onclick="selectProjectChat('${c.id}')">
+            <span class="chat-item-title">${escapeHtml(c.title)}</span>
+            <span class="chat-item-badge">${modeLabel} • ${(c.messages || []).length} tin nhắn</span>
+          </div>
+          <button class="btn-delete-chat" onclick="deleteProjectChat(event, '${c.id}')" title="Xóa đoạn chat này">Xóa</button>
+        `;
+        chatsListEl.appendChild(item);
+      });
+    }
+  }
+
+  // Render chat hiện tại
+  const currentChat = (p.chats || []).find(c => c.id === projectsState.activeChatId);
+  renderProjectChat(currentChat || null);
+}
+
+// 4. Chọn luồng chat trong dự án
+window.selectProjectChat = function(chatId) {
+  projectsState.activeChatId = chatId;
+  // Re-highlight list
+  const chatsListEl = document.getElementById('project-chats-list');
+  if (chatsListEl) {
+    const items = chatsListEl.querySelectorAll('.project-chat-item');
+    items.forEach(el => el.classList.remove('active'));
+  }
+  renderActiveProject();
+};
+
+// 5. Render Nội Dung Cuộc Trò Chuyện & Tin Nhắn
+function renderProjectChat(chat) {
+  projectsState.activeChat = chat;
+  const titleEl = document.getElementById('current-chat-title');
+  const modePillEl = document.getElementById('current-chat-mode-pill');
+  const feedEl = document.getElementById('projects-chat-feed');
+
+  if (!chat || !projectsState.activeProject) {
+    if (titleEl) titleEl.textContent = 'Chưa chọn cuộc trò chuyện';
+    if (modePillEl) modePillEl.style.display = 'none';
+    if (feedEl) feedEl.innerHTML = '';
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = chat.title;
+  if (modePillEl) {
+    modePillEl.style.display = 'inline-block';
+    if (chat.mode === 'single') {
+      modePillEl.className = 'proj-mode-pill mode-single';
+      modePillEl.textContent = 'Chat Riêng (1-1)';
+    } else {
+      modePillEl.className = 'proj-mode-pill mode-team';
+      modePillEl.textContent = 'Hội Đồng AI (Teamwork)';
+    }
+  }
+
+  if (!feedEl) return;
+  feedEl.innerHTML = '';
+
+  const messages = chat.messages || [];
+
+  if (messages.length === 0) {
+    // Welcome & Starter Guide
+    feedEl.innerHTML = `
+      <div class="projects-welcome-card">
+        <h3 class="welcome-title">Không Gian Làm Việc: ${escapeHtml(projectsState.activeProject.name)}</h3>
+        <p class="welcome-desc">
+          ${chat.mode === 'single'
+            ? 'Chế độ Chat 1-1 với AI Agent chuyên trách. Hãy đặt câu hỏi hoặc yêu cầu sửa đoạn mã cụ thể.'
+            : 'Chế độ Hội Đồng AI (Multi-Agent Teamwork): Bạn chỉ cần nêu ý tưởng hoặc đề bài, 4 Agent chuyên trách sẽ tự động thảo luận, phân chia nhiệm vụ theo thế mạnh và cùng nhau viết code, sửa file và kiểm thử terminal.'}
+        </p>
+        
+        <div class="welcome-steps">
+          <div class="step-card">
+            <strong style="color: #60a5fa;">1. ARCHITECT</strong>
+            <span>Đọc ý tưởng, phân tích kiến trúc tổng thể và chia việc cho Coder & Tester.</span>
+          </div>
+          <div class="step-card">
+            <strong style="color: #34d399;">2. CODER</strong>
+            <span>Nhận phân công, viết mã nguồn chi tiết, sửa file và giải quyết logic.</span>
+          </div>
+          <div class="step-card">
+            <strong style="color: #fbbf24;">3. TESTER</strong>
+            <span>Rà soát lỗi, đề xuất lệnh Terminal PowerShell/CMD để test dự án.</span>
+          </div>
+          <div class="step-card">
+            <strong style="color: #a78bfa;">4. REVIEWER</strong>
+            <span>Đánh giá chuẩn code, tối ưu UI/UX và tổng kết báo cáo cho Bạn.</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy kiểm tra cấu trúc toàn bộ dự án này, liệt kê các file chính và đánh giá những điểm có thể tối ưu.')">
+            Kiểm tra cấu trúc dự án
+          </button>
+          <button class="btn-micro-action" onclick="setProjectPrompt('Hãy thiết kế thêm một module mới và viết code chi tiết để tích hợp vào dự án.')">
+            Thiết kế module mới
+          </button>
+          <button class="btn-micro-action" onclick="setProjectPrompt('Dự án đang cần tối ưu hiệu năng và kiểm tra lỗi tiềm ẩn. Nhóm Agent hãy cùng rà soát và fix.')">
+            Tối ưu & Sửa lỗi
+          </button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Render messages
+  messages.forEach(msg => {
+    appendProjectMessageToFeed(msg, feedEl);
+  });
+
+  feedEl.scrollTop = feedEl.scrollHeight;
+}
+
+// 6. Gắn 1 tin nhắn vào Feed
+function appendProjectMessageToFeed(msg, feedEl) {
+  if (!feedEl) feedEl = document.getElementById('projects-chat-feed');
+  if (!feedEl) return;
+
+  const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  if (msg.role === 'user') {
+    const userBox = document.createElement('div');
+    userBox.className = 'project-msg-user';
+    userBox.innerHTML = `
+      <div class="msg-user-header">
+        <span class="msg-user-tag">Ý Tưởng Từ Bạn</span>
+        <span class="msg-timestamp">${timeStr}</span>
+      </div>
+      <div class="msg-user-body">${escapeHtml(msg.content)}</div>
+    `;
+    feedEl.appendChild(userBox);
+  } else {
+    const agentBox = document.createElement('div');
+    agentBox.className = 'project-msg-agent';
+
+    const badge = msg.agentBadge || 'AGENT';
+    let badgeClass = 'badge-coder';
+    if (badge.toUpperCase().includes('ARCH')) badgeClass = 'badge-arch';
+    if (badge.toUpperCase().includes('TEST')) badgeClass = 'badge-tester';
+    if (badge.toUpperCase().includes('REVIEW')) badgeClass = 'badge-reviewer';
+
+    let formattedBody = '';
+    if (window.marked && typeof window.marked.parse === 'function') {
+      try {
+        formattedBody = window.marked.parse(msg.content || '');
+      } catch (e) {
+        formattedBody = `<p>${escapeHtml(msg.content || '')}</p>`;
+      }
+    } else {
+      formattedBody = `<pre style="white-space:pre-wrap;">${escapeHtml(msg.content || '')}</pre>`;
+    }
+
+    agentBox.innerHTML = `
+      <div class="agent-turn-header">
+        <div class="agent-turn-left">
+          <span class="agent-badge ${badgeClass}">${escapeHtml(badge)}</span>
+          <span class="agent-turn-author">${escapeHtml(msg.author || 'AI Agent')}</span>
+        </div>
+        <span class="msg-timestamp">${timeStr}</span>
+      </div>
+      <div class="agent-turn-body">
+        ${formattedBody}
+      </div>
+    `;
+
+    // Scan for code blocks to add "Chạy Lệnh Terminal" buttons
+    const codeBlocks = agentBox.querySelectorAll('pre code');
+    codeBlocks.forEach(codeEl => {
+      const className = codeEl.className || '';
+      const text = codeEl.textContent.trim();
+      
+      // If code block looks like a terminal command or shell
+      if (
+        className.includes('powershell') || 
+        className.includes('cmd') || 
+        className.includes('bash') || 
+        className.includes('sh') ||
+        text.startsWith('npm ') || 
+        text.startsWith('node ') || 
+        text.startsWith('git ') || 
+        text.startsWith('dir') || 
+        text.startsWith('Get-')
+      ) {
+        const runBar = document.createElement('div');
+        runBar.className = 'terminal-run-bar';
+        
+        const runBtn = document.createElement('button');
+        runBtn.className = 'btn-terminal-run';
+        runBtn.textContent = 'Chạy Lệnh Trong Terminal Dự Án';
+        runBtn.onclick = () => {
+          executeInlineTerminalCommand(text, agentBox);
+        };
+
+        runBar.appendChild(runBtn);
+        codeEl.parentElement.after(runBar);
+      }
+    });
+
+    feedEl.appendChild(agentBox);
+  }
+}
+
+// 7. Điền prompt mẫu vào ô chat dự án
+window.setProjectPrompt = function(promptText) {
+  const inputEl = document.getElementById('project-chat-input');
+  if (inputEl) {
+    inputEl.value = promptText;
+    inputEl.focus();
+    inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+};
+
+// 8. Thực thi lệnh terminal từ nút bấm dưới khối mã
+async function executeInlineTerminalCommand(command, containerEl) {
+  const p = projectsState.activeProject;
+  if (!p) {
+    showToast('Vui lòng chọn dự án trước khi chạy lệnh.');
+    return;
+  }
+
+  showToast(`Đang thực thi lệnh trong thư mục dự án: ${command}`);
+
+  try {
+    const res = await fetch(`/api/projects/${p.id}/terminal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, shell: 'powershell' })
+    });
+    const result = await res.json();
+
+    // Render result inline
+    const resBox = document.createElement('div');
+    resBox.className = 'terminal-inline-result';
+    
+    const outputText = result.stdout || result.stderr || '(Lệnh hoàn tất không có output)';
+    const statusColor = result.exitCode === 0 ? '#10b981' : '#ef4444';
+
+    resBox.innerHTML = `
+      <div class="terminal-inline-header">
+        <span>Kết quả Terminal [Exit: ${result.exitCode}] (${result.duration || 0}ms)</span>
+        <span style="color: ${statusColor};">${result.exitCode === 0 ? 'Thành Công' : 'Có Lỗi / Cảnh Báo'}</span>
+      </div>
+      <pre class="terminal-inline-content">${escapeHtml(outputText)}</pre>
+    `;
+
+    containerEl.appendChild(resBox);
+    resBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    showToast('Lỗi khi chạy lệnh terminal: ' + err.message);
+  }
+}
+
+// 9. Gửi Ý Tưởng cho Nhóm Agent (Hội Đồng AI hoặc Single Agent)
+async function sendProjectIdea() {
+  const inputEl = document.getElementById('project-chat-input');
+  const feedEl = document.getElementById('projects-chat-feed');
+  const progressEl = document.getElementById('project-team-progress');
+  const progressTitleEl = document.getElementById('team-progress-title');
+  const modelSelect = document.getElementById('project-model-select');
+
+  if (!inputEl || !projectsState.activeProjectId || !projectsState.activeChatId) {
+    showToast('Vui lòng chọn hoặc tạo dự án và cuộc trò chuyện trước.');
+    return;
+  }
+
+  const content = inputEl.value.trim();
+  if (!content) return;
+
+  if (projectsState.isRunning) {
+    showToast('Nhóm Agent đang thảo luận và xử lý. Vui lòng đợi trong giây lát...');
+    return;
+  }
+
+  // Clear input
+  inputEl.value = '';
+  projectsState.isRunning = true;
+
+  // Render user msg immediately
+  const tempUserMsg = {
+    role: 'user',
+    author: 'Người Dùng (Ý Tưởng)',
+    content,
+    timestamp: new Date().toISOString()
+  };
+  appendProjectMessageToFeed(tempUserMsg, feedEl);
+  feedEl.scrollTop = feedEl.scrollHeight;
+
+  // Show progress indicator
+  if (progressEl) {
+    progressEl.style.display = 'flex';
+    if (progressTitleEl) {
+      progressTitleEl.textContent = projectsState.activeChat?.mode === 'single'
+        ? 'Agent đang phân tích và xử lý yêu cầu...'
+        : 'Hội đồng AI đang họp & phối hợp làm việc (Kiến Trúc Sư -> Coder -> Tester -> Reviewer)...';
+    }
+  }
+
+  const selectedModel = modelSelect ? modelSelect.value : 'kilo-auto/free';
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content,
+        model: selectedModel,
+        isStream: false
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới nhóm Agent.');
+    }
+
+    // Append generated agent messages to feed
+    const messages = data.messages || [];
+    messages.forEach((msg, idx) => {
+      setTimeout(() => {
+        appendProjectMessageToFeed(msg, feedEl);
+        feedEl.scrollTop = feedEl.scrollHeight;
+      }, idx * 150);
+    });
+
+    // Update state
+    if (projectsState.activeChat) {
+      projectsState.activeChat.messages = projectsState.activeChat.messages || [];
+      projectsState.activeChat.messages.push(tempUserMsg, ...messages);
+    }
+  } catch (err) {
+    console.error('Lỗi khi gửi ý tưởng tới Agent:', err);
+    showToast('Lỗi: ' + err.message);
+  } finally {
+    projectsState.isRunning = false;
+    if (progressEl) progressEl.style.display = 'none';
+  }
+}
+
+// 10. Xóa cuộc trò chuyện trong dự án
+window.deleteProjectChat = async function(event, chatId) {
+  event.stopPropagation();
+  if (!confirm('Bạn có chắc chắn muốn xóa cuộc trò chuyện này?')) return;
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chatId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Đã xóa cuộc trò chuyện.');
+      if (projectsState.activeProject) {
+        projectsState.activeProject.chats = (projectsState.activeProject.chats || []).filter(c => c.id !== chatId);
+        if (projectsState.activeChatId === chatId) {
+          projectsState.activeChatId = projectsState.activeProject.chats[0]?.id || null;
+        }
+      }
+      renderActiveProject();
+    }
+  } catch (err) {
+    showToast('Lỗi khi xóa cuộc trò chuyện: ' + err.message);
+  }
+};
+
+// 11. Xóa sạch tin nhắn trong chat hiện tại
+async function clearCurrentProjectChat() {
+  if (!projectsState.activeProjectId || !projectsState.activeChatId) return;
+  if (!confirm('Bạn có chắc muốn xóa sạch lịch sử tin nhắn trong cuộc trò chuyện này?')) return;
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/clear`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Đã làm sạch cuộc trò chuyện.');
+      if (projectsState.activeChat) {
+        projectsState.activeChat.messages = [];
+      }
+      renderProjectChat(projectsState.activeChat);
+    }
+  } catch (err) {
+    showToast('Lỗi khi làm sạch chat: ' + err.message);
+  }
+}
+
+// 12. Xóa toàn bộ dự án
+async function deleteActiveProject() {
+  const p = projectsState.activeProject;
+  if (!p) return;
+  if (!confirm(`Bạn có chắc muốn xóa dự án "${p.name}" khỏi danh sách? Thư mục trên máy sẽ không bị ảnh hưởng.`)) return;
+
+  try {
+    const res = await fetch(`/api/projects/${p.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Đã xóa dự án thành công.');
+      projectsState.activeProjectId = null;
+      projectsState.activeChatId = null;
+      loadProjects();
+    }
+  } catch (err) {
+    showToast('Lỗi khi xóa dự án: ' + err.message);
+  }
+}
+
+// 13. Khởi tạo tất cả Event Listeners cho Projects tab
+function initProjectsEventListeners() {
+  // Switch Project Dropdown
+  const selectDropdown = document.getElementById('project-select-dropdown');
+  if (selectDropdown) {
+    selectDropdown.addEventListener('change', (e) => {
+      projectsState.activeProjectId = e.target.value;
+      projectsState.activeChatId = null;
+      renderActiveProject();
+    });
+  }
+
+  // Copy Project Path
+  const btnCopyPath = document.getElementById('btn-copy-project-path');
+  if (btnCopyPath) {
+    btnCopyPath.addEventListener('click', () => {
+      const pathText = document.getElementById('active-project-path')?.textContent;
+      if (pathText && navigator.clipboard) {
+        navigator.clipboard.writeText(pathText);
+        showToast('Đã chép đường dẫn dự án vào bộ nhớ tạm.');
+      }
+    });
+  }
+
+  // Delete project button
+  const btnDeleteProj = document.getElementById('btn-delete-project');
+  if (btnDeleteProj) {
+    btnDeleteProj.addEventListener('click', deleteActiveProject);
+  }
+
+  // Clear chat button
+  const btnClearChat = document.getElementById('btn-clear-project-chat');
+  if (btnClearChat) {
+    btnClearChat.addEventListener('click', clearCurrentProjectChat);
+  }
+
+  // Send Idea button & Enter key
+  const btnSendIdea = document.getElementById('btn-send-project-idea');
+  if (btnSendIdea) {
+    btnSendIdea.addEventListener('click', sendProjectIdea);
+  }
+  const chatInput = document.getElementById('project-chat-input');
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendProjectIdea();
+      }
+    });
+  }
+
+  // Toggle Terminal Drawer
+  const btnToggleTerm = document.getElementById('btn-toggle-terminal');
+  const termDrawer = document.getElementById('project-terminal-drawer');
+  const btnCloseTerm = document.getElementById('btn-close-terminal-drawer');
+  if (btnToggleTerm && termDrawer) {
+    btnToggleTerm.addEventListener('click', () => {
+      termDrawer.style.display = termDrawer.style.display === 'none' ? 'flex' : 'none';
+      if (termDrawer.style.display === 'flex') {
+        document.getElementById('terminal-cmd-input')?.focus();
+      }
+    });
+  }
+  if (btnCloseTerm && termDrawer) {
+    btnCloseTerm.addEventListener('click', () => {
+      termDrawer.style.display = 'none';
+    });
+  }
+
+  // Execute Terminal in Drawer
+  const btnExecTerm = document.getElementById('btn-execute-terminal');
+  const termCmdInput = document.getElementById('terminal-cmd-input');
+  const termOutputPre = document.getElementById('terminal-output-pre');
+  const termShellSelect = document.getElementById('terminal-shell-select');
+
+  const executeDrawerTerminal = async () => {
+    const cmd = termCmdInput?.value?.trim();
+    if (!cmd || !projectsState.activeProjectId) return;
+
+    if (termOutputPre) termOutputPre.textContent = `> ${cmd}\nĐang thực thi...`;
+
+    try {
+      const shell = termShellSelect ? termShellSelect.value : 'powershell';
+      const res = await fetch(`/api/projects/${projectsState.activeProjectId}/terminal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd, shell })
+      });
+      const data = await res.json();
+      const out = data.stdout || data.stderr || '(Không có output)';
+      if (termOutputPre) {
+        termOutputPre.textContent = `> ${cmd} (Exit Code: ${data.exitCode}, ${data.duration || 0}ms)\n\n${out}`;
+      }
+    } catch (err) {
+      if (termOutputPre) termOutputPre.textContent = `Lỗi thực thi: ${err.message}`;
+    }
+  };
+
+  if (btnExecTerm) btnExecTerm.addEventListener('click', executeDrawerTerminal);
+  if (termCmdInput) {
+    termCmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') executeDrawerTerminal();
+    });
+  }
+
+  // Toggle Files Drawer
+  const btnViewFiles = document.getElementById('btn-view-files');
+  const filesDrawer = document.getElementById('project-files-drawer');
+  const btnCloseFiles = document.getElementById('btn-close-files-drawer');
+  const filesTreeEl = document.getElementById('project-files-tree');
+
+  if (btnViewFiles && filesDrawer) {
+    btnViewFiles.addEventListener('click', async () => {
+      filesDrawer.style.display = filesDrawer.style.display === 'none' ? 'block' : 'none';
+      if (filesDrawer.style.display === 'block' && projectsState.activeProjectId) {
+        if (filesTreeEl) filesTreeEl.innerHTML = 'Đang đọc thư mục dự án...';
+        try {
+          const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`);
+          const data = await res.json();
+          if (data.success && filesTreeEl) {
+            filesTreeEl.innerHTML = '';
+            const renderNodes = (nodes, container) => {
+              nodes.forEach(n => {
+                const nodeEl = document.createElement('div');
+                nodeEl.className = `file-tree-item ${n.type === 'directory' ? 'is-dir' : 'is-file'}`;
+                nodeEl.textContent = `${n.type === 'directory' ? '[DIR] ' : '      '}${n.name}`;
+                container.appendChild(nodeEl);
+                if (n.children && n.children.length > 0) {
+                  const subContainer = document.createElement('div');
+                  subContainer.style.paddingLeft = '1rem';
+                  container.appendChild(subContainer);
+                  renderNodes(n.children, subContainer);
+                }
+              });
+            };
+            renderNodes(data.files || [], filesTreeEl);
+          }
+        } catch (e) {
+          if (filesTreeEl) filesTreeEl.textContent = 'Lỗi khi đọc file: ' + e.message;
+        }
+      }
+    });
+  }
+  if (btnCloseFiles && filesDrawer) {
+    btnCloseFiles.addEventListener('click', () => {
+      filesDrawer.style.display = 'none';
+    });
+  }
+
+  // Modal: Create Project
+  const modalCreateProj = document.getElementById('modal-create-project');
+  const btnOpenCreateProj = document.getElementById('btn-open-create-project');
+  const btnCloseCreateProj = document.getElementById('btn-close-create-project-modal');
+  const btnCancelCreateProj = document.getElementById('btn-cancel-create-project');
+  const formCreateProj = document.getElementById('create-project-form');
+
+  if (btnOpenCreateProj && modalCreateProj) {
+    btnOpenCreateProj.addEventListener('click', () => {
+      modalCreateProj.classList.add('open');
+      document.getElementById('new-project-name')?.focus();
+    });
+  }
+  const closeCreateProjModal = () => modalCreateProj?.classList.remove('open');
+  if (btnCloseCreateProj) btnCloseCreateProj.addEventListener('click', closeCreateProjModal);
+  if (btnCancelCreateProj) btnCancelCreateProj.addEventListener('click', closeCreateProjModal);
+
+  if (formCreateProj) {
+    formCreateProj.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('new-project-name')?.value.trim();
+      const projPath = document.getElementById('new-project-path')?.value.trim();
+      const desc = document.getElementById('new-project-desc')?.value.trim();
+
+      if (!name) return;
+
+      try {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, path: projPath, description: desc })
+        });
+        const data = await res.json();
+        if (data.success && data.project) {
+          showToast(`Đã thêm dự án "${name}" thành công!`);
+          closeCreateProjModal();
+          formCreateProj.reset();
+          projectsState.activeProjectId = data.project.id;
+          projectsState.activeChatId = null;
+          loadProjects();
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Không thể tạo dự án'));
+        }
+      } catch (err) {
+        showToast('Lỗi tạo dự án: ' + err.message);
+      }
+    });
+  }
+
+  // Modal: Create Project Chat
+  const modalNewChat = document.getElementById('modal-new-project-chat');
+  const btnOpenNewChat = document.getElementById('btn-new-project-chat');
+  const btnCloseNewChat = document.getElementById('btn-close-new-project-chat-modal');
+  const btnCancelNewChat = document.getElementById('btn-cancel-new-project-chat');
+  const formNewChat = document.getElementById('new-project-chat-form');
+
+  if (btnOpenNewChat && modalNewChat) {
+    btnOpenNewChat.addEventListener('click', () => {
+      modalNewChat.classList.add('open');
+      document.getElementById('new-chat-title-input')?.focus();
+    });
+  }
+  const closeNewChatModal = () => modalNewChat?.classList.remove('open');
+  if (btnCloseNewChat) btnCloseNewChat.addEventListener('click', closeNewChatModal);
+  if (btnCancelNewChat) btnCancelNewChat.addEventListener('click', closeNewChatModal);
+
+  // Toggle single agent select visibility in modal
+  const modeRadios = document.querySelectorAll('input[name="chat-mode-choice"]');
+  const singlePickerGroup = document.getElementById('single-agent-picker-group');
+  modeRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (singlePickerGroup) {
+        singlePickerGroup.style.display = e.target.value === 'single' ? 'block' : 'none';
+      }
+    });
+  });
+
+  if (formNewChat) {
+    formNewChat.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('new-chat-title-input')?.value.trim();
+      const modeChoice = document.querySelector('input[name="chat-mode-choice"]:checked')?.value || 'team';
+      const targetAgentId = modeChoice === 'single' ? document.getElementById('single-agent-select')?.value : null;
+
+      if (!title || !projectsState.activeProjectId) return;
+
+      try {
+        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            mode: modeChoice,
+            targetAgentId
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.chat) {
+          showToast(`Đã tạo cuộc trò chuyện "${title}"!`);
+          closeNewChatModal();
+          formNewChat.reset();
+          if (singlePickerGroup) singlePickerGroup.style.display = 'none';
+
+          if (projectsState.activeProject) {
+            projectsState.activeProject.chats = projectsState.activeProject.chats || [];
+            projectsState.activeProject.chats.unshift(data.chat);
+          }
+          projectsState.activeChatId = data.chat.id;
+          renderActiveProject();
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Không thể tạo cuộc trò chuyện'));
+        }
+      } catch (err) {
+        showToast('Lỗi tạo chat: ' + err.message);
+      }
+    });
+  }
+}
+
+// Tự động khởi chạy Projects listeners khi app load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initProjectsEventListeners);
+} else {
+  initProjectsEventListeners();
+}
+

@@ -824,6 +824,265 @@ const Store = {
     if (lines.length === 0) return '';
 
     return `\n\n### [THÔNG TIN & QUY TẮC NGƯỜI DÙNG BẮT BUỘC - USER PROFILE DIRECTIVES]\n(Đây là hồ sơ cá nhân và các nguyên tắc bắt buộc do người dùng cấu hình vĩnh viễn trong Cài Đặt. Mọi mô hình AI BẮT BUỘC phải ghi nhớ chính xác và tuân thủ tuyệt đối, không được tự ý thay đổi hoặc làm sai lệch):\n${lines.join('\n')}\n### [HẾT PHẦN HỒ SƠ NGƯỜI DÙNG - HÃY TUÂN THỦ CHÍNH XÁC KHI TRẢ LỜI]\n`;
+  },
+
+  // ----------------------------------------------------
+  // 12. DỰ ÁN & HỆ THỐNG MULTI-AGENT TEAMWORK
+  // ----------------------------------------------------
+
+  getDefaultProjectAgents() {
+    return [
+      {
+        id: 'agent_architect',
+        role: 'Kiến Trúc Sư Hệ Thống',
+        title: 'Architect & Planner',
+        badge: 'ARCHITECT',
+        color: '#3b82f6',
+        strengths: 'Phân tích ý tưởng, thiết kế kiến trúc hệ thống, chia nhỏ bài toán (Task Decomposition), điều phối công việc cho Coder và Tester theo thế mạnh.',
+        systemPrompt: `Bạn là Kiến Trúc Sư Phần Mềm Cấp Cao & Trưởng Nhóm Kỹ Thuật (Senior Software Architect & Team Lead).
+Điểm mạnh cốt lõi của bạn:
+1. Đọc và phân tích ý tưởng/yêu cầu của Người Dùng (Tech Lead / Product Owner).
+2. Thiết kế kiến trúc tổng thể, xác định các module, file mã nguồn cần tạo hoặc sửa đổi.
+3. Chia nhỏ nhiệm vụ kỹ thuật rõ ràng, phân công cụ thể cho [CODER] triển khai code và [TESTER] kiểm tra.
+4. Trình bày ngắn gọn, sắc bén, có cấu trúc bullet point rõ ràng, không vòng vo dài dòng.`
+      },
+      {
+        id: 'agent_coder',
+        role: 'Lập Trình Viên Fullstack',
+        title: 'Senior Developer & Coder',
+        badge: 'CODER',
+        color: '#10b981',
+        strengths: 'Triển khai mã nguồn chi tiết, viết và sửa file code, giải quyết logic thuật toán, fix bugs, tối ưu hiệu năng.',
+        systemPrompt: `Bạn là Kỹ Sư Lập Trình Fullstack Cấp Cao (Senior Fullstack Developer & Code Fixer).
+Điểm mạnh cốt lõi của bạn:
+1. Tiếp nhận phân công từ [ARCHITECT] hoặc yêu cầu trực tiếp từ Người Dùng.
+2. Viết code hoàn chỉnh, chính xác, sạch đẹp, đúng chuẩn sản xuất (production-ready).
+3. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh để thay thế/thêm mới.
+4. Bàn giao cho [TESTER] kiểm tra và chạy lệnh terminal nếu cần.`
+      },
+      {
+        id: 'agent_tester',
+        role: 'Kỹ Sư Kiểm Thử & Terminal Debugger',
+        title: 'QA Engineer & Terminal Debugger',
+        badge: 'TESTER',
+        color: '#f59e0b',
+        strengths: 'Kiểm thử cú pháp/logic, chạy lệnh PowerShell/CMD trong terminal, phát hiện lỗi biên dịch/runtime, debug stack trace.',
+        systemPrompt: `Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).
+Điểm mạnh cốt lõi của bạn:
+1. Đánh giá mã nguồn do [CODER] vừa viết, tìm các trường hợp biên, lỗi tiềm ẩn, lỗi bảo mật hoặc hiệu năng.
+2. Đề xuất hoặc thực thi các lệnh Terminal (PowerShell / CMD / Node / NPM) để kiểm tra dự án.
+3. Nếu phát hiện lỗi hoặc cảnh báo, chỉ rõ nguyên nhân và yêu cầu [CODER] fix lại ngay lập tức.
+4. Xác nhận tình trạng hoạt động (Pass/Fail) rõ ràng.`
+      },
+      {
+        id: 'agent_reviewer',
+        role: 'Chuyên Gia Tối Ưu & Reviewer',
+        title: 'Code Reviewer & UI/UX Specialist',
+        badge: 'REVIEWER',
+        color: '#8b5cf6',
+        strengths: 'Đánh giá chất lượng toàn diện, chuẩn hóa clean code, tối ưu trải nghiệm UI/UX, tổng kết báo cáo cho Người Dùng.',
+        systemPrompt: `Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).
+Điểm mạnh cốt lõi của bạn:
+1. Đánh giá tính thẩm mỹ, công thái học (ergonomics) của giao diện người dùng nếu có phần UI.
+2. Rà soát chuẩn mực clean code, loại bỏ mã dư thừa, đảm bảo tính dễ đọc và bảo trì lâu dài.
+3. Tổng kết toàn bộ kết quả mà các Agent trong nhóm đã cùng nhau hoàn thành, gửi báo cáo ngắn gọn, súc tích cho Người Dùng.`
+      }
+    ];
+  },
+
+  getProjects(userId = null) {
+    const data = readDb();
+    data.projects = data.projects || [];
+
+    // Nếu chưa có dự án nào, khởi tạo dự án mặc định trỏ tới workspace hiện tại
+    if (data.projects.length === 0) {
+      const defaultWorkspacePath = path.resolve(__dirname, '..');
+      const defaultProject = {
+        id: 'proj_' + crypto.randomBytes(6).toString('hex'),
+        userId: userId || null,
+        name: 'VinceZone Workspace',
+        path: defaultWorkspacePath,
+        description: 'Dự án chính đang mở trên máy tính. Hỗ trợ chạy terminal, sửa mã nguồn và điều phối nhóm Agent.',
+        agents: this.getDefaultProjectAgents(),
+        chats: [
+          {
+            id: 'chat_' + crypto.randomBytes(6).toString('hex'),
+            title: 'Hội đồng AI - Lập trình & Nâng cấp',
+            mode: 'team',
+            targetAgentId: null,
+            activeAgentIds: ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+            createdAt: new Date().toISOString(),
+            messages: []
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      data.projects.push(defaultProject);
+      writeDb(data);
+    }
+
+    if (userId) {
+      return data.projects.filter(p => !p.userId || p.userId === userId);
+    }
+    return data.projects;
+  },
+
+  getProjectById(projectId) {
+    if (!projectId) return null;
+    const data = readDb();
+    data.projects = data.projects || [];
+    return data.projects.find(p => p.id === projectId) || null;
+  },
+
+  createProject({ name, path: projectPath, description, agents, userId = null }) {
+    if (!name || !name.trim()) {
+      throw new Error('Tên dự án không được để trống.');
+    }
+    const data = readDb();
+    data.projects = data.projects || [];
+
+    const newProject = {
+      id: 'proj_' + crypto.randomBytes(6).toString('hex'),
+      userId: userId || null,
+      name: name.trim(),
+      path: (projectPath || '').trim() || path.resolve(__dirname, '..'),
+      description: (description || '').trim() || 'Dự án lập trình với AI Agent.',
+      agents: (agents && agents.length > 0) ? agents : this.getDefaultProjectAgents(),
+      chats: [
+        {
+          id: 'chat_' + crypto.randomBytes(6).toString('hex'),
+          title: 'Hội đồng AI - Thảo luận & Fix code',
+          mode: 'team',
+          targetAgentId: null,
+          activeAgentIds: ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+          createdAt: new Date().toISOString(),
+          messages: []
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    data.projects.unshift(newProject);
+    writeDb(data);
+    return newProject;
+  },
+
+  updateProject(projectId, updateData) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const index = data.projects.findIndex(p => p.id === projectId);
+    if (index === -1) throw new Error('Không tìm thấy dự án.');
+
+    const current = data.projects[index];
+    data.projects[index] = {
+      ...current,
+      name: updateData.name !== undefined ? updateData.name.trim() : current.name,
+      path: updateData.path !== undefined ? updateData.path.trim() : current.path,
+      description: updateData.description !== undefined ? updateData.description.trim() : current.description,
+      agents: updateData.agents !== undefined ? updateData.agents : current.agents,
+      updatedAt: new Date().toISOString()
+    };
+
+    writeDb(data);
+    return data.projects[index];
+  },
+
+  deleteProject(projectId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    data.projects = data.projects.filter(p => p.id !== projectId);
+    writeDb(data);
+    return true;
+  },
+
+  getProjectChats(projectId) {
+    const project = this.getProjectById(projectId);
+    if (!project) return [];
+    return project.chats || [];
+  },
+
+  getProjectChat(projectId, chatId) {
+    const project = this.getProjectById(projectId);
+    if (!project) return null;
+    return (project.chats || []).find(c => c.id === chatId) || null;
+  },
+
+  createProjectChat(projectId, { title, mode = 'team', targetAgentId = null, activeAgentIds = null }) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const index = data.projects.findIndex(p => p.id === projectId);
+    if (index === -1) throw new Error('Không tìm thấy dự án.');
+
+    const newChat = {
+      id: 'chat_' + crypto.randomBytes(6).toString('hex'),
+      title: (title || '').trim() || (mode === 'team' ? 'Hội đồng AI mới' : 'Trò chuyện Agent'),
+      mode: mode === 'single' ? 'single' : 'team',
+      targetAgentId: targetAgentId || null,
+      activeAgentIds: activeAgentIds || ['agent_architect', 'agent_coder', 'agent_tester', 'agent_reviewer'],
+      createdAt: new Date().toISOString(),
+      messages: []
+    };
+
+    data.projects[index].chats = data.projects[index].chats || [];
+    data.projects[index].chats.unshift(newChat);
+    data.projects[index].updatedAt = new Date().toISOString();
+    writeDb(data);
+    return newChat;
+  },
+
+  deleteProjectChat(projectId, chatId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const index = data.projects.findIndex(p => p.id === projectId);
+    if (index === -1) throw new Error('Không tìm thấy dự án.');
+
+    data.projects[index].chats = (data.projects[index].chats || []).filter(c => c.id !== chatId);
+    data.projects[index].updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
+  },
+
+  saveProjectChatMessage(projectId, chatId, message) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const projIdx = data.projects.findIndex(p => p.id === projectId);
+    if (projIdx === -1) throw new Error('Không tìm thấy dự án.');
+
+    const chatIdx = (data.projects[projIdx].chats || []).findIndex(c => c.id === chatId);
+    if (chatIdx === -1) throw new Error('Không tìm thấy cuộc trò chuyện trong dự án.');
+
+    const msgWithMeta = {
+      id: 'msg_' + crypto.randomBytes(6).toString('hex'),
+      role: message.role || 'assistant',
+      author: message.author || (message.role === 'user' ? 'Người Dùng' : 'AI'),
+      agentId: message.agentId || null,
+      agentBadge: message.agentBadge || null,
+      agentColor: message.agentColor || null,
+      content: message.content || '',
+      timestamp: new Date().toISOString()
+    };
+
+    data.projects[projIdx].chats[chatIdx].messages.push(msgWithMeta);
+    data.projects[projIdx].updatedAt = new Date().toISOString();
+    writeDb(data);
+    return msgWithMeta;
+  },
+
+  clearProjectChatMessages(projectId, chatId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const projIdx = data.projects.findIndex(p => p.id === projectId);
+    if (projIdx === -1) throw new Error('Không tìm thấy dự án.');
+
+    const chatIdx = (data.projects[projIdx].chats || []).findIndex(c => c.id === chatId);
+    if (chatIdx === -1) throw new Error('Không tìm thấy cuộc trò chuyện trong dự án.');
+
+    data.projects[projIdx].chats[chatIdx].messages = [];
+    data.projects[projIdx].updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
   }
 };
 

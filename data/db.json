@@ -140,6 +140,66 @@
   ],
   "logs": [
     {
+      "id": "log_99a5776a0842",
+      "timestamp": "2026-11-01T22:59:30.560Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 6782,
+      "stream": false,
+      "tokens": 3048
+    },
+    {
+      "id": "log_fa2ba2e20337",
+      "timestamp": "2026-11-01T22:59:23.765Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 6052,
+      "stream": false,
+      "tokens": 1384
+    },
+    {
+      "id": "log_8f9ac7817cd2",
+      "timestamp": "2026-11-01T22:59:17.700Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 1468,
+      "stream": false,
+      "tokens": 1549
+    },
+    {
+      "id": "log_ef0c1f29f9cd",
+      "timestamp": "2026-11-01T22:59:16.222Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 8008,
+      "stream": false,
+      "tokens": 1594
+    },
+    {
+      "id": "log_1198392fa971",
+      "timestamp": "2026-11-01T22:52:39.401Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "kilo-auto/free",
+      "provider": "Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 1729,
+      "stream": false,
+      "tokens": 410
+    },
+    {
       "id": "log_eaa9bf05deed",
       "timestamp": "2026-10-30T15:30:21.202Z",
       "endpoint": "/v1/chat/completions",
@@ -519,5 +579,70 @@
       "createdAt": "2026-10-30T14:44:54.085Z"
     }
   ],
-  "chatSessions": []
+  "chatSessions": [],
+  "projects": [
+    {
+      "id": "proj_39abb3edc621",
+      "userId": null,
+      "name": "VinceZone Workspace",
+      "path": "C:\\VisualStudio\\VinceZone",
+      "description": "Dự án chính đang mở trên máy tính. Hỗ trợ chạy terminal, sửa mã nguồn và điều phối nhóm Agent.",
+      "agents": [
+        {
+          "id": "agent_architect",
+          "role": "Kiến Trúc Sư Hệ Thống",
+          "title": "Architect & Planner",
+          "badge": "ARCHITECT",
+          "color": "#3b82f6",
+          "strengths": "Phân tích ý tưởng, thiết kế kiến trúc hệ thống, chia nhỏ bài toán (Task Decomposition), điều phối công việc cho Coder và Tester theo thế mạnh.",
+          "systemPrompt": "Bạn là Kiến Trúc Sư Phần Mềm Cấp Cao & Trưởng Nhóm Kỹ Thuật (Senior Software Architect & Team Lead).\nĐiểm mạnh cốt lõi của bạn:\n1. Đọc và phân tích ý tưởng/yêu cầu của Người Dùng (Tech Lead / Product Owner).\n2. Thiết kế kiến trúc tổng thể, xác định các module, file mã nguồn cần tạo hoặc sửa đổi.\n3. Chia nhỏ nhiệm vụ kỹ thuật rõ ràng, phân công cụ thể cho [CODER] triển khai code và [TESTER] kiểm tra.\n4. Trình bày ngắn gọn, sắc bén, có cấu trúc bullet point rõ ràng, không vòng vo dài dòng."
+        },
+        {
+          "id": "agent_coder",
+          "role": "Lập Trình Viên Fullstack",
+          "title": "Senior Developer & Coder",
+          "badge": "CODER",
+          "color": "#10b981",
+          "strengths": "Triển khai mã nguồn chi tiết, viết và sửa file code, giải quyết logic thuật toán, fix bugs, tối ưu hiệu năng.",
+          "systemPrompt": "Bạn là Kỹ Sư Lập Trình Fullstack Cấp Cao (Senior Fullstack Developer & Code Fixer).\nĐiểm mạnh cốt lõi của bạn:\n1. Tiếp nhận phân công từ [ARCHITECT] hoặc yêu cầu trực tiếp từ Người Dùng.\n2. Viết code hoàn chỉnh, chính xác, sạch đẹp, đúng chuẩn sản xuất (production-ready).\n3. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh để thay thế/thêm mới.\n4. Bàn giao cho [TESTER] kiểm tra và chạy lệnh terminal nếu cần."
+        },
+        {
+          "id": "agent_tester",
+          "role": "Kỹ Sư Kiểm Thử & Terminal Debugger",
+          "title": "QA Engineer & Terminal Debugger",
+          "badge": "TESTER",
+          "color": "#f59e0b",
+          "strengths": "Kiểm thử cú pháp/logic, chạy lệnh PowerShell/CMD trong terminal, phát hiện lỗi biên dịch/runtime, debug stack trace.",
+          "systemPrompt": "Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).\nĐiểm mạnh cốt lõi của bạn:\n1. Đánh giá mã nguồn do [CODER] vừa viết, tìm các trường hợp biên, lỗi tiềm ẩn, lỗi bảo mật hoặc hiệu năng.\n2. Đề xuất hoặc thực thi các lệnh Terminal (PowerShell / CMD / Node / NPM) để kiểm tra dự án.\n3. Nếu phát hiện lỗi hoặc cảnh báo, chỉ rõ nguyên nhân và yêu cầu [CODER] fix lại ngay lập tức.\n4. Xác nhận tình trạng hoạt động (Pass/Fail) rõ ràng."
+        },
+        {
+          "id": "agent_reviewer",
+          "role": "Chuyên Gia Tối Ưu & Reviewer",
+          "title": "Code Reviewer & UI/UX Specialist",
+          "badge": "REVIEWER",
+          "color": "#8b5cf6",
+          "strengths": "Đánh giá chất lượng toàn diện, chuẩn hóa clean code, tối ưu trải nghiệm UI/UX, tổng kết báo cáo cho Người Dùng.",
+          "systemPrompt": "Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).\nĐiểm mạnh cốt lõi của bạn:\n1. Đánh giá tính thẩm mỹ, công thái học (ergonomics) của giao diện người dùng nếu có phần UI.\n2. Rà soát chuẩn mực clean code, loại bỏ mã dư thừa, đảm bảo tính dễ đọc và bảo trì lâu dài.\n3. Tổng kết toàn bộ kết quả mà các Agent trong nhóm đã cùng nhau hoàn thành, gửi báo cáo ngắn gọn, súc tích cho Người Dùng."
+        }
+      ],
+      "chats": [
+        {
+          "id": "chat_c58555e2e048",
+          "title": "Hội đồng AI - Lập trình & Nâng cấp",
+          "mode": "team",
+          "targetAgentId": null,
+          "activeAgentIds": [
+            "agent_architect",
+            "agent_coder",
+            "agent_tester",
+            "agent_reviewer"
+          ],
+          "createdAt": "2026-11-01T22:52:11.527Z",
+          "messages": []
+        }
+      ],
+      "createdAt": "2026-11-01T22:52:11.527Z",
+      "updatedAt": "2026-11-01T22:59:45.271Z"
+    }
+  ]
 }
