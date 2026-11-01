@@ -16,8 +16,17 @@ function getAdapter(type) {
   }
 }
 
-async function routeChatRequest({ model, messages, temperature, max_tokens, stream, res, clientIp = '127.0.0.1', userId = null }) {
-  const match = Store.findProviderForModel(model);
+async function routeChatRequest({ model, messages, temperature, max_tokens, stream, res, clientIp = '127.0.0.1', userId = null, providerId = null }) {
+  let match = null;
+  if (providerId) {
+    const prov = Store.getProviderById(providerId);
+    if (prov) {
+      match = { provider: prov, model: model || (prov.models && prov.models[0]) };
+    }
+  }
+  if (!match) {
+    match = Store.findProviderForModel(model);
+  }
   const startTime = Date.now();
 
   if (!match) {

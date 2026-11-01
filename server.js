@@ -532,7 +532,7 @@ app.delete('/api/chats', (req, res) => {
 // 9. DỰ ÁN & MULTI-AGENT TEAMWORK SYSTEM APIS
 // ----------------------------------------------------
 
-async function callInternalAI({ model, messages, temperature = 0.7 }) {
+async function callInternalAI({ model, messages, temperature = 0.7, providerId = null }) {
   let selectedModel = model;
   if (!selectedModel) {
     const providers = Store.getProviders().filter(p => p.enabled && p.apiKey);
@@ -547,7 +547,8 @@ async function callInternalAI({ model, messages, temperature = 0.7 }) {
     model: selectedModel,
     messages,
     temperature,
-    stream: false
+    stream: false,
+    providerId
   });
   return result?.choices?.[0]?.message?.content || '';
 }
@@ -741,8 +742,8 @@ app.post('/api/projects/:id/chats', (req, res) => {
 // Thêm Agent vào đoạn chat (Dấu cộng nhỏ góc phải, tối đa 5 agent)
 app.post('/api/projects/:id/chats/:chatId/agents', (req, res) => {
   try {
-    const { category, model, name } = req.body;
-    const agent = Store.addAgentToChat(req.params.id, req.params.chatId, { category, model, name });
+    const { category, model, name, providerId, providerName } = req.body;
+    const agent = Store.addAgentToChat(req.params.id, req.params.chatId, { category, model, name, providerId, providerName });
     res.json({ success: true, agent });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1033,7 +1034,11 @@ Hãy đóng góp ý kiến, code hoặc kiểm thử dựa đúng trên THẾ M�
         });
       }
 
-      const agentResponse = await callInternalAI({ model: memberModel, messages: memberMessages });
+      const agentResponse = await callInternalAI({ 
+        model: memberModel, 
+        messages: memberMessages, 
+        providerId: member.providerId 
+      });
 
       const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',

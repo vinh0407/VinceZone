@@ -1267,7 +1267,7 @@ const Store = {
     return newChat;
   },
 
-  addAgentToChat(projectId, chatId, { category, model, name }) {
+  addAgentToChat(projectId, chatId, { category, model, name, providerId, providerName }) {
     const data = readDb();
     data.projects = data.projects || [];
     const proj = data.projects.find(p => p.id === projectId);
@@ -1291,6 +1291,8 @@ const Store = {
       name: (name || '').trim() || roleConfig.roleTitle.split('(')[0].trim(),
       badge: roleConfig.badge,
       color: roleConfig.color,
+      providerId: providerId || null,
+      providerName: providerName || null,
       model: model || roleConfig.defaultModel,
       systemPrompt: roleConfig.systemPrompt
     };

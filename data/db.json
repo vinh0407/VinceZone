@@ -653,22 +653,11 @@
           "teamId": "team_25e0a91c",
           "createdAt": "2026-11-01T23:46:25.095Z",
           "messages": [],
-          "agents": [
-            {
-              "id": "ag_edf9186c",
-              "category": "reviewer",
-              "roleTitle": "Review & Tối Ưu UI/UX (Reviewer & Quality)",
-              "name": "Review & Tối Ưu UI/UX",
-              "badge": "REVIEWER",
-              "color": "#8b5cf6",
-              "model": "nemotron-3.5-lightning-free",
-              "systemPrompt": "Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).\nĐiểm mạnh cốt lõi:\n1. Đánh giá tính thẩm mỹ và tiện ích của giao diện người dùng.\n2. Rà soát chuẩn clean code, loại bỏ mã dư thừa.\n3. Tổng kết báo cáo hoàn thiện gửi cho Người Dùng."
-            }
-          ]
+          "agents": []
         }
       ],
       "createdAt": "2026-11-01T23:46:25.095Z",
-      "updatedAt": "2026-11-01T23:48:31.088Z"
+      "updatedAt": "2026-11-01T23:55:32.153Z"
     }
   ]
 }

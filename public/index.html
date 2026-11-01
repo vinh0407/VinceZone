@@ -1293,49 +1293,59 @@
  </div>
  </div>
 
- <!-- MODAL: THÊM THÀNH VIÊN VÀO NHÓM (TỐI ĐA 5 AGENT) -->
- <div id="modal-add-team-member" class="modal-overlay">
- <div class="modal-content">
- <div class="modal-header">
- <h3 id="modal-add-member-title">Thêm Thành Viên Vào Nhóm</h3>
- <button id="btn-close-add-member-modal" class="btn-close">&times;</button>
- </div>
- <form id="add-team-member-form">
- <input type="hidden" id="target-team-id">
- 
- <div class="form-group">
- <label>Lĩnh Vực Chuyên Môn Của AI</label>
- <select id="member-category-select">
- <option value="coder">Lập Trình (Coder / Developer) - Viết mã & Sửa lỗi</option>
- <option value="tester">Kiểm Thử (Tester / Terminal Debugger) - Chạy terminal & Bắt lỗi</option>
- <option value="architect">Kiến Trúc (Architect / Planner) - Phân tích & Chia việc</option>
- <option value="reviewer">Review & UI/UX (Reviewer & Quality) - Chuẩn code & Giao diện</option>
- <option value="devops">DevOps & Terminal (DevOps / System) - Môi trường & Build</option>
- </select>
- </div>
+ <!-- MODAL: THÊM AGENT VÀO HỘI ĐỒNG (CHIA THEO PROVIDER & MODEL, TỐI ĐA 5 AGENT) -->
+  <div id="modal-add-agent-council" class="modal-overlay">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 id="modal-council-title">Thêm Agent Vào Hội Đồng Code & Fix Lỗi</h3>
+        <button type="button" id="btn-close-council-modal" class="btn-close">&times;</button>
+      </div>
+      <form id="add-agent-council-form">
+        <!-- 1. VỊ TRÍ / VAI TRÒ CHUYÊN MÔN -->
+        <div class="form-group">
+          <label>1. Chọn Vị Trí / Vai Trò Trong Hội Đồng:</label>
+          <select id="council-role-category" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+            <option value="coder" selected>💻 Lập Trình Viên (Coder) - Viết mã, sửa code, giải thuật, cập nhật files</option>
+            <option value="tester">🧪 Kỹ Sư Kiểm Thử (Tester) - Chạy lệnh PowerShell/CMD, phát hiện lỗi</option>
+            <option value="architect">🏛️ Kiến Trúc Sư (Architect) - Phân tích ý tưởng, thiết kế hệ thống, chia việc</option>
+            <option value="reviewer">🧐 Chuyên Gia Review (Reviewer) - Chuẩn hóa Clean Code, bảo mật, tối ưu UI/UX</option>
+            <option value="devops">🚀 Kỹ Sư DevOps (DevOps) - Quản lý dependencies, scripts build & deploy</option>
+          </select>
+        </div>
 
- <div class="form-group">
- <label>Mô Hình AI Giỏi Nhất Cho Lĩnh Vực Này (Đã tuyển chọn & sắp xếp)</label>
- <select id="member-model-select">
- <!-- Populated dynamically based on category -->
- </select>
- <small class="field-hint" id="member-role-desc">Chuyên gia viết code, triển khai tính năng và fix bugs.</small>
- </div>
+        <!-- 2. TÊN HIỂN THỊ -->
+        <div class="form-group">
+          <label>2. Tên Hiển Thị Của Agent (Tùy chỉnh):</label>
+          <input type="text" id="council-agent-name-input" placeholder="Ví dụ: Lập Trình Viên, Senior Frontend, Tester Python..." required style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+        </div>
 
- <div class="form-group">
- <label>Tên Gọi / Vai Trò Của Thành Viên (Tùy chỉnh)</label>
- <input type="text" id="member-name-input" placeholder="Ví dụ: Lập Trình Viên Cấp Cao, Kỹ Sư Kiểm Thử..." required>
- </div>
+        <!-- 3. CHỌN NHÀ CUNG CẤP (PROVIDER) -->
+        <div class="form-group">
+          <label>3. Chọn Nhà Cung Cấp AI (Provider):</label>
+          <select id="council-provider-select" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+            <!-- Populated dynamically from /api/providers -->
+          </select>
+          <small class="field-hint" id="council-provider-desc">Chọn nhà cung cấp để tải danh sách các Model tương ứng.</small>
+        </div>
 
- <div class="modal-actions">
- <button type="button" id="btn-cancel-add-member" class="btn-ghost">Hủy</button>
- <button type="submit" class="btn-primary">Thêm Vào Nhóm</button>
- </div>
- </form>
- </div>
- </div>
+        <!-- 4. CHỌN MODEL TỪ PROVIDER ĐÓ -->
+        <div class="form-group">
+          <label>4. Chọn Mô Hình AI (Model) Của Provider Này:</label>
+          <select id="council-model-select" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+            <!-- Populated dynamically based on selected provider -->
+          </select>
+          <small class="field-hint" id="council-model-desc">Mô hình AI vận hành cho vị trí chuyên môn này.</small>
+        </div>
 
- <!-- TOAST NOTIFICATION CONTAINER -->
+        <div class="modal-actions">
+          <button type="button" id="btn-cancel-council-modal" class="btn-ghost">Hủy</button>
+          <button type="submit" class="btn-primary" id="btn-submit-council-agent">Thêm Vào Hội Đồng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
  <div id="toast-container" class="toast-container"></div>
 
  <!-- MOBILE BOTTOM NAVIGATION (Hiện trên điện thoại) -->
