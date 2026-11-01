@@ -1245,7 +1245,7 @@ const Store = {
     return (project.chats || []).find(c => c.id === chatId) || null;
   },
 
-  createProjectChat(projectId, { title, type = 'direct', teamId = null }) {
+  createProjectChat(projectId, { title, model = 'kilo-auto/free', agents = [] }) {
     const data = readDb();
     data.projects = data.projects || [];
     const index = data.projects.findIndex(p => p.id === projectId);
@@ -1253,9 +1253,9 @@ const Store = {
 
     const newChat = {
       id: 'chat_' + crypto.randomBytes(6).toString('hex'),
-      title: (title || '').trim() || (type === 'team' ? 'Cuộc họp Nhóm AI' : 'Đoạn chat mới'),
-      type: type === 'team' ? 'team' : 'direct',
-      teamId: teamId || null,
+      title: (title || '').trim() || 'Đoạn chat mới',
+      model: model || 'kilo-auto/free',
+      agents: Array.isArray(agents) ? agents.slice(0, 5) : [],
       createdAt: new Date().toISOString(),
       messages: []
     };
@@ -1265,6 +1265,70 @@ const Store = {
     data.projects[index].updatedAt = new Date().toISOString();
     writeDb(data);
     return newChat;
+  },
+
+  addAgentToChat(projectId, chatId, { category, model, name }) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+
+    const chat = (proj.chats || []).find(c => c.id === chatId);
+    if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
+
+    chat.agents = chat.agents || [];
+    if (chat.agents.length >= 5) {
+      throw new Error('Mỗi đoạn chat chỉ có thể thêm tối đa 5 Agent.');
+    }
+
+    const catalog = this.getSpecializedCatalog();
+    const roleConfig = catalog[category] || catalog.coder;
+
+    const newAgent = {
+      id: 'ag_' + crypto.randomBytes(4).toString('hex'),
+      category: roleConfig.category,
+      roleTitle: roleConfig.roleTitle,
+      name: (name || '').trim() || roleConfig.roleTitle.split('(')[0].trim(),
+      badge: roleConfig.badge,
+      color: roleConfig.color,
+      model: model || roleConfig.defaultModel,
+      systemPrompt: roleConfig.systemPrompt
+    };
+
+    chat.agents.push(newAgent);
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return newAgent;
+  },
+
+  removeAgentFromChat(projectId, chatId, agentId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+
+    const chat = (proj.chats || []).find(c => c.id === chatId);
+    if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
+
+    chat.agents = (chat.agents || []).filter(a => a.id !== agentId);
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
+  },
+
+  updateProjectChatModel(projectId, chatId, model) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+
+    const chat = (proj.chats || []).find(c => c.id === chatId);
+    if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
+
+    chat.model = model;
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return true;
   },
 
   deleteProjectChat(projectId, chatId) {

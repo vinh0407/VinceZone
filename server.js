@@ -727,15 +727,67 @@ app.get('/api/projects/:id/chats', (req, res) => {
 // 9.10 Tạo chat mới trong dự án
 app.post('/api/projects/:id/chats', (req, res) => {
   try {
-    const { title, type, teamId } = req.body;
+    const { title, model } = req.body;
     const newChat = Store.createProjectChat(req.params.id, {
       title,
-      type: type || (teamId ? 'team' : 'direct'),
-      teamId
+      model: model || 'kilo-auto/free'
     });
     res.json({ success: true, chat: newChat });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Thêm Agent vào đoạn chat (Dấu cộng nhỏ góc phải, tối đa 5 agent)
+app.post('/api/projects/:id/chats/:chatId/agents', (req, res) => {
+  try {
+    const { category, model, name } = req.body;
+    const agent = Store.addAgentToChat(req.params.id, req.params.chatId, { category, model, name });
+    res.json({ success: true, agent });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Xóa Agent khỏi đoạn chat
+app.delete('/api/projects/:id/chats/:chatId/agents/:agentId', (req, res) => {
+  try {
+    Store.removeAgentFromChat(req.params.id, req.params.chatId, req.params.agentId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Đổi model AI chính của đoạn chat
+app.patch('/api/projects/:id/chats/:chatId/model', (req, res) => {
+  try {
+    Store.updateProjectChatModel(req.params.id, req.params.chatId, req.body.model);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Tạo File hoặc Thư mục trong dự án
+app.post('/api/projects/:id/files', (req, res) => {
+  try {
+    const project = Store.getProjectById(req.params.id);
+    if (!project || !project.path) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
+    const { name, type = 'file', content = '' } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Vui lòng nhập tên tập tin hoặc thư mục.' });
+    
+    const targetPath = path.join(project.path, name.trim());
+    if (type === 'folder') {
+      if (!fs.existsSync(targetPath)) fs.mkdirSync(targetPath, { recursive: true });
+    } else {
+      const parentDir = path.dirname(targetPath);
+      if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
+      fs.writeFileSync(targetPath, content || '', 'utf8');
+    }
+    res.json({ success: true, path: targetPath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -879,19 +931,21 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 `;
 
     // -------------------------------------------------------------------------
-    // KIỂM TRA CHẾ ĐỘ: CHAT VỚI NHÓM HAY CHAT ĐƠN
+    // KIỂM TRA CHẾ ĐỘ: NHIỀU AGENT (TỐI ĐA 5) HAY CHAT ĐƠN
     // -------------------------------------------------------------------------
-    let targetTeam = null;
-    if (chat.type === 'team' || chat.teamId) {
-      targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
-    }
-
-    const teamMembers = (targetTeam && targetTeam.members && targetTeam.members.length > 0)
-      ? targetTeam.members.slice(0, 5) // Tối đa nhiều nhất 5 agent
+    let teamMembers = (chat.agents && chat.agents.length > 0)
+      ? chat.agents.slice(0, 5)
       : null;
 
-    // A. NẾU LÀ CHAT ĐƠN (DIRECT CHAT HOẶC NHÓM CHƯA CÓ THÀNH VIÊN)
-    if (!teamMembers || chat.type === 'direct') {
+    if (!teamMembers && (chat.type === 'team' || chat.teamId)) {
+      const targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
+      if (targetTeam && targetTeam.members && targetTeam.members.length > 0) {
+        teamMembers = targetTeam.members.slice(0, 5);
+      }
+    }
+
+    // A. NẾU LÀ CHAT ĐƠN (CHƯA THÊM AGENT NÀO)
+    if (!teamMembers || teamMembers.length === 0) {
       sendEvent({ type: 'agent_start', role: 'AI Assistant', badge: 'AI' });
 
       const messages = [

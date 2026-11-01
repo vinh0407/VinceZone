@@ -349,124 +349,208 @@
  </section>
 
 <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
- <section id="tab-projects" class="tab-pane active">
- <div class="projects-layout">
-   <!-- 1. Left Sidebar: Quản lý Dự Án & Các Luồng Chat -->
-   <aside class="projects-sidebar">
-      <!-- Nút Thêm Dự Án duy nhất trên đầu -->
+  <section id="tab-projects" class="tab-pane active">
+  <div class="projects-layout">
+    <!-- 1. Left Sidebar: Quản lý Dự Án, Cây Tập Tin & Cây Đoạn Chat -->
+    <aside class="projects-sidebar">
+      <!-- Nút Thêm Dự Án trên đầu -->
       <div class="projects-sidebar-top">
         <button id="btn-open-create-project" class="btn-primary btn-add-project-hero" title="Thêm dự án mới trên máy tính">
           + Thêm Dự Án
         </button>
       </div>
 
-      <!-- Danh Sách Các Dự Án -->
+      <!-- Danh Sách Các Dự Án Hiện Có -->
       <div class="projects-list-section">
         <div class="section-label-row">
-          <span class="section-label-text">DANH SÁCH DỰ ÁN</span>
+          <span class="section-label-text">DỰ ÁN HIỆN CÓ</span>
         </div>
         <div id="projects-list-items" class="projects-list-items">
           <!-- Populated dynamically -->
         </div>
       </div>
 
-      <!-- Khu Vực Thao Tác Của Dự Án Đang Chọn (Hiện khi nhấp vào dự án) -->
+      <!-- Khu Vực Chi Tiết Của Dự Án Đang Mở -->
       <div id="active-project-workspace" class="active-project-workspace" style="display: none;">
-        <!-- Hai Nút Thao Tác Chính: Thêm Đoạn Chat & Thêm Nhóm -->
-        <div class="project-actions-grid">
-          <button id="btn-open-new-chat-modal" class="btn-primary btn-action-main">+ Thêm Đoạn Chat</button>
-          <button id="btn-open-create-team-modal" class="btn-secondary btn-action-main">+ Thêm Nhóm</button>
-        </div>
-
-        <!-- Danh Sách Nhóm Agent Trong Dự Án (Tối đa 5 agent) -->
-        <div class="project-teams-section">
-          <div class="section-label-row">
-            <span class="section-label-text">NHÓM AGENT (TỐI ĐA 5 AGENT)</span>
+        <!-- Header thông tin dự án đang mở -->
+        <div class="active-project-info-card">
+          <div class="active-proj-info-text">
+            <strong id="active-project-name" class="proj-name-title">Dự án</strong>
+            <span id="active-project-path" class="proj-path-subtitle" title="Thư mục">C:\...</span>
           </div>
-          <div class="project-teams-list" id="project-teams-list">
-            <!-- Populated dynamically -->
+          <div class="active-proj-actions">
+            <button id="btn-toggle-terminal" class="btn-micro" title="Mở Terminal trong thư mục dự án">Terminal</button>
+            <button id="btn-delete-active-project" class="btn-micro action-danger" title="Xóa dự án khỏi danh sách">Xóa</button>
           </div>
         </div>
 
-        <!-- Danh Sách Đoạn Chat Trong Dự Án -->
+        <!-- CÂY THƯ MỤC & TẬP TIN DỰ ÁN -->
+        <div class="project-files-tree-section">
+          <div class="section-label-row tree-header-row">
+            <span class="section-label-text">TẬP TIN DỰ ÁN</span>
+            <div class="tree-header-actions">
+              <button type="button" id="btn-tree-new-file" class="btn-tree-icon" title="Tạo tệp mới">+ File</button>
+              <button type="button" id="btn-tree-new-folder" class="btn-tree-icon" title="Tạo thư mục mới">+ Folder</button>
+              <button type="button" id="btn-refresh-files" class="btn-tree-icon" title="Làm mới cây tập tin">↺</button>
+            </div>
+          </div>
+          <div id="project-files-list" class="project-files-tree-list">
+            <span class="tree-loading-text">Đang tải tập tin dự án...</span>
+          </div>
+        </div>
+
+        <!-- CÂY DANH SÁCH CÁC ĐOẠN CHAT -->
         <div class="project-chats-section">
-          <div class="section-label-row">
+          <div class="section-label-row chat-header-row">
             <span class="section-label-text">CÁC ĐOẠN CHAT</span>
+            <button type="button" id="btn-open-new-chat-modal" class="btn-small-primary" title="Thêm đoạn chat mới">+ Thêm Đoạn Chat</button>
           </div>
-          <div class="project-chats-list" id="project-chats-list">
+          <div id="project-chats-list" class="project-chats-list">
             <!-- Populated dynamically -->
           </div>
         </div>
       </div>
     </aside>
 
-   <!-- 2. Main Workspace: Chat & Teamwork Execution Canvas -->
-   <main class="projects-main">
-     <!-- Embedded Terminal Drawer (Toggleable) -->
-     <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
-       <div class="terminal-drawer-header">
-         <div class="terminal-title-row">
-           <span class="term-dot dot-red"></span>
-           <span class="term-dot dot-yellow"></span>
-           <span class="term-dot dot-green"></span>
-           <span class="terminal-title-text">Terminal Dự Án (PowerShell / CMD)</span>
-           <span id="terminal-working-dir" class="terminal-dir-pill">...</span>
-         </div>
-         <button id="btn-close-terminal-drawer" class="btn-micro" title="Đóng terminal">Đóng</button>
-       </div>
-       <div class="terminal-cmd-bar">
-         <select id="terminal-shell-select" class="terminal-shell-select">
-           <option value="powershell">PowerShell</option>
-           <option value="cmd">CMD</option>
-         </select>
-         <input type="text" id="terminal-cmd-input" class="terminal-cmd-input" placeholder="Nhập lệnh (vd: git status, npm test, dir, node -v)...">
-         <button id="btn-execute-terminal" class="btn-primary btn-small">Chạy Lệnh</button>
-       </div>
-       <pre id="terminal-output-pre" class="terminal-output-pre">Sẵn sàng thực thi lệnh trong thư mục dự án.</pre>
-     </div>
+    <!-- 2. Main Workspace: Chat Canvas -->
+    <main class="projects-main">
+      <!-- Chat Canvas Top Bar: Tiêu đề chat & Góc phải có DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5 AGENT) -->
+      <div class="project-chat-topbar" id="project-chat-topbar" style="display: none;">
+        <div class="chat-topbar-left">
+          <h4 id="project-chat-title" class="chat-title-heading">Đoạn Chat</h4>
+          <!-- Model Selector cho đoạn chat (giống playground) -->
+          <div class="chat-model-badge-box">
+            <span class="badge-label-micro">AI:</span>
+            <select id="chat-active-model-select" class="chat-model-dropdown" title="Đổi AI Model cho đoạn chat này">
+              <!-- Dynamically populated models -->
+            </select>
+          </div>
+        </div>
 
-     <!-- File Browser Drawer (Toggleable) -->
-     <div class="project-files-drawer" id="project-files-drawer" style="display: none;">
-       <div class="terminal-drawer-header">
-         <span class="terminal-title-text">Danh Sách Files & Thư Mục Dự Án</span>
-         <button id="btn-close-files-drawer" class="btn-micro" title="Đóng danh sách files">Đóng</button>
-       </div>
-       <div id="project-files-tree" class="project-files-tree">
-         Đang tải cây thư mục...
-       </div>
-     </div>
+        <!-- GÓC PHẢI: AGENT BAR & DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5) -->
+        <div class="chat-topbar-right">
+          <div class="chat-agents-pills-row" id="chat-agents-pills-row">
+            <!-- Chips of active agents in this chat -->
+          </div>
+          <button type="button" id="btn-add-agent-plus" class="btn-add-agent-plus" title="Thêm Agent vào đoạn chat này (Tối đa 5 Agent)">
+            <span class="plus-icon">+</span>
+            <span class="plus-label">Agent</span>
+          </button>
+        </div>
+      </div>
 
-     <!-- Live Multi-Agent Orchestration Status Indicator -->
-     <div id="project-team-progress" class="project-team-progress" style="display: none;">
-       <div class="team-progress-spinner"></div>
-       <div class="team-progress-info">
-         <strong id="team-progress-title">Hội đồng AI đang họp & phối hợp làm việc...</strong>
-         <span id="team-progress-sub">Kiến trúc sư -> Coder -> Tester -> Reviewer</span>
-       </div>
-     </div>
+      <!-- Popover Menu khi bấm dấu cộng nhỏ (+) thêm Agent -->
+      <div id="agent-role-popover" class="agent-role-popover" style="display: none;">
+        <div class="popover-header">
+          <span>Thêm Agent Vào Đoạn Chat (Tối đa 5)</span>
+          <button type="button" id="btn-close-agent-popover" class="btn-micro">&times;</button>
+        </div>
+        <div class="popover-roles-list">
+          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('coder')">
+            <span class="agent-badge badge-coder">CODER</span>
+            <div class="role-item-info">
+              <strong>Lập Trình Viên</strong>
+              <small>Viết mã nguồn, sửa file, fix bugs (Cohere / Qwen)</small>
+            </div>
+          </button>
+          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('tester')">
+            <span class="agent-badge badge-tester">TESTER</span>
+            <div class="role-item-info">
+              <strong>Kiểm Thử Viên</strong>
+              <small>Chạy PowerShell/CMD, test kết quả (Nemotron Logic)</small>
+            </div>
+          </button>
+          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('architect')">
+            <span class="agent-badge badge-arch">ARCHITECT</span>
+            <div class="role-item-info">
+              <strong>Kiến Trúc Sư</strong>
+              <small>Hoạch định hệ thống, phân chia nhiệm vụ (Kilo Auto)</small>
+            </div>
+          </button>
+          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('reviewer')">
+            <span class="agent-badge badge-reviewer">REVIEWER</span>
+            <div class="role-item-info">
+              <strong>Chuyên Gia Review</strong>
+              <small>Soát chuẩn Clean Code, bảo mật, UI/UX (Gemini Flash)</small>
+            </div>
+          </button>
+          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('devops')">
+            <span class="agent-badge badge-arch">DEVOPS</span>
+            <div class="role-item-info">
+              <strong>DevOps & Triển Khai</strong>
+              <small>Cấu hình dependencies, scripts build & run (DeepSeek Flash)</small>
+            </div>
+          </button>
+        </div>
+      </div>
 
-     <!-- Messages Canvas -->
-     <div class="projects-chat-feed" id="projects-chat-feed">
-       <!-- Empty state or messages populated dynamically -->
-     </div>
+      <!-- Embedded Terminal Drawer -->
+      <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
+        <div class="terminal-drawer-header">
+          <div class="terminal-title-row">
+            <span class="term-dot dot-red"></span>
+            <span class="term-dot dot-yellow"></span>
+            <span class="term-dot dot-green"></span>
+            <span class="terminal-title-text">Terminal Dự Án (PowerShell / CMD)</span>
+          </div>
+          <button id="btn-close-terminal-drawer" class="btn-micro" title="Đóng terminal">Đóng</button>
+        </div>
+        <div class="terminal-cmd-bar">
+          <select id="terminal-shell-select" class="terminal-shell-select">
+            <option value="powershell">PowerShell</option>
+            <option value="cmd">CMD</option>
+          </select>
+          <input type="text" id="terminal-cmd-input" class="terminal-cmd-input" placeholder="Nhập lệnh (vd: git status, dir, npm test)...">
+          <button id="btn-execute-terminal" class="btn-primary btn-small">Chạy</button>
+        </div>
+        <pre id="terminal-output-pre" class="terminal-output-pre">Sẵn sàng thực thi lệnh trong thư mục dự án.</pre>
+      </div>
 
-     <!-- Chat Input Area -->
-     <div class="projects-chat-composer">
-       <div class="composer-capsule">
-         <textarea id="project-chat-input" class="project-chat-textarea" rows="2" placeholder="Nêu ý tưởng hoặc yêu cầu nâng cấp/sửa lỗi dự án... Các Agent sẽ tự thảo luận, chia việc và cùng nhau code & fix."></textarea>
-         <button id="btn-send-project-idea" class="btn-primary btn-send-idea">
-           <span>Gửi Ý Tưởng</span>
-         </button>
-       </div>
-       <div class="composer-hint-row">
-         <span>Mẹo: Bạn chỉ cần nêu mục tiêu hoặc ý tưởng, Kiến Trúc Sư sẽ tự chia việc, Coder sẽ viết mã, Tester sẽ chạy lệnh terminal và Reviewer sẽ hoàn thiện.</span>
-       </div>
-     </div>
-   </main>
- </div>
- </section>
+      <!-- Live Agent Orchestration Progress Indicator -->
+      <div id="project-team-progress" class="project-team-progress" style="display: none;">
+        <div class="team-progress-spinner"></div>
+        <div class="team-progress-info">
+          <strong id="team-progress-title">Agent đang suy nghĩ và làm việc...</strong>
+          <span id="team-progress-sub">Đang phân tích code và thực thi</span>
+        </div>
+      </div>
 
- <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
+      <!-- Messages Canvas: Pure and Clean! -->
+      <div class="projects-chat-feed" id="projects-chat-feed">
+        <div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án để bắt đầu.</div>
+      </div>
+
+      <!-- Chat Input Area with Attachments (File, Image, Paste) -->
+      <div class="projects-chat-composer">
+        <!-- Attached Files & Images Preview Bar -->
+        <div id="project-attachments-bar" class="project-attachments-bar" style="display: none;"></div>
+
+        <div class="composer-capsule">
+          <div class="composer-toolbar-left">
+            <button type="button" id="btn-project-attach-file" class="btn-attach-icon" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
+              📎
+            </button>
+            <button type="button" id="btn-project-attach-image" class="btn-attach-icon" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
+              🖼️
+            </button>
+            <input type="file" id="project-file-input" style="display: none;" multiple>
+            <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
+          </div>
+
+          <textarea id="project-chat-input" class="composer-textarea" rows="2" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)"></textarea>
+
+          <div class="composer-toolbar-right">
+            <button id="btn-send-project-idea" class="btn-primary btn-send-idea">
+              <span>Gửi</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  </section>
+
+  <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
  <section id="tab-prompts" class="tab-pane">
  <div class="prompts-container">
  <div class="pane-header">
@@ -1108,83 +1192,84 @@
  </div>
 
  <!-- MODAL: TẠO DỰ ÁN MỚI -->
- <div id="modal-create-project" class="modal-overlay">
- <div class="modal-content">
- <div class="modal-header">
- <h3>Thêm Dự Án Mới Trên Máy Tính</h3>
- <button id="btn-close-create-project-modal" class="btn-close">&times;</button>
- </div>
- <form id="create-project-form">
- <div class="form-group">
- <label>Tên Dự Án</label>
- <input type="text" id="new-project-name" placeholder="Ví dụ: E-Commerce Store, AI Backend, Tools..." required>
- </div>
- <div class="form-group">
- <label>Đường Dẫn Thư Mục Trên Máy (Thư mục làm việc)</label>
- <input type="text" id="new-project-path" placeholder="C:\VisualStudio\MyProject hoặc ./my-app" required>
- <small class="field-hint">Agent sẽ đọc, sửa file và chạy lệnh PowerShell/CMD trực tiếp trong thư mục này.</small>
- </div>
- <div class="form-group">
- <label>Mô Tả Mục Tiêu / Bộ Công Nghệ (Tech Stack)</label>
- <textarea id="new-project-desc" rows="3" placeholder="Ví dụ: Ứng dụng Node.js Express, giao diện HTML/CSS/JS, MongoDB... Cần tối ưu hiệu năng và bổ sung các API quản lý."></textarea>
- </div>
- <div class="modal-actions">
- <button type="button" id="btn-cancel-create-project" class="btn-ghost">Hủy</button>
- <button type="submit" class="btn-primary">Tạo Dự Án</button>
- </div>
- </form>
- </div>
- </div>
+  <div id="modal-create-project" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Thêm Dự Án Mới Trên Máy Tính</h3>
+        <button id="btn-close-create-project-modal" class="btn-close">&times;</button>
+      </div>
+      <form id="create-project-form">
+        <div class="form-group">
+          <label>Chọn Thư Mục Dự Án Trên Máy Tính:</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="new-project-path-input" placeholder="Ví dụ: C:\VisualStudio\MyProject" required style="flex: 1;">
+            <button type="button" id="btn-browse-folder" class="btn-secondary" style="white-space: nowrap;">Chọn Folder</button>
+          </div>
+          <input type="file" id="folder-picker-hidden" webkitdirectory directory style="display: none;">
+          <small class="field-hint">Bấm "Chọn Folder" để chọn thư mục trên máy hoặc dán trực tiếp đường dẫn.</small>
+        </div>
 
- <!-- MODAL: TẠO ĐOẠN CHAT MỚI TRONG DỰ ÁN -->
- <div id="modal-new-project-chat" class="modal-overlay">
- <div class="modal-content">
- <div class="modal-header">
- <h3>Tạo Đoạn Chat Mới Trong Dự Án</h3>
- <button id="btn-close-new-project-chat-modal" class="btn-close">&times;</button>
- </div>
- <form id="new-project-chat-form">
- <div class="form-group">
- <label>Tiêu Đề Đoạn Chat</label>
- <input type="text" id="new-chat-title-input" placeholder="Ví dụ: Fix lỗi đăng nhập, Tối ưu database, Viết tính năng..." required>
- </div>
- 
- <div class="form-group">
- <label>Hình Thức Làm Việc</label>
- <div class="mode-select-grid">
- <label class="mode-card-radio">
- <input type="radio" name="chat-mode-choice" value="team" checked>
- <div class="mode-card-inner">
- <strong>Chat Với Nhóm Agent</strong>
- <p>Các thành viên trong nhóm sẽ cùng nhau thảo luận, phân chia việc và hỗ trợ bạn.</p>
- </div>
- </label>
- <label class="mode-card-radio">
- <input type="radio" name="chat-mode-choice" value="direct">
- <div class="mode-card-inner">
- <strong>Chat Đơn Trực Tiếp</strong>
- <p>Hỏi đáp hoặc code nhanh 1-1 với một Model AI độc lập.</p>
- </div>
- </label>
- </div>
- </div>
+        <div class="form-group">
+          <label>Tên Dự Án:</label>
+          <input type="text" id="new-project-name-input" placeholder="Ví dụ: MyProject" required>
+        </div>
 
- <div class="form-group" id="chat-team-picker-group">
- <label>Chọn Nhóm Agent Thực Hiện:</label>
- <select id="chat-team-select">
- <!-- Populated dynamically -->
- </select>
- </div>
+        <div class="form-group">
+          <label>Mô Tả Mục Tiêu Dự Án (Tùy chọn):</label>
+          <input type="text" id="new-project-desc-input" placeholder="Ví dụ: Dự án web bán hàng NodeJS React">
+        </div>
 
- <div class="modal-actions">
- <button type="button" id="btn-cancel-new-project-chat" class="btn-ghost">Hủy</button>
- <button type="submit" class="btn-primary">Bắt Đầu Trò Chuyện</button>
- </div>
- </form>
- </div>
- </div>
+        <div class="modal-actions">
+          <button type="button" id="btn-cancel-create-project" class="btn-ghost">Hủy</button>
+          <button type="submit" class="btn-primary">Xác Nhận & Thêm Dự Án</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
- <!-- MODAL: TẠO NHÓM AGENT MỚI -->
+  <!-- MODAL: TẠO ĐOẠN CHAT MỚI TRONG DỰ ÁN -->
+  <div id="modal-new-project-chat" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Thêm Đoạn Chat Mới</h3>
+        <button id="btn-close-new-project-chat-modal" class="btn-close">&times;</button>
+      </div>
+      <form id="new-project-chat-form">
+        <div class="form-group">
+          <label>Tên Đoạn Chat:</label>
+          <input type="text" id="new-chat-title-input" placeholder="Ví dụ: Lập trình tính năng, Fix bug giao diện..." required>
+        </div>
+
+        <div class="form-group">
+          <label>Chọn AI Cho Đoạn Chat (Giống Playground):</label>
+          <select id="new-chat-model-select" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+            <optgroup label="Miễn Phí (FREE)">
+              <option value="kilo-auto/free" selected>kilo-auto/free [Kilo Gateway Auto FREE]</option>
+              <option value="beam-free">beam-free [OpenCode FREE]</option>
+              <option value="deepseek-v4.1-flash-free">deepseek-v4.1-flash-free [DeepSeek FREE]</option>
+              <option value="cohere/north-mini-code:free">cohere/north-mini-code:free [Code FREE]</option>
+              <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nemotron-3-nano-omni [Reasoning/Logic FREE]</option>
+              <option value="gemini-1.5-flash-free">gemini-1.5-flash-free [Google FREE]</option>
+            </optgroup>
+            <optgroup label="Mô Hình Tiêu Chuẩn & Cao Cấp">
+              <option value="gpt-4o">gpt-4o (OpenAI)</option>
+              <option value="gpt-4o-mini">gpt-4o-mini (OpenAI)</option>
+              <option value="claude-3-7-sonnet">claude-3-7-sonnet (Anthropic)</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
+            </optgroup>
+          </select>
+          <small class="field-hint">Sau khi tạo, bạn có thể bấm dấu cộng (+) nhỏ ở góc phải khung chat để thêm tối đa 5 Agent cùng làm việc.</small>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="btn-cancel-new-project-chat" class="btn-ghost">Hủy</button>
+          <button type="submit" class="btn-primary">Tạo Đoạn Chat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: TẠO NHÓM AGENT MỚI -->
  <div id="modal-create-team" class="modal-overlay">
  <div class="modal-content">
  <div class="modal-header">

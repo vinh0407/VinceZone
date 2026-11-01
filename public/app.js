@@ -4247,7 +4247,7 @@ async function loadProjects() {
     const data = await res.json();
     projectsState.projects = data.projects || [];
 
-    // Auto-select first project if none selected
+    // Tự động chọn dự án đầu tiên nếu chưa chọn
     if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
       projectsState.activeProjectId = projectsState.projects[0].id;
     }
@@ -4288,7 +4288,7 @@ function renderProjectsList() {
         <strong class="project-list-name">${escapeHtml(p.name)}</strong>
         <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
       </div>
-      <button class="project-list-delete-btn" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án">&times;</button>
+      <button type="button" class="project-list-delete-btn" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án">&times;</button>
     `;
     container.appendChild(card);
   });
@@ -4306,7 +4306,7 @@ window.selectProject = function(id) {
 };
 
 window.deleteProjectItem = async function(event, id, name) {
-  event.stopPropagation();
+  if (event) event.stopPropagation();
   if (!confirm(`Bạn có chắc chắn muốn xóa dự án "${name}" không?`)) return;
   try {
     const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
@@ -4327,13 +4327,14 @@ window.deleteProjectItem = async function(event, id, name) {
   }
 };
 
-// 3. Render Dự Án Đang Mở (Nhóm & Đoạn Chat)
+// 3. Render Dự Án Đang Mở (Tập Tin, Các Đoạn Chat)
 function renderActiveProject() {
   const p = projectsState.projects.find(x => x.id === projectsState.activeProjectId);
   projectsState.activeProject = p || null;
 
   const activeWs = document.getElementById('active-project-workspace');
-  const teamsListEl = document.getElementById('project-teams-list');
+  const nameEl = document.getElementById('active-project-name');
+  const pathEl = document.getElementById('active-project-path');
   const chatsListEl = document.getElementById('project-chats-list');
 
   if (!p) {
@@ -4343,80 +4344,27 @@ function renderActiveProject() {
   }
 
   if (activeWs) activeWs.style.display = 'block';
-
-  // 1. Render Danh Sách Các Nhóm Agent Trong Dự Án (Tối đa 5 thành viên)
-  if (teamsListEl) {
-    teamsListEl.innerHTML = '';
-    const teams = p.teams || [];
-
-    if (teams.length === 0) {
-      teamsListEl.innerHTML = `
-        <div style="background: rgba(255,255,255,0.02); border: 1px dashed #27272a; border-radius: 8px; padding: 0.75rem; text-align: center;">
-          <p style="color:#71717a;font-size:0.75rem;margin-bottom:0.4rem;">Chưa có nhóm Agent nào.</p>
-          <button class="btn-micro-action" onclick="document.getElementById('btn-open-create-team-modal').click()">+ Tạo Nhóm Đầu Tiên</button>
-        </div>
-      `;
-    } else {
-      teams.forEach(team => {
-        const members = team.members || [];
-        const isFull = members.length >= 5;
-
-        const teamBox = document.createElement('div');
-        teamBox.className = 'team-card-box';
-
-        // Render chips các thành viên trong nhóm
-        let membersHtml = '';
-        if (members.length === 0) {
-          membersHtml = '<span style="color:#71717a;font-size:0.7rem;">Chưa có thành viên nào. Hãy bấm "+ Thêm Thành Viên".</span>';
-        } else {
-          membersHtml = members.map(m => {
-            let badgeClass = 'badge-coder';
-            if ((m.badge || '').includes('ARCH')) badgeClass = 'badge-arch';
-            if ((m.badge || '').includes('TEST')) badgeClass = 'badge-tester';
-            if ((m.badge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
-            if ((m.badge || '').includes('DEVOPS')) badgeClass = 'badge-arch';
-
-            return `
-              <div class="team-member-chip" title="Model: ${escapeHtml(m.model || 'Auto')}">
-                <span class="agent-badge ${badgeClass}" style="padding:0.1rem 0.3rem;font-size:0.58rem;">${escapeHtml(m.badge || 'AI')}</span>
-                <span>${escapeHtml(m.name)}</span>
-                <button type="button" class="chip-remove-btn" onclick="removeMemberFromTeam('${team.id}', '${m.id}')" title="Xóa thành viên khỏi nhóm">&times;</button>
-              </div>
-            `;
-          }).join('');
-        }
-
-        teamBox.innerHTML = `
-          <div class="team-card-header">
-            <div class="team-card-title-row">
-              <strong class="team-name-text">${escapeHtml(team.name)}</strong>
-              <span class="team-count-badge">${members.length}/5 Agent</span>
-            </div>
-          </div>
-          
-          <div class="team-members-pills">
-            ${membersHtml}
-          </div>
-
-          <div class="team-card-actions">
-            ${!isFull ? `<button class="btn-team-action" onclick="openAddMemberModal('${team.id}', '${escapeHtml(team.name)}')">+ Thêm Thành Viên</button>` : ''}
-            <button class="btn-team-action action-chat" onclick="createChatForTeam('${team.id}', '${escapeHtml(team.name)}')">Chat Với Nhóm</button>
-            <button class="btn-team-action" style="color:#ef4444;border-color:rgba(239,68,68,0.2);" onclick="deleteTeam('${team.id}', '${escapeHtml(team.name)}')">Xóa Nhóm</button>
-          </div>
-        `;
-
-        teamsListEl.appendChild(teamBox);
-      });
-    }
+  if (nameEl) nameEl.textContent = p.name;
+  if (pathEl) {
+    pathEl.textContent = p.path;
+    pathEl.title = p.path;
   }
 
-  // 2. Render Danh Sách Các Cuộc Trò Chuyện Trong Dự Án
+  // Tải danh sách tập tin của dự án
+  loadProjectFiles(p.id);
+
+  // Render Danh Sách Các Đoạn Chat Của Dự Án
   if (chatsListEl) {
     chatsListEl.innerHTML = '';
     const chats = p.chats || [];
 
     if (chats.length === 0) {
-      chatsListEl.innerHTML = '<p style="color:#71717a;font-size:0.75rem;padding:0.5rem;">Chưa có chat nào. Bấm "+ Thêm Đoạn Chat" để bắt đầu.</p>';
+      chatsListEl.innerHTML = `
+        <div style="background: rgba(255,255,255,0.02); border: 1px dashed #27272a; border-radius: 8px; padding: 0.75rem; text-align: center;">
+          <p style="color:#71717a;font-size:0.75rem;margin-bottom:0.4rem;">Chưa có đoạn chat nào.</p>
+          <button type="button" class="btn-micro-action" onclick="document.getElementById('btn-open-new-chat-modal').click()">+ Tạo Đoạn Chat Đầu Tiên</button>
+        </div>
+      `;
     } else {
       // Pick first chat if none active
       if (!projectsState.activeChatId || !chats.some(c => c.id === projectsState.activeChatId)) {
@@ -4427,18 +4375,17 @@ function renderActiveProject() {
         const item = document.createElement('div');
         item.className = `project-chat-item ${c.id === projectsState.activeChatId ? 'active' : ''}`;
         
-        // Find team if attached
-        const attachedTeam = (p.teams || []).find(t => t.id === c.teamId);
-        const tagLabel = attachedTeam 
-          ? `Nhóm: ${attachedTeam.name} (${(attachedTeam.members || []).length} Agent)`
-          : (c.type === 'direct' ? 'Chat Đơn' : 'Hội Đồng AI');
-        
+        const agentCount = (c.agents || []).length;
+        const tagLabel = agentCount > 0 
+          ? `${agentCount} Agent (${c.agents.map(a => a.badge || 'AI').join(', ')})`
+          : `AI: ${c.model || 'kilo-auto/free'}`;
+
         item.innerHTML = `
           <div class="chat-item-main" onclick="selectProjectChat('${c.id}')">
             <span class="chat-item-title">${escapeHtml(c.title)}</span>
             <span class="chat-item-badge">${escapeHtml(tagLabel)} • ${(c.messages || []).length} tin nhắn</span>
           </div>
-          <button class="btn-delete-chat" onclick="deleteProjectChat(event, '${c.id}')" title="Xóa đoạn chat này">Xóa</button>
+          <button type="button" class="btn-delete-chat" onclick="deleteProjectChat(event, '${c.id}')" title="Xóa đoạn chat này">&times;</button>
         `;
         chatsListEl.appendChild(item);
       });
@@ -4450,7 +4397,38 @@ function renderActiveProject() {
   renderProjectChat(currentChat || null);
 }
 
-// 4. Chọn luồng chat trong dự án
+// 4. Tải và hiển thị cây thư mục / tập tin dự án
+async function loadProjectFiles(projectId) {
+  const container = document.getElementById('project-files-list');
+  if (!container) return;
+
+  try {
+    const res = await fetch(`/api/projects/${projectId}/files`);
+    const data = await res.json();
+    const files = data.files || [];
+
+    if (files.length === 0) {
+      container.innerHTML = '<span class="tree-empty-text">Thư mục trống hoặc chưa có tập tin.</span>';
+      return;
+    }
+
+    container.innerHTML = '';
+    files.forEach(f => {
+      const row = document.createElement('div');
+      row.className = `tree-item ${f.isDirectory ? 'is-dir' : 'is-file'}`;
+      const icon = f.isDirectory ? '📁' : '📄';
+      row.innerHTML = `
+        <span class="tree-icon">${icon}</span>
+        <span class="tree-name" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
+      `;
+      container.appendChild(row);
+    });
+  } catch (err) {
+    container.innerHTML = `<span class="tree-error-text">Không thể đọc tập tin: ${err.message}</span>`;
+  }
+}
+
+// 5. Chọn luồng chat trong dự án
 window.selectProjectChat = function(chatId) {
   projectsState.activeChatId = chatId;
   const chatsListEl = document.getElementById('project-chats-list');
@@ -4461,23 +4439,126 @@ window.selectProjectChat = function(chatId) {
   renderActiveProject();
 };
 
-// 5. Render Nội Dung Cuộc Trò Chuyện & Tin Nhắn
+// 6. Xóa đoạn chat trong dự án
+window.deleteProjectChat = async function(event, chatId) {
+  if (event) event.stopPropagation();
+  if (!confirm('Bạn có chắc chắn muốn xóa đoạn chat này không?')) return;
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chatId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (projectsState.activeProject) {
+        projectsState.activeProject.chats = (projectsState.activeProject.chats || []).filter(c => c.id !== chatId);
+        if (projectsState.activeChatId === chatId) {
+          projectsState.activeChatId = projectsState.activeProject.chats.length > 0 ? projectsState.activeProject.chats[0].id : null;
+        }
+      }
+      renderActiveProject();
+      showToast('Đã xóa đoạn chat.');
+    } else {
+      showToast('Lỗi khi xóa chat: ' + (data.error || 'Thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi khi xóa chat: ' + err.message);
+  }
+};
+
+// 7. Render Nội Dung Cuộc Trò Chuyện & Top Bar
 function renderProjectChat(chat) {
   projectsState.activeChat = chat;
+  const topBarEl = document.getElementById('project-chat-topbar');
+  const titleEl = document.getElementById('project-chat-title');
+  const modelSelectEl = document.getElementById('chat-active-model-select');
+  const agentsRowEl = document.getElementById('chat-agents-pills-row');
+  const addAgentBtn = document.getElementById('btn-add-agent-plus');
   const feedEl = document.getElementById('projects-chat-feed');
 
   if (!feedEl) return;
   feedEl.innerHTML = '';
 
   if (!chat || !projectsState.activeProject) {
+    if (topBarEl) topBarEl.style.display = 'none';
     feedEl.innerHTML = '<div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án để bắt đầu.</div>';
     return;
+  }
+
+  // Hiển thị top bar của đoạn chat
+  if (topBarEl) topBarEl.style.display = 'flex';
+  if (titleEl) titleEl.textContent = chat.title;
+
+  // Điền danh sách model cho dropdown đoạn chat
+  if (modelSelectEl) {
+    if (!modelSelectEl.dataset.populated) {
+      modelSelectEl.innerHTML = `
+        <option value="kilo-auto/free">kilo-auto/free [FREE]</option>
+        <option value="beam-free">beam-free [OpenCode FREE]</option>
+        <option value="deepseek-v4.1-flash-free">deepseek-v4.1-flash-free [FREE]</option>
+        <option value="cohere/north-mini-code:free">cohere/north-mini-code:free [FREE Code]</option>
+        <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nemotron-3-nano-omni [FREE Logic]</option>
+        <option value="gemini-1.5-flash-free">gemini-1.5-flash-free [FREE]</option>
+        <option value="gpt-4o">gpt-4o (OpenAI)</option>
+        <option value="claude-3-7-sonnet">claude-3-7-sonnet (Anthropic)</option>
+      `;
+      modelSelectEl.dataset.populated = 'true';
+    }
+    modelSelectEl.value = chat.model || 'kilo-auto/free';
+    modelSelectEl.onchange = async () => {
+      try {
+        await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chat.id}/model`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: modelSelectEl.value })
+        });
+        chat.model = modelSelectEl.value;
+        showToast(`Đã đổi AI thành: ${modelSelectEl.value}`);
+      } catch (e) {
+        showToast('Lỗi đổi model: ' + e.message);
+      }
+    };
+  }
+
+  // Render các Agent trong đoạn chat (Tối đa 5 Agent)
+  const agents = chat.agents || [];
+  if (agentsRowEl) {
+    agentsRowEl.innerHTML = '';
+    agents.forEach(ag => {
+      let badgeClass = 'badge-coder';
+      if ((ag.badge || '').includes('ARCH')) badgeClass = 'badge-arch';
+      if ((ag.badge || '').includes('TEST')) badgeClass = 'badge-tester';
+      if ((ag.badge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
+      if ((ag.badge || '').includes('DEVOPS')) badgeClass = 'badge-arch';
+
+      const chip = document.createElement('div');
+      chip.className = 'chat-agent-pill';
+      chip.title = `Model: ${ag.model || 'Auto'} (${ag.roleTitle || ag.name})`;
+      chip.innerHTML = `
+        <span class="agent-badge ${badgeClass}">${escapeHtml(ag.badge || 'AI')}</span>
+        <span class="agent-name-text">${escapeHtml(ag.name)}</span>
+        <button type="button" class="chip-remove-btn" onclick="removeAgentFromActiveChat('${ag.id}')" title="Xóa Agent khỏi đoạn chat này">&times;</button>
+      `;
+      agentsRowEl.appendChild(chip);
+    });
+  }
+
+  // Cập nhật trạng thái nút thêm Agent (+)
+  if (addAgentBtn) {
+    if (agents.length >= 5) {
+      addAgentBtn.disabled = true;
+      addAgentBtn.title = 'Đoạn chat này đã có tối đa 5 Agent';
+      addAgentBtn.classList.add('disabled');
+    } else {
+      addAgentBtn.disabled = false;
+      addAgentBtn.title = `Thêm Agent vào đoạn chat này (${agents.length}/5 Agent)`;
+      addAgentBtn.classList.remove('disabled');
+    }
   }
 
   const messages = chat.messages || [];
 
   if (messages.length === 0) {
-    feedEl.innerHTML = '<div class="chat-empty-clean">Nhập ý tưởng hoặc yêu cầu lập trình để bắt đầu...</div>';
+    feedEl.innerHTML = '<div class="chat-empty-clean">Nhập câu hỏi, ý tưởng hoặc đính kèm ảnh/file để bắt đầu...</div>';
     return;
   }
 
@@ -4489,174 +4570,156 @@ function renderProjectChat(chat) {
   feedEl.scrollTop = feedEl.scrollHeight;
 }
 
-// 6. Gắn 1 tin nhắn vào Feed
+// 8. Thêm Agent vào đoạn chat bằng dấu cộng nhỏ (+) ở góc phải (Tối đa 5 agent)
+window.addAgentToActiveChat = async function(category) {
+  if (!projectsState.activeProjectId || !projectsState.activeChatId) {
+    showToast('Vui lòng chọn một đoạn chat trước.');
+    return;
+  }
+
+  const popover = document.getElementById('agent-role-popover');
+  if (popover) popover.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/agents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category })
+    });
+    const data = await res.json();
+    if (data.success && data.agent) {
+      showToast(`Đã thêm ${data.agent.name} vào đoạn chat!`);
+      // Update local state
+      if (projectsState.activeChat) {
+        projectsState.activeChat.agents = projectsState.activeChat.agents || [];
+        projectsState.activeChat.agents.push(data.agent);
+      }
+      renderProjectChat(projectsState.activeChat);
+      renderActiveProject();
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Không thể thêm Agent'));
+    }
+  } catch (err) {
+    showToast('Lỗi: ' + err.message);
+  }
+};
+
+// 9. Xóa Agent khỏi đoạn chat
+window.removeAgentFromActiveChat = async function(agentId) {
+  if (!projectsState.activeProjectId || !projectsState.activeChatId) return;
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/agents/${agentId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (projectsState.activeChat) {
+        projectsState.activeChat.agents = (projectsState.activeChat.agents || []).filter(a => a.id !== agentId);
+      }
+      renderProjectChat(projectsState.activeChat);
+      renderActiveProject();
+      showToast('Đã gỡ Agent khỏi đoạn chat.');
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Thao tác thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi: ' + err.message);
+  }
+};
+
+// 10. Gắn 1 tin nhắn vào Feed
 function appendProjectMessageToFeed(msg, feedEl) {
   if (!feedEl) feedEl = document.getElementById('projects-chat-feed');
   if (!feedEl) return;
 
   const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const isUser = msg.role === 'user';
+  
+  const msgEl = document.createElement('div');
+  msgEl.className = `proj-msg ${isUser ? 'msg-user' : 'msg-agent'}`;
 
-  if (msg.role === 'user') {
-    const userBox = document.createElement('div');
-    userBox.className = 'project-msg-user';
-    userBox.innerHTML = `
-      <div class="msg-user-header">
-        <span class="msg-user-tag">Ý Tưởng Từ Bạn</span>
-        <span class="msg-timestamp">${timeStr}</span>
-      </div>
-      <div class="msg-user-body">${escapeHtml(msg.content)}</div>
-    `;
-    feedEl.appendChild(userBox);
-  } else {
-    const agentBox = document.createElement('div');
-    agentBox.className = 'project-msg-agent';
-
-    const badge = msg.agentBadge || 'AGENT';
+  let badgeHtml = '';
+  if (!isUser && msg.agentBadge) {
     let badgeClass = 'badge-coder';
-    if (badge.toUpperCase().includes('ARCH')) badgeClass = 'badge-arch';
-    if (badge.toUpperCase().includes('TEST')) badgeClass = 'badge-tester';
-    if (badge.toUpperCase().includes('REVIEW')) badgeClass = 'badge-reviewer';
-    if (badge.toUpperCase().includes('DEVOPS')) badgeClass = 'badge-arch';
-
-    let formattedBody = '';
-    if (window.marked && typeof window.marked.parse === 'function') {
-      try {
-        formattedBody = window.marked.parse(msg.content || '');
-      } catch (e) {
-        formattedBody = `<p>${escapeHtml(msg.content || '')}</p>`;
-      }
-    } else {
-      formattedBody = `<pre style="white-space:pre-wrap;">${escapeHtml(msg.content || '')}</pre>`;
-    }
-
-    agentBox.innerHTML = `
-      <div class="agent-turn-header">
-        <div class="agent-turn-left">
-          <span class="agent-badge ${badgeClass}">${escapeHtml(badge)}</span>
-          <span class="agent-turn-author">${escapeHtml(msg.author || 'AI Agent')}</span>
-        </div>
-        <span class="msg-timestamp">${timeStr}</span>
-      </div>
-      <div class="agent-turn-body">
-        ${formattedBody}
-      </div>
-    `;
-
-    // Scan for code blocks to add "Chạy Lệnh Terminal" buttons
-    const codeBlocks = agentBox.querySelectorAll('pre code');
-    codeBlocks.forEach(codeEl => {
-      const className = codeEl.className || '';
-      const text = codeEl.textContent.trim();
-      
-      if (
-        className.includes('powershell') || 
-        className.includes('cmd') || 
-        className.includes('bash') || 
-        className.includes('sh') ||
-        text.startsWith('npm ') || 
-        text.startsWith('node ') || 
-        text.startsWith('git ') || 
-        text.startsWith('dir') || 
-        text.startsWith('Get-')
-      ) {
-        const runBar = document.createElement('div');
-        runBar.className = 'terminal-run-bar';
-        
-        const runBtn = document.createElement('button');
-        runBtn.className = 'btn-terminal-run';
-        runBtn.textContent = 'Chạy Lệnh Trong Terminal Dự Án';
-        runBtn.onclick = () => {
-          executeInlineTerminalCommand(text, agentBox);
-        };
-
-        runBar.appendChild(runBtn);
-        codeEl.parentElement.after(runBar);
-      }
-    });
-
-    feedEl.appendChild(agentBox);
-  }
-}
-
-// 7. Điền prompt mẫu vào ô chat dự án
-window.setProjectPrompt = function(promptText) {
-  const inputEl = document.getElementById('project-chat-input');
-  if (inputEl) {
-    inputEl.value = promptText;
-    inputEl.focus();
-    inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-};
-
-// 8. Thực thi lệnh terminal từ nút bấm dưới khối mã
-async function executeInlineTerminalCommand(command, containerEl) {
-  const p = projectsState.activeProject;
-  if (!p) {
-    showToast('Vui lòng chọn dự án trước khi chạy lệnh.');
-    return;
+    if ((msg.agentBadge || '').includes('ARCH')) badgeClass = 'badge-arch';
+    if ((msg.agentBadge || '').includes('TEST')) badgeClass = 'badge-tester';
+    if ((msg.agentBadge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
+    badgeHtml = `<span class="agent-badge ${badgeClass}">${escapeHtml(msg.agentBadge)}</span>`;
   }
 
-  showToast(`Đang thực thi lệnh trong thư mục dự án: ${command}`);
-
+  // Parse markdown
+  let parsedContent = '';
   try {
-    const res = await fetch(`/api/projects/${p.id}/terminal`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command, shell: 'powershell' })
-    });
-    const result = await res.json();
-
-    const resBox = document.createElement('div');
-    resBox.className = 'terminal-inline-result';
-    
-    const outputText = result.stdout || result.stderr || '(Lệnh hoàn tất không có output)';
-    const statusColor = result.exitCode === 0 ? '#10b981' : '#ef4444';
-
-    resBox.innerHTML = `
-      <div class="terminal-inline-header">
-        <span>Kết quả Terminal [Exit: ${result.exitCode}] (${result.duration || 0}ms)</span>
-        <span style="color: ${statusColor};">${result.exitCode === 0 ? 'Thành Công' : 'Có Lỗi / Cảnh Báo'}</span>
-      </div>
-      <pre class="terminal-inline-content">${escapeHtml(outputText)}</pre>
-    `;
-
-    containerEl.appendChild(resBox);
-    resBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (err) {
-    showToast('Lỗi khi chạy lệnh terminal: ' + err.message);
+    parsedContent = marked.parse(msg.content || '');
+  } catch (e) {
+    parsedContent = escapeHtml(msg.content || '');
   }
+
+  // Render attachments if attached to message
+  let attachHtml = '';
+  if (msg.attachments && msg.attachments.length > 0) {
+    attachHtml = `
+      <div class="msg-attachments-gallery">
+        ${msg.attachments.map(att => {
+          if (att.type && att.type.startsWith('image/')) {
+            return `<img src="${att.data}" class="msg-attach-img" alt="Attached Image">`;
+          }
+          return `<div class="msg-attach-file">📄 ${escapeHtml(att.name || 'Tệp')}</div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  msgEl.innerHTML = `
+    <div class="proj-msg-header">
+      ${badgeHtml}
+      <span class="proj-msg-author">${escapeHtml(msg.author || (isUser ? 'Bạn' : 'AI'))}</span>
+      <span class="proj-msg-time">${timeStr}</span>
+    </div>
+    <div class="proj-msg-body markdown-content">
+      ${parsedContent}
+      ${attachHtml}
+    </div>
+  `;
+
+  feedEl.appendChild(msgEl);
 }
 
-// 9. Gửi Ý Tưởng cho Nhóm Agent hoặc Single Chat
+// 11. Gửi tin nhắn / ý tưởng vào đoạn chat
 async function sendProjectIdea() {
   const inputEl = document.getElementById('project-chat-input');
   const feedEl = document.getElementById('projects-chat-feed');
   const progressEl = document.getElementById('project-team-progress');
   const progressTitleEl = document.getElementById('team-progress-title');
-  const modelSelect = document.getElementById('project-model-select');
+  const chatModelSelect = document.getElementById('chat-active-model-select');
 
   if (!inputEl || !projectsState.activeProjectId || !projectsState.activeChatId) {
-    showToast('Vui lòng chọn hoặc tạo dự án và cuộc trò chuyện trước.');
+    showToast('Vui lòng chọn hoặc tạo dự án và đoạn chat trước.');
     return;
   }
 
   const content = inputEl.value.trim();
-  if (!content) return;
+  const attachments = [...projectsState.attachments];
+
+  if (!content && attachments.length === 0) return;
 
   if (projectsState.isRunning) {
-    showToast('Nhóm Agent đang thảo luận và xử lý. Vui lòng đợi trong giây lát...');
+    showToast('Agent đang suy nghĩ và thực thi. Vui lòng đợi trong giây lát...');
     return;
   }
 
-  // Clear input
+  // Clear input & attachments
   inputEl.value = '';
+  projectsState.attachments = [];
+  renderProjectAttachments();
   projectsState.isRunning = true;
 
   // Render user msg immediately
   const tempUserMsg = {
     role: 'user',
-    author: 'Người Dùng (Ý Tưởng)',
+    author: 'Bạn',
     content,
+    attachments,
     timestamp: new Date().toISOString()
   };
   appendProjectMessageToFeed(tempUserMsg, feedEl);
@@ -4666,11 +4729,11 @@ async function sendProjectIdea() {
   if (progressEl) {
     progressEl.style.display = 'flex';
     if (progressTitleEl) {
-      progressTitleEl.textContent = 'Các Agent đang phối hợp làm việc và xử lý theo lượt...';
+      progressTitleEl.textContent = 'Agent đang phân tích và xử lý...';
     }
   }
 
-  const selectedModel = modelSelect ? modelSelect.value : 'kilo-auto/free';
+  const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'kilo-auto/free');
 
   try {
     const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
@@ -4678,6 +4741,7 @@ async function sendProjectIdea() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content,
+        attachments,
         model: selectedModel,
         isStream: false
       })
@@ -4685,24 +4749,24 @@ async function sendProjectIdea() {
 
     const data = await res.json();
     if (!res.ok || data.error) {
-      throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới nhóm Agent.');
+      throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới Agent.');
     }
 
     // Append generated agent messages to feed
     const messages = data.messages || [];
-    messages.forEach((msg, idx) => {
-      setTimeout(() => {
-        appendProjectMessageToFeed(msg, feedEl);
-        feedEl.scrollTop = feedEl.scrollHeight;
-      }, idx * 120);
+    messages.forEach(msg => {
+      appendProjectMessageToFeed(msg, feedEl);
     });
 
+    // Update local chat messages
     if (projectsState.activeChat) {
       projectsState.activeChat.messages = projectsState.activeChat.messages || [];
       projectsState.activeChat.messages.push(tempUserMsg, ...messages);
     }
+
+    feedEl.scrollTop = feedEl.scrollHeight;
   } catch (err) {
-    console.error('Lỗi khi gửi ý tưởng tới Agent:', err);
+    console.error('Lỗi sendProjectIdea:', err);
     showToast('Lỗi: ' + err.message);
   } finally {
     projectsState.isRunning = false;
@@ -4710,224 +4774,41 @@ async function sendProjectIdea() {
   }
 }
 
-// 10. Quản Lý Thành Viên Nhóm (Tối đa 5 Agent)
-async function fetchSpecializedCatalog() {
-  if (projectsState.specializedCatalog) return projectsState.specializedCatalog;
-  try {
-    const res = await fetch('/api/specialized-roles');
-    const data = await res.json();
-    projectsState.specializedCatalog = data.catalog || {};
-    return projectsState.specializedCatalog;
-  } catch (err) {
-    console.error('Lỗi fetch catalog:', err);
-    return {};
+// 12. Render Staged Attachments
+function renderProjectAttachments() {
+  const bar = document.getElementById('project-attachments-bar');
+  if (!bar) return;
+
+  if (projectsState.attachments.length === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
   }
+
+  bar.style.display = 'flex';
+  bar.innerHTML = projectsState.attachments.map((att, idx) => {
+    const isImg = att.type && att.type.startsWith('image/');
+    return `
+      <div class="attachment-preview-pill">
+        ${isImg ? `<img src="${att.data}" class="attach-thumb" alt="thumb">` : '📄'}
+        <span class="attach-pill-name">${escapeHtml(att.name || 'Tệp')}</span>
+        <button type="button" class="btn-remove-attach" onclick="removeProjectAttachment(${idx})" title="Bỏ đính kèm">&times;</button>
+      </div>
+    `;
+  }).join('');
 }
 
-window.openAddMemberModal = async function(teamId, teamName) {
-  const modal = document.getElementById('modal-add-team-member');
-  const targetIdInput = document.getElementById('target-team-id');
-  const titleEl = document.getElementById('modal-add-member-title');
-  const catSelect = document.getElementById('member-category-select');
-
-  if (!modal || !targetIdInput) return;
-  targetIdInput.value = teamId;
-  if (titleEl) titleEl.textContent = `Thêm Thành Viên Vào "${teamName}" (Tối Đa 5 Agent)`;
-
-  await fetchSpecializedCatalog();
-  updateMemberRoleOptions();
-
-  modal.classList.add('open');
+window.removeProjectAttachment = function(idx) {
+  projectsState.attachments.splice(idx, 1);
+  renderProjectAttachments();
 };
 
-function updateMemberRoleOptions() {
-  const catSelect = document.getElementById('member-category-select');
-  const modelSelect = document.getElementById('member-model-select');
-  const descEl = document.getElementById('member-role-desc');
-  const nameInput = document.getElementById('member-name-input');
-  const catalog = projectsState.specializedCatalog || {};
-
-  if (!catSelect || !modelSelect) return;
-  const cat = catSelect.value;
-  const config = catalog[cat] || catalog.coder;
-
-  if (!config) return;
-
-  if (descEl) descEl.textContent = config.description;
-  if (nameInput) nameInput.value = config.roleTitle.split('(')[0].trim();
-
-  modelSelect.innerHTML = '';
-  (config.recommendedModels || []).forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.name;
-    modelSelect.appendChild(opt);
-  });
-}
-
-window.removeMemberFromTeam = async function(teamId, memberId) {
-  if (!confirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) return;
-  try {
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}/members/${memberId}`, {
-      method: 'DELETE'
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Đã xóa thành viên khỏi nhóm.');
-      loadProjects();
-    }
-  } catch (err) {
-    showToast('Lỗi khi xóa thành viên: ' + err.message);
-  }
-};
-
-window.deleteTeam = async function(teamId, teamName) {
-  if (!confirm(`Bạn có chắc muốn xóa nhóm "${teamName}"?`)) return;
-  try {
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}`, {
-      method: 'DELETE'
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Đã xóa nhóm.');
-      loadProjects();
-    }
-  } catch (err) {
-    showToast('Lỗi xóa nhóm: ' + err.message);
-  }
-};
-
-window.createChatForTeam = async function(teamId, teamName) {
-  try {
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: `Cuộc họp ${teamName}`,
-        type: 'team',
-        teamId
-      })
-    });
-    const data = await res.json();
-    if (data.success && data.chat) {
-      showToast(`Đã mở cuộc trò chuyện với nhóm "${teamName}"!`);
-      projectsState.activeChatId = data.chat.id;
-      loadProjects();
-    }
-  } catch (err) {
-    showToast('Lỗi tạo chat cho nhóm: ' + err.message);
-  }
-};
-
-// 11. Xóa cuộc trò chuyện trong dự án
-window.deleteProjectChat = async function(event, chatId) {
-  event.stopPropagation();
-  if (!confirm('Bạn có chắc chắn muốn xóa cuộc trò chuyện này?')) return;
-
-  try {
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chatId}`, {
-      method: 'DELETE'
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Đã xóa cuộc trò chuyện.');
-      if (projectsState.activeProject) {
-        projectsState.activeProject.chats = (projectsState.activeProject.chats || []).filter(c => c.id !== chatId);
-        if (projectsState.activeChatId === chatId) {
-          projectsState.activeChatId = projectsState.activeProject.chats[0]?.id || null;
-        }
-      }
-      renderActiveProject();
-    }
-  } catch (err) {
-    showToast('Lỗi khi xóa cuộc trò chuyện: ' + err.message);
-  }
-};
-
-// 12. Xóa sạch tin nhắn trong chat hiện tại
-async function clearCurrentProjectChat() {
-  if (!projectsState.activeProjectId || !projectsState.activeChatId) return;
-  if (!confirm('Bạn có chắc muốn xóa sạch lịch sử tin nhắn trong cuộc trò chuyện này?')) return;
-
-  try {
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/clear`, {
-      method: 'POST'
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Đã làm sạch cuộc trò chuyện.');
-      if (projectsState.activeChat) {
-        projectsState.activeChat.messages = [];
-      }
-      renderProjectChat(projectsState.activeChat);
-    }
-  } catch (err) {
-    showToast('Lỗi khi làm sạch chat: ' + err.message);
-  }
-}
-
-// 13. Xóa toàn bộ dự án
-async function deleteActiveProject() {
-  const p = projectsState.activeProject;
-  if (!p) return;
-  if (!confirm(`Bạn có chắc muốn xóa dự án "${p.name}" khỏi danh sách? Thư mục trên máy sẽ không bị ảnh hưởng.`)) return;
-
-  try {
-    const res = await fetch(`/api/projects/${p.id}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Đã xóa dự án thành công.');
-      projectsState.activeProjectId = null;
-      projectsState.activeChatId = null;
-      loadProjects();
-    }
-  } catch (err) {
-    showToast('Lỗi khi xóa dự án: ' + err.message);
-  }
-}
-
-// 14. Khởi tạo tất cả Event Listeners cho Projects tab
+// 13. Khởi tạo tất cả Event Listeners cho Projects System
 function initProjectsEventListeners() {
-  // Switch Project Dropdown
-  const selectDropdown = document.getElementById('project-select-dropdown');
-  if (selectDropdown) {
-    selectDropdown.addEventListener('change', (e) => {
-      projectsState.activeProjectId = e.target.value;
-      projectsState.activeChatId = null;
-      renderActiveProject();
-    });
-  }
-
-  // Copy Project Path
-  const btnCopyPath = document.getElementById('btn-copy-project-path');
-  if (btnCopyPath) {
-    btnCopyPath.addEventListener('click', () => {
-      const pathText = document.getElementById('active-project-path')?.textContent;
-      if (pathText && navigator.clipboard) {
-        navigator.clipboard.writeText(pathText);
-        showToast('Đã chép đường dẫn dự án vào bộ nhớ tạm.');
-      }
-    });
-  }
-
-  // Delete project button
-  const btnDeleteProj = document.getElementById('btn-delete-project');
-  if (btnDeleteProj) {
-    btnDeleteProj.addEventListener('click', deleteActiveProject);
-  }
-
-  // Clear chat button
-  const btnClearChat = document.getElementById('btn-clear-project-chat');
-  if (btnClearChat) {
-    btnClearChat.addEventListener('click', clearCurrentProjectChat);
-  }
-
-  // Send Idea button & Enter key
-  const btnSendIdea = document.getElementById('btn-send-project-idea');
-  if (btnSendIdea) {
-    btnSendIdea.addEventListener('click', sendProjectIdea);
-  }
+  // Gửi ý tưởng / tin nhắn
+  const btnSend = document.getElementById('btn-send-project-idea');
   const chatInput = document.getElementById('project-chat-input');
+  if (btnSend) btnSend.addEventListener('click', sendProjectIdea);
   if (chatInput) {
     chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -4935,146 +4816,271 @@ function initProjectsEventListeners() {
         sendProjectIdea();
       }
     });
+
+    // Paste screenshot from clipboard
+    chatInput.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            projectsState.attachments.push({
+              name: 'screenshot_' + Date.now() + '.png',
+              type: blob.type,
+              data: event.target.result
+            });
+            renderProjectAttachments();
+            showToast('Đã dán ảnh chụp màn hình vào ô đính kèm!');
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    });
   }
 
-  // Toggle Terminal Drawer
+  // Đính kèm File
+  const btnAttachFile = document.getElementById('btn-project-attach-file');
+  const fileInput = document.getElementById('project-file-input');
+  if (btnAttachFile && fileInput) {
+    btnAttachFile.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      files.forEach(f => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          projectsState.attachments.push({
+            name: f.name,
+            type: f.type,
+            data: evt.target.result
+          });
+          renderProjectAttachments();
+        };
+        reader.readAsDataURL(f);
+      });
+      fileInput.value = '';
+    });
+  }
+
+  // Đính kèm Ảnh
+  const btnAttachImage = document.getElementById('btn-project-attach-image');
+  const imageInput = document.getElementById('project-image-input');
+  if (btnAttachImage && imageInput) {
+    btnAttachImage.addEventListener('click', () => imageInput.click());
+    imageInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      files.forEach(f => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          projectsState.attachments.push({
+            name: f.name,
+            type: f.type,
+            data: evt.target.result
+          });
+          renderProjectAttachments();
+        };
+        reader.readAsDataURL(f);
+      });
+      imageInput.value = '';
+    });
+  }
+
+  // Dấu cộng nhỏ (+) mở Popover thêm Agent
+  const btnAddAgent = document.getElementById('btn-add-agent-plus');
+  const popover = document.getElementById('agent-role-popover');
+  const btnClosePopover = document.getElementById('btn-close-agent-popover');
+
+  if (btnAddAgent && popover) {
+    btnAddAgent.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = popover.style.display === 'block';
+      popover.style.display = isVisible ? 'none' : 'block';
+    });
+  }
+  if (btnClosePopover && popover) {
+    btnClosePopover.addEventListener('click', () => { popover.style.display = 'none'; });
+  }
+  document.addEventListener('click', (e) => {
+    if (popover && !popover.contains(e.target) && e.target !== btnAddAgent) {
+      popover.style.display = 'none';
+    }
+  });
+
+  // Terminal Toggle
   const btnToggleTerm = document.getElementById('btn-toggle-terminal');
   const termDrawer = document.getElementById('project-terminal-drawer');
   const btnCloseTerm = document.getElementById('btn-close-terminal-drawer');
   if (btnToggleTerm && termDrawer) {
     btnToggleTerm.addEventListener('click', () => {
-      termDrawer.style.display = termDrawer.style.display === 'none' ? 'flex' : 'none';
-      if (termDrawer.style.display === 'flex') {
-        document.getElementById('terminal-cmd-input')?.focus();
-      }
+      const isHidden = termDrawer.style.display === 'none';
+      termDrawer.style.display = isHidden ? 'block' : 'none';
     });
   }
   if (btnCloseTerm && termDrawer) {
-    btnCloseTerm.addEventListener('click', () => {
-      termDrawer.style.display = 'none';
-    });
+    btnCloseTerm.addEventListener('click', () => { termDrawer.style.display = 'none'; });
   }
 
-  // Execute Terminal in Drawer
+  // Terminal Execute
   const btnExecTerm = document.getElementById('btn-execute-terminal');
-  const termCmdInput = document.getElementById('terminal-cmd-input');
-  const termOutputPre = document.getElementById('terminal-output-pre');
-  const termShellSelect = document.getElementById('terminal-shell-select');
+  const inputCmd = document.getElementById('terminal-cmd-input');
+  const selectShell = document.getElementById('terminal-shell-select');
+  const preOut = document.getElementById('terminal-output-pre');
 
-  const executeDrawerTerminal = async () => {
-    const cmd = termCmdInput?.value?.trim();
+  const runTerminalCmd = async () => {
+    const cmd = inputCmd?.value.trim();
     if (!cmd || !projectsState.activeProjectId) return;
-
-    if (termOutputPre) termOutputPre.textContent = `> ${cmd}\nĐang thực thi...`;
-
+    if (preOut) preOut.textContent = `Đang chạy lệnh "${cmd}"...`;
     try {
-      const shell = termShellSelect ? termShellSelect.value : 'powershell';
       const res = await fetch(`/api/projects/${projectsState.activeProjectId}/terminal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmd, shell })
+        body: JSON.stringify({
+          command: cmd,
+          shell: selectShell?.value || 'powershell'
+        })
       });
       const data = await res.json();
-      const out = data.stdout || data.stderr || '(Không có output)';
-      if (termOutputPre) {
-        termOutputPre.textContent = `> ${cmd} (Exit Code: ${data.exitCode}, ${data.duration || 0}ms)\n\n${out}`;
-      }
+      if (preOut) preOut.textContent = data.output || data.error || '(Không có kết quả)';
     } catch (err) {
-      if (termOutputPre) termOutputPre.textContent = `Lỗi thực thi: ${err.message}`;
+      if (preOut) preOut.textContent = 'Lỗi thực thi: ' + err.message;
     }
   };
-
-  if (btnExecTerm) btnExecTerm.addEventListener('click', executeDrawerTerminal);
-  if (termCmdInput) {
-    termCmdInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') executeDrawerTerminal();
-    });
-  }
-
-  // Toggle Files Drawer
-  const btnViewFiles = document.getElementById('btn-view-files');
-  const filesDrawer = document.getElementById('project-files-drawer');
-  const btnCloseFiles = document.getElementById('btn-close-files-drawer');
-  const filesTreeEl = document.getElementById('project-files-tree');
-
-  if (btnViewFiles && filesDrawer) {
-    btnViewFiles.addEventListener('click', async () => {
-      filesDrawer.style.display = filesDrawer.style.display === 'none' ? 'block' : 'none';
-      if (filesDrawer.style.display === 'block' && projectsState.activeProjectId) {
-        if (filesTreeEl) filesTreeEl.innerHTML = 'Đang đọc thư mục dự án...';
-        try {
-          const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`);
-          const data = await res.json();
-          if (data.success && filesTreeEl) {
-            filesTreeEl.innerHTML = '';
-            const renderNodes = (nodes, container) => {
-              nodes.forEach(n => {
-                const nodeEl = document.createElement('div');
-                nodeEl.className = `file-tree-item ${n.type === 'directory' ? 'is-dir' : 'is-file'}`;
-                nodeEl.textContent = `${n.type === 'directory' ? '[DIR] ' : '      '}${n.name}`;
-                container.appendChild(nodeEl);
-                if (n.children && n.children.length > 0) {
-                  const subContainer = document.createElement('div');
-                  subContainer.style.paddingLeft = '1rem';
-                  container.appendChild(subContainer);
-                  renderNodes(n.children, subContainer);
-                }
-              });
-            };
-            renderNodes(data.files || [], filesTreeEl);
-          }
-        } catch (e) {
-          if (filesTreeEl) filesTreeEl.textContent = 'Lỗi khi đọc file: ' + e.message;
-        }
+  if (btnExecTerm) btnExecTerm.addEventListener('click', runTerminalCmd);
+  if (inputCmd) {
+    inputCmd.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runTerminalCmd();
       }
     });
   }
-  if (btnCloseFiles && filesDrawer) {
-    btnCloseFiles.addEventListener('click', () => {
-      filesDrawer.style.display = 'none';
+
+  // Cây tập tin: Tạo file / folder / refresh
+  const btnNewFile = document.getElementById('btn-tree-new-file');
+  const btnNewFolder = document.getElementById('btn-tree-new-folder');
+  const btnRefreshFiles = document.getElementById('btn-refresh-files');
+
+  if (btnNewFile) {
+    btnNewFile.addEventListener('click', async () => {
+      if (!projectsState.activeProjectId) return;
+      const fileName = prompt('Nhập tên tập tin mới (ví dụ: index.js, utils.py):');
+      if (!fileName || !fileName.trim()) return;
+      try {
+        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: fileName.trim(), type: 'file', content: '' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Đã tạo tệp "${fileName}"!`);
+          loadProjectFiles(projectsState.activeProjectId);
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Thất bại'));
+        }
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
     });
   }
 
-  // Modal: Create Project
-  const modalCreateProj = document.getElementById('modal-create-project');
-  const btnOpenCreateProj = document.getElementById('btn-open-create-project');
-  const btnCloseCreateProj = document.getElementById('btn-close-create-project-modal');
-  const btnCancelCreateProj = document.getElementById('btn-cancel-create-project');
-  const formCreateProj = document.getElementById('create-project-form');
-
-  if (btnOpenCreateProj && modalCreateProj) {
-    btnOpenCreateProj.addEventListener('click', () => {
-      modalCreateProj.classList.add('open');
-      document.getElementById('new-project-name')?.focus();
+  if (btnNewFolder) {
+    btnNewFolder.addEventListener('click', async () => {
+      if (!projectsState.activeProjectId) return;
+      const folderName = prompt('Nhập tên thư mục mới (ví dụ: src, assets, components):');
+      if (!folderName || !folderName.trim()) return;
+      try {
+        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: folderName.trim(), type: 'folder' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Đã tạo thư mục "${folderName}"!`);
+          loadProjectFiles(projectsState.activeProjectId);
+        } else {
+          showToast('Lỗi: ' + (data.error || 'Thất bại'));
+        }
+      } catch (err) {
+        showToast('Lỗi: ' + err.message);
+      }
     });
   }
-  const closeCreateProjModal = () => modalCreateProj?.classList.remove('open');
-  if (btnCloseCreateProj) btnCloseCreateProj.addEventListener('click', closeCreateProjModal);
-  if (btnCancelCreateProj) btnCancelCreateProj.addEventListener('click', closeCreateProjModal);
 
-  if (formCreateProj) {
-    formCreateProj.addEventListener('submit', async (e) => {
+  if (btnRefreshFiles) {
+    btnRefreshFiles.addEventListener('click', () => {
+      if (projectsState.activeProjectId) {
+        loadProjectFiles(projectsState.activeProjectId);
+        showToast('Đã làm mới danh sách tập tin.');
+      }
+    });
+  }
+
+  // Modal: Thêm Dự Án Mới
+  const modalCreateProject = document.getElementById('modal-create-project');
+  const btnOpenCreateProject = document.getElementById('btn-open-create-project');
+  const btnCloseCreateProject = document.getElementById('btn-close-create-project-modal');
+  const btnCancelCreateProject = document.getElementById('btn-cancel-create-project');
+  const formCreateProject = document.getElementById('create-project-form');
+  const btnBrowseFolder = document.getElementById('btn-browse-folder');
+  const folderPickerHidden = document.getElementById('folder-picker-hidden');
+  const inputProjectPath = document.getElementById('new-project-path-input');
+  const inputProjectName = document.getElementById('new-project-name-input');
+
+  if (btnBrowseFolder && folderPickerHidden) {
+    btnBrowseFolder.addEventListener('click', () => folderPickerHidden.click());
+    folderPickerHidden.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        const firstFile = files[0];
+        // In electron / desktop, path is available on File object
+        const fullPath = firstFile.path ? firstFile.path.substring(0, firstFile.path.lastIndexOf('\\') || firstFile.path.lastIndexOf('/')) : '';
+        const folderName = firstFile.webkitRelativePath ? firstFile.webkitRelativePath.split('/')[0] : 'MyProject';
+        
+        if (inputProjectPath) inputProjectPath.value = fullPath || folderName;
+        if (inputProjectName) inputProjectName.value = folderName;
+      }
+    });
+  }
+
+  if (btnOpenCreateProject && modalCreateProject) {
+    btnOpenCreateProject.addEventListener('click', () => {
+      modalCreateProject.classList.add('open');
+      inputProjectPath?.focus();
+    });
+  }
+  const closeCreateProjectModal = () => modalCreateProject?.classList.remove('open');
+  if (btnCloseCreateProject) btnCloseCreateProject.addEventListener('click', closeCreateProjectModal);
+  if (btnCancelCreateProject) btnCancelCreateProject.addEventListener('click', closeCreateProjectModal);
+
+  if (formCreateProject) {
+    formCreateProject.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('new-project-name')?.value.trim();
-      const projPath = document.getElementById('new-project-path')?.value.trim();
-      const desc = document.getElementById('new-project-desc')?.value.trim();
+      const name = inputProjectName?.value.trim();
+      const pathVal = inputProjectPath?.value.trim();
+      const desc = document.getElementById('new-project-desc-input')?.value.trim();
 
-      if (!name) return;
+      if (!name || !pathVal) {
+        showToast('Vui lòng nhập tên và đường dẫn thư mục dự án.');
+        return;
+      }
 
       try {
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, path: projPath, description: desc })
+          body: JSON.stringify({ name, path: pathVal, description: desc })
         });
         const data = await res.json();
         if (data.success && data.project) {
           showToast(`Đã thêm dự án "${name}" thành công!`);
-          closeCreateProjModal();
-          formCreateProj.reset();
+          closeCreateProjectModal();
+          formCreateProject.reset();
+
           projectsState.activeProjectId = data.project.id;
-          projectsState.activeChatId = null;
-          loadProjects();
+          await loadProjects();
         } else {
           showToast('Lỗi: ' + (data.error || 'Không thể tạo dự án'));
         }
@@ -5084,147 +5090,38 @@ function initProjectsEventListeners() {
     });
   }
 
-  // Modal: Create Project Team (Thêm Nhóm)
-  const modalCreateTeam = document.getElementById('modal-create-team');
-  const btnOpenCreateTeam = document.getElementById('btn-open-create-team-modal');
-  const btnCloseCreateTeam = document.getElementById('btn-close-create-team-modal');
-  const btnCancelCreateTeam = document.getElementById('btn-cancel-create-team');
-  const formCreateTeam = document.getElementById('create-team-form');
-
-  if (btnOpenCreateTeam && modalCreateTeam) {
-    btnOpenCreateTeam.addEventListener('click', () => {
-      modalCreateTeam.classList.add('open');
-      document.getElementById('new-team-name-input')?.focus();
-    });
-  }
-  const closeCreateTeamModal = () => modalCreateTeam?.classList.remove('open');
-  if (btnCloseCreateTeam) btnCloseCreateTeam.addEventListener('click', closeCreateTeamModal);
-  if (btnCancelCreateTeam) btnCancelCreateTeam.addEventListener('click', closeCreateTeamModal);
-
-  if (formCreateTeam) {
-    formCreateTeam.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = document.getElementById('new-team-name-input')?.value.trim();
-      const desc = document.getElementById('new-team-desc-input')?.value.trim();
-
-      if (!name || !projectsState.activeProjectId) return;
-
-      try {
-        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description: desc })
-        });
-        const data = await res.json();
-        if (data.success && data.team) {
-          showToast(`Đã tạo nhóm "${name}"!`);
-          closeCreateTeamModal();
-          formCreateTeam.reset();
-          loadProjects();
-        } else {
-          showToast('Lỗi: ' + (data.error || 'Không thể tạo nhóm'));
-        }
-      } catch (err) {
-        showToast('Lỗi tạo nhóm: ' + err.message);
-      }
-    });
-  }
-
-  // Modal: Add Member to Team (Thêm Thành Viên)
-  const modalAddMember = document.getElementById('modal-add-team-member');
-  const btnCloseAddMember = document.getElementById('btn-close-add-member-modal');
-  const btnCancelAddMember = document.getElementById('btn-cancel-add-member');
-  const formAddMember = document.getElementById('add-team-member-form');
-  const memberCatSelect = document.getElementById('member-category-select');
-
-  const closeAddMemberModal = () => modalAddMember?.classList.remove('open');
-  if (btnCloseAddMember) btnCloseAddMember.addEventListener('click', closeAddMemberModal);
-  if (btnCancelAddMember) btnCancelAddMember.addEventListener('click', closeAddMemberModal);
-
-  if (memberCatSelect) {
-    memberCatSelect.addEventListener('change', updateMemberRoleOptions);
-  }
-
-  if (formAddMember) {
-    formAddMember.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const teamId = document.getElementById('target-team-id')?.value;
-      const category = document.getElementById('member-category-select')?.value;
-      const model = document.getElementById('member-model-select')?.value;
-      const name = document.getElementById('member-name-input')?.value.trim();
-
-      if (!teamId || !projectsState.activeProjectId) return;
-
-      try {
-        const res = await fetch(`/api/projects/${projectsState.activeProjectId}/teams/${teamId}/members`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, category, model })
-        });
-        const data = await res.json();
-        if (data.success && data.member) {
-          showToast(`Đã thêm thành viên "${data.member.name}" vào nhóm!`);
-          closeAddMemberModal();
-          formAddMember.reset();
-          loadProjects();
-        } else {
-          showToast('Lỗi: ' + (data.error || 'Không thể thêm thành viên'));
-        }
-      } catch (err) {
-        showToast('Lỗi: ' + err.message);
-      }
-    });
-  }
-
-  // Modal: Create Project Chat (Thêm Đoạn Chat)
+  // Modal: Thêm Đoạn Chat Mới Trong Dự Án (Chọn AI giống Playground)
   const modalNewChat = document.getElementById('modal-new-project-chat');
   const btnOpenNewChat = document.getElementById('btn-open-new-chat-modal');
   const btnCloseNewChat = document.getElementById('btn-close-new-project-chat-modal');
   const btnCancelNewChat = document.getElementById('btn-cancel-new-project-chat');
   const formNewChat = document.getElementById('new-project-chat-form');
-  const chatTeamSelect = document.getElementById('chat-team-select');
-  const chatTeamGroup = document.getElementById('chat-team-picker-group');
+  const newChatTitleInput = document.getElementById('new-chat-title-input');
+  const newChatModelSelect = document.getElementById('new-chat-model-select');
 
   if (btnOpenNewChat && modalNewChat) {
     btnOpenNewChat.addEventListener('click', () => {
-      // Populate team dropdown
-      if (chatTeamSelect && projectsState.activeProject) {
-        chatTeamSelect.innerHTML = '';
-        const teams = projectsState.activeProject.teams || [];
-        if (teams.length === 0) {
-          chatTeamSelect.innerHTML = '<option value="">(Chưa có nhóm nào - vui lòng bấm "+ Thêm Nhóm" trước)</option>';
-        } else {
-          teams.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t.id;
-            opt.textContent = `${t.name} (${(t.members || []).length} Agent)`;
-            chatTeamSelect.appendChild(opt);
-          });
-        }
+      if (!projectsState.activeProjectId) {
+        showToast('Vui lòng chọn hoặc thêm một dự án trước.');
+        return;
       }
       modalNewChat.classList.add('open');
-      document.getElementById('new-chat-title-input')?.focus();
+      if (newChatTitleInput) {
+        newChatTitleInput.value = `Đoạn chat ${(projectsState.activeProject?.chats || []).length + 1}`;
+        newChatTitleInput.focus();
+        newChatTitleInput.select();
+      }
     });
   }
   const closeNewChatModal = () => modalNewChat?.classList.remove('open');
   if (btnCloseNewChat) btnCloseNewChat.addEventListener('click', closeNewChatModal);
   if (btnCancelNewChat) btnCancelNewChat.addEventListener('click', closeNewChatModal);
 
-  const modeRadios = document.querySelectorAll('input[name="chat-mode-choice"]');
-  modeRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (chatTeamGroup) {
-        chatTeamGroup.style.display = e.target.value === 'team' ? 'block' : 'none';
-      }
-    });
-  });
-
   if (formNewChat) {
     formNewChat.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const title = document.getElementById('new-chat-title-input')?.value.trim();
-      const modeChoice = document.querySelector('input[name="chat-mode-choice"]:checked')?.value || 'team';
-      const teamId = modeChoice === 'team' ? document.getElementById('chat-team-select')?.value : null;
+      const title = newChatTitleInput?.value.trim();
+      const model = newChatModelSelect?.value || 'kilo-auto/free';
 
       if (!title || !projectsState.activeProjectId) return;
 
@@ -5232,15 +5129,11 @@ function initProjectsEventListeners() {
         const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            type: modeChoice,
-            teamId: teamId || null
-          })
+          body: JSON.stringify({ title, model })
         });
         const data = await res.json();
         if (data.success && data.chat) {
-          showToast(`Đã tạo đoạn chat "${title}"!`);
+          showToast(`Đã tạo đoạn chat "${title}" với AI ${model}!`);
           closeNewChatModal();
           formNewChat.reset();
 
@@ -5251,10 +5144,20 @@ function initProjectsEventListeners() {
           projectsState.activeChatId = data.chat.id;
           renderActiveProject();
         } else {
-          showToast('Lỗi: ' + (data.error || 'Không thể tạo cuộc trò chuyện'));
+          showToast('Lỗi: ' + (data.error || 'Không thể tạo đoạn chat'));
         }
       } catch (err) {
         showToast('Lỗi tạo chat: ' + err.message);
+      }
+    });
+  }
+
+  // Xóa dự án đang mở
+  const btnDeleteActiveProj = document.getElementById('btn-delete-active-project');
+  if (btnDeleteActiveProj) {
+    btnDeleteActiveProj.addEventListener('click', () => {
+      if (projectsState.activeProject) {
+        deleteProjectItem(null, projectsState.activeProject.id, projectsState.activeProject.name);
       }
     });
   }
