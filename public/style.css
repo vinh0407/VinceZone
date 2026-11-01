@@ -2689,17 +2689,12 @@ input[type="range"] {
    ============================================================ */
 
 /* Desktop defaults for mobile-only elements */
-.mobile-bottom-nav {
-  display: none;
-}
-.mobile-chat-header {
-  display: none;
-}
-.mobile-drawer-header {
-  display: none;
-}
-.mobile-drawer-backdrop {
-  display: none;
+.mobile-bottom-nav,
+.mobile-chat-header,
+.mobile-drawer-header,
+.mobile-drawer-backdrop,
+.mobile-model-sheet {
+  display: none !important;
 }
 
 /* @media screen <= 768px (Điện thoại & Tablet nhỏ - Phiên bản ChatGPT / Gemini Mobile) */
@@ -2794,7 +2789,7 @@ input[type="range"] {
 
   /* 3. MOBILE BOTTOM NAVIGATION BAR */
   .mobile-bottom-nav {
-    display: flex;
+    display: flex !important;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -2850,7 +2845,7 @@ input[type="range"] {
 
   /* Single Mobile Chat Header Bar (Height 46px) */
   .mobile-chat-header {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     height: 46px;
@@ -3234,7 +3229,7 @@ input[type="range"] {
 
   /* 5. BACKDROP OVERLAY (SHARED STACKING CONTEXT - FIXES BLUR FREEZE) */
   .mobile-drawer-backdrop {
-    display: block;
+    display: block !important;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.68);
@@ -3253,7 +3248,7 @@ input[type="range"] {
 
   /* 6. MOBILE MODEL PICKER BOTTOM SHEET (CHATGPT / GEMINI STYLE) */
   .mobile-model-sheet {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     position: fixed;
     bottom: 0;
