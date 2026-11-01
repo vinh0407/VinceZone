@@ -103,30 +103,35 @@
  <!-- Mobile Chat Header Bar (Hiện trên màn hình điện thoại) -->
  <div class="mobile-chat-header">
  <button type="button" id="btn-open-history-drawer" class="mobile-icon-btn" title="Mở danh sách lịch sử chat">
- 
  <span>Lịch sử</span>
  </button>
 
  <div class="mobile-active-model-pill" id="mobile-model-pill" title="Chạm để đổi Provider hoặc Model AI">
  <span class="mobile-model-dot"></span>
  <span id="mobile-model-name-label">Chọn Model AI</span>
- 
  </div>
 
+ <button type="button" id="btn-mobile-new-chat" class="mobile-icon-btn" title="Tạo cuộc hội thoại mới">
+ <span>+ Chat</span>
+ </button>
+
  <button type="button" id="btn-open-model-drawer" class="mobile-icon-btn" title="Cài đặt Model & Tham số">
- 
  <span>Model</span>
  </button>
  </div>
 
- <div id="chat-messages" class="chat-messages">
- <div class="welcome-banner">
- 
- <h3>VinceZone Workplay Canvas</h3>
- <p>Nơi thử nghiệm trực tiếp các AI Model đã gom từ các Provider (OpenCode, Kilo Gateway, ZenMux, OpenAI, Gemini...).</p>
- <p class="sub-hint">Mẹo: Bạn có thể chọn Model bất kỳ từ thanh bên phải và bắt đầu trò chuyện ngay lập tức. Toàn bộ lịch sử sẽ tự động lưu lại ở thanh bên trái để chat tiếp bất kỳ lúc nào.</p>
- </div>
- </div>
+            <div id="chat-messages" class="chat-messages">
+              <div class="welcome-banner">
+                <h3>VinceZone</h3>
+                <p>Tôi có thể giúp gì cho bạn hôm nay?</p>
+                <div class="mobile-starter-prompts">
+                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Viết code giải quyết bài toán: ')">Viết code</button>
+                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Phân tích và tóm tắt nội dung sau: ')">Tóm tắt</button>
+                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Dịch đoạn văn này sang tiếng Anh chuẩn: ')">Dịch thuật</button>
+                  <button type="button" class="starter-prompt-pill" onclick="window.setStarterPrompt('Lập kế hoạch chi tiết cho mục tiêu: ')">Kế hoạch</button>
+                </div>
+              </div>
+            </div>
 
  <!-- Input Box & Attachments -->
  <div class="chat-input-wrapper">
@@ -285,6 +290,72 @@
  <input type="number" id="playground-max-tokens" value="2048" min="64" max="8192" step="64">
  </div>
  </aside>
+
+ <!-- Backdrop for mobile drawers & sheets inside same stacking context -->
+ <div id="mobile-drawer-backdrop" class="mobile-drawer-backdrop"></div>
+
+ <!-- Mobile Model Picker & Settings Bottom Sheet (ChatGPT / Gemini Mobile Style) -->
+ <div id="mobile-model-sheet" class="mobile-model-sheet">
+   <div class="model-sheet-handle"></div>
+   <div class="model-sheet-header">
+     <div class="model-sheet-nav">
+       <button type="button" class="sheet-tab-btn active" id="sheet-tab-models">Mô Hình AI</button>
+       <button type="button" class="sheet-tab-btn" id="sheet-tab-params">Tham Số & Prompt</button>
+     </div>
+     <button type="button" class="btn-close-sheet" id="btn-close-model-sheet" title="Đóng">✕</button>
+   </div>
+
+   <!-- VIEW 1: Model Selection List -->
+   <div id="sheet-view-models" class="sheet-view active">
+     <div class="model-sheet-filters">
+       <div class="sheet-purpose-chips" id="sheet-purpose-chips">
+         <button type="button" class="sheet-chip active" data-purpose="all">Tất cả</button>
+         <button type="button" class="sheet-chip" data-purpose="vision">Vision</button>
+         <button type="button" class="sheet-chip" data-purpose="code">Code</button>
+         <button type="button" class="sheet-chip" data-purpose="reasoning">Logic</button>
+         <button type="button" class="sheet-chip" data-purpose="general">Nhanh</button>
+       </div>
+       <div class="sheet-search-bar">
+         <input type="text" id="sheet-model-search" placeholder="Tìm kiếm model trong danh sách...">
+         <label class="sheet-free-toggle" title="Chỉ hiện model miễn phí">
+           <input type="checkbox" id="sheet-filter-free">
+           <span>FREE</span>
+         </label>
+       </div>
+     </div>
+
+     <div class="model-sheet-list" id="model-sheet-list">
+       <!-- Dynamically populated from providers -->
+     </div>
+   </div>
+
+   <!-- VIEW 2: Parameters (Temperature, Max Tokens, System Prompt) -->
+   <div id="sheet-view-params" class="sheet-view" style="display: none;">
+     <div class="sheet-params-content">
+       <div class="form-group">
+         <label for="sheet-system-prompt">System Prompt</label>
+         <textarea id="sheet-system-prompt" rows="3" placeholder="Ví dụ: Bạn là một trợ lý AI thông minh..."></textarea>
+       </div>
+       <div class="form-group">
+         <div class="label-with-val">
+           <label>Temperature (Độ sáng tạo)</label>
+           <span id="sheet-temp-val" class="val-badge">0.7</span>
+         </div>
+         <input type="range" id="sheet-temperature" min="0" max="2" step="0.1" value="0.7">
+       </div>
+       <div class="form-group">
+         <div class="label-with-val">
+           <label>Max Tokens</label>
+           <span id="sheet-tokens-val" class="val-badge">2048</span>
+         </div>
+         <input type="number" id="sheet-max-tokens" value="2048" min="64" max="8192" step="64">
+       </div>
+       <button type="button" class="btn-primary" id="btn-save-sheet-params" style="width: 100%; justify-content: center; margin-top: 0.5rem; padding: 0.65rem 1rem;">
+         Áp Dụng Tham Số
+       </button>
+     </div>
+   </div>
+ </div>
  </div>
  </section>
 
@@ -949,10 +1020,6 @@
  <span>Cài Đặt</span>
  </button>
  </nav>
-
- <!-- MOBILE DRAWER BACKDROP OVERLAY -->
- <div id="mobile-drawer-backdrop" class="mobile-drawer-backdrop"></div>
-
  </div>
 
  <script src="app.js"></script>

@@ -315,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupAuthEvents();
   setupUserProfileEvents();
   setupChatHistoryEvents();
+  setupMobileModelSheetEvents();
 
   // Load initial data
   await Promise.all([
@@ -354,6 +355,7 @@ function setupNavigation() {
       tabPanes.forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${targetTab}`);
       if (pane) pane.classList.add('active');
+      document.body.setAttribute('data-active-tab', targetTab);
 
       // Tự động đóng drawer trên mobile khi chuyển tab
       closeMobileDrawers();
@@ -421,16 +423,26 @@ window.switchSettingsSubtab = function(subtab) {
 };
 
 // -------------------------------------------------------------
-// MOBILE DRAWER CONTROLS (GIAO DIỆN DI ĐỘNG)
+// MOBILE DRAWER & BOTTOM SHEET CONTROLS (GIAO DIỆN DI ĐỘNG CHATGPT/GEMINI)
 // -------------------------------------------------------------
+
+window.setStarterPrompt = function(text) {
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+};
 
 function closeMobileDrawers() {
   const historySidebar = document.getElementById('chat-history-sidebar');
   const modelSidebar = document.getElementById('playground-sidebar');
+  const modelSheet = document.getElementById('mobile-model-sheet');
   const backdrop = document.getElementById('mobile-drawer-backdrop');
 
   if (historySidebar) historySidebar.classList.remove('mobile-drawer-open');
   if (modelSidebar) modelSidebar.classList.remove('mobile-drawer-open');
+  if (modelSheet) modelSheet.classList.remove('active');
   if (backdrop) backdrop.classList.remove('active');
   document.body.classList.remove('mobile-drawer-active');
 }
@@ -445,12 +457,237 @@ function openHistoryDrawer() {
 }
 
 function openModelDrawer() {
+  openMobileModelSheet();
+}
+
+function openMobileModelSheet() {
   closeMobileDrawers();
-  const modelSidebar = document.getElementById('playground-sidebar');
+  const modelSheet = document.getElementById('mobile-model-sheet');
   const backdrop = document.getElementById('mobile-drawer-backdrop');
-  if (modelSidebar) modelSidebar.classList.add('mobile-drawer-open');
+  
+  // Sync parameters from main controls to sheet
+  const sheetSysPrompt = document.getElementById('sheet-system-prompt');
+  const sheetTemp = document.getElementById('sheet-temperature');
+  const sheetTempVal = document.getElementById('sheet-temp-val');
+  const sheetTokens = document.getElementById('sheet-max-tokens');
+  const sheetTokensVal = document.getElementById('sheet-tokens-val');
+
+  if (sheetSysPrompt && systemPromptInput) sheetSysPrompt.value = systemPromptInput.value;
+  if (sheetTemp && tempInput) {
+    sheetTemp.value = tempInput.value;
+    if (sheetTempVal) sheetTempVal.textContent = tempInput.value;
+  }
+  if (sheetTokens && maxTokensInput) {
+    sheetTokens.value = maxTokensInput.value;
+    if (sheetTokensVal) sheetTokensVal.textContent = maxTokensInput.value;
+  }
+
+  renderMobileModelSheet();
+
+  if (modelSheet) modelSheet.classList.add('active');
   if (backdrop) backdrop.classList.add('active');
   document.body.classList.add('mobile-drawer-active');
+}
+
+function renderMobileModelSheet() {
+  const listEl = document.getElementById('model-sheet-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const activePurpose = state.sheetPurposeFilter || 'all';
+  const filterFree = state.sheetFreeOnly || false;
+  const searchTerm = (state.sheetSearchTerm || '').toLowerCase().trim();
+  const currentModel = modelSelect ? modelSelect.value : '';
+
+  // Collect all available models across providers
+  const enabledProviders = (state.providers || []).filter(p => p.enabled);
+  let allModels = [];
+
+  enabledProviders.forEach(p => {
+    (p.models || []).forEach(m => {
+      if (!allModels.some(item => item.model === m && item.providerId === p.id)) {
+        allModels.push({
+          model: m,
+          providerId: p.id,
+          providerName: p.name,
+          isFree: isFreeModel(m),
+          caps: getModelCapabilities(m)
+        });
+      }
+    });
+  });
+
+  // Filter by purpose
+  if (activePurpose === 'vision') allModels = allModels.filter(x => x.caps.isVision);
+  else if (activePurpose === 'code') allModels = allModels.filter(x => x.caps.isCode);
+  else if (activePurpose === 'reasoning') allModels = allModels.filter(x => x.caps.isReasoning);
+  else if (activePurpose === 'general') allModels = allModels.filter(x => x.caps.isGeneral);
+
+  // Filter by Free
+  if (filterFree) allModels = allModels.filter(x => x.isFree);
+
+  // Filter by Search
+  if (searchTerm) {
+    allModels = allModels.filter(x => 
+      x.model.toLowerCase().includes(searchTerm) || 
+      x.providerName.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  if (allModels.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.82rem;">
+        Không tìm thấy mô hình nào phù hợp với bộ lọc hiện tại.
+      </div>
+    `;
+    return;
+  }
+
+  allModels.forEach(item => {
+    const isSelected = item.model === currentModel;
+    const div = document.createElement('div');
+    div.className = `sheet-model-item ${isSelected ? 'selected' : ''}`;
+
+    let tags = [];
+    if (item.isFree) tags.push('<span class="sheet-tag tag-free">[FREE]</span>');
+    if (item.caps.isVision) tags.push('<span class="sheet-tag tag-vision">Vision</span>');
+    if (item.caps.isCode) tags.push('<span class="sheet-tag tag-code">Code</span>');
+    if (item.caps.isReasoning) tags.push('<span class="sheet-tag tag-logic">Logic</span>');
+
+    div.innerHTML = `
+      <div class="sheet-model-info">
+        <div class="sheet-model-name">${escapeHtml(item.model)}</div>
+        <div class="sheet-model-meta">
+          <span class="sheet-provider-name">${escapeHtml(item.providerName)}</span>
+          <div class="sheet-tags">${tags.join('')}</div>
+        </div>
+      </div>
+      <div class="sheet-model-radio">${isSelected ? '✓' : ''}</div>
+    `;
+
+    div.addEventListener('click', () => {
+      selectModelFromSheet(item.providerId, item.model);
+      closeMobileDrawers();
+    });
+
+    listEl.appendChild(div);
+  });
+}
+
+function selectModelFromSheet(providerId, modelName) {
+  if (providerSelect) {
+    if (providerSelect.value !== 'all' && providerSelect.value !== providerId) {
+      providerSelect.value = providerId;
+      updateModelDropdownForSelectedProvider();
+    }
+  }
+  if (modelSelect) {
+    // Find option in select or create
+    let optFound = Array.from(modelSelect.options).find(o => o.value === modelName);
+    if (!optFound) {
+      // Switch to 'all' provider so all models are present
+      if (providerSelect && providerSelect.value !== 'all') {
+        providerSelect.value = 'all';
+        updateModelDropdownForSelectedProvider();
+      }
+    }
+    modelSelect.value = modelName;
+    modelSelect.dispatchEvent(new Event('change'));
+  }
+  updateMobileModelLabel();
+}
+
+function setupMobileModelSheetEvents() {
+  const btnCloseSheet = document.getElementById('btn-close-model-sheet');
+  if (btnCloseSheet) btnCloseSheet.addEventListener('click', closeMobileDrawers);
+
+  // Tabs: Models vs Params
+  const tabModels = document.getElementById('sheet-tab-models');
+  const tabParams = document.getElementById('sheet-tab-params');
+  const viewModels = document.getElementById('sheet-view-models');
+  const viewParams = document.getElementById('sheet-view-params');
+
+  if (tabModels && tabParams && viewModels && viewParams) {
+    tabModels.addEventListener('click', () => {
+      tabModels.classList.add('active');
+      tabParams.classList.remove('active');
+      viewModels.style.display = 'block';
+      viewParams.style.display = 'none';
+    });
+
+    tabParams.addEventListener('click', () => {
+      tabParams.classList.add('active');
+      tabModels.classList.remove('active');
+      viewParams.style.display = 'block';
+      viewModels.style.display = 'none';
+    });
+  }
+
+  // Purpose Chips
+  const purposeChips = document.querySelectorAll('#sheet-purpose-chips .sheet-chip');
+  purposeChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      purposeChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.sheetPurposeFilter = chip.getAttribute('data-purpose');
+      renderMobileModelSheet();
+    });
+  });
+
+  // Search input
+  const sheetSearch = document.getElementById('sheet-model-search');
+  if (sheetSearch) {
+    sheetSearch.addEventListener('input', (e) => {
+      state.sheetSearchTerm = e.target.value;
+      renderMobileModelSheet();
+    });
+  }
+
+  // Free filter
+  const sheetFree = document.getElementById('sheet-filter-free');
+  if (sheetFree) {
+    sheetFree.addEventListener('change', (e) => {
+      state.sheetFreeOnly = e.target.checked;
+      renderMobileModelSheet();
+    });
+  }
+
+  // Param sliders in sheet
+  const sheetTemp = document.getElementById('sheet-temperature');
+  const sheetTempVal = document.getElementById('sheet-temp-val');
+  if (sheetTemp && sheetTempVal) {
+    sheetTemp.addEventListener('input', (e) => {
+      sheetTempVal.textContent = e.target.value;
+    });
+  }
+
+  const sheetTokens = document.getElementById('sheet-max-tokens');
+  const sheetTokensVal = document.getElementById('sheet-tokens-val');
+  if (sheetTokens && sheetTokensVal) {
+    sheetTokens.addEventListener('input', (e) => {
+      sheetTokensVal.textContent = e.target.value;
+    });
+  }
+
+  // Save params button
+  const btnSaveParams = document.getElementById('btn-save-sheet-params');
+  if (btnSaveParams) {
+    btnSaveParams.addEventListener('click', () => {
+      const sheetSysPrompt = document.getElementById('sheet-system-prompt');
+      if (sheetSysPrompt && systemPromptInput) {
+        systemPromptInput.value = sheetSysPrompt.value;
+      }
+      if (sheetTemp && tempInput) {
+        tempInput.value = sheetTemp.value;
+        if (tempVal) tempVal.textContent = sheetTemp.value;
+      }
+      if (sheetTokens && maxTokensInput) {
+        maxTokensInput.value = sheetTokens.value;
+        if (tokensVal) tokensVal.textContent = sheetTokens.value;
+      }
+      closeMobileDrawers();
+    });
+  }
 }
 
 function updateMobileModelLabel() {
@@ -2514,6 +2751,14 @@ function renderChatHistoryList() {
 function setupChatHistoryEvents() {
   if (btnNewChat) {
     btnNewChat.addEventListener('click', () => {
+      startNewChat();
+      closeMobileDrawers();
+    });
+  }
+
+  const btnMobileNewChat = document.getElementById('btn-mobile-new-chat');
+  if (btnMobileNewChat) {
+    btnMobileNewChat.addEventListener('click', () => {
       startNewChat();
       closeMobileDrawers();
     });
