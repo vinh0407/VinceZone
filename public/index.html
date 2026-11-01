@@ -23,7 +23,20 @@
  </div>
  </div>
 
- <!-- nav-tabs removed for clean minimalist workspace -->
+ <nav class="nav-tabs">
+        <button class="nav-btn" data-tab="playground">
+          Playground
+        </button>
+        <button class="nav-btn active" data-tab="projects" id="nav-btn-projects">
+          Dự Án
+        </button>
+        <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
+          Kho Prompt & Skills
+        </button>
+        <button class="nav-btn" data-tab="settings">
+          Cài Đặt (Settings)
+        </button>
+      </nav>
 
  <div class="header-right">
  <div class="header-status">
@@ -45,9 +58,8 @@
  <!-- MAIN CONTENT -->
  <main class="main-body">
 
- <div style="display:none !important;" aria-hidden="true">
-<!-- ==================== TAB 1: PLAYGROUND ==================== -->
- <section id="tab-playground" class="tab-pane active">
+ <!-- ==================== TAB 1: PLAYGROUND ==================== -->
+ <section id="tab-playground" class="tab-pane">
  <div class="playground-layout">
  <!-- 1. Left Sidebar: Chat History Sessions (Bộ nhớ lịch sử chat) -->
  <aside class="chat-history-sidebar" id="chat-history-sidebar">
@@ -336,9 +348,8 @@
  </div>
  </section>
 
- </div>
 <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
- <section id="tab-projects" class="tab-pane active" style="display:block;">
+ <section id="tab-projects" class="tab-pane active">
  <div class="projects-layout">
    <!-- 1. Left Sidebar: Quản lý Dự Án & Các Luồng Chat -->
    <aside class="projects-sidebar">
@@ -455,8 +466,7 @@
  </div>
  </section>
 
- <div style="display:none !important;" aria-hidden="true">
-<!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
+ <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
  <section id="tab-prompts" class="tab-pane">
  <div class="prompts-container">
  <div class="pane-header">
@@ -1243,7 +1253,21 @@
  <!-- TOAST NOTIFICATION CONTAINER -->
  <div id="toast-container" class="toast-container"></div>
 
- <!-- mobile-bottom-nav removed -->
+ <!-- MOBILE BOTTOM NAVIGATION (Hiện trên điện thoại) -->
+      <nav class="mobile-bottom-nav">
+        <button class="mobile-nav-btn" data-tab="playground">
+          <span>Playground</span>
+        </button>
+        <button class="mobile-nav-btn active" data-tab="projects">
+          <span>Dự Án</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab="prompts">
+          <span>Kho Prompt</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab="settings">
+          <span>Cài Đặt</span>
+        </button>
+      </nav>
  </div>
 
  <script src="app.js"></script>
