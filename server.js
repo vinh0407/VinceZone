@@ -2179,41 +2179,94 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
         sendEvent({ type: 'agent_done', message: pmClearMsg, chatsUpdated: true });
         return res.json({ success: true, message: pmClearMsg, chatsUpdated: true });
       }
-      sendEvent({ type: 'agent_start', role: 'Project Manager (PM) – Quản lý dự án', badge: 'PM' });
 
-      // Tự động dự đoán công việc tương lai và khởi tạo đủ các phòng ban cần thiết cho dự án
-      let deptsRes = { allDepartments: [], newlyCreated: [] };
-      try {
-        deptsRes = Store.predictAndCreateProjectDepartments(projectId, content);
-      } catch (e) {}
+      const qTrim = content.trim();
+      const qLower = qTrim.toLowerCase();
 
-      // 100% AI API: PM TỰ SUY NGHĨ, PHÂN TÍCH Ý ĐỊNH CỦA SẾP VÀ QUYẾT ĐỊNH
-      // - Nếu là giao tiếp, chào hỏi, yêu cầu giới thiệu dự án, giải thích tính năng: PM trả lời trực tiếp cho Sếp.
-      // - Nếu là chỉ đạo kỹ thuật, sửa mã nguồn, đổi giao diện, thêm tính năng: PM phân rã nhiệm vụ và điều phối dev.
+      // Dấu hiệu rõ ràng của CÂU HỎI / THẮC MẮC / TRAO ĐỔI / CHÀO HỎI / GIỚI THIỆU:
+      const hasQuestionMark = qLower.includes('?') || qLower.includes('？');
+      const hasQuestionPatterns = /\b(?:chưa|sao|thế nào|ra sao|không|ko|chăng|tại sao|sao lại|vì sao|như thế nào|gì|nào|bao nhiêu|ở đâu|ai|hả|hử|nhỉ|nhé|phải không|được không|giải thích|cho biết|cho xem|cho hỏi|hỏi|thắc mắc|tư vấn|đánh giá|ý kiến|review|nghĩ sao|phân tích cho tôi|giới thiệu|chào|hello|hi|làm gì|có tính năng gì|chạy thế nào|tổng quan|hôm nay|cần gì)\b/i.test(qLower);
+      
+      // Dấu hiệu chỉ thị quy trình (ví dụ người dùng hướng dẫn PM cách làm việc):
+      const isWorkflowGuidance = /(?:nếu\s+đó\s+là\s+câu\s+hỏi|không\s+phải\s+lúc\s+nào\s+cũng\s+gửi\s+lệnh|chỉ\s+nói\s+chuyện\s+với\s+pm|pm\s+phải\s+trả\s+lời)/i.test(qLower);
+
+      // Dấu hiệu rõ ràng của LỆNH THỰC THI SỬA MÃ NGUỒN / SỬA FILE CỤ THỂ:
+      const hasExplicitCodeAction = /(?:hãy\s+)?(?:chỉnh\s+sửa|sửa\s+code|sửa\s+màu|đổi\s+màu|thay\s+màu|viết\s+thêm|tạo\s+file|tạo\s+tệp|thêm\s+api|viết\s+api|fix\s+lỗi|sửa\s+lỗi|cài\s+đặt|refactor|triển\s+khai\s+code|chuyển\s+màu|sửa\s+lại\s+giao\s+diện|chỉnh\s+css|thay\s+nút|xóa\s+tính\s+năng|thêm\s+chức\s+năng|thực\s+hiện\s+ngay)/i.test(qLower);
+
+      const isDefiniteQuestion = isWorkflowGuidance || ((hasQuestionMark || hasQuestionPatterns) && !hasExplicitCodeAction);
+
+      // =========================================================================
+      // NẾU ĐÓ LÀ CÂU HỎI / TRAO ĐỔI: PM PHẢI TRỰC TIẾP TRẢ LỜI SẾP
+      // (TUYỆT ĐỐI KHÔNG TẠO PHÒNG BAN, KHÔNG GỬI LỆNH CHO NHÂN VIÊN)
+      // =========================================================================
+      if (isDefiniteQuestion) {
+        sendEvent({ type: 'agent_start', role: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)', badge: 'PM' });
+
+        const pmDirectSys = `Bạn là Nemotron 3.5 Lightning (PM – Quản lý dự án của VinceZone).
+Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ làm việc trực tiếp với Sếp (người dùng).
+Dự án: "${project.name}" (Thư mục làm việc: "${project.path}")
+${projectContext}
+
+[NGUYÊN TẮC BẮT BUỘC TỪ SẾP]:
+1. ĐÂY LÀ CÂU HỎI / THẮC MẮC / TRAO ĐỔI / CHỈ THỊ QUY TRÌNH TỪ SẾP: "${qTrim}"
+2. BẠN (PM) PHẢI TRỰC TIẾP TRẢ LỜI SẾP RÕ RÀNG, ĐẦY ĐỦ VÀ NGAY TẠI ĐÂY.
+3. TUYỆT ĐỐI KHÔNG GỬI LỆNH CHO NHÂN VIÊN. KHÔNG PHẢI LÚC NÀO CŨNG GỬI LỆNH CHO NHÂN VIÊN!
+4. Xưng hô: Luôn gọi là "Sếp", xưng "em" (Ví dụ: "Dạ báo cáo Sếp!...", "Dạ tuân lệnh Sếp!...").
+5. Phong thái: Chuyên nghiệp, nhã nhặn, tôn trọng, giải thích sâu sắc và chính xác dựa trên mã nguồn thực tế của dự án.
+- Nếu Sếp chỉ thị về quy trình (ví dụ: câu hỏi thì PM trả lời, lệnh thì mới bảo nhân viên làm): Hãy tiếp thu 100%, tuân lệnh Sếp và khẳng định đã ghi nhớ nguyên tắc vàng này.
+- Nếu Sếp hỏi về dự án: giải đáp chi tiết, thấu đáo và hỏi Sếp xem có lệnh chỉ đạo kỹ thuật nào cụ thể để em điều phối nhân sự không.`;
+
+        let pmAnswer = await callInternalAI({
+          model: 'nvidia/nemotron-3.5-lightning:free',
+          messages: [
+            { role: 'system', content: pmDirectSys },
+            { role: 'user', content: qTrim }
+          ],
+          providerId: 'prov_kilo_gateway'
+        });
+
+        if (!pmAnswer || pmAnswer.trim().length < 20) {
+          if (isWorkflowGuidance) {
+            pmAnswer = `Dạ tuân lệnh Sếp! Em (Project Manager - PM) đã ghi nhớ và khắc sâu chỉ đạo của Sếp: Bất kỳ câu hỏi, thắc mắc, khảo sát hay trao đổi nào từ Sếp thì em sẽ trực tiếp trả lời Sếp ngay tại đây. Chỉ khi nào Sếp ra lệnh thực thi kỹ thuật rõ ràng (sửa code, đổi màu, thêm tính năng, fix bug), em mới bảo các nhân viên phòng ban đi làm. Em cam kết tuân thủ tuyệt đối quy tắc này ạ!`;
+          } else {
+            pmAnswer = `Dạ báo cáo Sếp! Em (Project Manager - PM) đã nắm rõ câu hỏi của Sếp: "${qTrim}". Dự án ${project.name} đang được em và toàn thể đội ngũ theo dõi sát sao. Em xin phép giải đáp trực tiếp cho Sếp ngay tại đây và sẵn sàng nhận lệnh chỉ đạo kỹ thuật tiếp theo của Sếp ạ!`;
+          }
+        }
+
+        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          content: pmAnswer.trim()
+        });
+
+        sendEvent({ type: 'agent_done', message: pmMsg });
+        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+          sendEvent({ type: 'all_done', totalMessages: 1 });
+          return res.end();
+        }
+        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg] });
+      }
+
+      // =========================================================================
+      // NẾU ĐÓ LÀ LỆNH THỰC THI KỸ THUẬT: PM MỚI PHÂN TÍCH VÀ ĐIỀU PHỐI DEV ĐI LÀM
+      // =========================================================================
+      sendEvent({ type: 'agent_start', role: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)', badge: 'PM' });
+
       const pmUnifiedPrompt = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
 Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ chuyên môn làm việc trực tiếp với Sếp (người dùng).
 Dự án hiện tại: "${project.name}"
 Ngữ cảnh và mã nguồn thực tế của dự án:
 ${projectContext}
 
-TIN NHẮN / CHỈ ĐẠO CỦA SẾP:
+CHỈ ĐẠO THỰC THI KỸ THUẬT TỪ SẾP:
 "${content.trim()}"
 
-BẠN HÃY PHÂN TÍCH Ý ĐỊNH CỦA SẾP VÀ TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON THUẦN (KHÔNG KÈM TEXT NGOÀI JSON):
-
-TRƯỜNG HỢP 1 - GIAO TIẾP / HỎI ĐÁP / GIỚI THIỆU / TƯ VẤN / BÁO CÁO (KHÔNG yêu cầu sửa code hay sửa file):
-- Bao gồm: chào hỏi, giới thiệu dự án ("chào giới thị dự án", "giới thiệu dự án", "dự án này làm gì"), hỏi tính năng, tư vấn công nghệ, hỏi tiến độ/kiến trúc...
-- Hành động: Bạn (PM) trực tiếp suy nghĩ và trả lời Sếp thật thông minh, lịch sự, chi tiết dựa trên mã nguồn thực tế của dự án. Luôn xưng "em", gọi "Sếp".
-- Trả về JSON:
-{
-  "type": "direct_reply",
-  "reply": "Dạ em chào Sếp! Em xin báo cáo / giới thiệu về dự án..."
-}
-
-TRƯỜNG HỢP 2 - CHỈ ĐẠO THỰC THI KỸ THUẬT / SỬA CODE / THAY ĐỔI GIAO DIỆN / TẠO FILE / FIX BUG:
-- Bao gồm: chỉnh màu, sửa CSS, sửa layout, thêm API, viết database, fix lỗi, tối ưu...
-- Hành động: Phân tích kỹ thuật, chuyển hóa lời Sếp thành chỉ đạo kỹ thuật chuyên nghiệp, phân rã công việc cho các phòng ban (deptKey: frontend, backend, ai, qa, devops, architecture, mobile, fullstack).
-- Trả về JSON:
+BẠN HÃY PHÂN TÍCH KỸ THUẬT, CHUYỂN HÓA LỜI SẾP THÀNH CHỈ ĐẠO CHUYÊN NGHIỆP VÀ PHÂN RÃ NHIỆM VỤ CHO CÁC PHÒNG BAN:
+Trả về DUY NHẤT định dạng JSON:
 {
   "type": "dispatch_task",
   "analysis": "Phân tích kỹ thuật của PM",
@@ -2244,31 +2297,21 @@ TRƯỜNG HỢP 2 - CHỈ ĐẠO THỰC THI KỸ THUẬT / SỬA CODE / THAY Đ�
         console.warn('PM Intent & Dispatch plan parse error:', e.message);
       }
 
-      // Xử lý fallback thông minh nếu không parse được JSON
-      if (!dispatchPlan) {
-        const isTechOrder = /(?:chỉnh|sửa|đổi|code|viết|tạo|fix|thêm|xóa|tối ưu|update|cập nhật|chuyển màu)/i.test(content);
-        if (isTechOrder) {
-          const fallbackDept = Store.matchDepartmentForTask(content, projectContext);
-          dispatchPlan = {
-            type: 'dispatch_task',
-            analysis: `Điều phối nhiệm vụ kỹ thuật cho phòng ban ${fallbackDept.title}`,
-            tasks: [
-              {
-                deptKey: fallbackDept.key,
-                roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
-                technicalPrompt: `Đề nghị đồng chí rà soát cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu.`
-              }
-            ]
-          };
-        } else {
-          dispatchPlan = {
-            type: 'direct_reply',
-            reply: `Dạ em chào Sếp! Em là Project Manager (PM) của dự án ${project.name}. Dự án đang được xây dựng trên stack công nghệ hiện đại. Em và các phòng ban chuyên môn đã sẵn sàng, Sếp cần em triển khai hoặc làm rõ hạng mục nào ạ?`
-          };
-        }
+      if (!dispatchPlan || !Array.isArray(dispatchPlan.tasks) || dispatchPlan.tasks.length === 0) {
+        const fallbackDept = Store.matchDepartmentForTask(content, projectContext);
+        dispatchPlan = {
+          type: 'dispatch_task',
+          analysis: `Điều phối nhiệm vụ kỹ thuật cho phòng ban ${fallbackDept.title}`,
+          tasks: [
+            {
+              deptKey: fallbackDept.key,
+              roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
+              technicalPrompt: `Đề nghị đồng chí rà soát cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu.`
+            }
+          ]
+        };
       }
 
-      // NẾU LÀ GIAO TIẾP / GIỚI THIỆU DỰ ÁN: PM TRẢ LỜI TRỰC TIẾP CHO SẾP (KHÔNG GIAO VIỆC CHO DEV)
       if (dispatchPlan.type === 'direct_reply' && dispatchPlan.reply) {
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
@@ -2280,12 +2323,12 @@ TRƯỜNG HỢP 2 - CHỈ ĐẠO THỰC THI KỸ THUẬT / SỬA CODE / THAY Đ�
           content: dispatchPlan.reply.trim()
         });
 
-        sendEvent({ type: 'agent_done', message: pmMsg, createdChats: deptsRes.newlyCreated });
+        sendEvent({ type: 'agent_done', message: pmMsg, createdChats: [] });
         if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
           sendEvent({ type: 'all_done', totalMessages: 1 });
           return res.end();
         }
-        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg], createdChats: deptsRes.newlyCreated });
+        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg], createdChats: [] });
       }
 
       // NẾU LÀ CHỈ ĐẠO KỸ THUẬT: ĐIỀU PHỐI ĐẾN CÁC PHÒNG BAN CHUYÊN TRÁCH
