@@ -4819,6 +4819,7 @@ async function sendProjectIdea() {
 
   // Clear input & attachments
   inputEl.value = '';
+  inputEl.style.height = 'auto';
   projectsState.attachments = [];
   renderProjectAttachments();
   projectsState.isRunning = true;
@@ -4919,6 +4920,10 @@ function initProjectsEventListeners() {
   const chatInput = document.getElementById('project-chat-input');
   if (btnSend) btnSend.addEventListener('click', sendProjectIdea);
   if (chatInput) {
+    chatInput.addEventListener('input', () => {
+      chatInput.style.height = 'auto';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 220) + 'px';
+    });
     chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();

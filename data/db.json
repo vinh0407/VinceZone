@@ -601,14 +601,14 @@
   "chatSessions": [],
   "projects": [
     {
-      "id": "proj_eafd27855e4a",
+      "id": "proj_64c5297d2e82",
       "userId": null,
       "name": "VinceZone Workspace",
       "path": "C:\\VisualStudio\\VinceZone",
       "description": "Dự án chính đang mở trên máy tính. Hỗ trợ chạy terminal, sửa mã nguồn và điều phối nhóm Agent.",
       "teams": [
         {
-          "id": "team_25e0a91c",
+          "id": "team_1606a3aa",
           "name": "Nhóm Lập Trình & Kiểm Thử",
           "description": "Nhóm AI chuyên phân tích, viết code và kiểm tra lỗi.",
           "members": [
@@ -647,17 +647,16 @@
       ],
       "chats": [
         {
-          "id": "chat_95aa40a18b07",
+          "id": "chat_011f9a52fcda",
           "title": "Hội đồng Code & Fix lỗi",
           "type": "team",
-          "teamId": "team_25e0a91c",
-          "createdAt": "2026-11-01T23:46:25.095Z",
-          "messages": [],
-          "agents": []
+          "teamId": "team_1606a3aa",
+          "createdAt": "2026-11-01T23:59:59.543Z",
+          "messages": []
         }
       ],
-      "createdAt": "2026-11-01T23:46:25.095Z",
-      "updatedAt": "2026-11-01T23:55:32.153Z"
+      "createdAt": "2026-11-01T23:59:59.543Z",
+      "updatedAt": "2026-11-01T23:59:59.543Z"
     }
   ]
 }
