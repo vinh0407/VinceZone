@@ -4268,6 +4268,7 @@ input[type="range"] {
   height: 100%;
   overflow: hidden;
   background: #09090b;
+  position: relative;
 }
 
 .projects-canvas-header {
@@ -5421,6 +5422,47 @@ input[type="range"] {
 
 .project-files-tree-list.collapsed,
 .project-chats-list.collapsed {
+  display: none !important;
+}
+
+/* Floating View Controls (Nút nổi khi ẩn bảng bên hoặc ẩn thanh bar ngang) */
+.projects-floating-view-controls {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.btn-floating-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(20, 20, 24, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #33333a;
+  border-radius: 8px;
+  color: #e4e4e7;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transition: all 0.18s ease;
+}
+
+.btn-floating-view-toggle:hover {
+  background: #27272e;
+  border-color: #52525b;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.project-chat-topbar.topbar-hidden {
   display: none !important;
 }
 

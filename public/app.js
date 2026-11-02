@@ -4680,8 +4680,15 @@ function renderProjectChat(chat) {
     return;
   }
 
-  // Hiển thị top bar của đoạn chat
-  if (topBarEl) topBarEl.style.display = 'flex';
+  // Hiển thị top bar của đoạn chat (nếu không bị người dùng ẩn)
+  if (topBarEl) {
+    if (!topBarEl.classList.contains('topbar-hidden')) {
+      topBarEl.style.display = 'flex';
+    }
+  }
+  if (typeof window.updateFloatingViewControls === 'function') {
+    window.updateFloatingViewControls();
+  }
   if (titleEl) titleEl.textContent = chat.title;
 
   // Đồng bộ Nhà cung cấp (Provider) & Model tương ứng trên Top Bar
@@ -5883,34 +5890,76 @@ function initProjectsEventListeners() {
     });
   }
 
-  // 1. Ẩn / Hiện Sidebar bên trái (Projects Sidebar Toggle & Hotkey Ctrl+B)
+  // Quản lý hiển thị nút nổi khôi phục (Floating View Controls)
+  const btnFloatingShowSidebar = document.getElementById('btn-floating-show-sidebar');
+  const btnFloatingShowTopbar = document.getElementById('btn-floating-show-topbar');
+  const btnHideTopbar = document.getElementById('btn-hide-chat-topbar');
+  const chatTopbar = document.getElementById('project-chat-topbar');
+  const projectsLayout = document.querySelector('.projects-layout');
+
+  window.updateFloatingViewControls = function() {
+    const isSidebarCollapsed = projectsLayout?.classList.contains('sidebar-collapsed');
+    const isTopbarHidden = chatTopbar?.classList.contains('topbar-hidden');
+
+    if (btnFloatingShowSidebar) {
+      btnFloatingShowSidebar.style.display = isSidebarCollapsed ? 'inline-flex' : 'none';
+    }
+    if (btnFloatingShowTopbar) {
+      btnFloatingShowTopbar.style.display = isTopbarHidden ? 'inline-flex' : 'none';
+    }
+  };
+
+  // 1. Ẩn / Hiện Bảng Bên Dự Án (Sidebar Toggle & Hotkey Ctrl+B)
   const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-projects-sidebar');
-  const projectsLayout = document.querySelector('.projects-layout');
 
   const toggleProjectsSidebar = () => {
     if (!projectsLayout) return;
     const isCollapsed = projectsLayout.classList.toggle('sidebar-collapsed');
     localStorage.setItem('vincezone_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-    showToast(isCollapsed ? 'Đã thu gọn thanh bên (Mở rộng chat)' : 'Đã mở thanh bên');
+    window.updateFloatingViewControls();
+    showToast(isCollapsed ? 'Đã ẩn bảng bên (Mở rộng chat)' : 'Đã hiện bảng bên');
   };
 
-  if (btnCollapseSidebar) btnCollapseSidebar.addEventListener('click', toggleProjectsSidebar);
-  if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleProjectsSidebar);
+  if (btnCollapseSidebar) btnCollapseSidebar.onclick = toggleProjectsSidebar;
+  if (btnToggleSidebar) btnToggleSidebar.onclick = toggleProjectsSidebar;
+  if (btnFloatingShowSidebar) btnFloatingShowSidebar.onclick = toggleProjectsSidebar;
 
-  // Khôi phục trạng thái sidebar từ localStorage
+  // 2. Ẩn / Hiện Thanh Bar Ngang (Chat Topbar Toggle & Hotkey Ctrl+Shift+T)
+  const toggleChatTopbar = () => {
+    if (!chatTopbar) return;
+    const isHidden = chatTopbar.classList.toggle('topbar-hidden');
+    localStorage.setItem('vincezone_topbar_hidden', isHidden ? 'true' : 'false');
+    window.updateFloatingViewControls();
+    showToast(isHidden ? 'Đã ẩn thanh bar ngang' : 'Đã hiện thanh bar ngang');
+  };
+
+  if (btnHideTopbar) btnHideTopbar.onclick = toggleChatTopbar;
+  if (btnFloatingShowTopbar) btnFloatingShowTopbar.onclick = toggleChatTopbar;
+
+  // Khôi phục trạng thái từ localStorage
   if (projectsLayout && localStorage.getItem('vincezone_sidebar_collapsed') === 'true') {
     projectsLayout.classList.add('sidebar-collapsed');
   }
+  if (chatTopbar && localStorage.getItem('vincezone_topbar_hidden') === 'true') {
+    chatTopbar.classList.add('topbar-hidden');
+  }
+  window.updateFloatingViewControls();
 
-  // Phím tắt Ctrl + B / Cmd + B để ẩn/hiện thanh bên
+  // Phím tắt bàn phím
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-      const tabProjects = document.getElementById('tab-projects');
-      if (tabProjects && tabProjects.classList.contains('active')) {
-        e.preventDefault();
-        toggleProjectsSidebar();
-      }
+    const tabProjects = document.getElementById('tab-projects');
+    if (!tabProjects || !tabProjects.classList.contains('active')) return;
+
+    // Ctrl + B: Ẩn / Hiện bảng bên
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      toggleProjectsSidebar();
+    }
+    // Ctrl + Shift + T: Ẩn / Hiện thanh bar ngang
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 't') {
+      e.preventDefault();
+      toggleChatTopbar();
     }
   });
 
