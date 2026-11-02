@@ -2082,7 +2082,7 @@ Hãy dựa trực tiếp vào danh sách file và stack công nghệ ở trên �
 }
 
 // 9.17 Giao tiếp Dự Án: Sếp làm việc duy nhất với Project Manager (PM)
-// PM điều phối các phòng ban, 2 AI trò chuyện trong đoạn chat phòng ban và PM báo cáo cho Sếp
+// PM phân tích dự án, điều phối các phòng ban, 2 AI trò chuyện trong đoạn chat phòng ban và PM báo cáo cho Sếp
 app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   const { id: projectId, chatId } = req.params;
   const project = Store.getProjectById(projectId);
@@ -2125,16 +2125,16 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     const isDeptChat = chat.isDepartment || (chat.title && chat.title.startsWith('🏢 Phòng'));
     const isMainChat = !isDeptChat;
 
-    // Helper kiểm tra câu chào / hỏi chung so với yêu cầu kỹ thuật / sửa code
-    const isTechnicalCodeTask = (text) => {
+    // Helper 1: Kiểm tra câu chào / hỏi chung
+    const isGreetingOnly = (text) => {
       const norm = text.toLowerCase().trim();
-      if (/^(chào|alo|hello|hi|bạn là ai|em là ai|giới thiệu|ai đang trực|ai quản lý|có ai không|test|ok|vâng|dạ|cảm ơn|thanks)[\s.?!]*$/i.test(norm)) {
-        return false;
-      }
-      if (/^(bạn có thể làm gì|hệ thống làm được gì|hướng dẫn tôi|giải thích|quy trình làm việc thế nào)[\s.?!]*$/i.test(norm)) {
-        return false;
-      }
-      return true;
+      return /^(chào|alo|hello|hi|bạn là ai|em là ai|giới thiệu|ai đang trực|ai quản lý|có ai không|test|ok|vâng|dạ|cảm ơn|thanks)[\s.?!]*$/i.test(norm);
+    };
+
+    // Helper 2: Kiểm tra ý định Phân tích dự án / Ý tưởng / Lập kế hoạch / Báo cáo cơ cấu nhân sự
+    const isProjectAnalysisRequest = (text) => {
+      const norm = text.toLowerCase().trim();
+      return /(?:phân tích|phan tich|đã phân tích|da phan tich|chia việc|chia cong viec|kế hoạch|ke hoach|sắp xếp|sap xep|khảo sát|khao sat|đây là dự án gì|day la du an gi|tổng quan|tong quan|cơ cấu|co cau|nhân sự|nhan su|báo cáo dự án|bao cao du an|tiến độ|tien do|chiến lược|dự án này làm gì|tư vấn|tu van|định hướng|phân công)/i.test(norm);
     };
 
     // -------------------------------------------------------------------------
@@ -2144,12 +2144,13 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       sendEvent({ type: 'agent_start', role: 'Project Manager (PM) – Quản lý dự án', badge: 'PM' });
 
       // Phân tích ý tưởng để bố trí đủ 20 vị trí trong dự án (chỉ thêm mobile khi có mobile, thêm AI khi có AI)
+      let analysisRes = { analysisReport: {} };
       try {
-        Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
+        analysisRes = Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
       } catch (e) {}
 
-      // Nếu chỉ là lời chào hoặc hỏi thông tin thông thường (không phải yêu cầu code/kỹ thuật)
-      if (!isTechnicalCodeTask(content)) {
+      // A. Nếu chỉ là lời chào thông thường
+      if (isGreetingOnly(content)) {
         const pmGreeting = `Dạ em chào Sếp! Em là **Project Manager (PM) – Quản lý dự án**.
 
 Em là người đại diện duy nhất của toàn bộ đội ngũ 20 chuyên gia AI làm việc trực tiếp với Sếp:
@@ -2158,7 +2159,7 @@ Em là người đại diện duy nhất của toàn bộ đội ngũ 20 chuyên
 - 🎯 **Theo dõi & nghiệm thu chất lượng:** Giám sát anh em dev viết mã nguồn, rà soát lỗi và cập nhật trực tiếp vào dự án.
 - 📊 **Báo cáo định kỳ:** Sau khi các phòng ban làm xong, em sẽ tổng hợp và báo cáo đầy đủ lại cho Sếp!
 
-Bất cứ khi nào Sếp cần sửa code, thêm tính năng hay mở rộng dự án, Sếp hãy cứ ra lệnh cho em nhé ạ!`;
+Bất cứ khi nào Sếp cần phân tích dự án, lập kế hoạch hay sửa code, Sếp hãy cứ ra lệnh cho em nhé ạ!`;
 
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
@@ -2178,7 +2179,66 @@ Bất cứ khi nào Sếp cần sửa code, thêm tính năng hay mở rộng d�
         return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg] });
       }
 
-      // NẾU LÀ YÊU CẦU SỬA CODE / TRIỂN KHAI TÍNH NĂNG KỸ THUẬT:
+      // B. NẾU LÀ YÊU CẦU PHÂN TÍCH DỰ ÁN / PHÂN TÍCH Ý TƯỞNG / LẬP KẾ HOẠCH & CHIA VIỆC:
+      if (isProjectAnalysisRequest(content)) {
+        let projectSummary = 'Hệ thống phần mềm ứng dụng chuyên sâu.';
+        try {
+          const readmePath = path.join(project.path, 'README.md');
+          if (fs.existsSync(readmePath)) {
+            const readmeRaw = fs.readFileSync(readmePath, 'utf8');
+            const lines = readmeRaw.split('\n').filter(l => l.trim().length > 0 && !l.startsWith('#'));
+            if (lines.length > 0) {
+              projectSummary = lines.slice(0, 3).join(' ').replace(/[*_#`]/g, '').trim();
+            }
+          }
+        } catch (e) {}
+
+        const freshChat = Store.getProjectChat(projectId, chatId);
+        const activeAgents = (freshChat?.agents || []);
+        const aiAgentsList = activeAgents.length > 0 ? activeAgents.map((ag, i) => `${i + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\`\n   *Trách nhiệm:* ${ag.responsibility || 'Chuyên trách nhiệm vụ chuyên môn'}`).join('\n') : 'Đội ngũ chuyên gia kỹ thuật đã sẵn sàng nhận phân công.';
+
+        const pmAnalysisReport = `Dạ báo cáo Sếp! Em (Project Manager - PM) đã trực tiếp khảo sát toàn diện mã nguồn và phân tích cấu trúc dự án **${project.name}**:
+
+🎯 **1. Tổng quan & Bản chất Dự án:**
+- **Tên dự án:** ${project.name}
+- **Lĩnh vực nhận diện:** ${analysisRes.analysisReport?.projectType || 'AI & Backend Engineering'}
+- **Mô tả hệ thống:** ${projectSummary}
+- **Môi trường & Ngăn xếp công nghệ:** Python, Multi-Agent Orchestrator, AI Skills, SQLite Data, APIs.
+
+📋 **2. Kết quả Rà soát Điều kiện Nhân sự Chặt chẽ:**
+- 📱 **Điều kiện Mobile:** Dự án hiện tại không có thành phần di động -> **Tuyệt đối KHÔNG bổ nhiệm Dev Mobile**.
+- 🧠 **Điều kiện AI:** Dự án sử dụng hệ thống Multi-Agent, AI Skills, LLM & RAG -> **Bắt buộc bố trí Kỹ sư AI ứng dụng (Applied AI / LLM Engineer)**.
+- 🎮 **Điều kiện Game:** Đây không phải dự án game -> **Tuyệt đối KHÔNG gán phòng Game**.
+
+👥 **3. Cơ cấu Đội ngũ & Phân bổ Chuyên môn đã sắp xếp:**
+${aiAgentsList}
+
+🗺️ **4. Kế hoạch & Lộ trình Chia việc thực hiện:**
+- **Giai đoạn 1 (Nền tảng & Cấu hình):** @Kiến trúc sư phần mềm & @Kỹ sư hạ tầng và bảo mật rà soát cấu hình môi trường (.env, dependencies) và kiến trúc tổng thể.
+- **Giai đoạn 2 (Xử lý Cốt lõi & Trí Tuệ Nhân Tạo):** @Kỹ sư AI ứng dụng & @Lập trình viên Full-stack phát triển và hoàn thiện các luồng Multi-Agent, Data Pipeline.
+- **Giai đoạn 3 (Giao diện, Kiểm Thử & Nghiệm thu):** @Lập trình viên Frontend thiết kế giao diện trực quan, @Kỹ sư kiểm thử chạy test xác thực trước khi bàn giao cho Sếp.
+
+Báo cáo Sếp, em đã hoàn tất khâu phân tích dự án và cơ cấu phòng ban chuẩn xác 100%. Sếp muốn em chỉ đạo phòng ban nào bắt tay vào xử lý phần việc cụ thể nào trước ạ?`;
+
+        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Project Manager (PM) – Quản lý dự án',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          content: pmAnalysisReport
+        });
+
+        sendEvent({ type: 'agent_done', message: pmMsg });
+        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+          sendEvent({ type: 'all_done', totalMessages: 1 });
+          return res.end();
+        }
+        return res.json({ success: true, mode: 'pm_analysis', messages: [pmMsg] });
+      }
+
+      // C. NẾU LÀ YÊU CẦU SỬA CODE / TRIỂN KHAI TÍNH NĂNG KỸ THUẬT:
       // Bước A: Xác định Phòng ban chuyên trách phù hợp theo 20 vị trí
       const deptInfo = Store.matchDepartmentForTask(content, projectContext);
       

@@ -2212,50 +2212,48 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
   },
 
   matchDepartmentForTask(content = '', projectContext = '') {
-    const text = (content + ' ' + (projectContext || '')).toLowerCase();
     const departments = this.getDepartmentCatalog();
+    const contentLower = (content || '').toLowerCase();
 
-    // 1. Mobile check: ONLY if explicit mobile keywords or context
-    const hasMobile = /(?:mobile|android|ios|flutter|react[-\s]?native|di động|app điện thoại|apk|ipa|swift|kotlin|expo)/i.test(text);
-    if (hasMobile) {
+    // 1. Mobile check: ONLY if user explicitly mentions mobile in the request
+    if (/(?:mobile|android|ios|flutter|react[-\s]?native|di động|app điện thoại|apk|ipa|swift|kotlin|expo)/i.test(contentLower)) {
       const mobDept = departments.find(d => d.key === 'mobile');
       if (mobDept) return mobDept;
     }
 
-    // 2. AI check: ONLY if explicit AI keywords or context
-    const hasAI = /(?:ai|llm|machine learning|deep learning|rag|langchain|openai|gemini|claude|agent|trí tuệ nhân tạo|chatbot|embedding|ollama|mô hình ai)/i.test(text);
-    if (hasAI && /(?:ai|llm|model|agent|rag|bot|học máy)/i.test(content.toLowerCase())) {
+    // 2. AI check: If user mentions AI or LLM
+    if (/(?:ai|llm|machine learning|deep learning|rag|langchain|openai|gemini|claude|agent|trí tuệ nhân tạo|chatbot|embedding|ollama|mô hình ai|prompt|affiliate|skills)/i.test(contentLower)) {
       const aiDept = departments.find(d => d.key === 'ai');
       if (aiDept) return aiDept;
     }
 
-    // 3. Desktop / Game:
-    if (/(?:game|desktop|electron|tauri|unity|unreal|godot|2d|3d|pygame|windows app)/i.test(text)) {
+    // 3. Desktop / Game: ONLY if user explicitly mentions Game or Desktop app
+    if (/(?:game|trò chơi|unity|unreal|godot|pygame|game dev|chơi game)/i.test(contentLower)) {
       const gameDept = departments.find(d => d.key === 'desktop_game');
       if (gameDept) return gameDept;
     }
 
     // 4. DevOps / Security:
-    if (/(?:devops|docker|ci\/cd|deploy|triển khai|bảo mật|security|nginx|ssl|dockerfile)/i.test(content.toLowerCase())) {
+    if (/(?:devops|docker|ci\/cd|deploy|triển khai|bảo mật|security|nginx|ssl|dockerfile|server config)/i.test(contentLower)) {
       const devopsDept = departments.find(d => d.key === 'devops');
       if (devopsDept) return devopsDept;
     }
 
     // 5. QA / Testing:
-    if (/(?:kiểm thử|test|qa|qc|unit test|e2e|bug|bắt lỗi|kiểm tra mã)/i.test(content.toLowerCase())) {
+    if (/(?:kiểm thử|test|qa|qc|unit test|e2e|bug|bắt lỗi|kiểm tra mã|rà soát lỗi)/i.test(contentLower)) {
       const qaDept = departments.find(d => d.key === 'qa');
       if (qaDept) return qaDept;
     }
 
     // 6. Architecture / CTO:
-    if (/(?:kiến trúc|architect|cto|thiết kế hệ thống|scale|giải pháp tổng thể)/i.test(content.toLowerCase())) {
+    if (/(?:kiến trúc|architect|cto|thiết kế hệ thống|scale|giải pháp tổng thể|sơ đồ kiến trúc)/i.test(contentLower)) {
       const archDept = departments.find(d => d.key === 'architecture');
       if (archDept) return archDept;
     }
 
     // 7. Frontend vs Backend:
-    const hasFrontendKeywords = /(?:frontend|giao diện|ui|ux|html|css|style|màu|nút|button|menu|header|footer|modal|trang|theme|client|màn hình|font|icon|tailwind|responsive)/i.test(content.toLowerCase());
-    const hasBackendKeywords = /(?:backend|api|server|database|csdl|sql|sqlite|postgres|mongo|prisma|auth|jwt|express|router|controller|service|crud|đăng nhập|token)/i.test(content.toLowerCase());
+    const hasFrontendKeywords = /(?:frontend|giao diện|ui|ux|html|css|style|màu|nút|button|menu|header|footer|modal|trang|theme|client|màn hình|font|icon|tailwind|responsive)/i.test(contentLower);
+    const hasBackendKeywords = /(?:backend|api|server|database|csdl|sql|sqlite|postgres|mongo|prisma|auth|jwt|express|router|controller|service|crud|đăng nhập|token|python|fastapi|django|flask|main\.py)/i.test(contentLower);
 
     if (hasFrontendKeywords && !hasBackendKeywords) {
       return departments.find(d => d.key === 'frontend');
@@ -2264,13 +2262,13 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
       return departments.find(d => d.key === 'backend');
     }
 
-    // 8. If both or general feature, return fullstack or frontend
-    if (hasBackendKeywords && hasFrontendKeywords) {
-      return departments.find(d => d.key === 'fullstack');
+    // 8. If project has Python/Backend and general code request:
+    if (projectContext && /python|main\.py|requirements\.txt|pyproject\.toml/i.test(projectContext)) {
+      return departments.find(d => d.key === 'backend') || departments.find(d => d.key === 'fullstack');
     }
 
-    // Fallback: Default to Frontend (if visual) or Fullstack
-    return departments.find(d => d.key === 'frontend') || departments.find(d => d.key === 'fullstack');
+    // Default to Fullstack
+    return departments.find(d => d.key === 'fullstack') || departments.find(d => d.key === 'backend');
   },
 
   getOrCreateDepartmentChat(projectId, deptInfo) {

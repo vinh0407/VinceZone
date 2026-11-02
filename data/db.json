@@ -114,6 +114,30 @@
   ],
   "logs": [
     {
+      "id": "log_fefeefdcaede",
+      "timestamp": "2026-11-02T20:20:30.215Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free -> kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenRouter -> Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 2410,
+      "stream": false,
+      "tokens": 2847
+    },
+    {
+      "id": "log_7c149dfdd9fd",
+      "timestamp": "2026-11-02T20:20:10.589Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free -> kilo-auto/free (Tự động chuyển tiếp)",
+      "provider": "OpenRouter -> Kilo Gateway",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 3447,
+      "stream": false,
+      "tokens": 2900
+    },
+    {
       "id": "log_98d11ddddeb6",
       "timestamp": "2026-11-02T20:18:05.864Z",
       "endpoint": "/v1/chat/completions",
@@ -1644,12 +1668,12 @@
           "title": "Đoạn chat đầu tiên",
           "isMain": true,
           "agents": [],
-          "createdAt": "2026-11-02T20:18:22.445Z",
+          "createdAt": "2026-11-02T20:25:35.069Z",
           "messages": []
         }
       ],
       "createdAt": "2026-11-02T08:12:59.257Z",
-      "updatedAt": "2026-11-02T20:18:22.447Z"
+      "updatedAt": "2026-11-02T20:25:35.071Z"
     }
   ]
 }
