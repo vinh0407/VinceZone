@@ -2171,8 +2171,15 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       return res.json({ success: true, mode: 'task_chats_created', messages: [notifyMsg], createdChats });
     }
 
+    // -------------------------------------------------------------------------
+    // TRỢ LÝ ẢO CHÍNH: PHÂN TÍCH Ý TƯỞNG & DỰ ÁN ĐỂ ĐIỀU PHỐI / BỔ NHIỆM AI AGENT
+    // -------------------------------------------------------------------------
+    const analysisRes = Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
+    chat = Store.getProjectChat(projectId, chatId);
+    const newlyRecruited = analysisRes.newlyAdded || [];
+
     const userRecruitIntent = detectUserAgentRecruitment(content);
-    const newlyRecruited = [];
+    const manualRecruited = [];
 
     if (userRecruitIntent) {
       if (userRecruitIntent.type === 'all') {
@@ -2210,7 +2217,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     // KIỂM TRA CHẾ ĐỘ: NHIỀU AGENT (TỐI ĐA 5) HAY CHAT ĐƠN
     // -------------------------------------------------------------------------
     let teamMembers = (chat.agents && chat.agents.length > 0)
-      ? chat.agents.slice(0, 5)
+      ? chat.agents
       : null;
     const teamName = chat.title || 'Hội đồng Agent';
 
@@ -2219,6 +2226,27 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       .replace(/(?:thêm|them|tạo|tao|bổ sung|bo sung|triệu tập|trieu tap|cần|can|muốn|muon|add|recruit)(?:\s+thêm)?(?:\s+agent|\s+chuyên gia|\s+vị trí|\s+người)?(?:\s+về|\s+cho|\s+chuyên)?\s+(?:database|csdl|cơ sở dữ liệu|co so du lieu|sql|db|frontend|front-end|giao diện|giao dien|ui\/ux|ui|ux|security|bảo mật|bao mat|devops|tester|kiểm thử|kiem thu|architect|kiến trúc sư|kien truc su|coder|lập trình viên|lap trinh vien|reviewer|các agent|đủ agent|5 agent)/gi, '')
       .replace(/[,.!?]/g, '')
       .trim();
+
+    if (newlyRecruited.length > 0) {
+      // Thông báo cơ cấu đội ngũ AI của Trợ lý ảo chính theo 20 vị trí chuyên môn
+      const roleNoticeContent = `📋 **Trợ lý ảo chính đã phân tích ý tưởng & dự án của bạn:**
+- **Lĩnh vực nhận diện:** ${analysisRes.analysisReport.projectType}
+- **Vừa bổ nhiệm ${newlyRecruited.length} AI Agent phù hợp vào đội ngũ:**
+${newlyRecruited.map((ag, i) => `${i + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\` [${ag.providerName}]\n   *Trách nhiệm:* ${ag.responsibility || 'Chuyên trách nhiệm vụ chuyên môn'}`).join('\n')}
+
+Đội ngũ đã sẵn sàng phối hợp thực hiện theo chỉ đạo của bạn!`;
+
+      const noticeMsg = Store.saveProjectChatMessage(projectId, chatId, {
+        role: 'assistant',
+        author: 'Trợ Lý Ảo Chính (Điều Phối)',
+        agentBadge: 'ORCHESTRATOR',
+        agentColor: '#6366f1',
+        agentRole: 'Chief AI Coordinator',
+        content: roleNoticeContent
+      });
+
+      sendEvent({ type: 'agent_recruited', newlyRecruited, noticeMsg });
+    }
 
     if (newlyRecruited.length > 0 && substantiveText.length < 5) {
       // Người dùng chỉ ghi câu lệnh đơn thuần để thêm Agent (ví dụ: "thêm agent coder", "thêm csdl", "thêm các agent")
@@ -2534,7 +2562,7 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
 
         const currentChat = Store.getProjectChat(projectId, chatId);
         const currentAgents = currentChat ? (currentChat.agents || []) : [];
-        if (currentAgents.length < 5) {
+        if (true) { // No 5 agent limit
           const alreadyExists = currentAgents.some(a => 
             a.name.toLowerCase() === rawName.toLowerCase() || a.category === rawRole
           );
@@ -2551,7 +2579,7 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
                 recruitedBy: member.name
               });
               // Nếu thành viên cuối vừa tuyển dụng, bổ sung vào vòng lặp để phát biểu ngay
-              if (teamMembers.length < 5) {
+              if (true) { // No 5 agent limit
                 teamMembers.push(recruitedAgent);
               }
             } catch (err) {

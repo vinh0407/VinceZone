@@ -1,3 +1,27 @@
+
+function getBadgeClassForRole(cat, badge) {
+  const c = (cat || '').toLowerCase();
+  const b = (badge || '').toUpperCase();
+  if (c.includes('cto') || b.includes('CTO')) return 'badge-cto';
+  if (c.includes('pm') || b.includes('PM')) return 'badge-pm';
+  if (c.includes('ba') || b.includes('BA')) return 'badge-ba';
+  if (c.includes('arch') || b.includes('ARCH')) return 'badge-arch';
+  if (c.includes('lead') || b.includes('LEAD')) return 'badge-lead';
+  if (c.includes('principal') || b.includes('PRINCIPAL')) return 'badge-principal';
+  if (c.includes('front') || b.includes('FRONT')) return 'badge-frontend';
+  if (c.includes('back') || b.includes('BACK')) return 'badge-backend';
+  if (c.includes('full') || b.includes('FULL')) return 'badge-fullstack';
+  if (c.includes('android') || b.includes('ANDROID')) return 'badge-android';
+  if (c.includes('ios') || b.includes('IOS')) return 'badge-ios';
+  if (c.includes('flutter') || b.includes('FLUTTER')) return 'badge-flutter';
+  if (c.includes('ai') || c.includes('llm') || b.includes('AI') || b.includes('LLM')) return 'badge-ai';
+  if (c.includes('game') || c.includes('desktop') || b.includes('GAME')) return 'badge-game';
+  if (c.includes('test') || c.includes('qa') || b.includes('TEST') || b.includes('QA')) return 'badge-tester';
+  if (c.includes('devops') || c.includes('sec') || b.includes('DEVOPS') || b.includes('SEC')) return 'badge-devops';
+  return 'badge-coder';
+}
+window.getBadgeClassForRole = getBadgeClassForRole;
+
 /**
  * VinceZone AI Workplay & Gateway Frontend Controller
  */
@@ -4927,16 +4951,7 @@ function renderActiveChatAgents(chat) {
   if (agentsRowEl) {
     agentsRowEl.innerHTML = '';
     agents.forEach(ag => {
-      let badgeClass = 'badge-coder';
-      const b = (ag.badge || '').toUpperCase();
-      const cat = (ag.category || '').toLowerCase();
-      if (b.includes('ARCH') || cat === 'architect') badgeClass = 'badge-arch';
-      else if (b.includes('TEST') || cat === 'tester') badgeClass = 'badge-tester';
-      else if (b.includes('REVIEW') || cat === 'reviewer') badgeClass = 'badge-reviewer';
-      else if (b.includes('DEVOPS') || cat === 'devops') badgeClass = 'badge-devops';
-      else if (b.includes('DATA') || cat === 'database') badgeClass = 'badge-database';
-      else if (b.includes('FRONT') || cat === 'frontend') badgeClass = 'badge-frontend';
-      else if (b.includes('SEC') || cat === 'security') badgeClass = 'badge-security';
+      const badgeClass = getBadgeClassForRole(ag.category, ag.badge);
 
       const chip = document.createElement('div');
       chip.className = 'chat-agent-pill';
@@ -4952,15 +4967,9 @@ function renderActiveChatAgents(chat) {
     });
   }
   if (addAgentBtn) {
-    if (agents.length >= 5) {
-      addAgentBtn.disabled = true;
-      addAgentBtn.title = 'Đoạn chat này đã có tối đa 5 Agent';
-      addAgentBtn.classList.add('disabled');
-    } else {
-      addAgentBtn.disabled = false;
-      addAgentBtn.title = `Thêm Agent vào đoạn chat này (${agents.length}/5 Agent)`;
-      addAgentBtn.classList.remove('disabled');
-    }
+    addAgentBtn.disabled = false;
+    addAgentBtn.title = `Thêm AI Agent vào đoạn chat này (${agents.length} Agent)`;
+    addAgentBtn.classList.remove('disabled');
   }
 
   // Cập nhật nhãn capsule AI Agent & Teamwork trên thanh composer
@@ -5030,11 +5039,7 @@ window.openAddAgentCouncilModal = async function() {
     return;
   }
 
-  const agents = projectsState.activeChat?.agents || [];
-  if (agents.length >= 5) {
-    showToast('Đoạn chat này đã có tối đa 5 Agent trong Hội Đồng.');
-    return;
-  }
+  // Không giới hạn số lượng Agent trong Hội Đồng
 
   const modal = document.getElementById('modal-add-agent-council');
   const roleSelect = document.getElementById('council-role-category');
@@ -6308,12 +6313,7 @@ function initProjectsEventListeners() {
         return;
       }
 
-      const currentAgents = projectsState.activeChat?.agents || [];
-      if (currentAgents.length >= 5) {
-        showToast('Đoạn chat này đã có tối đa 5 Agent trong Hội Đồng.');
-        closeCouncilModal();
-        return;
-      }
+      // Không giới hạn số lượng Agent
 
       try {
         isAddingAgent = true;
@@ -7376,16 +7376,7 @@ window.renderAgentDropdownList = function() {
     item.className = 'agent-option-item' + (isSelected ? ' active' : '');
     item.onclick = () => window.selectAgentTarget(ag);
 
-    let badgeClass = 'badge-coder';
-    const b = (ag.badge || '').toUpperCase();
-    const cat = (ag.category || '').toLowerCase();
-    if (b.includes('ARCH') || cat === 'architect') badgeClass = 'badge-arch';
-    else if (b.includes('TEST') || cat === 'tester') badgeClass = 'badge-tester';
-    else if (b.includes('REVIEW') || cat === 'reviewer') badgeClass = 'badge-reviewer';
-    else if (b.includes('DEVOPS') || cat === 'devops') badgeClass = 'badge-devops';
-    else if (b.includes('DATA') || cat === 'database') badgeClass = 'badge-database';
-    else if (b.includes('FRONT') || cat === 'frontend') badgeClass = 'badge-frontend';
-    else if (b.includes('SEC') || cat === 'security') badgeClass = 'badge-security';
+    const badgeClass = getBadgeClassForRole(ag.category, ag.badge);
 
     item.innerHTML = `
       <div class="agent-opt-icon">

@@ -884,6 +884,288 @@ const Store = {
   // 12. DỰ ÁN & HỆ THỐNG NHÓM AGENT (TỐI ĐA 5 THÀNH VIÊN)
   // ----------------------------------------------------
 
+  
+  // ---------------------------------------------------------------------------
+  // 20 CHỨC DANH CHUYÊN MÔN THEO 7 LĨNH VỰC CHUẨN DOANH NGHIỆP
+  // ---------------------------------------------------------------------------
+  getTwentyRolesList() {
+    return [
+      // 1. Management & Project Management – Quản lý dự án
+      {
+        stt: '01',
+        category: 'cto',
+        name: 'Giám đốc công nghệ',
+        roleTitle: 'Chief Technology Officer (CTO)',
+        badge: 'CTO',
+        domain: 'Management & Project Management',
+        desc: 'Định hướng công nghệ, phê duyệt chiến lược và giải pháp kỹ thuật.',
+        color: '#6366f1',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '02',
+        category: 'pm',
+        name: 'Quản lý dự án',
+        roleTitle: 'Project Manager (PM)',
+        badge: 'PM',
+        domain: 'Management & Project Management',
+        desc: 'Tiếp nhận dự án, lập kế hoạch, quản lý tiến độ và điều phối nhân sự.',
+        color: '#3b82f6',
+        defaultModel: 'nvidia/nemotron-3.5-lightning:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '03',
+        category: 'ba',
+        name: 'Phân tích nghiệp vụ',
+        roleTitle: 'Business Analyst (BA)',
+        badge: 'BA',
+        domain: 'Management & Project Management',
+        desc: 'Phân tích yêu cầu, nghiên cứu nghiệp vụ và đặc tả chức năng.',
+        color: '#06b6d4',
+        defaultModel: 'liquid/lfm-2.5-2.6b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+
+      // 2. Architecture & Technical Leadership – Kiến trúc và chuyên gia kỹ thuật
+      {
+        stt: '04',
+        category: 'solution_architect',
+        name: 'Kiến trúc sư giải pháp',
+        roleTitle: 'Solution Architect',
+        badge: 'SOL-ARCH',
+        domain: 'Architecture & Technical Leadership',
+        desc: 'Thiết kế kiến trúc tổng thể, lựa chọn công nghệ và định hướng giải pháp.',
+        color: '#8b5cf6',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '05',
+        category: 'software_architect',
+        name: 'Kiến trúc sư phần mềm',
+        roleTitle: 'Software Architect',
+        badge: 'SOFT-ARCH',
+        domain: 'Architecture & Technical Leadership',
+        desc: 'Thiết kế cấu trúc phần mềm, Design Patterns, Scalability và Maintainability.',
+        color: '#a855f7',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '06',
+        category: 'tech_lead',
+        name: 'Trưởng nhóm kỹ thuật',
+        roleTitle: 'Technical Lead',
+        badge: 'TECH-LEAD',
+        domain: 'Architecture & Technical Leadership',
+        desc: 'Review code, định hướng Developer, xử lý vấn đề kỹ thuật phức tạp.',
+        color: '#d946ef',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '07',
+        category: 'principal_engineer',
+        name: 'Chuyên gia kỹ thuật cấp cao',
+        roleTitle: 'Principal Software Engineer',
+        badge: 'PRINCIPAL',
+        domain: 'Architecture & Technical Leadership',
+        desc: 'Thẩm định source code, phản biện giải pháp, tối ưu hệ thống và tư vấn kỹ thuật chuyên sâu.',
+        color: '#ec4899',
+        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI'
+      },
+
+      // 3. Software Development – Phát triển phần mềm
+      {
+        stt: '08',
+        category: 'frontend_dev',
+        name: 'Lập trình viên Frontend',
+        roleTitle: 'Frontend Developer',
+        badge: 'FRONTEND',
+        domain: 'Software Development',
+        desc: 'Phát triển giao diện Web, Responsive, tương tác và tích hợp API.',
+        color: '#10b981',
+        defaultModel: 'nemotron-3.5-super-vl-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode'
+      },
+      {
+        stt: '09',
+        category: 'senior_frontend_dev',
+        name: 'Lập trình viên Frontend cấp cao',
+        roleTitle: 'Senior Frontend Developer',
+        badge: 'SR-FRONT',
+        domain: 'Software Development',
+        desc: 'Xây dựng kiến trúc Frontend, tối ưu hiệu năng và review code giao diện.',
+        color: '#059669',
+        defaultModel: 'google/gemma-4-26b-a4b-it:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '10',
+        category: 'backend_dev',
+        name: 'Lập trình viên Backend',
+        roleTitle: 'Backend Developer',
+        badge: 'BACKEND',
+        domain: 'Software Development',
+        desc: 'Phát triển API, xử lý nghiệp vụ, Authentication và Server.',
+        color: '#0284c7',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '11',
+        category: 'senior_backend_dev',
+        name: 'Lập trình viên Backend cấp cao',
+        roleTitle: 'Senior Backend Developer',
+        badge: 'SR-BACK',
+        domain: 'Software Development',
+        desc: 'Thiết kế Backend, tối ưu Database, bảo mật và hiệu năng.',
+        color: '#0369a1',
+        defaultModel: 'glm-5.3-flash-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode'
+      },
+      {
+        stt: '12',
+        category: 'fullstack_dev',
+        name: 'Lập trình viên Full-stack',
+        roleTitle: 'Full-stack Developer',
+        badge: 'FULLSTACK',
+        domain: 'Software Development',
+        desc: 'Phát triển toàn diện Frontend, Backend và tích hợp hệ thống.',
+        color: '#14b8a6',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+
+      // 4. Mobile & Cross-platform Development – Phát triển ứng dụng di động
+      {
+        stt: '13',
+        category: 'android_dev',
+        name: 'Lập trình viên Android',
+        roleTitle: 'Android Developer',
+        badge: 'ANDROID',
+        domain: 'Mobile & Cross-platform Development',
+        desc: 'Phát triển ứng dụng Android bằng Kotlin/Java.',
+        color: '#84cc16',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '14',
+        category: 'ios_dev',
+        name: 'Lập trình viên iOS',
+        roleTitle: 'iOS Developer',
+        badge: 'IOS',
+        domain: 'Mobile & Cross-platform Development',
+        desc: 'Phát triển ứng dụng iOS bằng Swift.',
+        color: '#64748b',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '15',
+        category: 'flutter_dev',
+        name: 'Lập trình viên đa nền tảng',
+        roleTitle: 'Flutter Developer',
+        badge: 'FLUTTER',
+        domain: 'Mobile & Cross-platform Development',
+        desc: 'Phát triển ứng dụng Android/iOS và đa nền tảng bằng Flutter.',
+        color: '#0284c7',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+
+      // 5. AI & Data Engineering – Trí tuệ nhân tạo và dữ liệu
+      {
+        stt: '16',
+        category: 'ai_ml_engineer',
+        name: 'Kỹ sư AI',
+        roleTitle: 'AI/ML Engineer',
+        badge: 'AI-ML',
+        domain: 'AI & Data Engineering',
+        desc: 'Phát triển Machine Learning, Deep Learning, Computer Vision và NLP.',
+        color: '#f59e0b',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        stt: '17',
+        category: 'applied_ai_engineer',
+        name: 'Kỹ sư AI ứng dụng',
+        roleTitle: 'Applied AI / LLM Engineer',
+        badge: 'LLM-ENG',
+        domain: 'AI & Data Engineering',
+        desc: 'Tích hợp LLM, AI Agent, RAG, AI API và tự động hóa quy trình.',
+        color: '#eab308',
+        defaultModel: 'xingchen-agi/xing4.0-29b-a4b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+
+      // 6. Desktop & Game Development – Phát triển Desktop và Game
+      {
+        stt: '18',
+        category: 'desktop_game_dev',
+        name: 'Lập trình viên Desktop & Game',
+        roleTitle: 'Desktop / Game Developer',
+        badge: 'GAME-DEV',
+        domain: 'Desktop & Game Development',
+        desc: 'Phát triển ứng dụng Windows/macOS, game 2D/3D bằng Unity, Unreal hoặc các framework phù hợp.',
+        color: '#e11d48',
+        defaultModel: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+
+      // 7. Quality Assurance & Infrastructure – Kiểm thử và hạ tầng
+      {
+        stt: '19',
+        category: 'qa_engineer',
+        name: 'Kỹ sư kiểm thử',
+        roleTitle: 'QA/QC Engineer',
+        badge: 'QA-QC',
+        domain: 'Quality Assurance & Infrastructure',
+        desc: 'Kiểm thử chức năng, API, hiệu năng, tự động hóa test và kiểm soát chất lượng.',
+        color: '#f97316',
+        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI'
+      },
+      {
+        stt: '20',
+        category: 'devops_security',
+        name: 'Kỹ sư hạ tầng và bảo mật',
+        roleTitle: 'DevOps & Security Engineer',
+        badge: 'DEVOPS-SEC',
+        domain: 'Quality Assurance & Infrastructure',
+        desc: 'Cloud, Server, Docker, CI/CD, triển khai, giám sát và bảo mật hệ thống.',
+        color: '#71717a',
+        defaultModel: 'recursive/flint-v1.0:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      }
+    ];
+  },
+
   getSpecializedCatalog() {
     return {
       coder: {
@@ -1370,7 +1652,7 @@ const Store = {
       id: 'chat_' + crypto.randomBytes(6).toString('hex'),
       title: (title || '').trim() || 'Đoạn chat mới',
       model: model || 'kilo-auto/free',
-      agents: Array.isArray(agents) ? agents.slice(0, 5) : [],
+      agents: Array.isArray(agents) ? agents : [],
       createdAt: new Date().toISOString(),
       messages: []
     };
@@ -1446,9 +1728,7 @@ const Store = {
     if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
 
     chat.agents = chat.agents || [];
-    if (chat.agents.length >= 5) {
-      throw new Error('Mỗi đoạn chat chỉ có thể thêm tối đa 5 Agent.');
-    }
+    // No limit on agents count
 
     const catalog = this.getSpecializedCatalog();
     const roleConfig = catalog[category] || catalog.coder;
@@ -1573,7 +1853,7 @@ const Store = {
 
     dreamTeam.forEach(member => {
       const alreadyHas = chat.agents.some(a => a.category === member.category);
-      if (!alreadyHas && chat.agents.length < 5) {
+      if (!alreadyHas && true) {
         const roleConfig = catalog[member.category] || catalog.coder;
         chat.agents.push({
           id: 'ag_' + crypto.randomBytes(4).toString('hex'),
@@ -1596,6 +1876,7 @@ const Store = {
   },
 
   // Phân tích dự án & ý tưởng để cơ cấu và bổ nhiệm các AI Agent phù hợp
+  // Phân tích dự án & ý tưởng để cơ cấu và bổ nhiệm các AI Agent phù hợp theo 20 vị trí
   analyzeAndSetupAgentsForChat(projectId, chatId, userIdea = '') {
     const data = readDb();
     data.projects = data.projects || [];
@@ -1606,7 +1887,9 @@ const Store = {
     if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
 
     chat.agents = chat.agents || [];
-    const catalog = this.getSpecializedCatalog();
+    const rolesList = this.getTwentyRolesList();
+    const roleMap = {};
+    rolesList.forEach(r => { roleMap[r.category] = r; });
 
     // 1. Phân tích ngữ cảnh dự án từ các file thực tế và ý tưởng người dùng
     const filesList = [];
@@ -1627,151 +1910,131 @@ const Store = {
     const ideaStr = (userIdea || '').toLowerCase();
     const combinedContext = filesStr + ' ' + ideaStr;
 
-    // Phát hiện công nghệ & đặc thù
-    const detectedStack = [];
-    const neededRoles = ['architect'];
+    // QUY TẮC NHẬN DIỆN CHẶT CHẼ THEO YÊU CẦU:
+    // 1. Mobile: Chỉ thêm khi có từ khóa hoặc file mobile, tuyệt đối không thêm nếu không có!
+    const hasMobile = /(?:mobile|android|ios|flutter|react[-\s]?native|di động|app điện thoại|apk|ipa|swift|kotlin|expo)/i.test(combinedContext) ||
+      filesStr.includes('android') || filesStr.includes('ios') || filesStr.includes('flutter') || filesStr.includes('pubspec.yaml');
 
-    if (combinedContext.includes('react') || combinedContext.includes('vue') || combinedContext.includes('html') || combinedContext.includes('css') || combinedContext.includes('ui') || combinedContext.includes('giao diện') || combinedContext.includes('frontend') || combinedContext.includes('tailwind') || combinedContext.includes('vite')) {
-      detectedStack.push('Frontend Web / UI');
-      neededRoles.push('frontend');
+    // 2. AI: Nếu phát hiện có AI thì PHẢI thêm dev AI (ngay từ đầu hoặc bổ sung về sau)
+    const hasAI = /(?:ai|llm|machine learning|deep learning|rag|langchain|openai|gemini|claude|agent|trí tuệ nhân tạo|chatbot|embedding|pytorch|tensorflow|nlp|vision|ollama|mô hình ai)/i.test(combinedContext) ||
+      filesStr.includes('ai') || filesStr.includes('model') || filesStr.includes('llm') || filesStr.includes('langchain');
+
+    // 3. Desktop / Game:
+    const hasDesktopGame = /(?:game|desktop|electron|tauri|unity|unreal|godot|2d|3d|pygame|windows app|game developer)/i.test(combinedContext);
+
+    // 4. Web Frontend & UI:
+    const hasFrontend = /(?:frontend|giao diện|ui|ux|web|html|css|react|vue|tailwind|responsive|layout|client)/i.test(combinedContext) ||
+      filesStr.includes('index.html') || filesStr.includes('vite.config') || filesStr.includes('public') || filesStr.includes('src/components');
+
+    // 5. Backend & Server & DB:
+    const hasBackend = /(?:backend|api|server|database|csdl|sql|sqlite|postgres|mongo|prisma|auth|jwt|express|fastapi|django|nest)/i.test(combinedContext) ||
+      filesStr.includes('server.js') || filesStr.includes('package.json') || filesStr.includes('api');
+
+    // Lựa chọn các vai trò phù hợp:
+    const selectedRoles = [];
+
+    // Luôn cần Quản lý & Kiến trúc định hướng:
+    selectedRoles.push('pm'); // Project Manager
+    selectedRoles.push('software_architect'); // Software Architect
+
+    // Frontend:
+    if (hasFrontend) {
+      selectedRoles.push('frontend_dev');
+      selectedRoles.push('senior_frontend_dev');
     }
 
-    if (combinedContext.includes('node') || combinedContext.includes('express') || combinedContext.includes('api') || combinedContext.includes('server') || combinedContext.includes('backend') || combinedContext.includes('python') || combinedContext.includes('fastapi')) {
-      detectedStack.push('Backend & REST API');
-      neededRoles.push('coder');
+    // Backend / Fullstack:
+    if (hasBackend) {
+      selectedRoles.push('backend_dev');
+      selectedRoles.push('senior_backend_dev');
     } else {
-      neededRoles.push('coder');
+      selectedRoles.push('fullstack_dev');
     }
 
-    if (combinedContext.includes('sql') || combinedContext.includes('db') || combinedContext.includes('database') || combinedContext.includes('sqlite') || combinedContext.includes('mongo') || combinedContext.includes('prisma') || combinedContext.includes('csdl') || combinedContext.includes('bảng')) {
-      detectedStack.push('Cơ sở dữ liệu & Schema');
-      neededRoles.push('database');
-    }
-
-    if (combinedContext.includes('test') || combinedContext.includes('kiểm thử') || combinedContext.includes('lỗi') || combinedContext.includes('bug') || combinedContext.includes('debug') || combinedContext.includes('terminal')) {
-      detectedStack.push('Kiểm thử & QA');
-      neededRoles.push('tester');
-    } else if (neededRoles.length < 4) {
-      neededRoles.push('tester');
-    }
-
-    if (combinedContext.includes('auth') || combinedContext.includes('bảo mật') || combinedContext.includes('token') || combinedContext.includes('jwt') || combinedContext.includes('security')) {
-      detectedStack.push('Bảo mật & Auth');
-      neededRoles.push('security');
-    } else if (combinedContext.includes('docker') || combinedContext.includes('deploy') || combinedContext.includes('devops') || combinedContext.includes('render') || combinedContext.includes('ci/cd')) {
-      detectedStack.push('DevOps & Triển khai');
-      neededRoles.push('devops');
-    }
-
-    const uniqueRoles = [...new Set(neededRoles)].slice(0, 4);
-
-    const AGENT_BLUEPRINTS = {
-      architect: {
-        category: 'architect',
-        name: 'Kiến Trúc Sư',
-        badge: 'ARCHITECT',
-        color: '#3b82f6',
-        model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter',
-        reason: 'Hoạch định kiến trúc module, luồng xử lý và phân bổ công việc'
-      },
-      coder: {
-        category: 'coder',
-        name: 'Lập Trình Viên',
-        badge: 'CODER',
-        color: '#10b981',
-        model: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter',
-        reason: 'Hiện thực hóa mã nguồn, giải thuật và cập nhật files dự án'
-      },
-      frontend: {
-        category: 'frontend',
-        name: 'Chuyên Gia Frontend UI/UX',
-        badge: 'FRONTEND',
-        color: '#ec4899',
-        model: 'nemotron-3.5-super-vl-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode',
-        reason: 'Tối ưu hóa layout giao diện responsive, CSS và trải nghiệm người dùng'
-      },
-      database: {
-        category: 'database',
-        name: 'Kỹ Sư CSDL & SQL',
-        badge: 'DATABASE',
-        color: '#14b8a6',
-        model: 'glm-5.3-flash-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode',
-        reason: 'Thiết kế cấu trúc bảng dữ liệu, chuẩn hóa schema và tối ưu truy vấn'
-      },
-      tester: {
-        category: 'tester',
-        name: 'Kỹ Sư Kiểm Thử & QA',
-        badge: 'TESTER',
-        color: '#f59e0b',
-        model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-        providerId: 'prov_cloudflare_ai',
-        providerName: 'Cloudflare Workers AI',
-        reason: 'Kiểm toán code, rà soát lỗi logic và chạy Terminal kiểm thử'
-      },
-      devops: {
-        category: 'devops',
-        name: 'Kỹ Sư DevOps',
-        badge: 'DEVOPS',
-        color: '#8b5cf6',
-        model: 'recursive/flint-v1.0:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter',
-        reason: 'Cấu hình môi trường runtime, script build và đóng gói ứng dụng'
-      },
-      security: {
-        category: 'security',
-        name: 'Chuyên Gia Bảo Mật',
-        badge: 'SECURITY',
-        color: '#ef4444',
-        model: 'nvidia/nemotron-3.5-lightning:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter',
-        reason: 'Kiểm tra xác thực, bảo vệ dữ liệu và rà soát các lỗ hổng tiềm ẩn'
+    // ĐIỀU KIỆN MOBILE (CHẶT CHẼ):
+    if (hasMobile) {
+      if (/flutter/i.test(combinedContext)) {
+        selectedRoles.push('flutter_dev');
+      } else if (/ios|swift/i.test(combinedContext)) {
+        selectedRoles.push('ios_dev');
+      } else if (/android|kotlin|java/i.test(combinedContext)) {
+        selectedRoles.push('android_dev');
+      } else {
+        selectedRoles.push('flutter_dev'); // Đa nền tảng mặc định
       }
-    };
+    }
 
-    const addedAgents = [];
-    uniqueRoles.forEach(roleKey => {
-      const blueprint = AGENT_BLUEPRINTS[roleKey];
+    // ĐIỀU KIỆN AI (PHẢI THÊM NẾU PHÁT HIỆN):
+    if (hasAI) {
+      selectedRoles.push('applied_ai_engineer'); // Applied AI / LLM Engineer
+      if (/machine learning|deep learning|vision|nlp|train/i.test(combinedContext)) {
+        selectedRoles.push('ai_ml_engineer');
+      }
+    }
+
+    // ĐIỀU KIỆN DESKTOP & GAME:
+    if (hasDesktopGame) {
+      selectedRoles.push('desktop_game_dev');
+    }
+
+    // Luôn cần QA và DevOps/Security đảm bảo vận hành:
+    selectedRoles.push('qa_engineer');
+    selectedRoles.push('devops_security');
+
+    // Thêm các Agent vào danh sách (cho phép trùng vai trò nhưng khác Agent id/tên, không giới hạn 5 người):
+    const newlyAdded = [];
+    selectedRoles.forEach(roleKey => {
+      const blueprint = roleMap[roleKey];
       if (!blueprint) return;
-      const alreadyHas = chat.agents.some(a => a.category === roleKey);
-      if (!alreadyHas && chat.agents.length < 5) {
-        const roleConfig = catalog[roleKey] || catalog.coder;
+
+      // Kiểm tra xem vị trí này đã có agent chưa
+      const existingSameRoleCount = chat.agents.filter(a => a.category === roleKey).length;
+      
+      // Nếu vị trí chưa có hoặc cần thêm thành viên hỗ trợ (cho phép trùng vị trí nhưng khác tên agent):
+      if (existingSameRoleCount === 0 || (existingSameRoleCount < 2 && (roleKey === 'frontend_dev' || roleKey === 'backend_dev'))) {
+        const agentSuffix = existingSameRoleCount > 0 ? ` #${existingSameRoleCount + 1}` : '';
         const newAg = {
           id: 'ag_' + crypto.randomBytes(4).toString('hex'),
-          category: roleKey,
-          roleTitle: roleConfig.roleTitle || blueprint.name,
-          name: blueprint.name,
+          category: blueprint.category,
+          roleTitle: blueprint.roleTitle,
+          name: blueprint.name + agentSuffix,
           badge: blueprint.badge,
+          domain: blueprint.domain,
           color: blueprint.color,
-          model: blueprint.model,
+          model: blueprint.defaultModel,
           providerId: blueprint.providerId,
           providerName: blueprint.providerName,
-          systemPrompt: roleConfig.systemPrompt,
-          allocatedReason: blueprint.reason
+          responsibility: blueprint.desc,
+          systemPrompt: `Bạn là ${blueprint.name} (${blueprint.roleTitle}) thuộc nhóm ${blueprint.domain}.
+Trách nhiệm chính của bạn: ${blueprint.desc}
+[NGUYÊN TẮC LÀM VIỆC]:
+1. Thực hiện đúng vai trò chuyên môn của mình trong dự án.
+2. Viết mã nguồn hoàn chỉnh, chính xác, sạch đẹp và tương thích.
+3. Khi chỉnh sửa hoặc viết file, luôn ghi rõ: // File: <đường_dẫn_tệp> ở đầu code block.`
         };
         chat.agents.push(newAg);
-        addedAgents.push(newAg);
+        newlyAdded.push(newAg);
       }
     });
 
     proj.updatedAt = new Date().toISOString();
     writeDb(data);
 
-    const stackDesc = detectedStack.length > 0 ? detectedStack.join(', ') : 'Cấu trúc mã nguồn chung';
+    const detectedDomains = [];
+    if (hasMobile) detectedDomains.push('Mobile App');
+    if (hasAI) detectedDomains.push('AI / LLM Engineering');
+    if (hasDesktopGame) detectedDomains.push('Desktop / Game');
+    if (hasFrontend) detectedDomains.push('Frontend Web');
+    if (hasBackend) detectedDomains.push('Backend & Cloud');
+
     const analysisReport = {
-      projectType: stackDesc,
-      allocatedCount: addedAgents.length,
+      projectType: detectedDomains.length > 0 ? detectedDomains.join(' + ') : 'Phần Mềm Đa Năng',
+      hasMobile,
+      hasAI,
+      totalAgents: chat.agents.length,
+      allocatedCount: newlyAdded.length,
       agents: chat.agents,
-      newlyAdded: addedAgents
+      newlyAdded
     };
 
     return { success: true, agents: chat.agents, analysisReport };
