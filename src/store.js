@@ -2132,6 +2132,228 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
     writeDb(data);
     return true;
   }
+,
+
+  getDepartmentCatalog() {
+    return [
+      {
+        key: 'frontend',
+        title: '🏢 Phòng Giao Diện: Frontend & UI',
+        domain: 'Software Development',
+        primaryRole: 'frontend_dev',
+        seniorRole: 'senior_frontend_dev',
+        keywords: ['frontend', 'giao diện', 'ui', 'ux', 'html', 'css', 'react', 'vue', 'tailwind', 'style', 'layout', 'responsive', 'màu', 'nút', 'button', 'menu', 'header', 'footer', 'modal', 'trang', 'view', 'dashboard', 'theme', 'client', 'màn hình', 'font', 'icon']
+      },
+      {
+        key: 'backend',
+        title: '🏢 Phòng Kỹ Thuật: Backend & Dữ Liệu',
+        domain: 'Software Development',
+        primaryRole: 'backend_dev',
+        seniorRole: 'senior_backend_dev',
+        keywords: ['backend', 'api', 'server', 'database', 'csdl', 'sql', 'sqlite', 'postgres', 'mongo', 'prisma', 'auth', 'jwt', 'express', 'endpoint', 'route', 'controller', 'service', 'dữ liệu', 'bảng', 'crud', 'đăng nhập', 'token', 'query', 'migration']
+      },
+      {
+        key: 'mobile',
+        title: '🏢 Phòng Ứng Dụng Di Động: Mobile & Cross-Platform',
+        domain: 'Mobile & Cross-platform Development',
+        primaryRole: 'flutter_dev',
+        seniorRole: 'flutter_dev',
+        keywords: ['mobile', 'android', 'ios', 'flutter', 'react native', 'di động', 'app điện thoại', 'apk', 'ipa', 'swift', 'kotlin', 'expo']
+      },
+      {
+        key: 'ai',
+        title: '🏢 Phòng Trí Tuệ Nhân Tạo: AI & LLM',
+        domain: 'AI & Data Engineering',
+        primaryRole: 'applied_ai_engineer',
+        seniorRole: 'ai_ml_engineer',
+        keywords: ['ai', 'llm', 'machine learning', 'deep learning', 'rag', 'langchain', 'openai', 'gemini', 'claude', 'agent', 'trí tuệ nhân tạo', 'chatbot', 'embedding', 'ollama', 'mô hình ai', 'prompt engineering']
+      },
+      {
+        key: 'desktop_game',
+        title: '🏢 Phòng Ứng Dụng: Desktop & Game',
+        domain: 'Desktop & Game Development',
+        primaryRole: 'desktop_game_dev',
+        seniorRole: 'desktop_game_dev',
+        keywords: ['game', 'desktop', 'electron', 'tauri', 'unity', 'unreal', 'godot', '2d', '3d', 'pygame', 'windows app', 'macos app']
+      },
+      {
+        key: 'qa',
+        title: '🏢 Phòng Đảm Bảo Chất Lượng: Kiểm Thử & QA/QC',
+        domain: 'Quality Assurance & Infrastructure',
+        primaryRole: 'qa_engineer',
+        seniorRole: 'qa_engineer',
+        keywords: ['test', 'kiểm thử', 'qa', 'qc', 'unit test', 'e2e', 'bug', 'lỗi', 'rà soát lỗi', 'kiểm tra lỗi', 'fix bug']
+      },
+      {
+        key: 'devops',
+        title: '🏢 Phòng Hạ Tầng: DevOps & Bảo Mật',
+        domain: 'Quality Assurance & Infrastructure',
+        primaryRole: 'devops_security',
+        seniorRole: 'devops_security',
+        keywords: ['devops', 'docker', 'ci/cd', 'deploy', 'triển khai', 'bảo mật', 'security', 'nginx', 'ssl', 'cấu hình server']
+      },
+      {
+        key: 'architecture',
+        title: '🏢 Phòng Kiến Trúc Giải Pháp & CTO',
+        domain: 'Architecture & Technical Leadership',
+        primaryRole: 'software_architect',
+        seniorRole: 'solution_architect',
+        keywords: ['kiến trúc', 'architect', 'cto', 'solution', 'thiết kế hệ thống', 'design pattern', 'scale', 'mở rộng', 'định hướng công nghệ']
+      },
+      {
+        key: 'fullstack',
+        title: '🏢 Phòng Phát Triển Phần Mềm: Fullstack',
+        domain: 'Software Development',
+        primaryRole: 'fullstack_dev',
+        seniorRole: 'senior_backend_dev',
+        keywords: ['fullstack', 'toàn diện', 'web app', 'chức năng', 'tính năng', 'sửa code', 'viết code', 'phát triển']
+      }
+    ];
+  },
+
+  matchDepartmentForTask(content = '', projectContext = '') {
+    const text = (content + ' ' + (projectContext || '')).toLowerCase();
+    const departments = this.getDepartmentCatalog();
+
+    // 1. Mobile check: ONLY if explicit mobile keywords or context
+    const hasMobile = /(?:mobile|android|ios|flutter|react[-\s]?native|di động|app điện thoại|apk|ipa|swift|kotlin|expo)/i.test(text);
+    if (hasMobile) {
+      const mobDept = departments.find(d => d.key === 'mobile');
+      if (mobDept) return mobDept;
+    }
+
+    // 2. AI check: ONLY if explicit AI keywords or context
+    const hasAI = /(?:ai|llm|machine learning|deep learning|rag|langchain|openai|gemini|claude|agent|trí tuệ nhân tạo|chatbot|embedding|ollama|mô hình ai)/i.test(text);
+    if (hasAI && /(?:ai|llm|model|agent|rag|bot|học máy)/i.test(content.toLowerCase())) {
+      const aiDept = departments.find(d => d.key === 'ai');
+      if (aiDept) return aiDept;
+    }
+
+    // 3. Desktop / Game:
+    if (/(?:game|desktop|electron|tauri|unity|unreal|godot|2d|3d|pygame|windows app)/i.test(text)) {
+      const gameDept = departments.find(d => d.key === 'desktop_game');
+      if (gameDept) return gameDept;
+    }
+
+    // 4. DevOps / Security:
+    if (/(?:devops|docker|ci\/cd|deploy|triển khai|bảo mật|security|nginx|ssl|dockerfile)/i.test(content.toLowerCase())) {
+      const devopsDept = departments.find(d => d.key === 'devops');
+      if (devopsDept) return devopsDept;
+    }
+
+    // 5. QA / Testing:
+    if (/(?:kiểm thử|test|qa|qc|unit test|e2e|bug|bắt lỗi|kiểm tra mã)/i.test(content.toLowerCase())) {
+      const qaDept = departments.find(d => d.key === 'qa');
+      if (qaDept) return qaDept;
+    }
+
+    // 6. Architecture / CTO:
+    if (/(?:kiến trúc|architect|cto|thiết kế hệ thống|scale|giải pháp tổng thể)/i.test(content.toLowerCase())) {
+      const archDept = departments.find(d => d.key === 'architecture');
+      if (archDept) return archDept;
+    }
+
+    // 7. Frontend vs Backend:
+    const hasFrontendKeywords = /(?:frontend|giao diện|ui|ux|html|css|style|màu|nút|button|menu|header|footer|modal|trang|theme|client|màn hình|font|icon|tailwind|responsive)/i.test(content.toLowerCase());
+    const hasBackendKeywords = /(?:backend|api|server|database|csdl|sql|sqlite|postgres|mongo|prisma|auth|jwt|express|router|controller|service|crud|đăng nhập|token)/i.test(content.toLowerCase());
+
+    if (hasFrontendKeywords && !hasBackendKeywords) {
+      return departments.find(d => d.key === 'frontend');
+    }
+    if (hasBackendKeywords && !hasFrontendKeywords) {
+      return departments.find(d => d.key === 'backend');
+    }
+
+    // 8. If both or general feature, return fullstack or frontend
+    if (hasBackendKeywords && hasFrontendKeywords) {
+      return departments.find(d => d.key === 'fullstack');
+    }
+
+    // Fallback: Default to Frontend (if visual) or Fullstack
+    return departments.find(d => d.key === 'frontend') || departments.find(d => d.key === 'fullstack');
+  },
+
+  getOrCreateDepartmentChat(projectId, deptInfo) {
+    const data = readDb();
+    const proj = (data.projects || []).find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+    proj.chats = proj.chats || [];
+
+    // Đánh dấu chat đầu tiên là chat chính nếu chưa có cờ
+    if (proj.chats.length > 0 && !proj.chats.some(c => c.isMain)) {
+      proj.chats[0].isMain = true;
+    }
+
+    // Tìm chat phòng ban tương ứng
+    let deptChat = proj.chats.find(c => 
+      c.departmentKey === deptInfo.key || 
+      (c.title && c.title.toLowerCase().includes(deptInfo.key)) ||
+      (c.title && c.title.startsWith('🏢 Phòng') && c.title.toLowerCase().includes(deptInfo.title.toLowerCase()))
+    );
+
+    const rolesList = this.getTwentyRolesList();
+    const roleMap = {};
+    rolesList.forEach(r => { roleMap[r.category] = r; });
+
+    const pmRole = roleMap['pm'];
+    const specRole = roleMap[deptInfo.primaryRole] || roleMap['fullstack_dev'];
+
+    const pmAgent = {
+      id: 'ag_pm_' + crypto.randomBytes(3).toString('hex'),
+      category: 'pm',
+      name: pmRole.name,
+      roleTitle: pmRole.roleTitle,
+      badge: 'PM',
+      color: pmRole.color || '#3b82f6',
+      model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
+      providerId: pmRole.providerId || 'prov_openrouter',
+      providerName: pmRole.providerName || 'OpenRouter'
+    };
+
+    const specAgent = {
+      id: 'ag_spec_' + crypto.randomBytes(3).toString('hex'),
+      category: specRole.category,
+      name: specRole.name,
+      roleTitle: specRole.roleTitle,
+      badge: specRole.badge,
+      color: specRole.color || '#10b981',
+      model: specRole.defaultModel || 'cohere/north-mini-code:free',
+      providerId: specRole.providerId || 'prov_openrouter',
+      providerName: specRole.providerName || 'OpenRouter',
+      responsibility: specRole.desc
+    };
+
+    if (!deptChat) {
+      deptChat = {
+        id: 'chat_' + crypto.randomBytes(6).toString('hex'),
+        title: deptInfo.title,
+        model: specAgent.model,
+        providerId: specAgent.providerId,
+        isDepartment: true,
+        departmentKey: deptInfo.key,
+        agents: [pmAgent, specAgent],
+        createdAt: new Date().toISOString(),
+        messages: []
+      };
+      proj.chats.push(deptChat);
+      proj.updatedAt = new Date().toISOString();
+      writeDb(data);
+    } else {
+      deptChat.isDepartment = true;
+      deptChat.departmentKey = deptInfo.key;
+      deptChat.agents = deptChat.agents || [];
+      if (!deptChat.agents.some(a => a.category === 'pm')) {
+        deptChat.agents.unshift(pmAgent);
+      }
+      if (!deptChat.agents.some(a => a.category === specAgent.category)) {
+        deptChat.agents.push(specAgent);
+      }
+      proj.updatedAt = new Date().toISOString();
+      writeDb(data);
+    }
+
+    return { deptChat, pmAgent, specAgent };
+  }
 };
 
 module.exports = Store;

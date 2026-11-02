@@ -2081,7 +2081,8 @@ ${filesText}
 Hãy dựa trực tiếp vào danh sách file và stack công nghệ ở trên để lập tức phân tích kiến trúc, phân chia công việc, hoạch định nhân sự và viết mã nguồn giải quyết trọn vẹn yêu cầu của người dùng!`;
 }
 
-// 9.17 Gửi tin nhắn và điều phối Nhóm Agent (Tối đa 5 thành viên được chọn)
+// 9.17 Giao tiếp Dự Án: Sếp làm việc duy nhất với Project Manager (PM)
+// PM điều phối các phòng ban, 2 AI trò chuyện trong đoạn chat phòng ban và PM báo cáo cho Sếp
 app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   const { id: projectId, chatId } = req.params;
   const project = Store.getProjectById(projectId);
@@ -2095,10 +2096,10 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     return res.status(400).json({ error: 'Nội dung tin nhắn không được để trống.' });
   }
 
-  // 1. Lưu tin nhắn của Người Dùng (Ý Tưởng / Chỉ đạo)
+  // 1. Lưu tin nhắn của Người Dùng (Sếp chỉ đạo)
   const userMsg = Store.saveProjectChatMessage(projectId, chatId, {
     role: 'user',
-    author: 'Người Dùng (Ý Tưởng)',
+    author: 'Sếp (Chỉ Đạo)',
     content: content.trim()
   });
 
@@ -2117,261 +2118,134 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   };
 
   try {
-    // -------------------------------------------------------------------------
-    // 0. TỰ ĐỘNG THÊM AGENT TỪ LỆNH GHI VÀO BOTCHAT CỦA NGƯỜI DÙNG
-    // -------------------------------------------------------------------------
-    // Kiểm tra ý định tự tạo các nhóm chat công việc phục vụ dự án
-    const isTaskChatSplitIntent = detectTaskChatCreationIntent(content);
-    if (isTaskChatSplitIntent) {
-      const defaultTasks = [
-        { title: '🏗️ Thiết Kế CSDL & Kiến Trúc', task: 'Thiết kế ERD, schema bảng dữ liệu và migrations', agents: ['architect', 'database'] },
-        { title: '💻 Lập Trình Mã Nguồn & Core App', task: 'Viết mã nguồn chức năng chính và API xử lý', agents: ['coder', 'architect'] },
-        { title: '🎨 Giao Diện & Trải Nghiệm UI/UX', task: 'Thiết kế giao diện responsive hiện đại chuẩn SaaS', agents: ['frontend', 'coder'] },
-        { title: '🧪 Kiểm Thử & Chạy Terminal', task: 'Rà soát lỗi, viết script kiểm tra và test terminal', agents: ['tester', 'devops'] }
-      ];
-      const createdChats = [];
-      defaultTasks.forEach(t => {
-        try {
-          const nc = Store.createProjectChat(projectId, { title: t.title });
-          t.agents.forEach(cat => {
-            try { Store.addAgentToChat(projectId, nc.id, { category: cat }); } catch (e) {}
-          });
-          const fresh = Store.getProjectChat(projectId, nc.id);
-          const ags = (fresh.agents || []).map(a => `@${a.name}`).join(', ');
-          Store.saveProjectChatMessage(projectId, nc.id, {
-            role: 'assistant',
-            author: 'Điều Phối Viên AI',
-            agentBadge: 'DISPATCH',
-            agentColor: '#8b5cf6',
-            agentRole: 'Điều Phối Nhiệm Vụ',
-            content: `🎯 **Nhóm công việc được tạo tự động: ${t.title}**\n\nMục tiêu: ${t.task}\nCác thành viên: ${ags} đã sẵn sàng phối hợp làm việc!`
-          });
-          createdChats.push(fresh);
-        } catch (e) {
-          console.warn('Lỗi tạo task chat:', e.message);
-        }
-      });
-
-      const notifyMsg = Store.saveProjectChatMessage(projectId, chatId, {
-        role: 'assistant',
-        author: 'Điều Phối Viên AI',
-        agentBadge: 'COUNCIL',
-        agentColor: '#3b82f6',
-        agentRole: 'Quản Trị Dự Án',
-        content: `🎉 **Đã tự động khởi tạo thành công ${createdChats.length} nhóm chat theo từng công việc phục vụ dự án:**\n\n` +
-          createdChats.map((c, idx) => `${idx + 1}. **${c.title}** (${(c.agents || []).map(a => a.name).join(', ')})`).join('\n') +
-          `\n\nBạn có thể bấm vào từng nhóm chat ở thanh bên trái để xem các AI trực tiếp nhắn tin và phối hợp, hoặc bấm nút **"Cấu Trúc"** bên cạnh nút Terminal để xem sơ đồ toàn diện!`
-      });
-
-      if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
-        sendEvent({ type: 'agent_done', message: notifyMsg, createdChats });
-        sendEvent({ type: 'all_done', totalMessages: 1 });
-        return res.end();
-      }
-      return res.json({ success: true, mode: 'task_chats_created', messages: [notifyMsg], createdChats });
-    }
-
-    // -------------------------------------------------------------------------
-    // TRỢ LÝ ẢO CHÍNH: PHÂN TÍCH Ý TƯỞNG & DỰ ÁN ĐỂ ĐIỀU PHỐI / BỔ NHIỆM AI AGENT
-    // -------------------------------------------------------------------------
-    const analysisRes = Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
-    chat = Store.getProjectChat(projectId, chatId);
-    const newlyRecruited = analysisRes.newlyAdded || [];
-
-    const userRecruitIntent = detectUserAgentRecruitment(content);
-    const manualRecruited = [];
-
-    if (userRecruitIntent) {
-      if (userRecruitIntent.type === 'all') {
-        const added = Store.autoSetupAgentsForChat(projectId, chatId);
-        newlyRecruited.push(...added);
-      } else if (userRecruitIntent.items && userRecruitIntent.items.length > 0) {
-        const freshChat = Store.getProjectChat(projectId, chatId);
-        const existingAgents = freshChat.agents || [];
-        for (const item of userRecruitIntent.items) {
-          if (existingAgents.length + newlyRecruited.length >= 5) break;
-          const alreadyExists = existingAgents.some(a => a.category === item.category) ||
-                                newlyRecruited.some(a => a.category === item.category);
-          if (!alreadyExists) {
-            try {
-              const addedAg = Store.addAgentToChat(projectId, chatId, { 
-                category: item.category,
-                providerId: item.providerId
-              });
-              newlyRecruited.push(addedAg);
-            } catch (e) {
-              console.warn('Lỗi thêm agent qua botchat:', e.message);
-            }
-          }
-        }
-      }
-
-      // Nạp lại thông tin cuộc trò chuyện mới nhất sau khi tuyển dụng
-      chat = Store.getProjectChat(projectId, chatId);
-    }
-
-    // Tự động trích xuất toàn bộ cây file, tech stack và quyền truy cập local filesystem
     const projectContext = getProjectLiveContext(project);
 
+    // Xác định xem đây là Đoạn chat chính (Sếp nói chuyện với PM) hay Đoạn chat phòng ban
+    const allChats = project.chats || [];
+    const isDeptChat = chat.isDepartment || (chat.title && chat.title.startsWith('🏢 Phòng'));
+    const isMainChat = !isDeptChat;
+
+    // Helper kiểm tra câu chào / hỏi chung so với yêu cầu kỹ thuật / sửa code
+    const isTechnicalCodeTask = (text) => {
+      const norm = text.toLowerCase().trim();
+      if (/^(chào|alo|hello|hi|bạn là ai|em là ai|giới thiệu|ai đang trực|ai quản lý|có ai không|test|ok|vâng|dạ|cảm ơn|thanks)[\s.?!]*$/i.test(norm)) {
+        return false;
+      }
+      if (/^(bạn có thể làm gì|hệ thống làm được gì|hướng dẫn tôi|giải thích|quy trình làm việc thế nào)[\s.?!]*$/i.test(norm)) {
+        return false;
+      }
+      return true;
+    };
+
     // -------------------------------------------------------------------------
-    // KIỂM TRA CHẾ ĐỘ: NHIỀU AGENT (TỐI ĐA 5) HAY CHAT ĐƠN
+    // TRƯỜNG HỢP 1: SẾP CHAT TRONG ĐOẠN CHAT CHÍNH (CHỈ NÓI CHUYỆN DUY NHẤT VỚI PM)
     // -------------------------------------------------------------------------
-    let teamMembers = (chat.agents && chat.agents.length > 0)
-      ? chat.agents
-      : null;
-    const teamName = chat.title || 'Hội đồng Agent';
+    if (isMainChat) {
+      sendEvent({ type: 'agent_start', role: 'Project Manager (PM) – Quản lý dự án', badge: 'PM' });
 
-    // Nếu người dùng vừa tuyển dụng agent qua botchat và không có yêu cầu sâu thêm:
-    const substantiveText = content
-      .replace(/(?:thêm|them|tạo|tao|bổ sung|bo sung|triệu tập|trieu tap|cần|can|muốn|muon|add|recruit)(?:\s+thêm)?(?:\s+agent|\s+chuyên gia|\s+vị trí|\s+người)?(?:\s+về|\s+cho|\s+chuyên)?\s+(?:database|csdl|cơ sở dữ liệu|co so du lieu|sql|db|frontend|front-end|giao diện|giao dien|ui\/ux|ui|ux|security|bảo mật|bao mat|devops|tester|kiểm thử|kiem thu|architect|kiến trúc sư|kien truc su|coder|lập trình viên|lap trinh vien|reviewer|các agent|đủ agent|5 agent)/gi, '')
-      .replace(/[,.!?]/g, '')
-      .trim();
+      // Phân tích ý tưởng để bố trí đủ 20 vị trí trong dự án (chỉ thêm mobile khi có mobile, thêm AI khi có AI)
+      try {
+        Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
+      } catch (e) {}
 
-    if (newlyRecruited.length > 0) {
-      // Thông báo cơ cấu đội ngũ AI của Trợ lý ảo chính theo 20 vị trí chuyên môn
-      const roleNoticeContent = `📋 **Trợ lý ảo chính đã phân tích ý tưởng & dự án của bạn:**
-- **Lĩnh vực nhận diện:** ${analysisRes.analysisReport.projectType}
-- **Vừa bổ nhiệm ${newlyRecruited.length} AI Agent phù hợp vào đội ngũ:**
-${newlyRecruited.map((ag, i) => `${i + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\` [${ag.providerName}]\n   *Trách nhiệm:* ${ag.responsibility || 'Chuyên trách nhiệm vụ chuyên môn'}`).join('\n')}
+      // Nếu chỉ là lời chào hoặc hỏi thông tin thông thường (không phải yêu cầu code/kỹ thuật)
+      if (!isTechnicalCodeTask(content)) {
+        const pmGreeting = `Dạ em chào Sếp! Em là **Project Manager (PM) – Quản lý dự án**.
 
-Đội ngũ đã sẵn sàng phối hợp thực hiện theo chỉ đạo của bạn!`;
+Em là người đại diện duy nhất của toàn bộ đội ngũ 20 chuyên gia AI làm việc trực tiếp với Sếp:
+- 📋 **Tiếp nhận mọi yêu cầu & ý tưởng:** Sếp chỉ cần chỉ đạo em tại đây, em sẽ chuyển hóa thành kế hoạch kỹ thuật.
+- 👥 **Điều phối toàn bộ 20 nhân sự:** Em sẽ chủ động tạo các phòng ban (Kiến Trúc, Frontend, Backend, Mobile, AI, DevOps, QA...) và phân công đúng chuyên môn.
+- 🎯 **Theo dõi & nghiệm thu chất lượng:** Giám sát anh em dev viết mã nguồn, rà soát lỗi và cập nhật trực tiếp vào dự án.
+- 📊 **Báo cáo định kỳ:** Sau khi các phòng ban làm xong, em sẽ tổng hợp và báo cáo đầy đủ lại cho Sếp!
 
-      const noticeMsg = Store.saveProjectChatMessage(projectId, chatId, {
+Bất cứ khi nào Sếp cần sửa code, thêm tính năng hay mở rộng dự án, Sếp hãy cứ ra lệnh cho em nhé ạ!`;
+
+        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Project Manager (PM) – Quản lý dự án',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          content: pmGreeting
+        });
+
+        sendEvent({ type: 'agent_done', message: pmMsg });
+        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+          sendEvent({ type: 'all_done', totalMessages: 1 });
+          return res.end();
+        }
+        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg] });
+      }
+
+      // NẾU LÀ YÊU CẦU SỬA CODE / TRIỂN KHAI TÍNH NĂNG KỸ THUẬT:
+      // Bước A: Xác định Phòng ban chuyên trách phù hợp theo 20 vị trí
+      const deptInfo = Store.matchDepartmentForTask(content, projectContext);
+      
+      // Bước B: Lấy hoặc tự động tạo Đoạn chat phòng ban tương ứng
+      const { deptChat, pmAgent, specAgent } = Store.getOrCreateDepartmentChat(projectId, deptInfo);
+
+      // Bước C: TRONG ĐOẠN CHAT PHÒNG BAN: 2 AI TRÒ CHUYỆN VỚI NHAU
+      // 1. Con Quản Lý (PM) BẮT CHUYỆN và giao việc cho Dev
+      const pmDeptOrder = `Chào đồng chí @${specAgent.name} (${specAgent.roleTitle}),
+
+Sếp vừa chỉ đạo dự án:
+👉 "${content.trim()}"
+
+Đề nghị đồng chí lập tức rà soát cấu trúc mã nguồn hiện tại của dự án, triển khai mã nguồn kỹ thuật hoàn chỉnh và chính xác theo đúng chuyên môn của phòng ban.
+Lưu ý: Luôn ghi rõ đường dẫn từng tệp \`// File: <đường_dẫn>\` ở đầu mỗi khối mã nguồn để hệ thống tự động ghi thẳng vào thư mục dự án.
+Sau khi hoàn thành, hãy báo cáo chi tiết kết quả cho tôi để tôi tổng hợp báo cáo lên Sếp!`;
+
+      Store.saveProjectChatMessage(projectId, deptChat.id, {
         role: 'assistant',
-        author: 'Trợ Lý Ảo Chính (Điều Phối)',
-        agentBadge: 'ORCHESTRATOR',
-        agentColor: '#6366f1',
-        agentRole: 'Chief AI Coordinator',
-        content: roleNoticeContent
+        author: 'Project Manager (PM) – Quản lý dự án',
+        agentBadge: 'PM',
+        agentColor: '#3b82f6',
+        agentRole: 'Project Manager (PM)',
+        agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+        content: pmDeptOrder
       });
 
-      sendEvent({ type: 'agent_recruited', newlyRecruited, noticeMsg });
-    }
+      // 2. Con Nhân Viên / Dev thực thi công việc và BÁO CÁO lại cho Quản Lý (PM) bằng 1 tin nhắn
+      const devSystemPrompt = `Bạn là ${specAgent.name} (${specAgent.roleTitle}) thuộc ${deptInfo.title}.
+Dự án: ${project.name} (Thư mục làm việc: "${project.path}")
+Trách nhiệm chuyên môn: ${specAgent.responsibility || 'Chuyên trách nhiệm vụ kỹ thuật của phòng ban'}.
 
-    if (newlyRecruited.length > 0 && substantiveText.length < 5) {
-      // Người dùng chỉ ghi câu lệnh đơn thuần để thêm Agent (ví dụ: "thêm agent coder", "thêm csdl", "thêm các agent")
-      const messagesToReturn = [];
+${projectContext}
 
-      if (userRecruitIntent.type === 'all') {
-        const recruitNotice = Store.saveProjectChatMessage(projectId, chatId, {
-          role: 'assistant',
-          author: 'Hội Đồng AI',
-          agentBadge: 'COUNCIL',
-          agentColor: '#3b82f6',
-          agentRole: 'Điều Phối Viên',
-          content: `${newlyRecruited.map(ag => `[RECRUIT_AGENT: role="${ag.category}", name="${ag.name}", model="${ag.model}"]`).join('\n')}
+[QUY CHUẨN XƯNG HÔ VÀ CẤP BẬC CÔNG TY - BẮT BUỘC]:
+1. CẤP QUẢN LÝ TRỰC TIẾP CỦA BẠN LÀ PROJECT MANAGER (PM).
+   - Xưng hô với PM: Gọi là "Quản lý dự án (PM)" hoặc "PM", xưng "tôi" hoặc "em" (Ví dụ: "Dạ chào Quản lý dự án (PM)", "Báo cáo Quản lý dự án (PM)...").
+   - Giữ tác phong nghiêm túc, tôn trọng cấp quản lý, tuân thủ tuyệt đối chỉ đạo kỹ thuật.
+2. CẤP ĐẦU NÃO TỐI CAO LÀ SẾP:
+   - Sếp là người chỉ đạo dự án cho PM. Bạn báo cáo kết quả cho PM để PM báo cáo lại cho Sếp.
+3. KẾT THÚC BẰNG BÁO CÁO GỬI PM:
+   - Ở cuối tin nhắn, LUÔN có phần báo cáo chính thức gửi PM:
+     "Báo cáo Quản lý dự án (PM): Tôi đã hoàn thành xong việc cập nhật mã nguồn... Kính nhờ PM tổng hợp và báo cáo lại với Sếp!"
 
-🎉 **Đã thêm thành công ${newlyRecruited.length} Agent chuyên môn vào Hội đồng theo tin nhắn của bạn:**
-${newlyRecruited.map((ag, idx) => `${idx + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\``).join('\n')}
+[QUY CÁCH TRIỂN KHAI MÃ NGUỒN (100% EXECUTABLE - ZERO-PERMISSION)]:
+1. BẠN ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TRUY CẬP VÀ GHI FILE. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG.
+2. Viết mã nguồn HOÀN CHỈNH, CHUẨN XÁC, SẴN SÀNG CHẠY.
+3. Ở DÒNG ĐẦU TIÊN CỦA MỖI KHỐI CODE, LUÔN ghi rõ đường dẫn file: // File: <đường_dẫn_tệp> để hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG MÁY TÍNH CỦA NGƯỜI DÙNG.
+4. Đi thẳng vào giải pháp kỹ thuật và mã nguồn, không viết dài dòng lý thuyết.`;
 
-Hội đồng đã sẵn sàng nhận chỉ đạo công việc cho dự án của bạn!`
-        });
-        messagesToReturn.push(recruitNotice);
-      } else {
-        newlyRecruited.forEach(ag => {
-          const welcomeMsg = Store.saveProjectChatMessage(projectId, chatId, {
-            role: 'assistant',
-            author: ag.name,
-            agentId: ag.id,
-            agentBadge: ag.badge,
-            agentColor: ag.color,
-            agentModel: ag.model,
-            agentRole: ag.roleTitle,
-            content: `[RECRUIT_AGENT: role="${ag.category}", name="${ag.name}", model="${ag.model}"]
-
-👋 **Chào bạn! Tôi là ${ag.name} (${ag.roleTitle})**, được vận hành bởi AI \`${ag.model}\`.
-Tôi đã chính thức tham gia Hội đồng dự án theo lệnh bạn vừa ghi trong ô chat! Tôi sẵn sàng đảm nhận các công việc về **${ag.roleTitle}**. Bạn hãy giao việc cho tôi nhé!`
-          });
-          messagesToReturn.push(welcomeMsg);
-        });
-      }
-
-      if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
-        messagesToReturn.forEach(m => sendEvent({ type: 'agent_done', message: m }));
-        sendEvent({ type: 'all_done', totalMessages: messagesToReturn.length });
-        return res.end();
-      }
-
-      return res.json({ success: true, mode: 'recruited', messages: messagesToReturn });
-    }
-
-    // A. NẾU LÀ CHAT ĐƠN (CHƯA THÊM AGENT NÀO)
-    if (!teamMembers || teamMembers.length === 0) {
-      sendEvent({ type: 'agent_start', role: 'AI Assistant', badge: 'AI' });
-
-      const messages = [
-        { 
-          role: 'system', 
-          content: `Bạn là trợ lý lập trình AI cấp cao trong dự án ${project.name}.\n\n${projectContext}
-
-[CẤP QUYỀN TOÀN BỘ CHO AGENT (100% FULL PRIVILEGES - ZERO-PERMISSION)]:
-1. BẠN ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TRUY CẬP VÀ GHI FILE. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG!
-   - Không hỏi: "Bạn có muốn lưu file?", "Bạn có đồng ý?", "Vui lòng cho biết...". Hãy tự động làm luôn!
-   - Mọi khối mã có // File: <đường_dẫn> sẽ được hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG của người dùng.
-2. PHẢN HỒI CỰC KỲ GỌN GÀNG, SÚC TÍCH, KHÔNG DÀI DÒNG:
-   - Đi thẳng vào kết quả và giải pháp kỹ thuật trong tối đa 1-3 đoạn ngắn.
-   - TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, Get-ChildItem...). Bạn ĐÃ CÓ sẵn toàn bộ cấu trúc thư mục ở trên.
-
-[QUYỀN TỰ ĐỘNG TẠO NHÓM CHAT MỚI THEO CÔNG VIỆC CỤ THỂ]:
-Bạn có toàn quyền tự động tạo thêm các đoạn chat mới và đặt tên theo từng công việc cụ thể phục vụ dự án bằng cú pháp:
-[CREATE_CHAT: title="Tên công việc cụ thể", task="Mô tả nhiệm vụ", agents="database,coder|frontend,reviewer|tester,devops"]
-Hệ thống sẽ lập tức tạo đoạn chat đó, nạp sẵn các Agent miễn phí từ 4 nhà cung cấp, và các Agent sẽ tự động nhắn tin phối hợp!
-
-[QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
-Bạn có toàn quyền TỰ ĐỘNG TUYỂN DỤNG THÊM CHUYÊN GIA vào Hội Đồng Dự Án mà không cần người dùng thao tác thủ công.
-Khi nhận thấy dự án cần chuyên gia nào (CSDL/SQL, Giao diện Frontend, Kiểm toán Bảo mật, Kỹ sư DevOps, Kỹ sư Kiểm Thử, Code Reviewer):
-Hãy phát lệnh tuyển dụng ở đầu phản hồi theo cú pháp:
-[RECRUIT_AGENT: role="database|frontend|security|devops|tester|coder|reviewer", name="Tên Chuyên Gia", model="<model_id>"]
-
-[DANH SÁCH MÔ HÌNH MIỄN PHÍ TỪ 4 PROVIDER CÓ THỂ CHỌN KHI TUYỂN DỤNG]:
-- OpenRouter: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free, nvidia/nemotron-3.5-super-vl:free, nvidia/nemotron-3.5-lightning:free, google/gemma-4-26b-a4b-it:free, recursive/flint-v1.0:free, xingchen-agi/xing4.0-29b-a4b:free, liquid/lfm-2.5-2.6b:free, nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, openrouter/free
-- Cloudflare Workers AI: @cf/deepseek-ai/deepseek-r1-distill-qwen-32b, @cf/meta/llama-3.1-8b-instruct-fp8-fast, @cf/meta/llama-3.2-11b-vision-instruct, @cf/meta/llama-3.2-3b-instruct, @cf/meta/llama-3.2-1b-instruct, @cf/black-forest-labs/flux-1-schnell (vẽ ảnh), @cf/stabilityai/stable-diffusion-xl-base-1.0 (vẽ ảnh)
-- Kilo Gateway: kilo-auto/free, poolside/laguna-s-2.1:free, dots-studio/dots-3-note-preview:free, nvidia/nemotron-3-ultra-550b-a55b:free, nvidia/nemotron-3.5-lightning:free, cohere/north-mini-code:free, recursive/flint-v1.0:free
-- OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
-Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.` 
-        },
-        ...chat.messages.slice(-8).map(m => {
-          const cleanTxt = (m.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
-          return {
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: cleanTxt
-          };
-        }),
-        { role: 'user', content: content.trim() }
+      const devMessages = [
+        { role: 'system', content: devSystemPrompt },
+        { role: 'user', content: `[CHỈ ĐẠO TỪ QUẢN LÝ DỰ ÁN (PM)]: ${pmDeptOrder}` }
       ];
 
-      const activeModel = model || chat.model || 'kilo-auto/free';
-      const activeProv = req.body.providerId || chat.providerId;
-      const rawAgentResponse = await callInternalAI({ model: activeModel, messages, providerId: activeProv });
-      const agentResponse = (rawAgentResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+      const devRawResponse = await callInternalAI({
+        model: specAgent.model || 'cohere/north-mini-code:free',
+        messages: devMessages,
+        providerId: specAgent.providerId
+      });
+      const devResponse = (devRawResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
 
-      // Quét lệnh tự tuyển dụng Agent từ AI
-      const recruitRegex = /\[(?:RECRUIT_AGENT|AUTO_ADD_AGENT):\s*role="([^"]+)",\s*name="([^"]+)"(?:,\s*model="([^"]+)")?\]/gi;
-      let recruitMatch;
-      while ((recruitMatch = recruitRegex.exec(agentResponse)) !== null) {
-        const rawRole = recruitMatch[1].trim().toLowerCase();
-        const rawName = recruitMatch[2].trim();
-        const rawModel = recruitMatch[3] ? recruitMatch[3].trim() : null;
-        try {
-          const freshChat = Store.getProjectChat(projectId, chatId);
-          if (freshChat && (freshChat.agents || []).length < 5) {
-            const newAg = Store.addAgentToChat(projectId, chatId, {
-              category: rawRole,
-              name: rawName,
-              model: rawModel
-            });
-            sendEvent({ type: 'agent_recruited', agent: newAg, recruitedBy: 'AI Trợ Lý' });
-          }
-        } catch (e) {
-          console.warn('Lỗi tự tuyển dụng agent:', e.message);
-        }
-      }
-
-      // TỰ ĐỘNG GHI FILE VÀO DỰ ÁN TRÊN MÁY (CẤP QUYỀN TOÀN BỘ CHO AGENT)
+      // Tự động trích xuất và ghi file vào dự án
       const autoSavedFiles = [];
       const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
       let fMatch;
-      while ((fMatch = codeFileRegex.exec(agentResponse)) !== null) {
+      while ((fMatch = codeFileRegex.exec(devResponse)) !== null) {
         const filePath = fMatch[1].trim();
         const fileContent = fMatch[2];
         if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
@@ -2383,254 +2257,169 @@ Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.
         }
       }
 
-      const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
+      // Lưu tin nhắn của Dev vào đoạn chat phòng ban
+      Store.saveProjectChatMessage(projectId, deptChat.id, {
         role: 'assistant',
-        author: 'AI Trợ Lý',
-        agentBadge: 'AI',
-        agentColor: '#3b82f6',
-        agentModel: activeModel,
-        agentRole: 'Trợ lý lập trình',
-        content: agentResponse,
+        author: specAgent.name,
+        agentId: specAgent.id,
+        agentBadge: specAgent.badge,
+        agentColor: specAgent.color,
+        agentModel: specAgent.model,
+        agentRole: specAgent.roleTitle,
+        content: devResponse,
         autoSavedFiles: autoSavedFiles
       });
 
-      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles });
+      // Bước D: QUẢN LÝ (PM) BÁO CÁO LẠI CHO SẾP TRONG ĐOẠN CHAT ĐẦU (GỌI USER LÀ SẾP)
+      const filesListText = autoSavedFiles.length > 0 
+        ? `\n- **Các tập tin mã nguồn đã tự động cập nhật vào dự án:**\n${autoSavedFiles.map(f => `  • \`${f}\``).join('\n')}` 
+        : '';
 
+      const pmReportContent = `Dạ báo cáo Sếp!
+Em đã tiếp nhận chỉ đạo và trực tiếp điều phối **${deptInfo.title}** (chuyên viên @${specAgent.name}) triển khai xử lý yêu cầu của Sếp:
+👉 *"${content.trim()}"*
+
+📌 **Tiến độ và kết quả thực hiện:**
+- **Phòng ban đảm nhận:** ${deptInfo.title}
+- **Chuyên viên thực thi:** @${specAgent.name} (${specAgent.roleTitle})
+- **Tình trạng:** Đã hoàn tất xử lý kỹ thuật và rà soát mã nguồn.${filesListText}
+
+💬 Toàn bộ quá trình giao việc và đối thoại kỹ thuật nội bộ giữa em và @${specAgent.name} đã được ghi nhận tại đoạn chat **[${deptInfo.title}]** ở thanh bên trái. Sếp có thể bấm vào đó để xem 2 AI trao đổi chi tiết.
+
+Kính mời Sếp kiểm tra hoặc bấm nút **"Chạy Dự Án"** ở trên để nghiệm thu kết quả ạ!`;
+
+      const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
+        role: 'assistant',
+        author: 'Project Manager (PM) – Quản lý dự án',
+        agentBadge: 'PM',
+        agentColor: '#3b82f6',
+        agentRole: 'Project Manager (PM)',
+        agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+        content: pmReportContent,
+        autoSavedFiles: autoSavedFiles
+      });
+
+      sendEvent({ type: 'agent_done', message: pmReportMsg, autoSavedFiles, createdChats: [deptChat] });
       if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
         sendEvent({ type: 'all_done', totalMessages: 1 });
         return res.end();
       }
 
-      return res.json({ success: true, mode: 'direct', messages: [savedMsg] });
+      return res.json({ 
+        success: true, 
+        mode: 'pm_report', 
+        messages: [pmReportMsg], 
+        createdChats: [deptChat], 
+        autoSavedFiles 
+      });
     }
 
-    // B. NẾU LÀ CHAT NHÓM: LẦN LƯỢT CÁC AGENT TRONG NHÓM (TỐI ĐA 5 AGENT) CÙNG NÓI CHUYỆN & FIX CODE
-    // Lọc thành viên nếu người dùng chỉ định đích danh qua @mention để làm việc riêng
-    let isTargetedWork = false;
-    let targetedNames = [];
-    if (teamMembers && teamMembers.length > 0) {
-      const lowerContent = content.toLowerCase();
-      const normContent = removeVietnameseTones(content);
+    // -------------------------------------------------------------------------
+    // TRƯỜNG HỢP 2: SẾP CHAT TRỰC TIẾP TRONG ĐOẠN CHAT PHÒNG BAN
+    // -------------------------------------------------------------------------
+    // Trong phòng ban: PM tiếp nhận lệnh của Sếp, ra lệnh cho Dev, Dev báo cáo PM, PM kết luận với Sếp
+    const specAgent = (chat.agents || []).find(a => a.category !== 'pm') || {
+      name: 'Chuyên Viên Kỹ Thuật',
+      roleTitle: 'Developer',
+      badge: 'DEV',
+      color: '#10b981',
+      model: 'cohere/north-mini-code:free'
+    };
 
-      if (lowerContent.includes('@')) {
-        const isAll = normContent.includes('@all') || normContent.includes('@tat ca') || normContent.includes('@ca nhom') || normContent.includes('@hoi dong');
-        if (!isAll) {
-          const matchedMembers = teamMembers.filter(m => {
-            const nameLower = m.name.toLowerCase();
-            const normName = removeVietnameseTones(m.name);
-            const catLower = (m.category || '').toLowerCase();
+    // 1. PM tiếp nhận và giao nhiệm vụ cho Dev
+    const pmDeptAck = `Dạ thưa Sếp! Em (PM) ghi nhận chỉ đạo trực tiếp của Sếp cho phòng ban này:
+👉 "${content.trim()}"
 
-            return lowerContent.includes(`@${nameLower}`) ||
-                   normContent.includes(`@${normName}`) ||
-                   lowerContent.includes(`@${catLower}`) ||
-                   normContent.includes(`@${catLower}`) ||
-                   (catLower === 'coder' && (normContent.includes('@lap trinh') || normContent.includes('@code') || normContent.includes('@coder') || normContent.includes('@dev'))) ||
-                   (catLower === 'tester' && (normContent.includes('@kiem thu') || normContent.includes('@tester') || normContent.includes('@test') || normContent.includes('@qa'))) ||
-                   (catLower === 'database' && (normContent.includes('@csdl') || normContent.includes('@co so du lieu') || normContent.includes('@database') || normContent.includes('@sql') || normContent.includes('@db'))) ||
-                   (catLower === 'frontend' && (normContent.includes('@giao dien') || normContent.includes('@frontend') || normContent.includes('@ui') || normContent.includes('@ux'))) ||
-                   (catLower === 'security' && (normContent.includes('@bao mat') || normContent.includes('@security') || normContent.includes('@an ninh') || normContent.includes('@sec'))) ||
-                   (catLower === 'architect' && (normContent.includes('@kien truc') || normContent.includes('@architect') || normContent.includes('@arch'))) ||
-                   (catLower === 'devops' && (normContent.includes('@devops') || normContent.includes('@trien khai'))) ||
-                   (catLower === 'reviewer' && (normContent.includes('@reviewer') || normContent.includes('@review') || normContent.includes('@soat code')));
-          });
+@${specAgent.name}, đồng chí triển khai thực hiện ngay theo lệnh của Sếp!`;
 
-          if (matchedMembers.length > 0) {
-            teamMembers = matchedMembers;
-            isTargetedWork = true;
-            targetedNames = matchedMembers.map(m => m.name);
-          }
-        }
+    const pmAckMsg = Store.saveProjectChatMessage(projectId, chatId, {
+      role: 'assistant',
+      author: 'Project Manager (PM) – Quản lý dự án',
+      agentBadge: 'PM',
+      agentColor: '#3b82f6',
+      agentRole: 'Project Manager (PM)',
+      content: pmDeptAck
+    });
+
+    sendEvent({ type: 'agent_done', message: pmAckMsg });
+
+    // 2. Dev triển khai và báo cáo cho PM
+    const devSystemPrompt = `Bạn là ${specAgent.name} (${specAgent.roleTitle}) trong phòng ban ${chat.title}.
+Dự án: ${project.name} (Thư mục: "${project.path}")
+${projectContext}
+
+[QUY CHUẨN XƯNG HÔ VÀ CẤP BẬC CÔNG TY]:
+- Cấp quản lý của bạn là PM. Người đứng đầu cao nhất là Sếp.
+- Xưng hô với PM: "Dạ chào Quản lý dự án (PM)" / "Báo cáo Quản lý dự án (PM)".
+- Báo cáo kết quả trực tiếp cho PM ở cuối tin nhắn: "Báo cáo Quản lý dự án (PM): Tôi đã hoàn thành... Nhờ PM tổng hợp báo cáo Sếp!"
+
+[QUY CÁCH CODE]:
+- Viết code hoàn chỉnh, ghi rõ // File: <đường_dẫn> ở dòng đầu mỗi code block để tự động ghi file.`;
+
+    const devRawResponse = await callInternalAI({
+      model: specAgent.model || 'cohere/north-mini-code:free',
+      messages: [
+        { role: 'system', content: devSystemPrompt },
+        { role: 'user', content: `[LỆNH CỦA SẾP ĐIỀU PHỐI QUA PM]: ${content.trim()}` }
+      ],
+      providerId: specAgent.providerId
+    });
+    const devResponse = (devRawResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+
+    const autoSavedFiles = [];
+    const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
+    let fMatch;
+    while ((fMatch = codeFileRegex.exec(devResponse)) !== null) {
+      const filePath = fMatch[1].trim();
+      const fileContent = fMatch[2];
+      if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
+      try {
+        const written = writeProjectFileHelper(project.path, filePath, fileContent);
+        if (written) autoSavedFiles.push(written.relativePath);
+      } catch (e) {
+        console.warn('Auto save error:', e.message);
       }
     }
 
-    const generatedMessages = [];
-    const previousTurnsContext = [];
+    const devReplyMsg = Store.saveProjectChatMessage(projectId, chatId, {
+      role: 'assistant',
+      author: specAgent.name,
+      agentId: specAgent.id,
+      agentBadge: specAgent.badge,
+      agentColor: specAgent.color,
+      agentModel: specAgent.model,
+      agentRole: specAgent.roleTitle,
+      content: devResponse,
+      autoSavedFiles: autoSavedFiles
+    });
 
-    for (let i = 0; i < teamMembers.length; i++) {
-      const member = teamMembers[i];
-      sendEvent({
-        type: 'agent_start',
-        agentId: member.id,
-        role: member.name,
-        badge: member.badge,
-        category: member.category,
-        index: i + 1,
-        total: teamMembers.length
-      });
+    sendEvent({ type: 'agent_done', message: devReplyMsg, autoSavedFiles });
 
-      const memberModel = member.model || model || 'kilo-auto/free';
-      const otherMembers = teamMembers.filter(m => m.id !== member.id);
-      const nextMember = teamMembers[i + 1] || null;
-      const prevMember = teamMembers[i - 1] || null;
+    // 3. PM tổng kết và báo cáo lại với Sếp
+    const pmConclude = `Dạ báo cáo Sếp, công việc tại phòng ban này đã được em và đồng chí @${specAgent.name} hoàn tất theo đúng chỉ đạo của Sếp ạ!`;
+    const pmEndMsg = Store.saveProjectChatMessage(projectId, chatId, {
+      role: 'assistant',
+      author: 'Project Manager (PM) – Quản lý dự án',
+      agentBadge: 'PM',
+      agentColor: '#3b82f6',
+      agentRole: 'Project Manager (PM)',
+      content: pmConclude,
+      autoSavedFiles: autoSavedFiles
+    });
 
-      const promptInstructions = `
-[BẠN ĐANG TRONG CUỘC HỌP PHỐI HỢP CÙNG HỘI ĐỒNG AI (WAR-ROOM)]:
-- Tên bạn: ${member.name}
-- Vị trí chuyên môn: ${member.roleTitle} [${member.badge}]
-- AI vận hành: ${memberModel}
-- Các thành viên cùng dự án: ${teamMembers.map(m => `@${m.name} (${m.roleTitle})`).join(', ')}
-${isTargetedWork ? `
-[CHỈ ĐỊNH ĐÍCH DANH - BẠN ĐƯỢC GIAO LÀM VIỆC RIÊNG CHO YÊU CẦU NÀY]:
-Người dùng đã sử dụng cú pháp @ để chỉ định đích danh bạn (${targetedNames.map(n => '@' + n).join(', ')}) làm việc riêng cho yêu cầu này.
-Hãy tập trung 100% khả năng chuyên môn của bạn để thực hiện trọn vẹn nhiệm vụ được giao.` : ''}
-
-[CẤP QUYỀN TOÀN BỘ CHO AGENT (100% FULL PRIVILEGES - ZERO-PERMISSION)]:
-1. BẠN VÀ HỘI ĐỒNG AGENT ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TỰ TRỊ. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG!
-   - Nghiêm cấm hỏi: "Bạn có muốn lưu file?", "Bạn có đồng ý không?", "Vui lòng cho tôi biết...". Hãy tự động quyết định và làm luôn!
-   - Mọi khối mã bạn viết có // File: <đường_dẫn> sẽ được hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG MÁY TÍNH CỦA NGƯỜI DÙNG.
-
-[QUY TẮC PHẢN HỒI GỌN GÀNG, SÚC TÍCH, KHÔNG DÀI DÒNG - BẮT BUỘC]:
-1. TUYỆT ĐỐI KHÔNG VIẾT DÀI DÒNG, KHÔNG GIẢI THÍCH LÝ THUYẾT LAN MAN.
-2. TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, Get-ChildItem...). Toàn bộ cây thư mục và file dự án ĐÃ CÓ ĐẦY ĐỦ ở dưới!
-3. PHẢN HỒI TRỰC TIẾP, NGẮN GỌN (Tối đa 1-3 đoạn ngắn):
-   - KIẾN TRÚC SƯ: Phân tích kiến trúc ngắn gọn 1-2 câu, sau đó tag đích danh giao việc (@Lập Trình Viên: ..., @Kỹ Sư Kiểm Thử: ...). Không tạo script explore giả.
-   - LẬP TRÌNH VIÊN: Viết thẳng mã nguồn hoàn chỉnh có // File: <đường_dẫn>, hệ thống tự động ghi file.
-   - KIỂM THỬ VIÊN: Cung cấp lệnh PowerShell/CMD trực tiếp trong \`\`\`powershell.
-   - REVIEWER: Nhận xét ngắn gọn 1-2 câu và xác nhận.
-4. TUYỆT ĐỐI KHÔNG BẮT ĐẦU BẰNG TIỀN TỐ TÊN MÌNH (ví dụ KHÔNG viết "[${member.name}]: ").
-${prevMember ? `5. BẮT ĐẦU: Phản hồi súc tích ý kiến của @${prevMember.name}.` : `5. MỞ ĐẦU: Chào ngắn gọn 1 câu và phân công việc cho @${nextMember ? nextMember.name : 'thành viên tiếp theo'}.`}
-${nextMember ? `6. BÀN GIAO: Chuyển giao phần việc tiếp theo cho @${nextMember.name}.` : `6. TỔNG KẾT: Tóm tắt giải pháp ngắn gọn cho Người Dùng.`}
-
-[QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
-Nếu bạn nhận thấy dự án hoặc yêu cầu này cần thêm các vị trí chuyên gia chuyên sâu (như "database" CSDL/SQL, "frontend" UI/UX, "security" Bảo Mật, "devops" Môi Trường, "tester" Kiểm Thử) mà Hội Đồng chưa có:
-Bạn có TOÀN QUYỀN TỰ ĐỘNG TUYỂN THÊM AGENT bằng cú pháp:
-[RECRUIT_AGENT: role="database|frontend|security|devops|tester|coder|reviewer", name="Tên Vị Trí Cụ Thể", model="<model_id>"]
-
-[DANH SÁCH MÔ HÌNH MIỄN PHÍ TỪ 4 PROVIDER CÓ THỂ CHỌN KHI TUYỂN DỤNG]:
-- OpenRouter: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free, nvidia/nemotron-3.5-super-vl:free, nvidia/nemotron-3.5-lightning:free, google/gemma-4-26b-a4b-it:free, recursive/flint-v1.0:free, xingchen-agi/xing4.0-29b-a4b:free, liquid/lfm-2.5-2.6b:free, nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, openrouter/free
-- Cloudflare Workers AI: @cf/deepseek-ai/deepseek-r1-distill-qwen-32b, @cf/meta/llama-3.1-8b-instruct-fp8-fast, @cf/meta/llama-3.2-11b-vision-instruct, @cf/meta/llama-3.2-3b-instruct, @cf/meta/llama-3.2-1b-instruct, @cf/black-forest-labs/flux-1-schnell (vẽ ảnh), @cf/stabilityai/stable-diffusion-xl-base-1.0 (vẽ ảnh)
-- Kilo Gateway: kilo-auto/free, poolside/laguna-s-2.1:free, dots-studio/dots-3-note-preview:free, nvidia/nemotron-3-ultra-550b-a55b:free, nvidia/nemotron-3.5-lightning:free, cohere/north-mini-code:free, recursive/flint-v1.0:free
-- OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
-Hệ thống sẽ lập tức tạo Agent đó, ghim vào Hội Đồng Dự Án và Agent mới sẽ tham gia trao đổi giải quyết dự án ngay!
-
-
-[QUYỀN TRUY CẬP TRÌNH DUYỆT & TRA CỨU WEB (BROWSER & INTERNET ACCESS)]:
-Bạn có toàn quyền truy cập internet, sử dụng trình duyệt để tìm kiếm thông tin, tài liệu mới nhất hoặc tra cứu Gemini Web, ChatGPT Web để giải quyết nhiệm vụ:
-- Khi cần tìm kiếm thông tin trên mạng, hãy dùng cú pháp: [WEB_SEARCH: query="từ khóa cần tìm"]
-- Khi cần đọc nội dung một trang web hay tài liệu cụ thể, hãy dùng cú pháp: [WEB_BROWSE: url="https://..."]
-Hệ thống sẽ TỰ ĐỘNG THỰC THI TRUY CẬP TRÌNH DUYỆT, bóc tách dữ liệu và cung cấp kết quả trực tiếp cho bạn!
-
-[CHẾ ĐỘ THỰC THI DỰ ÁN THỰC TẾ]:
-Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.path}".
-- KIẾN TRÚC SƯ: Phân tích file thực tế trong dự án, hoạch định cấu trúc, phân luồng logic và tự tuyển dụng thêm chuyên gia nếu thiếu.
-- LẬP TRÌNH VIÊN: Viết mã nguồn HOÀN CHỈNH, CHUẨN XÁC, SẴN SÀNG CHẠY. Ở dòng đầu tiên của mỗi khối code, LUÔN ghi rõ đường dẫn file: // File: <đường_dẫn_tệp> để hệ thống ghi thẳng vào dự án trên máy.
-- KIỂM THỬ VIÊN: Cung cấp lệnh Terminal PowerShell/CMD chuẩn xác trong khối \`\`\`powershell để người dùng bấm 1 nút chạy trực tiếp kiểm tra dự án.
-- CƠ SỞ DỮ LIỆU: Cung cấp schema SQL/NoSQL, thiết kế bảng dữ liệu tối ưu trong khối \`\`\`sql.
-- GIAO DIỆN (UI/UX): Viết HTML/CSS/JS hiện đại, chuẩn SaaS và responsive.
-- AN NINH BẢO MẬT: Soát lỗi xác thực, phân quyền JWT và bảo vệ mã nguồn.
-- REVIEWER: Soát lỗi logic, bảo mật, Clean Code và xác nhận hoàn tất.`;
-
-      const memberMessages = [
-        {
-          role: 'system',
-          content: `${promptInstructions}\n\n${projectContext}`
-        },
-        // Lịch sử chat trước đó (loại bỏ tiền tố lặp lại)
-        ...chat.messages.slice(-6).map(m => {
-          const cleanTxt = (m.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
-          return {
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.role === 'user' ? cleanTxt : (m.author ? `[${m.author}]: ${cleanTxt}` : cleanTxt)
-          };
-        }),
-        // Ý tưởng mới nhất của người dùng
-        { role: 'user', content: `[Ý TƯỞNG CỦA NGƯỜI DÙNG]: ${content.trim()}` }
-      ];
-
-      // Thêm ngữ cảnh của các thành viên vừa nói trước đó trong lượt này
-      if (previousTurnsContext.length > 0) {
-        memberMessages.push({
-          role: 'user',
-          content: `[CÁC THÀNH VIÊN TRƯỚC ĐÓ TRONG NHÓM VỪA NÓI TRỰC TIẾP TRONG CUỘC HỌP NÀY]:\n${previousTurnsContext.join('\n\n---\n\n')}\n\nHãy trực tiếp phản hồi, tương tác và tiếp nối phần việc của bạn.`
-        });
-      }
-
-      const rawAgentResponse = await callInternalAI({ 
-        model: memberModel, 
-        messages: memberMessages, 
-        providerId: member.providerId 
-      });
-      const agentResponse = (rawAgentResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
-
-      // --- TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT (AUTONOMOUS AGENT RECRUITMENT) ---
-      const recruitRegex = /\[(?:RECRUIT_AGENT|AUTO_ADD_AGENT):\s*role="([^"]+)",\s*name="([^"]+)"(?:,\s*model="([^"]+)")?\]/gi;
-      let recruitMatch;
-      while ((recruitMatch = recruitRegex.exec(agentResponse)) !== null) {
-        const rawRole = recruitMatch[1].trim().toLowerCase();
-        const rawName = recruitMatch[2].trim();
-        const rawModel = recruitMatch[3] ? recruitMatch[3].trim() : null;
-
-        const currentChat = Store.getProjectChat(projectId, chatId);
-        const currentAgents = currentChat ? (currentChat.agents || []) : [];
-        if (true) { // No 5 agent limit
-          const alreadyExists = currentAgents.some(a => 
-            a.name.toLowerCase() === rawName.toLowerCase() || a.category === rawRole
-          );
-          if (!alreadyExists) {
-            try {
-              const recruitedAgent = Store.addAgentToChat(projectId, chatId, {
-                category: rawRole,
-                name: rawName,
-                model: rawModel
-              });
-              sendEvent({
-                type: 'agent_recruited',
-                agent: recruitedAgent,
-                recruitedBy: member.name
-              });
-              // Nếu thành viên cuối vừa tuyển dụng, bổ sung vào vòng lặp để phát biểu ngay
-              if (true) { // No 5 agent limit
-                teamMembers.push(recruitedAgent);
-              }
-            } catch (err) {
-              console.warn('Lỗi tự động thêm agent:', err.message);
-            }
-          }
-        }
-      }
-
-      // TỰ ĐỘNG GHI FILE VÀO DỰ ÁN TRÊN MÁY (CẤP QUYỀN TOÀN BỘ CHO AGENT)
-      const autoSavedFiles = [];
-      const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
-      let fMatch;
-      while ((fMatch = codeFileRegex.exec(agentResponse)) !== null) {
-        const filePath = fMatch[1].trim();
-        const fileContent = fMatch[2];
-        if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
-        try {
-          const written = writeProjectFileHelper(project.path, filePath, fileContent);
-          if (written) autoSavedFiles.push(written.relativePath);
-        } catch (e) {
-          console.warn('Auto save error:', e.message);
-        }
-      }
-
-      const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
-        role: 'assistant',
-        author: member.name,
-        agentId: member.id,
-        agentBadge: member.badge,
-        agentColor: member.color,
-        agentModel: memberModel,
-        agentRole: member.roleTitle,
-        content: agentResponse,
-        autoSavedFiles: autoSavedFiles
-      });
-
-      // Quét lệnh AI tự tạo đoạn chat công việc mới
-      const aiCreatedChats = handleAIChatCreation(projectId, agentResponse);
-
-      generatedMessages.push(savedMsg);
-      previousTurnsContext.push(`[${member.badge} - ${member.name}]:\n${agentResponse}`);
-      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles, createdChats: aiCreatedChats });
-    }
+    sendEvent({ type: 'agent_done', message: pmEndMsg });
 
     if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
-      sendEvent({ type: 'all_done', totalMessages: generatedMessages.length });
+      sendEvent({ type: 'all_done', totalMessages: 3 });
       return res.end();
     }
 
-    return res.json({ success: true, mode: 'team', teamName, messages: generatedMessages });
+    return res.json({ 
+      success: true, 
+      mode: 'dept_direct', 
+      messages: [pmAckMsg, devReplyMsg, pmEndMsg],
+      autoSavedFiles 
+    });
 
   } catch (err) {
     console.error('Error in project chat flow:', err);
@@ -2641,6 +2430,7 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
     res.end();
   }
 });
+
 
 // Tự động đồng bộ toàn bộ lịch sử chat vào Bộ nhớ nhận thức khi khởi động
 try {

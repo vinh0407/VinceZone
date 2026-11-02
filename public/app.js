@@ -5564,11 +5564,22 @@ function appendProjectMessageToFeed(msg, feedEl) {
   } else {
     let avatarIcon = '💻';
     let badgeClass = 'badge-coder';
-    const badgeText = msg.agentBadge || 'AI';
-    if (badgeText.includes('ARCH')) { avatarIcon = '🏛️'; badgeClass = 'badge-arch'; }
-    else if (badgeText.includes('TEST')) { avatarIcon = '🧪'; badgeClass = 'badge-tester'; }
+    const badgeText = (msg.agentBadge || 'AI').toUpperCase();
+    if (badgeText.includes('PM')) { avatarIcon = '👔'; badgeClass = 'badge-pm'; }
+    else if (badgeText.includes('CTO')) { avatarIcon = '👑'; badgeClass = 'badge-cto'; }
+    else if (badgeText.includes('BA')) { avatarIcon = '📊'; badgeClass = 'badge-ba'; }
+    else if (badgeText.includes('ARCH')) { avatarIcon = '🏛️'; badgeClass = 'badge-arch'; }
+    else if (badgeText.includes('TEST') || badgeText.includes('QA')) { avatarIcon = '🧪'; badgeClass = 'badge-tester'; }
     else if (badgeText.includes('REVIEW')) { avatarIcon = '🧐'; badgeClass = 'badge-reviewer'; }
     else if (badgeText.includes('DEVOPS')) { avatarIcon = '🚀'; badgeClass = 'badge-devops'; }
+    else if (badgeText.includes('AI') || badgeText.includes('LLM')) { avatarIcon = '🧠'; badgeClass = 'badge-ai'; }
+    else if (badgeText.includes('FRONT')) { avatarIcon = '🎨'; badgeClass = 'badge-frontend'; }
+    else if (badgeText.includes('BACK')) { avatarIcon = '⚙️'; badgeClass = 'badge-backend'; }
+    else if (badgeText.includes('FULL')) { avatarIcon = '⚡'; badgeClass = 'badge-fullstack'; }
+    else if (badgeText.includes('ANDR') || badgeText.includes('IOS') || badgeText.includes('FLUT') || badgeText.includes('MOB')) { avatarIcon = '📱'; badgeClass = 'badge-flutter'; }
+    else if (badgeText.includes('GAME') || badgeText.includes('DESK')) { avatarIcon = '🎮'; badgeClass = 'badge-game'; }
+    else if (badgeText.includes('LEAD')) { avatarIcon = '🎖️'; badgeClass = 'badge-lead'; }
+    else if (badgeText.includes('PRIN')) { avatarIcon = '🔬'; badgeClass = 'badge-principal'; }
 
     const modelTagHtml = msg.agentModel ? `<span class="agent-model-tag">${escapeHtml(msg.agentModel)}</span>` : '';
 
@@ -5761,12 +5772,17 @@ async function sendProjectIdea() {
         }
       }
 
-      // Tự động cập nhật danh sách chat nếu có chat công việc mới được tạo bởi AI
+      // Tự động cập nhật danh sách chat và cây dự án nếu có chat phòng ban mới
       if (data.createdChats && data.createdChats.length > 0) {
-        if (typeof loadProjectChats === 'function' && projectsState.activeProjectId) {
-          loadProjectChats(projectsState.activeProjectId);
+        if (typeof loadProjects === 'function') {
+          await loadProjects();
+        } else if (typeof loadProjectChats === 'function' && projectsState.activeProjectId) {
+          await loadProjectChats(projectsState.activeProjectId);
         }
-        showToast(`🎉 AI đã tự động tạo ${data.createdChats.length} nhóm chat công việc mới cho dự án!`);
+        if (typeof window.renderAntigravityProjectsTree === 'function') {
+          window.renderAntigravityProjectsTree();
+        }
+        showToast(`🎉 Đã khởi tạo đoạn chat: ${data.createdChats.map(c => c.title).join(', ')}!`);
       }
 
       // Quét và hiển thị thông báo nếu AI tự động tuyển dụng thêm Agent
