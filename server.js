@@ -2153,18 +2153,6 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     const isDeptChat = chat.isDepartment || (chat.title && chat.title.startsWith('🏢 Phòng')) || (chat.title && chat.title.startsWith('🚨'));
     const isMainChat = !isDeptChat;
 
-    // Helper 1: Kiểm tra câu chào / hỏi chung
-    const isGreetingOnly = (text) => {
-      const norm = text.toLowerCase().trim();
-      return /^(chào|alo|hello|hi|bạn là ai|em là ai|giới thiệu|ai đang trực|ai quản lý|có ai không|test|ok|vâng|dạ|cảm ơn|thanks)[\s.?!]*$/i.test(norm);
-    };
-
-    // Helper 2: Kiểm tra ý định Phân tích dự án / Ý tưởng / Lập kế hoạch / Báo cáo cơ cấu nhân sự
-    const isProjectAnalysisRequest = (text) => {
-      const norm = text.toLowerCase().trim();
-      return /(?:phân tích|phan tich|đã phân tích|da phan tich|chia việc|chia cong viec|kế hoạch|ke hoach|sắp xếp|sap xep|khảo sát|khao sat|đây là dự án gì|day la du an gi|tổng quan|tong quan|cơ cấu|co cau|nhân sự|nhan su|báo cáo dự án|bao cao du an|tiến độ|tien do|chiến lược|dự án này làm gì|tư vấn|tu van|định hướng|phân công|tình hình)/i.test(norm);
-    };
-
     // -------------------------------------------------------------------------
     // TRƯỜNG HỢP 1: SẾP CHAT TRONG ĐOẠN CHAT CHÍNH (CHỈ NÓI CHUYỆN DUY NHẤT VỚI PM)
     // -------------------------------------------------------------------------
@@ -2177,130 +2165,41 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
         deptsRes = Store.predictAndCreateProjectDepartments(projectId, content);
       } catch (e) {}
 
-      // A. Nếu chỉ là lời chào thông thường (PM tự suy nghĩ trả lời chào và nhận việc)
-      if (isGreetingOnly(content)) {
-        const pmGreetingSys = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
-Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ chuyên gia AI làm việc trực tiếp với Sếp (người dùng).
-Dự án hiện tại: "${project.name}".
-QUY CHUẨN XƯNG HÔ (BẮT BUỘC): Luôn luôn gọi người dùng là "Sếp", xưng "em".
-TÁC PHONG: Thân thiện, tôn trọng, ngắn gọn, tự tin, chủ động hỏi Sếp cần em triển khai, điều phối các phòng ban, hay rà soát hạng mục nào cho dự án.
-Tuyệt đối không dùng văn bản có sẵn hay văn mẫu rập khuôn.`;
-
-        let pmGreeting = await callInternalAI({
-          model: 'nvidia/nemotron-3.5-lightning:free',
-          messages: [
-            { role: 'system', content: pmGreetingSys },
-            { role: 'user', content: content }
-          ],
-          providerId: 'prov_kilo_gateway'
-        });
-
-        if (!pmGreeting || pmGreeting.trim().length < 5) {
-          pmGreeting = `Dạ em chào Sếp! Em là Project Manager (PM). Em và toàn bộ đội ngũ chuyên môn đã sẵn sàng. Sếp cần em triển khai hoặc điều phối hạng mục nào cho dự án ${project.name} ạ?`;
-        }
-
-        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
-          role: 'assistant',
-          author: 'Project Manager (PM) – Quản lý dự án',
-          agentBadge: 'PM',
-          agentColor: '#3b82f6',
-          agentRole: 'Project Manager (PM)',
-          agentModel: 'nvidia/nemotron-3.5-lightning:free',
-          content: pmGreeting.trim()
-        });
-
-        sendEvent({ type: 'agent_done', message: pmMsg });
-        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
-          sendEvent({ type: 'all_done', totalMessages: 1 });
-          return res.end();
-        }
-        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg] });
-      }
-
-      // B. NẾU LÀ YÊU CẦU PHÂN TÍCH / LẬP KẾ HOẠCH / BÁO CÁO TIẾN ĐỘ TỔNG QUAN:
-      // (PM tự suy nghĩ, phân tích sâu và báo cáo: 1. Báo cáo tổng trước -> 2. Tiến trình từng phòng)
-      if (isProjectAnalysisRequest(content)) {
-        const freshProj = Store.getProjectById(projectId);
-        const depts = (freshProj.chats || []).filter(c => c.isDepartment);
-        const deptNames = depts.map(d => d.title).join('\n- ');
-
-        const pmAnalysisSys = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
-Bạn đang làm việc trực tiếp với Sếp (người dùng) về dự án "${project.name}".
-Dưới đây là cấu trúc và phân tích thực tế mã nguồn dự án:
+      // 100% AI API: PM TỰ SUY NGHĨ, PHÂN TÍCH Ý ĐỊNH CỦA SẾP VÀ QUYẾT ĐỊNH
+      // - Nếu là giao tiếp, chào hỏi, yêu cầu giới thiệu dự án, giải thích tính năng: PM trả lời trực tiếp cho Sếp.
+      // - Nếu là chỉ đạo kỹ thuật, sửa mã nguồn, đổi giao diện, thêm tính năng: PM phân rã nhiệm vụ và điều phối dev.
+      const pmUnifiedPrompt = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
+Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ chuyên môn làm việc trực tiếp với Sếp (người dùng).
+Dự án hiện tại: "${project.name}"
+Ngữ cảnh và mã nguồn thực tế của dự án:
 ${projectContext}
 
-Hiện tại các phòng ban chuyên trách đã được thành lập đầy đủ:
-- ${deptNames}
-
-QUY TẮC BÁO CÁO CHO SẾP (BẮT BUỘC):
-1. XƯNG HÔ: Luôn luôn gọi người dùng là "Sếp", xưng "em".
-2. TƯ DUY: Hãy tự suy nghĩ và phân tích chính xác yêu cầu của Sếp: "${content.trim()}" dựa trên cấu trúc thực tế của dự án.
-3. CẤU TRÚC BÁO CÁO NGẮN GỌN & HIỆU QUẢ CAO:
-   📊 **1. Báo Cáo Tổng:** 1-2 câu tóm tắt cốt lõi về bản chất dự án, hiện trạng hoặc kế hoạch giải quyết.
-   🏢 **2. Tiến Trình Từng Phòng Ban:** Tóm tắt 1 dòng cho mỗi phòng ban chuyên trách liên quan.
-4. Tôn trọng thời gian của Sếp: ngắn gọn, sắc bén, chuyên môn cao, tuyệt đối không dùng văn mẫu có sẵn hay dữ liệu ảo.`;
-
-        let pmReport = await callInternalAI({
-          model: 'nvidia/nemotron-3.5-lightning:free',
-          messages: [
-            { role: 'system', content: pmAnalysisSys },
-            { role: 'user', content: content }
-          ],
-          providerId: 'prov_kilo_gateway'
-        });
-
-        if (!pmReport || pmReport.trim().length < 20) {
-          pmReport = `Dạ báo cáo Sếp!\n\n📊 **1. Báo Cáo Tổng:** Em đã rà soát toàn bộ dự án ${project.name}. Hệ thống mã nguồn và các phòng ban đã sẵn sàng vận hành.\n\n🏢 **2. Tiến Trình Từng Phòng Ban:**\n` +
-            depts.map(d => `- **${d.title}:** Đã phân bổ nhân sự và túc trực nhận lệnh.`).join('\n') +
-            `\n\nKính mời Sếp chỉ đạo công việc tiếp theo hoặc bấm "Chạy Dự Án" ạ!`;
-        }
-
-        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
-          role: 'assistant',
-          author: 'Project Manager (PM) – Quản lý dự án',
-          agentBadge: 'PM',
-          agentColor: '#3b82f6',
-          agentRole: 'Project Manager (PM)',
-          agentModel: 'nvidia/nemotron-3.5-lightning:free',
-          content: pmReport.trim()
-        });
-
-        sendEvent({ type: 'agent_done', message: pmMsg, createdChats: deptsRes.newlyCreated });
-        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
-          sendEvent({ type: 'all_done', totalMessages: 1 });
-          return res.end();
-        }
-        return res.json({ success: true, mode: 'pm_analysis', messages: [pmMsg], createdChats: deptsRes.newlyCreated });
-      }
-
-      // C. NẾU LÀ YÊU CẦU KỸ THUẬT / SỬA CODE / GIAO DIỆN / TÍNH NĂNG:
-      // BƯỚC 1: PM PHÂN TÍCH CHUYÊN SÂU & CHUYỂN HÓA LỜI SẾP TỪ ĐƠN GIẢN THÀNH KỸ THUẬT CHUYÊN NGHIỆP
-      const pmDispatchAnalysisSys = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
-Bạn là người đại diện duy nhất làm việc trực tiếp với Sếp (người dùng).
-Dự án hiện tại: ${project.name}
-Ngữ cảnh mã nguồn dự án thực tế:
-${projectContext}
-
-CHỈ ĐẠO CỦA SẾP:
+TIN NHẮN / CHỈ ĐẠO CỦA SẾP:
 "${content.trim()}"
 
-NHIỆM VỤ CỦA PM:
-1. Xác định chính xác phòng ban (deptKey: frontend, backend, ai, qa, devops, architecture, mobile, fullstack) và chức danh chuyên viên (roleCategory) chịu trách nhiệm.
-2. CHUYỂN ĐỔI LỜI SẾP TỪ ĐƠN GIẢN THÀNH CHUYÊN NGHIỆP:
-   - Nếu Sếp chỉ đạo đơn giản (ví dụ: "chỉnh màu này thành màu đen"), PM phải phân tích rõ: đổi màu ở file nào (vd style.css), selector/class nào (body, container), chọn tông màu cụ thể (HEX #09090b hoặc #000000), và phân tích các thành phần liên quan cần chỉnh (chữ sáng màu #ffffff, nút bấm, border để đảm bảo tương phản UI WCAG).
-   - Nếu Sếp yêu cầu thêm tính năng, phân tích chi tiết các file/hàm/API cần tạo hoặc chỉnh sửa.
-3. Nếu chỉ đạo ảnh hưởng nhiều phòng ban (ví dụ vừa UI vừa Backend vừa Test), hãy phân rã thành các task riêng cho từng phòng ban tương ứng.
-4. Viết lời giao việc kỹ thuật (technicalPrompt) chi tiết, đầy đủ, chuẩn xác HOÀN TOÀN BẰNG TIẾNG VIỆT để gửi thẳng cho chuyên viên thực thi.
-5. BẮT BUỘC DÙNG 100% TIẾNG VIỆT. Bắt buộc có ít nhất 1 task trong mảng "tasks".
+BẠN HÃY PHÂN TÍCH Ý ĐỊNH CỦA SẾP VÀ TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON THUẦN (KHÔNG KÈM TEXT NGOÀI JSON):
 
-Trả về DUY NHẤT mã JSON theo mẫu (chỉ JSON thuần):
+TRƯỜNG HỢP 1 - GIAO TIẾP / HỎI ĐÁP / GIỚI THIỆU / TƯ VẤN / BÁO CÁO (KHÔNG yêu cầu sửa code hay sửa file):
+- Bao gồm: chào hỏi, giới thiệu dự án ("chào giới thị dự án", "giới thiệu dự án", "dự án này làm gì"), hỏi tính năng, tư vấn công nghệ, hỏi tiến độ/kiến trúc...
+- Hành động: Bạn (PM) trực tiếp suy nghĩ và trả lời Sếp thật thông minh, lịch sự, chi tiết dựa trên mã nguồn thực tế của dự án. Luôn xưng "em", gọi "Sếp".
+- Trả về JSON:
 {
-  "analysis": "Phân tích kỹ thuật của PM bằng tiếng Việt",
+  "type": "direct_reply",
+  "reply": "Dạ em chào Sếp! Em xin báo cáo / giới thiệu về dự án..."
+}
+
+TRƯỜNG HỢP 2 - CHỈ ĐẠO THỰC THI KỸ THUẬT / SỬA CODE / THAY ĐỔI GIAO DIỆN / TẠO FILE / FIX BUG:
+- Bao gồm: chỉnh màu, sửa CSS, sửa layout, thêm API, viết database, fix lỗi, tối ưu...
+- Hành động: Phân tích kỹ thuật, chuyển hóa lời Sếp thành chỉ đạo kỹ thuật chuyên nghiệp, phân rã công việc cho các phòng ban (deptKey: frontend, backend, ai, qa, devops, architecture, mobile, fullstack).
+- Trả về JSON:
+{
+  "type": "dispatch_task",
+  "analysis": "Phân tích kỹ thuật của PM",
   "tasks": [
     {
       "deptKey": "frontend",
       "roleCategory": "frontend_dev",
-      "technicalPrompt": "Lời chỉ đạo kỹ thuật chuyên nghiệp, chi tiết bằng tiếng Việt của PM gửi cho chuyên viên @Lập trình viên Frontend..."
+      "technicalPrompt": "Lời chỉ đạo kỹ thuật chi tiết của PM gửi chuyên viên..."
     }
   ]
 }`;
@@ -2311,7 +2210,7 @@ Trả về DUY NHẤT mã JSON theo mẫu (chỉ JSON thuần):
           model: 'nvidia/nemotron-3.5-lightning:free',
           messages: [
             { role: 'system', content: 'Bạn là PM thông minh, phân tích sâu và trả về JSON chuẩn xác 100% tiếng Việt.' },
-            { role: 'user', content: pmDispatchAnalysisSys }
+            { role: 'user', content: pmUnifiedPrompt }
           ],
           providerId: 'prov_kilo_gateway'
         });
@@ -2320,22 +2219,63 @@ Trả về DUY NHẤT mã JSON theo mẫu (chỉ JSON thuần):
           dispatchPlan = JSON.parse(match[0]);
         }
       } catch (e) {
-        console.warn('PM Dispatch plan parse error:', e.message);
+        console.warn('PM Intent & Dispatch plan parse error:', e.message);
       }
 
-      // Fallback nếu không parse được JSON
-      if (!dispatchPlan || !Array.isArray(dispatchPlan.tasks) || dispatchPlan.tasks.length === 0) {
+      // Xử lý fallback thông minh nếu không parse được JSON
+      if (!dispatchPlan) {
+        const isTechOrder = /(?:chỉnh|sửa|đổi|code|viết|tạo|fix|thêm|xóa|tối ưu|update|cập nhật|chuyển màu)/i.test(content);
+        if (isTechOrder) {
+          const fallbackDept = Store.matchDepartmentForTask(content, projectContext);
+          dispatchPlan = {
+            type: 'dispatch_task',
+            analysis: `Điều phối nhiệm vụ kỹ thuật cho phòng ban ${fallbackDept.title}`,
+            tasks: [
+              {
+                deptKey: fallbackDept.key,
+                roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
+                technicalPrompt: `Đề nghị đồng chí rà soát cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu.`
+              }
+            ]
+          };
+        } else {
+          dispatchPlan = {
+            type: 'direct_reply',
+            reply: `Dạ em chào Sếp! Em là Project Manager (PM) của dự án ${project.name}. Dự án đang được xây dựng trên stack công nghệ hiện đại. Em và các phòng ban chuyên môn đã sẵn sàng, Sếp cần em triển khai hoặc làm rõ hạng mục nào ạ?`
+          };
+        }
+      }
+
+      // NẾU LÀ GIAO TIẾP / GIỚI THIỆU DỰ ÁN: PM TRẢ LỜI TRỰC TIẾP CHO SẾP (KHÔNG GIAO VIỆC CHO DEV)
+      if (dispatchPlan.type === 'direct_reply' && dispatchPlan.reply) {
+        const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Project Manager (PM) – Quản lý dự án',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          content: dispatchPlan.reply.trim()
+        });
+
+        sendEvent({ type: 'agent_done', message: pmMsg, createdChats: deptsRes.newlyCreated });
+        if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+          sendEvent({ type: 'all_done', totalMessages: 1 });
+          return res.end();
+        }
+        return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg], createdChats: deptsRes.newlyCreated });
+      }
+
+      // NẾU LÀ CHỈ ĐẠO KỸ THUẬT: ĐIỀU PHỐI ĐẾN CÁC PHÒNG BAN CHUYÊN TRÁCH
+      if (!Array.isArray(dispatchPlan.tasks) || dispatchPlan.tasks.length === 0) {
         const fallbackDept = Store.matchDepartmentForTask(content, projectContext);
-        dispatchPlan = {
-          analysis: `Điều phối nhiệm vụ cho phòng ban chuyên trách ${fallbackDept.title}`,
-          tasks: [
-            {
-              deptKey: fallbackDept.key,
-              roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
-              technicalPrompt: `Đề nghị đồng chí rà soát toàn bộ cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Viết mã nguồn hoàn chỉnh, ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu vào dự án.`
-            }
-          ]
-        };
+        dispatchPlan.tasks = [
+          {
+            deptKey: fallbackDept.key,
+            roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
+            technicalPrompt: `Đề nghị đồng chí rà soát toàn bộ cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Viết mã nguồn hoàn chỉnh, ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu vào dự án.`
+          }
+        ];
       }
 
       // BƯỚC 2: ĐIỀU PHỐI TỪNG NHIỆM VỤ ĐẾN CÁC PHÒNG BAN CHUYÊN TRÁCH
