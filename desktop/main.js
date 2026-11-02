@@ -153,8 +153,7 @@ function createApplicationMenu() {
     }
   ];
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
+  Menu.setApplicationMenu(null);
 }
 
 function createWindow() {
@@ -167,6 +166,7 @@ function createWindow() {
     backgroundColor: '#09090b',
     title: 'VinceZone',
     frame: false,
+    autoHideMenuBar: true,
     icon: fs.existsSync(appIcon) ? appIcon : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -174,6 +174,8 @@ function createWindow() {
       nodeIntegration: false
     }
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on('maximize', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {

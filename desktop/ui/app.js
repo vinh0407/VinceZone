@@ -1,4 +1,15 @@
 
+// Ensure API fetch calls resolve to localhost:3000 even if opened directly via file://
+if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+  const _origFetch = window.fetch;
+  window.fetch = function(url, options) {
+    if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/v1'))) {
+      url = 'http://localhost:3000' + url;
+    }
+    return _origFetch(url, options);
+  };
+}
+
 function getBadgeClassForRole(cat, badge) {
   const c = (cat || '').toLowerCase();
   const b = (badge || '').toUpperCase();
@@ -345,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.vzDesktop) {
     const desktopBadge = document.getElementById('desktop-app-badge');
     if (desktopBadge) desktopBadge.style.display = 'inline-flex';
-    document.title = 'VinceZone Studio [Desktop Edition]';
+    document.title = 'VinceZone';
   }
 
   // Load initial data
