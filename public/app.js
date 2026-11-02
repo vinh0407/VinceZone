@@ -4288,9 +4288,14 @@ async function loadProjects() {
     const data = await res.json();
     projectsState.projects = data.projects || [];
 
-    // Tự động chọn dự án đầu tiên nếu chưa chọn
-    if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
-      projectsState.activeProjectId = projectsState.projects[0].id;
+    // Tự động chọn dự án đầu tiên nếu chưa chọn hoặc ID không còn tồn tại
+    if (projectsState.projects.length > 0) {
+      if (!projectsState.activeProjectId || !projectsState.projects.some(p => p.id === projectsState.activeProjectId)) {
+        projectsState.activeProjectId = projectsState.projects[0].id;
+      }
+    } else {
+      projectsState.activeProjectId = null;
+      projectsState.activeChatId = null;
     }
 
     renderProjectsList();
@@ -4370,7 +4375,11 @@ window.deleteProjectItem = async function(event, id, name) {
 
 // 3. Render Dự Án Đang Mở (Tập Tin, Các Đoạn Chat)
 function renderActiveProject() {
-  const p = projectsState.projects.find(x => x.id === projectsState.activeProjectId);
+  let p = projectsState.projects.find(x => x.id === projectsState.activeProjectId);
+  if (!p && projectsState.projects.length > 0) {
+    p = projectsState.projects[0];
+    projectsState.activeProjectId = p.id;
+  }
   projectsState.activeProject = p || null;
 
   const activeWs = document.getElementById('active-project-workspace');
@@ -4434,7 +4443,11 @@ function renderActiveProject() {
   }
 
   // Render chat hiện tại
-  const currentChat = (p.chats || []).find(c => c.id === projectsState.activeChatId);
+  let currentChat = (p.chats || []).find(c => c.id === projectsState.activeChatId);
+  if (!currentChat && (p.chats || []).length > 0) {
+    currentChat = p.chats[0];
+    projectsState.activeChatId = currentChat.id;
+  }
   renderProjectChat(currentChat || null);
 }
 
@@ -4750,25 +4763,28 @@ window.openAddAgentCouncilModal = async function() {
   // Điền danh sách Provider vào Dropdown
   provSelect.innerHTML = '';
   if (councilProvidersCache.length === 0) {
-    provSelect.innerHTML = '<option value="kilo">Kilo Gateway (Auto FREE)</option>';
+    provSelect.innerHTML = '<option value="prov_openrouter">OpenRouter [FREE]</option>';
   } else {
     const sorted = [...councilProvidersCache].sort((a, b) => {
-      const aReady = a.apiKey || a.id === 'prov_kilo_gateway' || a.id === 'prov_opencode';
-      const bReady = b.apiKey || b.id === 'prov_kilo_gateway' || b.id === 'prov_opencode';
+      const aReady = Boolean(a.apiKey || a.hasKey || a.id === 'prov_openrouter' || a.id === 'prov_cloudflare_ai' || a.id === 'prov_kilo_gateway' || a.id === 'prov_opencode');
+      const bReady = Boolean(b.apiKey || b.hasKey || b.id === 'prov_openrouter' || b.id === 'prov_cloudflare_ai' || b.id === 'prov_kilo_gateway' || b.id === 'prov_opencode');
       if (aReady && !bReady) return -1;
       if (!aReady && bReady) return 1;
       return 0;
     });
 
     sorted.forEach(p => {
-      const isReady = p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode';
+      const isReady = Boolean(p.apiKey || p.hasKey || p.id === 'prov_openrouter' || p.id === 'prov_cloudflare_ai' || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode');
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = isReady
         ? `✔ ${p.name} [Sẵn Sàng - ${(p.models || []).length} Models]`
-        : `⚠️ ${p.name} (Chưa có API Key)`;
+        : `⚠️ ${p.name} (Chưa kích hoạt)`;
       provSelect.appendChild(opt);
     });
+
+    const defaultReady = sorted.find(p => p.id === 'prov_openrouter') || sorted.find(p => p.id === 'prov_cloudflare_ai') || sorted[0];
+    if (defaultReady) provSelect.value = defaultReady.id;
   }
 
   // Hàm cập nhật danh sách Model tương ứng khi đổi Provider
@@ -5072,6 +5088,18 @@ async function sendProjectIdea() {
   const progressTitleEl = document.getElementById('team-progress-title');
   const chatModelSelect = document.getElementById('chat-active-model-select');
 
+  // Tự động khôi phục dự án và chat nếu chưa có trong state
+  if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
+    projectsState.activeProjectId = projectsState.projects[0].id;
+  }
+  const curProj = projectsState.projects.find(p => p.id === projectsState.activeProjectId) || projectsState.projects[0];
+  if (curProj) {
+    projectsState.activeProjectId = curProj.id;
+    if (!projectsState.activeChatId && curProj.chats && curProj.chats.length > 0) {
+      projectsState.activeChatId = curProj.chats[0].id;
+    }
+  }
+
   if (!inputEl || !projectsState.activeProjectId || !projectsState.activeChatId) {
     showToast('Vui lòng chọn hoặc tạo dự án và đoạn chat trước.');
     return;
@@ -5083,8 +5111,7 @@ async function sendProjectIdea() {
   if (!content && attachments.length === 0) return;
 
   if (projectsState.isRunning) {
-    showToast('Agent đang suy nghĩ và thực thi. Vui lòng đợi trong giây lát...');
-    return;
+    showToast('Agent đang suy nghĩ và thực thi. Đang gửi tiếp yêu cầu...');
   }
 
   // Clear input & attachments
@@ -5113,14 +5140,18 @@ async function sendProjectIdea() {
     }
   }
 
-  const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'kilo-auto/free');
+  const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'cohere/north-mini-code:free');
   const chatProvSelect = document.getElementById('chat-active-provider-select');
-  const selectedProviderId = chatProvSelect ? chatProvSelect.value : (projectsState.activeChat?.providerId);
+  const selectedProviderId = chatProvSelect ? chatProvSelect.value : (projectsState.activeChat?.providerId || 'prov_openrouter');
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         content,
         attachments,
@@ -5129,6 +5160,7 @@ async function sendProjectIdea() {
         isStream: false
       })
     });
+    clearTimeout(timeoutId);
 
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -5156,6 +5188,7 @@ async function sendProjectIdea() {
     if (progressEl) progressEl.style.display = 'none';
   }
 }
+window.sendProjectIdea = sendProjectIdea;
 
 // 12. Render Staged Attachments
 function renderProjectAttachments() {
@@ -5214,12 +5247,12 @@ async function populateNewChatModelSelectors() {
     });
 
     sorted.forEach(p => {
-      const isReady = p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode';
+      const isReady = Boolean(p.apiKey || p.hasKey || p.id === 'prov_openrouter' || p.id === 'prov_cloudflare_ai' || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode');
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = isReady
         ? `✔ ${p.name} [Sẵn Sàng - ${(p.models || []).length} Models]`
-        : `⚠️ ${p.name} (Chưa có API Key)`;
+        : `⚠️ ${p.name} (Chưa kích hoạt)`;
       provSelect.appendChild(opt);
     });
   }

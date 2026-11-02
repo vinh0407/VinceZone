@@ -229,7 +229,7 @@ const Store = {
   },
 
   findProviderForModel(modelName) {
-    const providers = this.getProviders().filter(p => p.enabled && p.apiKey);
+    const providers = this.getProviders().filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode'));
     const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normTarget = normalize(modelName);
 

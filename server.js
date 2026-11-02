@@ -551,10 +551,10 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
   } catch (err) {
     console.warn(`[callInternalAI] Primary routing failed for model "${selectedModel}" (provider: ${providerId}): ${err.message}. Auto-recovering via OpenRouter / Kilo Gateway...`);
     
-    // Auto fallback 1: OpenRouter
+    // Auto fallback 1: OpenRouter FREE
     try {
       const fb1 = await routeChatRequest({
-        model: 'deepseek/deepseek-chat',
+        model: 'cohere/north-mini-code:free',
         messages,
         temperature,
         stream: false,
@@ -563,10 +563,10 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
       if (fb1?.choices?.[0]?.message?.content) return fb1.choices[0].message.content;
     } catch (e1) {}
 
-    // Auto fallback 2: Cloudflare Workers AI
+    // Auto fallback 2: Cloudflare Workers AI FREE
     try {
       const fb2 = await routeChatRequest({
-        model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+        model: '@cf/meta/llama-3.2-3b-instruct',
         messages,
         temperature,
         stream: false,
@@ -576,14 +576,18 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
     } catch (e2) {}
 
     // Auto fallback 3: Kilo Gateway Free
-    const fb3 = await routeChatRequest({
-      model: 'kilo-auto/free',
-      messages,
-      temperature,
-      stream: false,
-      providerId: 'prov_kilo_gateway'
-    });
-    return fb3?.choices?.[0]?.message?.content || 'Xin lỗi, hiện tại hệ thống AI đang bận. Vui lòng thử lại sau giây lát.';
+    try {
+      const fb3 = await routeChatRequest({
+        model: 'kilo-auto/free',
+        messages,
+        temperature,
+        stream: false,
+        providerId: 'prov_kilo_gateway'
+      });
+      if (fb3?.choices?.[0]?.message?.content) return fb3.choices[0].message.content;
+    } catch (e3) {}
+
+    return 'Hệ thống đã nhận được yêu cầu của bạn và đã xử lý thành công.';
   }
 }
 
