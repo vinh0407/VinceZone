@@ -7217,7 +7217,7 @@ window.openProjectStructureModal = async function(projectId) {
   }
 
   if (bodyEl) {
-    bodyEl.innerHTML = '<div style="text-align: center; padding: 3rem; color: #71717a;">⏳ Đang tải sơ đồ cấu trúc và lịch sử chỉnh file của các AI Agent...</div>';
+    bodyEl.innerHTML = '<div style="text-align: center; padding: 3rem; color: #71717a; font-size: 0.85rem;">Đang tải sơ đồ cấu trúc và lịch sử chỉnh file của các AI Agent...</div>';
   }
 
   try {
@@ -7240,7 +7240,7 @@ window.openProjectStructureModal = async function(projectId) {
     renderActiveStructureTab();
   } catch (err) {
     if (bodyEl) {
-      bodyEl.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ef4444;">⚠️ Lỗi: ${escapeHtml(err.message)}</div>`;
+      bodyEl.innerHTML = `<div style="text-align: center; padding: 2rem; color: #a1a1aa; font-size: 0.85rem;">Lỗi: ${escapeHtml(err.message)}</div>`;
     }
   }
 };
@@ -7280,14 +7280,14 @@ function renderActiveStructureTab() {
 function renderStructureWorkflowTab(container, data) {
   const workflow = data.workflow || [];
   if (workflow.length === 0) {
-    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #71717a;">Chưa có nhóm công việc nào. Bạn có thể yêu cầu AI tự động tạo các nhóm chat theo công việc!</div>';
+    container.innerHTML = '<div style="text-align: center; padding: 2.5rem; color: #71717a; font-size: 0.85rem;">Chưa có nhóm công việc nào. Bạn có thể yêu cầu AI tự động tạo các nhóm chat theo công việc!</div>';
     return;
   }
 
   let html = `
-    <div style="margin-bottom: 1rem; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #93c5fd; display: flex; align-items: center; justify-content: space-between;">
-      <span>💡 Các nhóm chat được AI tự động phân bổ theo từng phần việc cụ thể. Bấm vào bất kỳ nhóm nào để vào xem các AI làm việc trực tiếp!</span>
-      <button type="button" class="btn-micro" onclick="window.triggerAutoTaskChatsCreation()" style="background: #2563eb; color: #fff; padding: 0.3rem 0.7rem; border-radius: 5px;">⚡ Tự Động Phân Chia Việc</button>
+    <div class="structure-workflow-banner">
+      <span class="structure-banner-text">Các nhóm chat được AI tự động phân bổ theo từng phần việc cụ thể. Bấm vào bất kỳ nhóm nào để vào xem các AI làm việc trực tiếp.</span>
+      <button type="button" class="btn-structure-action" onclick="window.triggerAutoTaskChatsCreation()">Tự Động Phân Chia Việc</button>
     </div>
     <div class="structure-workflow-grid">
   `;
@@ -7302,15 +7302,15 @@ function renderStructureWorkflowTab(container, data) {
         </div>
         <div class="workflow-agents-row">
           ${(wf.agents || []).map(a => `
-            <span class="workflow-agent-chip" style="border-color: ${a.color || '#3b82f6'}; color: ${a.color || '#93c5fd'};">
+            <span class="workflow-agent-chip">
               ${escapeHtml(a.badge || 'AI')} ${escapeHtml(a.name)}
             </span>
           `).join('')}
         </div>
         <div class="workflow-card-footer">
-          <span class="workflow-msg-count">💬 ${wf.messageCount} lượt trao đổi</span>
-          <button type="button" class="btn-micro btn-workflow-jump" onclick="window.jumpToChatFromStructure('${wf.id}')">
-            ${isCurrentActive ? 'Đang mở' : '👉 Vào Nhóm Này'}
+          <span class="workflow-msg-count">${wf.messageCount} lượt trao đổi</span>
+          <button type="button" class="btn-micro btn-workflow-jump ${isCurrentActive ? 'is-active' : ''}" onclick="window.jumpToChatFromStructure('${wf.id}')">
+            ${isCurrentActive ? 'Đang mở' : 'Vào Nhóm Này'}
           </button>
         </div>
       </div>
@@ -7329,9 +7329,8 @@ function renderStructureFilesTab(container, data) {
   if (files.length === 0 && agents.every(a => a.files.length === 0)) {
     container.innerHTML = `
       <div style="text-align: center; padding: 2.5rem; color: #71717a;">
-        <span style="font-size: 2rem;">📄</span>
-        <p style="margin-top: 0.5rem;">Chưa có file nào được chỉnh sửa hoặc lưu tự động bởi Agent trong dự án này.</p>
-        <small style="color: #52525b;">Khi các AI Agent viết code có <code>// File: ...</code>, hệ thống sẽ tự động lưu và hiển thị tại đây.</small>
+        <p style="margin: 0; font-size: 0.85rem;">Chưa có file nào được chỉnh sửa hoặc lưu tự động bởi Agent trong dự án này.</p>
+        <small style="color: #52525b; margin-top: 0.35rem; display: block;">Khi các AI Agent viết code có <code>// File: ...</code>, hệ thống sẽ tự động lưu và hiển thị tại đây.</small>
       </div>
     `;
     return;
@@ -7347,21 +7346,20 @@ function renderStructureFilesTab(container, data) {
       <div class="agent-files-group-card">
         <div class="agent-files-group-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="agent-badge badge-coder" style="background: ${ag.color}22; color: ${ag.color}; border: 1px solid ${ag.color}55;">${escapeHtml(ag.badge)}</span>
-            <strong style="color: #fff; font-size: 0.95rem;">${escapeHtml(ag.name)}</strong>
-            <span style="font-size: 0.75rem; color: #a1a1aa;">(${escapeHtml(ag.roleTitle)})</span>
+            <span class="agent-badge agent-badge-mono">${escapeHtml(ag.badge)}</span>
+            <strong style="color: #f4f4f5; font-size: 0.92rem;">${escapeHtml(ag.name)}</strong>
+            <span style="font-size: 0.75rem; color: #71717a;">(${escapeHtml(ag.roleTitle)})</span>
           </div>
-          <span class="agent-files-counter">${agFiles.length} File đã chỉnh</span>
+          <span class="agent-files-counter">${agFiles.length} file đã chỉnh</span>
         </div>
         <div class="agent-files-list">
           ${agFiles.map(f => {
             const fileMeta = files.find(x => x.file === f) || {};
             const sizeStr = fileMeta.sizeBytes ? ` • ${Math.round(fileMeta.sizeBytes / 1024 * 10) / 10} KB` : '';
-            const statusBadge = fileMeta.existsOnDisk ? '<span class="file-status-disk">✔ Đã ghi trên đĩa</span>' : '<span class="file-status-auto">⚡ Tự động tạo</span>';
+            const statusBadge = fileMeta.existsOnDisk ? '<span class="file-status-disk">Đã ghi đĩa</span>' : '<span class="file-status-auto">Tự động tạo</span>';
             return `
               <div class="agent-file-item">
                 <div class="agent-file-info">
-                  <span class="agent-file-icon">📁</span>
                   <span class="agent-file-name" title="${escapeHtml(f)}">${escapeHtml(f)}</span>
                   <span class="agent-file-size">${sizeStr}</span>
                 </div>
@@ -7384,7 +7382,7 @@ function renderStructureFilesTab(container, data) {
 function renderStructureAgentsTab(container, data) {
   const agents = data.agents || [];
   if (agents.length === 0) {
-    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #71717a;">Chưa có dữ liệu Agent.</div>';
+    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #71717a; font-size: 0.85rem;">Chưa có dữ liệu Agent.</div>';
     return;
   }
 
@@ -7393,14 +7391,14 @@ function renderStructureAgentsTab(container, data) {
     html += `
       <div class="agent-matrix-card">
         <div class="agent-matrix-top">
-          <span class="agent-badge" style="background: ${ag.color}22; color: ${ag.color}; border: 1px solid ${ag.color}55;">${escapeHtml(ag.badge)}</span>
+          <span class="agent-badge agent-badge-mono">${escapeHtml(ag.badge)}</span>
           <strong class="agent-matrix-name">${escapeHtml(ag.name)}</strong>
         </div>
         <div class="agent-matrix-role">${escapeHtml(ag.roleTitle)}</div>
         <div class="agent-matrix-meta">
           <div><small style="color: #71717a;">Mô hình:</small> <code>${escapeHtml(ag.model)}</code></div>
           <div><small style="color: #71717a;">Tin nhắn đã gửi:</small> <strong>${ag.messagesCount}</strong></div>
-          <div><small style="color: #71717a;">File đã chỉnh:</small> <strong style="color: #34d399;">${(ag.files || []).length} file</strong></div>
+          <div><small style="color: #71717a;">File đã chỉnh:</small> <strong>${(ag.files || []).length} file</strong></div>
         </div>
       </div>
     `;

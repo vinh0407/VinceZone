@@ -7901,28 +7901,131 @@ input[type="range"] {
   transform: translateY(-1px);
 }
 
-/* Tabs trong Modal Cấu Trúc */
+/* ==================== SƠ ĐỒ CẤU TRÚC MODAL (MINIMALIST MONOCHROME THEME) ==================== */
+.modal-structure-content {
+  max-width: 960px;
+  width: 92%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: #111114 !important;
+  border: 1px solid #27272a !important;
+  border-radius: 12px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8) !important;
+  overflow: hidden;
+}
+
+.structure-modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #27272a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #16161a;
+}
+
+#modal-structure-title {
+  margin: 0;
+  font-size: 1rem;
+  color: #f4f4f5;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#modal-structure-subtitle {
+  font-size: 0.78rem;
+  color: #71717a;
+  margin-top: 2px;
+  display: block;
+}
+
+.btn-structure-close-x {
+  background: none;
+  border: none;
+  color: #71717a;
+  font-size: 1.35rem;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.btn-structure-close-x:hover {
+  color: #f4f4f5;
+  background: #27272a;
+}
+
+/* Tabs trong Modal Cấu Trúc (Clean Monochrome) */
+.structure-nav-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem 1.25rem;
+  background: #16161a;
+  border-bottom: 1px solid #27272a;
+}
+
 .structure-tab-btn {
   background: transparent;
-  border: none;
-  color: #a1a1aa;
-  font-size: 0.84rem;
-  font-weight: 600;
-  padding: 0.45rem 0.9rem;
+  border: 1px solid transparent;
+  color: #8c8c94;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: all 0.15s ease;
 }
 
 .structure-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: #222227;
   color: #f4f4f5;
 }
 
 .structure-tab-btn.active {
-  background: #2563eb;
+  background: #27272a;
+  border-color: #3f3f46;
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* Banner trong Tab Workflow */
+.structure-workflow-banner {
+  margin-bottom: 1rem;
+  background: #18181c;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: #a1a1aa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.structure-banner-text {
+  line-height: 1.45;
+}
+
+.btn-structure-action {
+  background: #27272a;
+  color: #f4f4f5;
+  border: 1px solid #3f3f46;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-structure-action:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+  color: #ffffff;
 }
 
 /* Tab 1: Sơ Đồ Luồng Công Việc (Workflow Task Cards) */
@@ -7933,26 +8036,27 @@ input[type="range"] {
 }
 
 .workflow-card {
-  background: #17171e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  background: #16161a;
+  border: 1px solid #27272a;
+  border-radius: 8px;
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .workflow-card:hover {
-  border-color: rgba(96, 165, 250, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  border-color: #3f3f46;
+  background: #19191e;
+  transform: none;
+  box-shadow: none;
 }
 
 .workflow-card-active {
-  border-color: #3b82f6 !important;
-  background: linear-gradient(145deg, #181b24 0%, #13141b 100%) !important;
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.2);
+  border-color: #52525b !important;
+  background: #1c1c22 !important;
+  box-shadow: none !important;
 }
 
 .workflow-card-header {
@@ -7962,18 +8066,20 @@ input[type="range"] {
 }
 
 .workflow-step-badge {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: #222227;
+  color: #a1a1aa;
+  border: 1px solid #333338;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .workflow-card-title {
   color: #f4f4f5;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
@@ -7987,11 +8093,12 @@ input[type="range"] {
   display: inline-flex;
   align-items: center;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   padding: 0.15rem 0.45rem;
-  border: 1px solid;
+  border: 1px solid #2e2e34;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.03);
+  background: #1e1e23;
+  color: #a1a1aa;
 }
 
 .workflow-card-footer {
@@ -8000,7 +8107,7 @@ input[type="range"] {
   justify-content: space-between;
   margin-top: auto;
   padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid #222227;
 }
 
 .workflow-msg-count {
@@ -8009,21 +8116,30 @@ input[type="range"] {
 }
 
 .btn-workflow-jump {
-  background: #272730 !important;
-  color: #93c5fd !important;
-  padding: 0.2rem 0.6rem !important;
-  border-radius: 4px !important;
-  font-size: 0.72rem !important;
+  background: #222227 !important;
+  border: 1px solid #333338 !important;
+  color: #e4e4e7 !important;
+  padding: 0.25rem 0.65rem !important;
+  border-radius: 5px !important;
+  font-size: 0.74rem !important;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-workflow-jump:hover {
-  background: #2563eb !important;
-  color: #fff !important;
+  background: #33333b !important;
+  border-color: #4b4b54 !important;
+  color: #ffffff !important;
 }
 
-/* Tab 2: File Đã Chỉnh Của Từng AI Agent */
+.btn-workflow-jump.is-active {
+  background: #1c1c22 !important;
+  border-color: #27272a !important;
+  color: #71717a !important;
+  cursor: default;
+}
+
+/* Tab 2: File Đã Chỉnh Của Từng AI Agent (Monochrome) */
 .structure-agents-files-accordion {
   display: flex;
   flex-direction: column;
@@ -8031,29 +8147,38 @@ input[type="range"] {
 }
 
 .agent-files-group-card {
-  background: #15151c;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
+  background: #16161a;
+  border: 1px solid #27272a;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .agent-files-group-header {
-  padding: 0.75rem 1rem;
-  background: #1a1a23;
+  padding: 0.7rem 1rem;
+  background: #1c1c22;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid #27272a;
+}
+
+.agent-badge-mono {
+  background: #27272a !important;
+  color: #d4d4d8 !important;
+  border: 1px solid #3f3f46 !important;
+  font-size: 0.7rem !important;
+  padding: 0.12rem 0.45rem !important;
+  border-radius: 4px !important;
 }
 
 .agent-files-counter {
   font-size: 0.74rem;
-  font-weight: 600;
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  font-weight: 500;
+  color: #a1a1aa;
+  background: #222227;
+  border: 1px solid #333338;
   border-radius: 4px;
-  padding: 0.1rem 0.45rem;
+  padding: 0.12rem 0.5rem;
 }
 
 .agent-files-list {
@@ -8068,14 +8193,15 @@ input[type="range"] {
   align-items: center;
   justify-content: space-between;
   padding: 0.4rem 0.65rem;
-  background: #181820;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: #141418;
+  border: 1px solid #222227;
   border-radius: 6px;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .agent-file-item:hover {
-  background: #20202b;
+  background: #1c1c22;
+  border-color: #2e2e34;
 }
 
 .agent-file-info {
@@ -8087,8 +8213,8 @@ input[type="range"] {
 
 .agent-file-name {
   font-family: monospace;
-  font-size: 0.82rem;
-  color: #38bdf8;
+  font-size: 0.8rem;
+  color: #e4e4e7;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8101,25 +8227,25 @@ input[type="range"] {
 
 .file-status-disk {
   font-size: 0.68rem;
-  font-weight: 600;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-weight: 500;
+  color: #d4d4d8;
+  background: #222227;
+  border: 1px solid #333338;
   border-radius: 4px;
-  padding: 0.08rem 0.35rem;
+  padding: 0.1rem 0.4rem;
 }
 
 .file-status-auto {
   font-size: 0.68rem;
-  font-weight: 600;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-weight: 500;
+  color: #a1a1aa;
+  background: #1e1e23;
+  border: 1px solid #2e2e34;
   border-radius: 4px;
-  padding: 0.08rem 0.35rem;
+  padding: 0.1rem 0.4rem;
 }
 
-/* Tab 3: Đội Ngũ Matrix */
+/* Tab 3: Đội Ngũ Matrix (Monochrome) */
 .structure-agents-matrix-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -8127,9 +8253,9 @@ input[type="range"] {
 }
 
 .agent-matrix-card {
-  background: #17171e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  background: #16161a;
+  border: 1px solid #27272a;
+  border-radius: 8px;
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
@@ -8144,30 +8270,63 @@ input[type="range"] {
 
 .agent-matrix-name {
   color: #f4f4f5;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
 }
 
 .agent-matrix-role {
   font-size: 0.78rem;
-  color: #a1a1aa;
+  color: #71717a;
 }
 
 .agent-matrix-meta {
   margin-top: 0.4rem;
   padding-top: 0.4rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid #222227;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.76rem;
+  color: #a1a1aa;
+}
+
+.agent-matrix-meta strong {
+  color: #f4f4f5;
 }
 
 .agent-matrix-meta code {
   font-size: 0.72rem;
-  color: #93c5fd;
-  background: #121217;
-  padding: 0.1rem 0.3rem;
+  color: #d4d4d8;
+  background: #111114;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #222227;
   border-radius: 3px;
+}
+
+/* Footer Modal Cấu Trúc */
+.structure-modal-footer {
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid #27272a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #16161a;
+}
+
+.btn-structure-footer-close {
+  background: #27272a;
+  color: #f4f4f5;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-structure-footer-close:hover {
+  background: #3f3f46;
+  border-color: #52525b;
 }
 
 /* Badge & Drawer cho lệnh Terminal tự động thực thi */
