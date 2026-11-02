@@ -7557,10 +7557,13 @@ window.toggleDemoPane = function() {
 
   const isHidden = previewPane.style.display === 'none' || (mainBody && mainBody.classList.contains('mode-code'));
 
+  const topbarRight = document.querySelector('.demo-topbar-right');
+
   if (isHidden) {
     // Hiện Demo (trở lại Song Song)
     previewPane.style.display = 'flex';
     if (resizer) resizer.style.display = 'block';
+    if (topbarRight) topbarRight.style.display = 'flex';
     if (mainBody) {
       mainBody.classList.remove('mode-code');
       mainBody.classList.add('mode-split');
@@ -7584,6 +7587,7 @@ window.toggleDemoPane = function() {
     // Ẩn Demo (Code chiếm 100%)
     previewPane.style.display = 'none';
     if (resizer) resizer.style.display = 'none';
+    if (topbarRight) topbarRight.style.display = 'none';
     if (mainBody) {
       mainBody.classList.remove('mode-split');
       mainBody.classList.add('mode-code');

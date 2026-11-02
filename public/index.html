@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=9.7">
+ <link rel="stylesheet" href="style.css?v=9.8">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -644,27 +644,6 @@
           </div>
         </div>
 
-        <div class="demo-topbar-center" id="demo-preview-controls">
-          <!-- Viewport Switcher -->
-          <div class="demo-device-pills">
-            <button type="button" class="demo-device-btn active" data-viewport="desktop" onclick="window.setDemoViewport('desktop')">
-              Desktop
-            </button>
-            <button type="button" class="demo-device-btn" data-viewport="tablet" onclick="window.setDemoViewport('tablet')">
-              Tablet
-            </button>
-            <button type="button" class="demo-device-btn" data-viewport="mobile" onclick="window.setDemoViewport('mobile')">
-              iPhone
-            </button>
-            <button type="button" class="demo-device-btn" data-viewport="android" onclick="window.setDemoViewport('android')">
-              Android
-            </button>
-            <button type="button" id="btn-toggle-phone-mockup" class="demo-device-btn" onclick="window.togglePhoneMockupFrame()">
-              Viền Máy
-            </button>
-          </div>
-        </div>
-
         <div class="demo-topbar-right">
           <!-- Source Mode & URL Bar -->
           <div class="demo-url-bar-wrap">
@@ -821,9 +800,29 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
 
         <!-- B. LIVE DEMO (Web & Mobile Presentation - Ô Demo) -->
         <div class="demo-preview-pane" id="demo-preview-pane">
-          <!-- Header ô Demo: Tiêu đề & Actions -->
+          <!-- Header ô Demo: Tiêu đề, Viewport Switcher & Actions -->
           <div class="demo-pane-header">
             <span class="demo-pane-title">Demo</span>
+
+            <!-- Viewport Switcher (Chỉ hiện trong ô Demo, ẩn Demo sẽ ẩn theo) -->
+            <div class="demo-device-pills" id="demo-device-pills">
+              <button type="button" class="demo-device-btn active" data-viewport="desktop" onclick="window.setDemoViewport('desktop')">
+                Desktop
+              </button>
+              <button type="button" class="demo-device-btn" data-viewport="tablet" onclick="window.setDemoViewport('tablet')">
+                Tablet
+              </button>
+              <button type="button" class="demo-device-btn" data-viewport="mobile" onclick="window.setDemoViewport('mobile')">
+                iPhone
+              </button>
+              <button type="button" class="demo-device-btn" data-viewport="android" onclick="window.setDemoViewport('android')">
+                Android
+              </button>
+              <button type="button" id="btn-toggle-phone-mockup" class="demo-device-btn" onclick="window.togglePhoneMockupFrame()">
+                Viền Máy
+              </button>
+            </div>
+
             <div class="demo-pane-header-actions" id="demo-pane-header-actions">
               <span id="demo-pane-url-preview" class="demo-pane-url-preview">http://localhost:3000</span>
               <button type="button" class="btn-ide-head-icon" onclick="window.reloadDemoPreview()" title="Tải lại">↺</button>
@@ -1884,6 +1883,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=9.7"></script>
+ <script src="app.js?v=9.8"></script>
 </body>
 </html>

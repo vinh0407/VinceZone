@@ -8845,10 +8845,10 @@ input[type="range"] {
   height: 100%;
 }
 
-/* Header thanh điều hướng tab trong ô Demo (Demo | AI Chat) */
+/* Header thanh điều hướng trong ô Demo */
 .demo-pane-header {
-  height: 35px;
-  min-height: 35px;
+  height: 36px;
+  min-height: 36px;
   background: #141416;
   border-bottom: 1px solid #222226;
   display: flex;
@@ -8856,6 +8856,8 @@ input[type="range"] {
   justify-content: space-between;
   padding: 0 10px;
   user-select: none;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .demo-pane-tabs {
