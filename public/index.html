@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=3.3">
+ <link rel="stylesheet" href="style.css?v=4.0">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -511,7 +511,7 @@
             <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
           </div>
 
-          <textarea id="project-chat-input" class="composer-textarea" rows="2" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)" style="flex: 1; background: transparent; border: none; color: #f4f4f5; font-size: 1rem; line-height: 1.55; min-height: 52px; max-height: 240px; padding: 0.45rem 0.5rem; resize: none; outline: none; font-family: inherit; width: 100%; box-sizing: border-box;"></textarea>
+          <textarea id="project-chat-input" class="composer-textarea" rows="2" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); sendProjectIdea(); }" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)" style="flex: 1; background: transparent; border: none; color: #f4f4f5; font-size: 1rem; line-height: 1.55; min-height: 52px; max-height: 240px; padding: 0.45rem 0.5rem; resize: none; outline: none; font-family: inherit; width: 100%; box-sizing: border-box;"></textarea>
 
           <div class="composer-toolbar-right" style="display: flex; align-items: center; padding-bottom: 0.35rem; flex-shrink: 0;">
             <button id="btn-send-project-idea" class="btn-primary btn-send-idea" onclick="sendProjectIdea()" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: #ffffff; border: none; border-radius: 12px; padding: 0.75rem 1.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);">
@@ -1337,6 +1337,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=3.3"></script>
+ <script src="app.js?v=4.0"></script>
 </body>
 </html>

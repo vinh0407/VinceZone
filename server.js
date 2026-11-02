@@ -975,15 +975,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     let teamMembers = (chat.agents && chat.agents.length > 0)
       ? chat.agents.slice(0, 5)
       : null;
-
-    let targetTeam = null;
-    if (chat.type === 'team' || chat.teamId) {
-      targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
-      if (!teamMembers && targetTeam && targetTeam.members && targetTeam.members.length > 0) {
-        teamMembers = targetTeam.members.slice(0, 5);
-      }
-    }
-    const teamName = targetTeam ? targetTeam.name : (chat.title || 'Hội đồng Agent');
+    const teamName = chat.title || 'Hội đồng Agent';
 
     // A. NẾU LÀ CHAT ĐƠN (CHƯA THÊM AGENT NÀO)
     if (!teamMembers || teamMembers.length === 0) {
@@ -1127,6 +1119,9 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/v1')) {
     return next();
   }
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

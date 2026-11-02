@@ -4300,6 +4300,7 @@ async function loadProjects() {
 
     renderProjectsList();
     renderActiveProject();
+    initProjectsEventListeners();
   } catch (err) {
     console.error('Lỗi khi tải danh sách dự án:', err);
     showToast('Lỗi khi tải danh sách dự án: ' + err.message);
@@ -5026,6 +5027,12 @@ function appendProjectMessageToFeed(msg, feedEl) {
   if (!feedEl) feedEl = document.getElementById('projects-chat-feed');
   if (!feedEl) return;
 
+  // Xóa bỏ màn hình rỗng ngay khi có tin nhắn
+  const emptyPlaceholder = feedEl.querySelector('.chat-empty-clean');
+  if (emptyPlaceholder) {
+    emptyPlaceholder.remove();
+  }
+
   const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const isUser = msg.role === 'user';
   
@@ -5088,20 +5095,43 @@ async function sendProjectIdea() {
   const progressTitleEl = document.getElementById('team-progress-title');
   const chatModelSelect = document.getElementById('chat-active-model-select');
 
-  // Tự động khôi phục dự án và chat nếu chưa có trong state
+  // Tự động khôi phục dự án nếu chưa có trong state
   if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
     projectsState.activeProjectId = projectsState.projects[0].id;
   }
-  const curProj = projectsState.projects.find(p => p.id === projectsState.activeProjectId) || projectsState.projects[0];
-  if (curProj) {
-    projectsState.activeProjectId = curProj.id;
-    if (!projectsState.activeChatId && curProj.chats && curProj.chats.length > 0) {
+  let curProj = projectsState.projects.find(p => p.id === projectsState.activeProjectId) || projectsState.projects[0];
+  if (!curProj) {
+    showToast('Vui lòng tạo hoặc mở một dự án trước khi gửi tin nhắn.');
+    return;
+  }
+  projectsState.activeProjectId = curProj.id;
+  projectsState.activeProject = curProj;
+
+  // Tự động khôi phục hoặc tạo đoạn chat mới nếu chưa có
+  if (!projectsState.activeChatId || !(curProj.chats || []).some(c => c.id === projectsState.activeChatId)) {
+    if (curProj.chats && curProj.chats.length > 0) {
       projectsState.activeChatId = curProj.chats[0].id;
+      projectsState.activeChat = curProj.chats[0];
+    } else {
+      try {
+        const createRes = await fetch(`/api/projects/${curProj.id}/chats`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Đoạn chat mới', model: 'cohere/north-mini-code:free', providerId: 'prov_openrouter' })
+        });
+        const newChat = await createRes.json();
+        curProj.chats = curProj.chats || [];
+        curProj.chats.push(newChat);
+        projectsState.activeChatId = newChat.id;
+        projectsState.activeChat = newChat;
+      } catch (e) {
+        showToast('Không thể tạo đoạn chat: ' + e.message);
+        return;
+      }
     }
   }
 
-  if (!inputEl || !projectsState.activeProjectId || !projectsState.activeChatId) {
-    showToast('Vui lòng chọn hoặc tạo dự án và đoạn chat trước.');
+  if (!inputEl) {
     return;
   }
 
@@ -5111,7 +5141,7 @@ async function sendProjectIdea() {
   if (!content && attachments.length === 0) return;
 
   if (projectsState.isRunning) {
-    showToast('Agent đang suy nghĩ và thực thi. Đang gửi tiếp yêu cầu...');
+    showToast('Agent đang xử lý yêu cầu trước đó. Đang gửi tiếp...');
   }
 
   // Clear input & attachments
@@ -5301,18 +5331,23 @@ function initProjectsEventListeners() {
   // Gửi ý tưởng / tin nhắn
   const btnSend = document.getElementById('btn-send-project-idea');
   const chatInput = document.getElementById('project-chat-input');
-  if (btnSend) btnSend.addEventListener('click', sendProjectIdea);
+  if (btnSend) {
+    btnSend.onclick = (e) => {
+      e.preventDefault();
+      sendProjectIdea();
+    };
+  }
   if (chatInput) {
-    chatInput.addEventListener('input', () => {
+    chatInput.oninput = () => {
       chatInput.style.height = 'auto';
       chatInput.style.height = Math.min(chatInput.scrollHeight, 220) + 'px';
-    });
-    chatInput.addEventListener('keydown', (e) => {
+    };
+    chatInput.onkeydown = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendProjectIdea();
       }
-    });
+    };
 
     // Paste screenshot from clipboard
     chatInput.addEventListener('paste', (e) => {

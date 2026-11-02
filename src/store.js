@@ -6,87 +6,9 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
-// Default initial state
+// Default initial state - Chỉ giữ 2 Provider Miễn Phí (OpenRouter & Cloudflare Workers AI) + Kilo Gateway Fallback
 const defaultData = {
   providers: [
-    {
-      id: 'prov_openai_default',
-      name: 'OpenAI',
-      type: 'openai',
-      baseUrl: 'https://api.openai.com/v1',
-      apiKey: '',
-      models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_gemini_default',
-      name: 'Google Gemini',
-      type: 'gemini',
-      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-      apiKey: '',
-      models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_anthropic_default',
-      name: 'Anthropic Claude',
-      type: 'anthropic',
-      baseUrl: 'https://api.anthropic.com/v1',
-      apiKey: '',
-      models: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_deepseek_default',
-      name: 'DeepSeek',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: '',
-      models: ['deepseek-chat', 'deepseek-reasoner'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_groq_default',
-      name: 'Groq',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.groq.com/openai/v1',
-      apiKey: '',
-      models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_ollama_default',
-      name: 'Ollama (Local)',
-      type: 'openai-compatible',
-      baseUrl: 'http://localhost:11434/v1',
-      apiKey: 'ollama',
-      models: ['qwen2.5:7b', 'llama3.2:latest', 'deepseek-r1:latest'],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_opencode',
-      name: 'OpenCode',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.opencode.ai/v1',
-      apiKey: '',
-      models: [
-        'beam-free',
-        'big-pickle',
-        'deepseek-v4.1-flash-free',
-        'flint-40b-free',
-        'mimo-v2.6-flash-free',
-        'nemotron-3.5-lightning-free',
-        'nemotron-3.5-super-vl-free'
-      ],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
     {
       id: 'prov_openrouter',
       name: 'OpenRouter',
@@ -138,31 +60,11 @@ const defaultData = {
         'cohere/north-mini-code:free',
         'dots-studio/dots-3-note-preview:free',
         'liquid/lfm-2.5-2.6b:free',
-        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         'nvidia/nemotron-3-ultra-550b-a55b:free',
         'nvidia/nemotron-3.5-lightning:free',
-        'poolside/laguna-s-2.1:free',
-        'poolside/laguna-xs-2.1:free',
-        'recursive/flint-v1.0:free',
-        'xingchen-agi/xing4.0-29b-a4b:free'
+        'recursive/flint-v1.0:free'
       ],
-      enabled: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'prov_zenmux',
-      name: 'ZenMux',
-      type: 'openai-compatible',
-      baseUrl: 'https://zenmux.ai/api/v1',
-      apiKey: '',
-      models: [
-        'zenmux/auto-free',
-        'deepseek-v4-flash',
-        'glm-4-flash',
-        'gemini-1.5-flash-free',
-        'qwen-2.5-72b-instruct'
-      ],
-      enabled: false,
+      enabled: true,
       createdAt: new Date().toISOString()
     }
   ],
@@ -888,13 +790,12 @@ const Store = {
         badge: 'CODER',
         color: '#10b981',
         description: 'Chuyên gia viết mã nguồn, xử lý logic thuật toán, fix bugs, sửa và cập nhật files.',
-        defaultModel: 'deepseek-v4.1-flash-free',
+        defaultModel: 'cohere/north-mini-code:free',
         recommendedModels: [
-          { id: 'deepseek-v4.1-flash-free', name: 'DeepSeek Flash Free (Chuyên Code) [FREE]' },
-          { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE]' },
-          { id: 'beam-free', name: 'OpenCode Beam Free [FREE]' },
-          { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
-          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+          { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE OpenRouter]' },
+          { id: '@cf/meta/llama-3.2-3b-instruct', name: 'Llama 3.2 3B [FREE Cloudflare]' },
+          { id: 'recursive/flint-v1.0:free', name: 'Flint Coding Agent [FREE OpenRouter]' },
+          { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra [FREE OpenRouter]' }
         ],
         systemPrompt: `Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).
 [CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:
@@ -908,12 +809,11 @@ const Store = {
         badge: 'TESTER',
         color: '#f59e0b',
         description: 'Chuyên gia rà soát lỗi logic, kiểm tra trường hợp biên, chạy lệnh terminal PowerShell/CMD để test dự án.',
-        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
         recommendedModels: [
-          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'NVIDIA Nemotron 30B Reasoning [FREE]' },
-          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' },
-          { id: 'beam-free', name: 'OpenCode Free [FREE]' },
-          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+          { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' },
+          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'NVIDIA Nemotron 30B Reasoning [FREE OpenRouter]' },
+          { id: '@cf/meta/llama-3.1-8b-instruct-fp8-fast', name: 'Llama 3.1 8B Fast [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).
 [CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:
@@ -927,12 +827,11 @@ const Store = {
         badge: 'ARCHITECT',
         color: '#3b82f6',
         description: 'Chuyên gia phân tích bài toán, thiết kế kiến trúc hệ thống, chia nhỏ các bước thực hiện và điều phối công việc.',
-        defaultModel: 'kilo-auto/free',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
         recommendedModels: [
-          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' },
-          { id: 'deepseek-v4.1-flash-free', name: 'DeepSeek Flash Free [FREE]' },
-          { id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash' },
-          { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
+          { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B [FREE OpenRouter]' },
+          { id: 'xingchen-agi/xing4.0-29b-a4b:free', name: 'Xing4.0 Planning [FREE OpenRouter]' },
+          { id: '@cf/meta/llama-3.2-3b-instruct', name: 'Llama 3.2 3B [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).
 Điểm mạnh cốt lõi:
@@ -946,11 +845,11 @@ const Store = {
         badge: 'REVIEWER',
         color: '#8b5cf6',
         description: 'Chuyên gia rà soát tiêu chuẩn clean code, tối ưu giao diện UI/UX và tổng hợp báo cáo hoàn thành.',
-        defaultModel: 'nemotron-3.5-lightning-free',
+        defaultModel: 'nvidia/nemotron-3.5-lightning:free',
         recommendedModels: [
-          { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning [FREE]' },
-          { id: 'liquid/lfm-2.5-2.6b:free', name: 'Liquid LFM [FREE]' },
-          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' }
+          { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning [FREE OpenRouter]' },
+          { id: 'liquid/lfm-2.5-2.6b:free', name: 'Liquid LFM [FREE OpenRouter]' },
+          { id: '@cf/meta/llama-3.2-11b-vision-instruct', name: 'Llama 3.2 11B Vision [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).
 Điểm mạnh cốt lõi:
@@ -964,10 +863,10 @@ const Store = {
         badge: 'DEVOPS',
         color: '#06b6d4',
         description: 'Chuyên gia cấu hình môi trường, script build, git status, cài đặt packages (npm, pip) và terminal.',
-        defaultModel: 'flint-40b-free',
+        defaultModel: '@cf/meta/llama-3.2-1b-instruct',
         recommendedModels: [
-          { id: 'flint-40b-free', name: 'Flint 40B Free [FREE]' },
-          { id: 'kilo-auto/free', name: 'Kilo Gateway Auto [FREE]' }
+          { id: '@cf/meta/llama-3.2-1b-instruct', name: 'Llama 3.2 1B Instruct [FREE Cloudflare]' },
+          { id: 'recursive/flint-v1.0:free', name: 'Flint Coding Agent [FREE OpenRouter]' }
         ],
         systemPrompt: `Bạn là Kỹ Sư DevOps & Hệ Thống (DevOps & Terminal Specialist).
 Điểm mạnh cốt lõi:
@@ -999,7 +898,8 @@ const Store = {
                 roleTitle: 'Kiến Trúc Hệ Thống',
                 badge: 'ARCHITECT',
                 color: '#3b82f6',
-                model: 'kilo-auto/free',
+                model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+                providerId: 'prov_openrouter',
                 systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
               },
               {
@@ -1009,7 +909,8 @@ const Store = {
                 roleTitle: 'Lập Trình Fullstack',
                 badge: 'CODER',
                 color: '#10b981',
-                model: 'deepseek-v4.1-flash-free',
+                model: 'cohere/north-mini-code:free',
+                providerId: 'prov_openrouter',
                 systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
               },
               {
@@ -1019,7 +920,8 @@ const Store = {
                 roleTitle: 'Kiểm Thử & Terminal',
                 badge: 'TESTER',
                 color: '#f59e0b',
-                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+                providerId: 'prov_cloudflare_ai',
                 systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
               }
             ]
@@ -1051,7 +953,8 @@ const Store = {
                 roleTitle: 'Kiến Trúc Hệ Thống',
                 badge: 'ARCHITECT',
                 color: '#3b82f6',
-                model: 'kilo-auto/free',
+                model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+                providerId: 'prov_openrouter',
                 systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
               },
               {
@@ -1061,7 +964,8 @@ const Store = {
                 roleTitle: 'Lập Trình Fullstack',
                 badge: 'CODER',
                 color: '#10b981',
-                model: 'deepseek-v4.1-flash-free',
+                model: 'cohere/north-mini-code:free',
+                providerId: 'prov_openrouter',
                 systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
               },
               {
@@ -1071,7 +975,8 @@ const Store = {
                 roleTitle: 'Kiểm Thử & Terminal',
                 badge: 'TESTER',
                 color: '#f59e0b',
-                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+                providerId: 'prov_cloudflare_ai',
                 systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
               }
             ]
@@ -1083,6 +988,8 @@ const Store = {
             title: 'Hội đồng Code & Fix lỗi',
             type: 'team',
             teamId: defaultTeamId,
+            model: 'cohere/north-mini-code:free',
+            providerId: 'prov_openrouter',
             createdAt: new Date().toISOString(),
             messages: []
           }
@@ -1135,7 +1042,8 @@ const Store = {
               roleTitle: 'Lập Trình Fullstack',
               badge: 'CODER',
               color: '#10b981',
-              model: 'deepseek-v4.1-flash-free',
+              model: 'cohere/north-mini-code:free',
+              providerId: 'prov_openrouter',
               systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
             },
             {
@@ -1145,7 +1053,8 @@ const Store = {
               roleTitle: 'Kiểm Thử & Terminal',
               badge: 'TESTER',
               color: '#f59e0b',
-              model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+              model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+              providerId: 'prov_cloudflare_ai',
               systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
             }
           ]
@@ -1157,6 +1066,8 @@ const Store = {
           title: 'Đoạn chat đầu tiên',
           type: 'team',
           teamId: defaultTeamId,
+          model: 'cohere/north-mini-code:free',
+          providerId: 'prov_openrouter',
           createdAt: new Date().toISOString(),
           messages: []
         }
