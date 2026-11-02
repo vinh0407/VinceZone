@@ -1,68 +1,90 @@
-# VinceZone AI Workplay & Unified Gateway
+# VinceZone Studio: Autonomous AI Agent IDE & Unified AI Gateway
 
-Ứng dụng **Workplay & AI Gateway** giúp bạn gom tất cả các nhà cung cấp AI API (OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Groq, Ollama, hoặc bất kỳ Custom API nào) vào một đầu mối duy nhất tương tự như OpenCode / LiteLLM.
-
-## Tính Năng Nổi Bật
-
-1. **Giao diện chuẩn Minimalism Dark Theme:**
-   - Nền đen sâu (`#000000`, `#09090b`), chữ trắng tương phản cao (`#ffffff`, `#f4f4f5`), và các chi tiết phụ viền/thẻ màu xám tinh tế (`#27272a`, `#3f3f46`, `#71717a`).
-
-2. **Workplay (AI Playground):**
-   - Thử nghiệm trực tiếp các mô hình AI với luồng Streaming thời gian thực (SSE).
-   - Tùy chỉnh `System Prompt`, `Temperature`, `Max Tokens`.
-   - Hiển thị Markdown, khối code và trạng thái phản hồi.
-
-3. **Providers Hub (Gom các AI API):**
-   - Thêm/Sửa/Xóa và Bật/Tắt các nhà cung cấp:
-     - **OpenAI:** `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini`...
-     - **Google Gemini:** `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`...
-     - **Anthropic Claude:** `claude-3-7-sonnet`, `claude-3-5-sonnet`, `claude-3-5-haiku`...
-     - **OpenAI-Compatible:** DeepSeek, Groq, OpenRouter, Mistral, Ollama (Local), vLLM, LM Studio.
-   - Nút **"Ping Test"** kiểm tra kết nối và đo độ trễ (latency ms) tức thì.
-
-4. **Unified API Gateway (Gọi API vào ứng dụng):**
-   - Cung cấp endpoint chuẩn OpenAI:
-     `POST http://localhost:3000/v1/chat/completions`
-   - Quản lý **Gateway Access Keys** (dạng `Bearer vz_live_...`).
-   - Tự động chuyển đổi định dạng (adapter conversion) giữa chuẩn OpenAI sang định dạng của Google Gemini và Anthropic Claude, giúp ứng dụng bên ngoài chỉ cần dùng 1 SDK duy nhất để gọi mọi AI.
-
-5. **Audit Logs & Giám sát:**
-   - Theo dõi từng lượt gọi API: Thời gian, Endpoint, Model, Provider, Client IP, HTTP Status, Độ trễ (ms), và lượng Tokens tiêu thụ.
+VinceZone Studio is a developer workspace that combines a Unified AI Gateway with a Multi-Agent Collaborative Workspace. It allows you to consolidate multiple AI model providers into a single endpoint and coordinate specialized AI agent teams that work together on software projects.
 
 ---
 
-## Hướng Dẫn Khởi Chạy
+## Core Capabilities
 
-### 1. Cài đặt phụ thuộc:
-```bash
-npm install
-```
+### 1. Unified AI Gateway (AI Gate)
 
-### 2. Khởi chạy server:
-```bash
-npm start
-```
-* **Giao diện Workplay Web:** [http://localhost:3000](http://localhost:3000)
-* **Điểm cuối API Gateway:** `http://localhost:3000/v1/chat/completions`
+The AI Gateway provides a centralized access point for multiple AI model providers through a standard OpenAI-compatible interface.
+
+- Multi-Provider Aggregation:
+  - Connect OpenAI, Anthropic Claude, Google Gemini, OpenRouter, Cloudflare Workers AI, Kilo Gateway, OpenCode, Ollama, and custom OpenAI-compatible endpoints into a single gateway.
+  - Automatically translates requests and responses between standard OpenAI format and provider-specific schemas (such as Google Gemini Content API and Anthropic Messages API).
+
+- Centralized API Key and Access Management:
+  - Expose a single endpoint: POST http://localhost:3000/v1/chat/completions
+  - Issue and manage local gateway access tokens with configurable permissions and audit tracking.
+  - Keep upstream provider keys secure and local to your environment.
+
+- Diagnostics and Performance Monitoring:
+  - Real-time latency measurement and ping tests for all connected providers.
+  - Request logging with model identity, response time, token consumption, and status codes.
+  - Streaming support via Server-Sent Events (SSE) for low-latency generation.
 
 ---
 
-## Cách Gọi API Từ Ứng Dụng Bên Ngoài
+### 2. Multi-Agent Collaborative Teams (Agent Workspaces)
 
-### cURL:
+VinceZone Studio enables the creation of multi-agent team groups where different AI agents collaborate on project architecture, implementation, and quality assurance.
+
+- Specialized Agent Roles:
+  - Project Manager (PM): Coordinates user requests, analyzes project requirements, formulates implementation plans, and delegates tasks to domain specialists.
+  - Frontend Developer: Implements user interfaces, responsive layouts, components, and client-side state logic.
+  - Backend and API Developer: Implements server routes, database schemas, authentication, and external integrations.
+  - AI and Data Specialist: Configures embeddings, prompt templates, retrieval-augmented generation (RAG), and ingestion pipelines.
+  - Quality Assurance (QA/QC): Inspects code quality, verifies edge cases, and enforces zero-defect criteria before sign-off.
+
+- Autonomous Team Coordination:
+  - Group Chat Rooms: Organize agents into department chat channels (such as Development, Architecture, and Testing).
+  - Task Delegation and Reporting: The Project Manager analyzes technical directives, assigns discrete objectives to employee agents, collects detailed implementation reports, and synthesizes findings for the user.
+  - Quality Assurance Gate: Employee outputs are routed through QA review loops. If issues are identified, tasks are automatically reassigned until requirements are satisfied.
+  - Disk Synchronization: Code blocks generated by agents are parsed and synchronized directly with the local project filesystem.
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Node.js version 18 or higher
+- npm version 9 or higher
+
+### Installation
+1. Clone the repository:
+   git clone https://github.com/vinh0407/VinceZone.git
+   cd VinceZone
+
+2. Install dependencies:
+   npm install
+
+3. Launch the server and application:
+   npm start
+
+- Web Application: http://localhost:3000
+- Gateway Endpoint: http://localhost:3000/v1/chat/completions
+- Desktop Application (Electron):
+  npm run desktop
+
+---
+
+## Using the AI Gateway
+
+### cURL Example
 ```bash
 curl -X POST "http://localhost:3000/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <GATEWAY_API_KEY>" \
   -d '{
-    "model": "gemini-2.5-flash",
+    "model": "kilo-auto/free",
     "messages": [
-      { "role": "user", "content": "Xin chào từ cURL!" }
+      { "role": "user", "content": "Analyze project architecture" }
     ]
   }'
 ```
 
-### Python (Sử dụng thư viện `openai` chính thức):
+### Python SDK Example
 ```python
 from openai import OpenAI
 
@@ -72,10 +94,25 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="claude-3-5-sonnet-20241022",
+    model="kilo-auto/free",
     messages=[
-        {"role": "user", "content": "Xin chào từ Python!"}
+        {"role": "user", "content": "Generate unit tests for auth module"}
     ]
 )
+
 print(response.choices[0].message.content)
 ```
+
+---
+
+## Multi-Agent Team Configuration
+
+Agents can be configured with specific models based on task requirements:
+- Lightweight models (such as Kilo Auto Free) handle high-frequency coordination and direct conversational queries.
+- Specialized code models handle full-stack implementation, database schema design, and regression testing.
+- Agents operate in designated department chat rooms with isolated conversation contexts and shared project filesystem access.
+
+---
+
+## License
+ISC License
