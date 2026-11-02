@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=9.6">
+ <link rel="stylesheet" href="style.css?v=9.7">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -642,19 +642,6 @@
               <!-- Populated dynamically -->
             </select>
           </div>
-
-          <!-- Chế độ hiển thị: Song song | Chỉ Demo | Chỉ Code -->
-          <div class="demo-view-mode-pills">
-            <button type="button" class="demo-mode-pill active" data-mode="split" onclick="window.switchDemoViewMode('split')">
-              Song Song
-            </button>
-            <button type="button" class="demo-mode-pill" data-mode="preview" onclick="window.switchDemoViewMode('preview')">
-              Chỉ Demo
-            </button>
-            <button type="button" class="demo-mode-pill" data-mode="code" onclick="window.switchDemoViewMode('code')">
-              Chỉ Code
-            </button>
-          </div>
         </div>
 
         <div class="demo-topbar-center" id="demo-preview-controls">
@@ -746,9 +733,7 @@
                 <!-- Dynamically populated file tabs -->
               </div>
               <div class="ide-tab-bar-actions">
-                <button type="button" class="btn-ide-head-icon" onclick="window.switchDemoViewMode('split')" title="Chia đôi màn hình Editor & Preview">⊟</button>
-                <button type="button" class="btn-ide-head-icon" onclick="window.saveCurrentIdeFile()" title="Lưu tệp">💾</button>
-                <button type="button" class="btn-ide-head-icon" title="More Actions">⋯</button>
+                <button type="button" id="btn-toggle-demo-pane" class="btn-toggle-demo-action" onclick="window.toggleDemoPane()" title="Ẩn hoặc hiện khung Demo">Ẩn Demo</button>
               </div>
             </div>
 
@@ -836,12 +821,9 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
 
         <!-- B. LIVE DEMO (Web & Mobile Presentation - Ô Demo) -->
         <div class="demo-preview-pane" id="demo-preview-pane">
-          <!-- Header ô Demo: Tabs (Demo | AI Chat) & Actions -->
+          <!-- Header ô Demo: Tiêu đề & Actions -->
           <div class="demo-pane-header">
-            <div class="demo-pane-tabs">
-              <button type="button" class="demo-pane-tab active" id="btn-pane-tab-demo" onclick="window.switchRightPaneTab('demo')">Demo</button>
-              <button type="button" class="demo-pane-tab" id="btn-pane-tab-ai" onclick="window.switchRightPaneTab('ai')">AI Chat</button>
-            </div>
+            <span class="demo-pane-title">Demo</span>
             <div class="demo-pane-header-actions" id="demo-pane-header-actions">
               <span id="demo-pane-url-preview" class="demo-pane-url-preview">http://localhost:3000</span>
               <button type="button" class="btn-ide-head-icon" onclick="window.reloadDemoPreview()" title="Tải lại">↺</button>
@@ -849,7 +831,7 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
             </div>
           </div>
 
-          <!-- 1. Live Demo View (Khung Demo trực tiếp - Mặc định mở) -->
+          <!-- Live Demo View (Khung Demo trực tiếp) -->
           <div class="demo-preview-container" id="demo-preview-container">
             <!-- 1. Mobile Phone Chassis (iPhone / Android Mockup) -->
             <div class="phone-mockup-chassis" id="phone-mockup-chassis" style="display: none;">
@@ -895,36 +877,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
               </div>
               <div class="browser-viewport">
                 <iframe id="demo-iframe-web" class="demo-iframe" src="about:blank" allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;" sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"></iframe>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. AI Chat View (Chỉ hiện khi nhấn tab AI Chat) -->
-          <div class="ide-ai-panel" id="ide-ai-panel" style="display: none; height: 100%; border: none; width: 100% !important;">
-            <!-- Feed for conversation in IDE -->
-            <div class="ide-ai-feed" id="ide-ai-feed">
-              <!-- Dynamically populated with active project chat messages -->
-            </div>
-
-            <!-- Floating Composer Card -->
-            <div class="ide-ai-composer-card">
-              <textarea id="ide-ai-input" class="ide-ai-textarea" rows="2" placeholder="Ask anything, @ to mention, / for acti..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault(); window.sendIdeAiMessage();}"></textarea>
-              <div class="ide-ai-composer-toolbar">
-                <div class="ide-ai-model-pill" onclick="window.triggerModelSelectClick()" id="ide-ai-model-capsule" title="Đổi Model AI">
-                  <span class="plus-ico">+</span>
-                  <span id="ide-ai-model-name">Gemini 3.8 Flash Medium</span>
-                  <span class="chev-ico">⌄</span>
-                </div>
-                <button type="button" class="btn-ide-ai-send" onclick="window.sendIdeAiMessage()" title="Send (Enter)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </button>
-              </div>
-              <div class="ide-ai-composer-footer">
-                <span class="footer-chip">Local Checkout</span>
-                <span class="footer-chip branch-chip">⑂ main</span>
               </div>
             </div>
           </div>
@@ -1932,6 +1884,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=9.6"></script>
+ <script src="app.js?v=9.7"></script>
 </body>
 </html>

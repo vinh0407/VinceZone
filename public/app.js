@@ -7510,6 +7510,16 @@ window.initDemoWorkspace = async function(projectId) {
 
   // 5. Nạp Preview iframe
   window.reloadDemoPreview();
+
+  // 6. Luôn luôn mở chế độ Song Song (Split)
+  if (typeof window.switchDemoViewMode === 'function') {
+    window.switchDemoViewMode('split');
+  }
+  const btnToggleDemo = document.getElementById('btn-toggle-demo-pane');
+  if (btnToggleDemo) {
+    btnToggleDemo.textContent = 'Ẩn Demo';
+    btnToggleDemo.classList.remove('is-hidden');
+  }
 };
 
 function startPhoneClock() {
@@ -7535,29 +7545,57 @@ window.switchDemoActiveProject = async function(projectId) {
   await window.initDemoWorkspace(projectId);
 };
 
-// Đổi tab trong ô bên phải: Demo (mặc định) | AI Chat
-window.switchRightPaneTab = function(tab) {
-  const btnDemo = document.getElementById('btn-pane-tab-demo');
-  const btnAi = document.getElementById('btn-pane-tab-ai');
-  const demoContainer = document.getElementById('demo-preview-container');
-  const aiPanel = document.getElementById('ide-ai-panel');
-  const headerActions = document.getElementById('demo-pane-header-actions');
+// Nút Ẩn / Hiện Demo (Luôn luôn song song, bấm để ẩn hoặc hiện khung Demo)
+window.toggleDemoPane = function() {
+  const previewPane = document.getElementById('demo-preview-pane');
+  const resizer = document.getElementById('resizer-code-demo');
+  const codePane = document.getElementById('demo-code-pane');
+  const btn = document.getElementById('btn-toggle-demo-pane');
+  const mainBody = document.getElementById('demo-main-body');
 
-  if (tab === 'demo') {
-    if (btnDemo) btnDemo.classList.add('active');
-    if (btnAi) btnAi.classList.remove('active');
-    if (demoContainer) demoContainer.style.display = 'flex';
-    if (aiPanel) aiPanel.style.display = 'none';
-    if (headerActions) headerActions.style.display = 'flex';
-  } else {
-    if (btnDemo) btnDemo.classList.remove('active');
-    if (btnAi) btnAi.classList.add('active');
-    if (demoContainer) demoContainer.style.display = 'none';
-    if (aiPanel) {
-      aiPanel.style.display = 'flex';
-      if (typeof window.syncIdeAiFeed === 'function') window.syncIdeAiFeed();
+  if (!previewPane) return;
+
+  const isHidden = previewPane.style.display === 'none' || (mainBody && mainBody.classList.contains('mode-code'));
+
+  if (isHidden) {
+    // Hiện Demo (trở lại Song Song)
+    previewPane.style.display = 'flex';
+    if (resizer) resizer.style.display = 'block';
+    if (mainBody) {
+      mainBody.classList.remove('mode-code');
+      mainBody.classList.add('mode-split');
     }
-    if (headerActions) headerActions.style.display = 'none';
+    const savedPercent = localStorage.getItem('vz_code_split_percent');
+    const p = parseFloat(savedPercent) || 48;
+    if (codePane) {
+      codePane.style.width = p + '%';
+      codePane.style.flex = 'none';
+    }
+    previewPane.style.width = (100 - p) + '%';
+    previewPane.style.flex = 'none';
+    if (btn) {
+      btn.textContent = 'Ẩn Demo';
+      btn.classList.remove('is-hidden');
+    }
+    if (typeof window.reloadDemoPreview === 'function') {
+      window.reloadDemoPreview();
+    }
+  } else {
+    // Ẩn Demo (Code chiếm 100%)
+    previewPane.style.display = 'none';
+    if (resizer) resizer.style.display = 'none';
+    if (mainBody) {
+      mainBody.classList.remove('mode-split');
+      mainBody.classList.add('mode-code');
+    }
+    if (codePane) {
+      codePane.style.width = '100%';
+      codePane.style.flex = 'none';
+    }
+    if (btn) {
+      btn.textContent = 'Hiện Demo';
+      btn.classList.add('is-hidden');
+    }
   }
 };
 
