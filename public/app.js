@@ -4962,7 +4962,7 @@ function getClientModelAgentName(model) {
   if (m.includes('llama-3.2-3b')) return 'Llama 3.2 3B';
   if (m.includes('llama-3.2-1b')) return 'Llama 3.2 1B';
   if (m.includes('llama-3.3-70b')) return 'Llama 3.3 70B Fast';
-  if (m.includes('kilo-auto')) return 'Kilo Auto Agent';
+  if (m.includes('kilo-auto')) return 'Kilo Auto Free';
   if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
   if (m.includes('laguna-xs-2.1')) return 'Laguna XS 2.1';
   if (m.includes('dots-3')) return 'Dots 3 Studio';
@@ -5828,17 +5828,22 @@ async function sendProjectIdea() {
         }
       }
 
-      // Tự động cập nhật danh sách chat và cây dự án nếu có chat phòng ban mới
-      if (data.createdChats && data.createdChats.length > 0) {
+      // Tự động cập nhật danh sách chat và cây dự án khi Agent thêm hoặc xóa / dọn dẹp chat
+      if (data.chatsUpdated || data.chatsCleared || (data.createdChats && data.createdChats.length > 0)) {
         if (typeof loadProjects === 'function') {
           await loadProjects();
-        } else if (typeof loadProjectChats === 'function' && projectsState.activeProjectId) {
-          await loadProjectChats(projectsState.activeProjectId);
+        }
+        if (typeof renderActiveProject === 'function') {
+          renderActiveProject();
         }
         if (typeof window.renderAntigravityProjectsTree === 'function') {
           window.renderAntigravityProjectsTree();
         }
-        showToast(`🎉 Đã khởi tạo đoạn chat: ${data.createdChats.map(c => c.title).join(', ')}!`);
+        if (data.chatsCleared) {
+          showToast('🧹 Đã xóa sạch các nhóm chat, chỉ giữ lại đoạn chat giữa Sếp và PM!');
+        } else if (data.createdChats && data.createdChats.length > 0) {
+          showToast(`🎉 Đã khởi tạo đoạn chat: ${data.createdChats.map(c => c.title).join(', ')}!`);
+        }
       }
 
       // Quét và hiển thị thông báo nếu AI tự động tuyển dụng thêm Agent

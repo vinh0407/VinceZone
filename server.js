@@ -2169,11 +2169,11 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
         Store.clearDepartmentChats(projectId);
         const pmClearMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
-          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          author: 'Kilo Auto Free (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
-          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          agentModel: 'kilo-auto/free',
           content: 'Dạ tuân lệnh Sếp! Em đã dọn dẹp sạch toàn bộ các đoạn chat phòng ban, chỉ giữ lại duy nhất đoạn chat trực tiếp giữa Sếp và em để tiện trao đổi công việc ạ!'
         });
         sendEvent({ type: 'agent_done', message: pmClearMsg, chatsUpdated: true });
@@ -2200,9 +2200,9 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       // (TUYỆT ĐỐI KHÔNG TẠO PHÒNG BAN, KHÔNG GỬI LỆNH CHO NHÂN VIÊN)
       // =========================================================================
       if (isDefiniteQuestion) {
-        sendEvent({ type: 'agent_start', role: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)', badge: 'PM' });
+        sendEvent({ type: 'agent_start', role: 'Kilo Auto Free (PM – Quản lý dự án)', badge: 'PM' });
 
-        const pmDirectSys = `Bạn là Nemotron 3.5 Lightning (PM – Quản lý dự án của VinceZone).
+        const pmDirectSys = `Bạn là Kilo Auto Free (PM – Quản lý dự án của VinceZone).
 Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ làm việc trực tiếp với Sếp (người dùng).
 Dự án: "${project.name}" (Thư mục làm việc: "${project.path}")
 ${projectContext}
@@ -2217,7 +2217,7 @@ ${projectContext}
 - Nếu Sếp hỏi về dự án: giải đáp chi tiết, thấu đáo và hỏi Sếp xem có lệnh chỉ đạo kỹ thuật nào cụ thể để em điều phối nhân sự không.`;
 
         let pmAnswer = await callInternalAI({
-          model: 'nvidia/nemotron-3.5-lightning:free',
+          model: 'kilo-auto/free',
           messages: [
             { role: 'system', content: pmDirectSys },
             { role: 'user', content: qTrim }
@@ -2235,7 +2235,7 @@ ${projectContext}
 
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
-          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          author: 'Kilo Auto Free (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
@@ -2254,7 +2254,7 @@ ${projectContext}
       // =========================================================================
       // NẾU ĐÓ LÀ LỆNH THỰC THI KỸ THUẬT: PM MỚI PHÂN TÍCH VÀ ĐIỀU PHỐI DEV ĐI LÀM
       // =========================================================================
-      sendEvent({ type: 'agent_start', role: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)', badge: 'PM' });
+      sendEvent({ type: 'agent_start', role: 'Kilo Auto Free (PM – Quản lý dự án)', badge: 'PM' });
 
       const pmUnifiedPrompt = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
 Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ chuyên môn làm việc trực tiếp với Sếp (người dùng).
@@ -2315,7 +2315,7 @@ Trả về DUY NHẤT định dạng JSON:
       if (dispatchPlan.type === 'direct_reply' && dispatchPlan.reply) {
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
-          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          author: 'Kilo Auto Free (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
@@ -2370,7 +2370,7 @@ Sau khi hoàn thành, hãy báo cáo chi tiết kết quả cho tôi để tôi 
 
         Store.saveProjectChatMessage(projectId, deptChat.id, {
           role: 'assistant',
-          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          author: 'Kilo Auto Free (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
@@ -2482,7 +2482,7 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
   - Tệp mã nguồn đã lưu tự động (nếu có): Liệt kê danh sách file.
 - Thêm lời mời Sếp kiểm tra hoặc bấm nút "Chạy Dự Án" để nghiệm thu kết quả.`;
 
-      const pmReportModel = 'nvidia/nemotron-3.5-lightning:free';
+      const pmReportModel = 'kilo-auto/free';
       let pmReportContent = await callInternalAI({
         model: pmReportModel,
         messages: [
@@ -2506,7 +2506,7 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
 
       const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
-        author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+        author: 'Kilo Auto Free (PM – Quản lý dự án)',
         agentBadge: 'PM',
         agentColor: '#3b82f6',
         agentRole: 'Project Manager (PM)',
@@ -2550,7 +2550,7 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
 
     const pmAckMsg = Store.saveProjectChatMessage(projectId, chatId, {
       role: 'assistant',
-      author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+      author: 'Kilo Auto Free (PM – Quản lý dự án)',
       agentBadge: 'PM',
       agentColor: '#3b82f6',
       agentRole: 'Project Manager (PM)',
@@ -2649,7 +2649,7 @@ Hãy viết 1-2 câu kết luận ngắn gọn, lịch sự để báo cáo tr�
 
     const pmEndMsg = Store.saveProjectChatMessage(projectId, chatId, {
       role: 'assistant',
-      author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+      author: 'Kilo Auto Free (PM – Quản lý dự án)',
       agentBadge: 'PM',
       agentColor: '#3b82f6',
       agentRole: 'Project Manager (PM)',

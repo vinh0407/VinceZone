@@ -906,7 +906,7 @@ const Store = {
     if (m.includes('llama-3.2-3b')) return 'Llama 3.2 3B';
     if (m.includes('llama-3.2-1b')) return 'Llama 3.2 1B';
     if (m.includes('llama-3.3-70b')) return 'Llama 3.3 70B Fast';
-    if (m.includes('kilo-auto')) return 'Kilo Auto Agent';
+    if (m.includes('kilo-auto')) return 'Kilo Auto Free';
     if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
     if (m.includes('laguna-xs-2.1')) return 'Laguna XS 2.1';
     if (m.includes('dots-3')) return 'Dots 3 Studio';
@@ -946,15 +946,15 @@ const Store = {
       {
         stt: '02',
         category: 'pm',
-        agentName: 'Nemotron 3.5 Lightning',
+        agentName: 'Kilo Auto Free',
         roleNameVi: 'Quản lý dự án',
         roleTitle: 'Project Manager (PM)',
-        name: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+        name: 'Kilo Auto Free (PM – Quản lý dự án)',
         badge: 'PM',
         domain: 'Management & Project Management',
-        desc: 'Tiếp nhận dự án, lập kế hoạch, quản lý tiến độ và điều phối nhân sự.',
+        desc: 'Tiếp nhận dự án, làm việc trực tiếp với Sếp, lập kế hoạch, quản lý tiến độ và điều phối nhân sự.',
         color: '#3b82f6',
-        defaultModel: 'nvidia/nemotron-3.5-lightning:free',
+        defaultModel: 'kilo-auto/free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
@@ -2442,7 +2442,7 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
           roleTitle: pmRole.roleTitle,
           badge: 'PM',
           color: pmRole.color || '#3b82f6',
-          model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
+          model: pmRole.defaultModel || 'kilo-auto/free',
           providerId: pmRole.providerId || 'prov_kilo_gateway'
         };
         const specAgent = {
@@ -2536,7 +2536,7 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
       roleTitle: pmRole.roleTitle,
       badge: 'PM',
       color: pmRole.color || '#3b82f6',
-      model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
+      model: pmRole.defaultModel || 'kilo-auto/free',
       providerId: pmRole.providerId || 'prov_kilo_gateway',
       providerName: pmRole.providerName || 'Kilo Gateway'
     };
