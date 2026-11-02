@@ -26,6 +26,7 @@
       "server.js",
       "src/**/*",
       "public/**/*",
+      "data/**/*",
       "package.json"
     ]
   },

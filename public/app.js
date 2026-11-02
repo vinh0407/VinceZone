@@ -317,6 +317,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupChatHistoryEvents();
   setupMobileModelSheetEvents();
 
+  // Desktop Edition Integration
+  if (window.vzDesktop) {
+    const desktopBadge = document.getElementById('desktop-app-badge');
+    if (desktopBadge) desktopBadge.style.display = 'inline-flex';
+    document.title = 'VinceZone Studio [Desktop Edition]';
+  }
+
   // Load initial data
   await Promise.all([
     fetchCurrentUser(),
@@ -6361,20 +6368,41 @@ function initProjectsEventListeners() {
   const inputProjectPath = document.getElementById('new-project-path-input');
   const inputProjectName = document.getElementById('new-project-name-input');
 
-  if (btnBrowseFolder && folderPickerHidden) {
-    btnBrowseFolder.addEventListener('click', () => folderPickerHidden.click());
-    folderPickerHidden.addEventListener('change', (e) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        const firstFile = files[0];
-        // In electron / desktop, path is available on File object
-        const fullPath = firstFile.path ? firstFile.path.substring(0, firstFile.path.lastIndexOf('\\') || firstFile.path.lastIndexOf('/')) : '';
-        const folderName = firstFile.webkitRelativePath ? firstFile.webkitRelativePath.split('/')[0] : 'MyProject';
-        
-        if (inputProjectPath) inputProjectPath.value = fullPath || folderName;
-        if (inputProjectName) inputProjectName.value = folderName;
+  if (btnBrowseFolder) {
+    btnBrowseFolder.addEventListener('click', async () => {
+      // 1. Uu tien dung Native Windows Folder Dialog neu dang chay tren Desktop Electron
+      if (window.vzDesktop && typeof window.vzDesktop.openFolderDialog === 'function') {
+        try {
+          const res = await window.vzDesktop.openFolderDialog();
+          if (res && res.rootPath) {
+            if (inputProjectPath) inputProjectPath.value = res.rootPath;
+            if (inputProjectName && (!inputProjectName.value || inputProjectName.value.trim() === '')) {
+              inputProjectName.value = res.name;
+            }
+          }
+          return;
+        } catch (err) {
+          console.warn('Native folder dialog error:', err);
+        }
       }
+      // 2. Fallback cho trinh duyet Web
+      if (folderPickerHidden) folderPickerHidden.click();
     });
+
+    if (folderPickerHidden) {
+      folderPickerHidden.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+          const firstFile = files[0];
+          // In electron / desktop, path is available on File object
+          const fullPath = firstFile.path ? firstFile.path.substring(0, firstFile.path.lastIndexOf('\\') || firstFile.path.lastIndexOf('/')) : '';
+          const folderName = firstFile.webkitRelativePath ? firstFile.webkitRelativePath.split('/')[0] : 'MyProject';
+          
+          if (inputProjectPath) inputProjectPath.value = fullPath || folderName;
+          if (inputProjectName) inputProjectName.value = folderName;
+        }
+      });
+    }
   }
 
   if (btnOpenCreateProject && modalCreateProject) {

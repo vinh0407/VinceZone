@@ -1,19 +1,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('vzDesktop', {
-  // Workspace management
+  isDesktop: true,
+  platform: process.platform,
+
+  // Native Workspace & Folder Picker Dialogs
   openFolderDialog: () => ipcRenderer.invoke('workspace:open-dialog'),
+  openFileDialog: (filter) => ipcRenderer.invoke('workspace:open-file-dialog', filter),
   readTree: (dirPath) => ipcRenderer.invoke('workspace:read-tree', dirPath),
-  
-  // File operations
+
+  // Native File Operations
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
   saveFile: (filePath, content) => ipcRenderer.invoke('file:save', filePath, content),
   createFile: (filePath, isDir) => ipcRenderer.invoke('file:create', filePath, isDir),
   deleteItem: (filePath) => ipcRenderer.invoke('file:delete', filePath),
-  
+
   // Integrated Terminal (PowerShell / CMD)
   runCommand: (command, shell) => ipcRenderer.invoke('terminal:exec', command, shell),
-  
+
   // AI Agent Engine
   startAgent: (taskPrompt, options) => ipcRenderer.invoke('agent:start', taskPrompt, options),
   stopAgent: () => ipcRenderer.invoke('agent:stop'),
@@ -23,6 +27,12 @@ contextBridge.exposeInMainWorld('vzDesktop', {
     return () => ipcRenderer.removeListener('agent:event', subscription);
   },
 
-  // Gateway connection
-  getGatewayStatus: () => ipcRenderer.invoke('gateway:status')
+  // Gateway status check
+  getGatewayStatus: () => ipcRenderer.invoke('gateway:status'),
+
+  // Window Controls & Info
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  maximize: () => ipcRenderer.invoke('window:maximize'),
+  close: () => ipcRenderer.invoke('window:close'),
+  getAppVersion: () => ipcRenderer.invoke('app:version')
 });
