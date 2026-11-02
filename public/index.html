@@ -642,28 +642,27 @@
   <!-- ==================== TAB: DEMO & CODE INSPECTOR (WEB & MOBILE) ==================== -->
   <section id="tab-demo" class="tab-pane">
     <div class="demo-workspace-layout">
-      <!-- 1. Top Control Bar -->
+      <!-- 1. Top Control Bar (Clean Monochrome: Gray, Black, White - No Icons) -->
       <div class="demo-topbar">
         <div class="demo-topbar-left">
-          <!-- Chọn dự án cần demo -->
-          <div class="demo-capsule-select" title="Chọn dự án muốn trình chiếu">
-            <span class="capsule-icon">📁</span>
+          <!-- Chọn dự án -->
+          <div class="demo-capsule-select" title="Dự án đang mở">
             <span class="capsule-label">Dự Án:</span>
             <select id="demo-project-select" class="demo-dropdown" onchange="window.switchDemoActiveProject(this.value)">
               <!-- Populated dynamically -->
             </select>
           </div>
 
-          <!-- Chế độ hiển thị: Song song (Split) | Chỉ Demo | Chỉ Code -->
+          <!-- Chế độ hiển thị: Song song | Chỉ Demo | Chỉ Code -->
           <div class="demo-view-mode-pills">
-            <button type="button" class="demo-mode-pill active" data-mode="split" onclick="window.switchDemoViewMode('split')" title="Hiển thị song song: Code bên trái, Live Demo bên phải">
-              <span>⚡</span> Song Song
+            <button type="button" class="demo-mode-pill active" data-mode="split" onclick="window.switchDemoViewMode('split')">
+              Song Song
             </button>
-            <button type="button" class="demo-mode-pill" data-mode="preview" onclick="window.switchDemoViewMode('preview')" title="Chỉ hiển thị phòng Live Demo trình chiếu ứng dụng">
-              <span>📱</span> Chỉ Demo
+            <button type="button" class="demo-mode-pill" data-mode="preview" onclick="window.switchDemoViewMode('preview')">
+              Chỉ Demo
             </button>
-            <button type="button" class="demo-mode-pill" data-mode="code" onclick="window.switchDemoViewMode('code')" title="Chỉ hiển thị phòng xem Code IDE (Cursor / VS Code)">
-              <span>💻</span> Chỉ Code
+            <button type="button" class="demo-mode-pill" data-mode="code" onclick="window.switchDemoViewMode('code')">
+              Chỉ Code
             </button>
           </div>
         </div>
@@ -671,62 +670,40 @@
         <div class="demo-topbar-center" id="demo-preview-controls">
           <!-- Viewport Switcher -->
           <div class="demo-device-pills">
-            <button type="button" class="demo-device-btn active" data-viewport="desktop" onclick="window.setDemoViewport('desktop')" title="Màn hình Máy tính (Desktop 100%)">
-              <span>🖥️</span> Desktop
+            <button type="button" class="demo-device-btn active" data-viewport="desktop" onclick="window.setDemoViewport('desktop')">
+              Desktop
             </button>
-            <button type="button" class="demo-device-btn" data-viewport="tablet" onclick="window.setDemoViewport('tablet')" title="Máy tính bảng (iPad 768px)">
-              <span>📱</span> Tablet
+            <button type="button" class="demo-device-btn" data-viewport="tablet" onclick="window.setDemoViewport('tablet')">
+              Tablet
             </button>
-            <button type="button" class="demo-device-btn" data-viewport="mobile" onclick="window.setDemoViewport('mobile')" title="Điện thoại di động (iPhone 375px)">
-              <span>📲</span> iPhone
+            <button type="button" class="demo-device-btn" data-viewport="mobile" onclick="window.setDemoViewport('mobile')">
+              iPhone
             </button>
-            <button type="button" class="demo-device-btn" data-viewport="android" onclick="window.setDemoViewport('android')" title="Điện thoại Android (Pixel 412px)">
-              <span>🤖</span> Android
+            <button type="button" class="demo-device-btn" data-viewport="android" onclick="window.setDemoViewport('android')">
+              Android
+            </button>
+            <button type="button" id="btn-toggle-phone-mockup" class="demo-device-btn" onclick="window.togglePhoneMockupFrame()">
+              Viền Máy
             </button>
           </div>
-
-          <!-- Phone Chassis Mockup Toggle -->
-          <button type="button" id="btn-toggle-phone-mockup" class="btn-micro" onclick="window.togglePhoneMockupFrame()" title="Bật / Tắt khung viền điện thoại chân thực">
-            <span>📱</span> Viền Máy
-          </button>
         </div>
 
         <div class="demo-topbar-right">
-          <!-- Source Mode: Static file hay Dev Server URL -->
-          
-          <!-- Quick Web Bookmarks Bar -->
-          <div class="demo-web-bookmarks-bar" id="demo-web-bookmarks-bar" style="display: none;">
-            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://gemini.google.com')" title="Mở Gemini Web">
-              <span>🤖</span> Gemini
-            </button>
-            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://chatgpt.com')" title="Mở ChatGPT Web">
-              <span>🧠</span> ChatGPT
-            </button>
-            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://www.google.com')" title="Mở Google Search">
-              <span>🔍</span> Google
-            </button>
-            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://devdocs.io')" title="Mở DevDocs (Tài liệu lập trình)">
-              <span>📖</span> DevDocs
-            </button>
-            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://github.com')" title="Mở GitHub">
-              <span>🐙</span> GitHub
-            </button>
-          </div>
-
+          <!-- Source Mode & URL Bar -->
           <div class="demo-url-bar-wrap">
             <select id="demo-source-mode-select" class="demo-source-select" onchange="window.switchDemoSourceMode(this.value)">
-              <option value="static">📁 File Dự Án (index.html)</option>
-              <option value="devserver">⚡ Dev Server (Localhost)</option>
-              <option value="web">🌐 Trình Duyệt Web (Gemini, ChatGPT, Docs)</option>
+              <option value="static">File Dự Án</option>
+              <option value="devserver">Dev Server (Localhost)</option>
+              <option value="web">Trình Duyệt Web</option>
             </select>
             <input type="text" id="demo-url-input" class="demo-url-input" placeholder="http://localhost:5173" value="http://localhost:5173" style="display: none;" onkeydown="if(event.key==='Enter') window.reloadDemoPreview();">
-            <button type="button" id="btn-reload-demo-preview" class="btn-micro" onclick="window.reloadDemoPreview()" title="Làm mới khung demo (Reload)">↺</button>
-            <button type="button" id="btn-open-demo-newtab" class="btn-micro" onclick="window.openDemoInNewTab()" title="Mở trang demo ở tab trình duyệt mới">🌐</button>
+            <button type="button" id="btn-reload-demo-preview" class="demo-action-btn" onclick="window.reloadDemoPreview()" title="Làm mới khung demo">Tải Lại</button>
+            <button type="button" id="btn-open-demo-newtab" class="demo-action-btn" onclick="window.openDemoInNewTab()" title="Mở trang demo ở tab trình duyệt mới">Mở Tab</button>
           </div>
 
-          <!-- Quick Dev Server Runner -->
-          <button type="button" class="btn-micro btn-structure-accent" onclick="window.quickRunDevServer()" title="Khởi chạy nhanh Dev Server (npm run dev / python http) bằng Terminal">
-            <span>▶</span> Chạy Dev Server
+          <!-- Dev Server Runner -->
+          <button type="button" class="demo-action-btn btn-devserver-run" onclick="window.quickRunDevServer()" title="Khởi chạy Dev Server">
+            Chạy Dev Server
           </button>
         </div>
       </div>
@@ -1971,6 +1948,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=9.3"></script>
+ <script src="app.js?v=9.4"></script>
 </body>
 </html>
