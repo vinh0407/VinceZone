@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=5.3">
+ <link rel="stylesheet" href="style.css?v=5.4">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -127,6 +127,68 @@
  <!-- Staging Bar: Active Attached Items -->
  <div id="chat-attachments-bar" class="chat-attachments-bar" style="display: none;"></div>
 
+ <!-- Thanh Tùy Chọn Studio Tạo & Sửa Ảnh AI -->
+ <div id="image-studio-bar" class="image-studio-bar" style="display: none;">
+   <div class="studio-bar-header">
+     <div class="studio-bar-title">
+       <span class="studio-icon">🎨</span>
+       <strong>AI Image Studio</strong>
+       <span id="studio-mode-badge" class="studio-mode-badge">Tạo ảnh</span>
+     </div>
+     <div class="studio-quick-modes">
+       <button type="button" class="btn-studio-mode active" id="btn-mode-text2img" onclick="window.switchStudioMode('gen')">🎨 Tạo Ảnh Mới</button>
+       <button type="button" class="btn-studio-mode" id="btn-mode-img2img" onclick="window.switchStudioMode('edit')">✨ Chỉnh Sửa Ảnh</button>
+     </div>
+   </div>
+
+   <!-- Tùy chọn Tỉ lệ & Phong cách -->
+   <div class="studio-controls-row">
+     <div class="studio-control-item">
+       <label>Tỉ lệ:</label>
+       <select id="studio-aspect-ratio" class="studio-select" onchange="window.updateStudioAspect()">
+         <option value="1:1" selected>1:1 Vuông (1024x1024)</option>
+         <option value="16:9">16:9 Ngang (1280x720)</option>
+         <option value="9:16">9:16 Dọc/Story (720x1280)</option>
+         <option value="4:3">4:3 Chuẩn (1024x768)</option>
+         <option value="3:4">3:4 Chân dung (768x1024)</option>
+       </select>
+     </div>
+
+     <div class="studio-control-item">
+       <label>Phong cách:</label>
+       <select id="studio-art-style" class="studio-select">
+         <option value="natural" selected>Tự nhiên (Mặc định)</option>
+         <option value="photorealistic">📸 Siêu thực 8K UHD</option>
+         <option value="anime">🌸 Anime / Manga Nhật</option>
+         <option value="cyberpunk">🌆 Cyberpunk Neon</option>
+         <option value="oil_painting">🎨 Tranh sơn dầu</option>
+         <option value="render_3d">🧊 3D Render Isometric</option>
+         <option value="pixel_art">👾 Pixel Art Retro</option>
+         <option value="sketch">🖋️ Phác thảo chì</option>
+       </select>
+     </div>
+
+     <div class="studio-control-item" id="studio-strength-wrap" style="display: none;">
+       <label>Mức độ biến đổi: <span id="studio-strength-val">60%</span></label>
+       <input type="range" id="studio-strength-slider" min="0.1" max="1" step="0.05" value="0.6" oninput="document.getElementById('studio-strength-val').textContent = Math.round(this.value * 100) + '%'">
+     </div>
+   </div>
+
+   <!-- Khu vực nạp ảnh nguồn cho chế độ Chỉnh sửa ảnh -->
+   <div id="studio-edit-source-zone" class="studio-edit-source-zone" style="display: none;">
+     <div class="studio-source-upload" id="studio-source-dropzone" onclick="document.getElementById('input-studio-source-file').click()">
+       <input type="file" id="input-studio-source-file" accept="image/*" style="display: none;" onchange="window.handleStudioSourceUpload(event)">
+       <div id="studio-source-placeholder" class="source-placeholder">
+         <span>📷 Bấm để chọn ảnh gốc cần sửa (hoặc kéo thả ảnh vào đây)</span>
+       </div>
+       <div id="studio-source-preview-wrap" class="source-preview-wrap" style="display: none;">
+         <img id="studio-source-preview-img" src="" alt="Ảnh nguồn">
+         <button type="button" class="btn-remove-source-img" title="Xóa ảnh nguồn" onclick="event.stopPropagation(); window.removeStudioSourceImg();">&times;</button>
+       </div>
+     </div>
+   </div>
+ </div>
+
  <form id="chat-form" class="chat-form">
  <!-- Toolbar for attachments -->
  <div class="chat-input-toolbar">
@@ -232,10 +294,12 @@
  <div class="select-wrapper">
  <select id="playground-purpose-select">
  <option value="all" selected> Tất cả tác vụ & năng lực</option>
- <option value="vision">️ Phân tích hình ảnh & Đọc ảnh (Vision)</option>
- <option value="code"> Lập trình & Viết mã nguồn (Coding)</option>
- <option value="reasoning"> Suy luận logic & Toán học (Reasoning)</option>
- <option value="general"> Chat nhanh & Tổng quát (Fast Chat)</option>
+ <option value="image_gen">🎨 Tạo ảnh & Vẽ hình nghệ thuật (Image Gen)</option>
+ <option value="image_edit">✨ Chỉnh sửa & Biến đổi hình ảnh (Image Edit)</option>
+ <option value="vision">👁️ Phân tích hình ảnh & Đọc ảnh (Vision)</option>
+ <option value="code">💻 Lập trình & Viết mã nguồn (Coding)</option>
+ <option value="reasoning">🧠 Suy luận logic & Toán học (Reasoning)</option>
+ <option value="general">⚡ Chat nhanh & Tổng quát (Fast Chat)</option>
  </select>
  </div>
  <p class="field-hint" id="purpose-hint" style="font-size:0.7rem; color:var(--text-secondary);">Chọn mục đích để hệ thống lọc các model hỗ trợ chuẩn xác</p>
@@ -1436,6 +1500,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=5.3"></script>
+ <script src="app.js?v=5.4"></script>
 </body>
 </html>

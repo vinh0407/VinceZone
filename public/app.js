@@ -847,7 +847,37 @@ function setupPlaygroundEvents() {
       enrichedPrompt = `--- TÀI LIỆU VÀ TỆP ĐÍNH KÈM TỪ NGƯỜI DÙNG ---\n${contextBlocks.join('\n\n')}\n--- HẾT PHẦN ĐÍNH KÈM ---\n\n${message || 'Hãy phân tích và hỗ trợ tôi dựa trên các tệp và tài liệu đã đính kèm ở trên.'}`;
     }
 
+    // Tích hợp tùy chọn từ AI Image Studio (Tạo ảnh & Sửa ảnh)
+    const curPurpose = purposeSelect ? purposeSelect.value : 'all';
+    const isImageTask = curPurpose === 'image_gen' || curPurpose === 'image_edit';
+    if (isImageTask) {
+      const artStyleEl = document.getElementById('studio-art-style');
+      if (artStyleEl && artStyleEl.value !== 'natural') {
+        enrichedPrompt += ` [Style: ${artStyleEl.value}]`;
+      }
+      if (window.studioState) {
+        enrichedPrompt += ` [Aspect: ${window.studioState.aspectRatio} (${window.studioState.width}x${window.studioState.height})]`;
+      }
+    }
+
     const images = attachmentsToSend.filter(a => a.type === 'image');
+    if (isImageTask && window.studioState && window.studioState.sourceImage) {
+      if (!images.some(img => img.dataUrl === window.studioState.sourceImage)) {
+        images.push({
+          type: 'image',
+          name: 'Ảnh nguồn cần sửa',
+          dataUrl: window.studioState.sourceImage,
+          size: 0
+        });
+        attachmentsToSend.push({
+          type: 'image',
+          name: 'Ảnh nguồn cần sửa',
+          dataUrl: window.studioState.sourceImage,
+          size: 0
+        });
+      }
+    }
+
     let messageContentForPayload;
     if (images.length > 0) {
       messageContentForPayload = [
@@ -871,7 +901,7 @@ function setupPlaygroundEvents() {
     chatInput.value = '';
     state.isGenerating = true;
     btnSend.disabled = true;
-    chatStatusIndicator.textContent = 'Đang suy luận...';
+    chatStatusIndicator.textContent = curPurpose === 'image_gen' ? 'Đang vẽ và tạo ảnh AI...' : (curPurpose === 'image_edit' ? 'Đang chỉnh sửa ảnh bằng AI...' : 'Đang suy luận...');
 
     // Prepare assistant message placeholder
     const assistantBubble = appendMessage('assistant', '');
@@ -1575,7 +1605,23 @@ function getModelCapabilities(model) {
                     m.includes('beam') || 
                     m.includes('pickle');
 
-  return { isVision, isCode, isReasoning, isGeneral };
+  // Image Generation detection (Flux, SDXL, Turbo, Midjourney, DALL-E)
+  const isImageGen = m.includes('flux') || 
+                     m.includes('diffusion') || 
+                     m.includes('turbo') || 
+                     m.includes('midjourney') || 
+                     m.includes('sdxl') || 
+                     m.includes('dall-e') || 
+                     m.includes('imagen');
+
+  // Image Editing / Img2Img detection
+  const isImageEdit = m.includes('flux') || 
+                      m.includes('diffusion') || 
+                      m.includes('turbo') || 
+                      m.includes('edit') || 
+                      m.includes('inpaint');
+
+  return { isVision, isCode, isReasoning, isGeneral, isImageGen, isImageEdit };
 }
 
 function checkAndAutoSwitchToVisionModel() {
@@ -1629,7 +1675,11 @@ function updateModelDropdownForSelectedProvider() {
 
       // 1. Lọc theo Tác vụ
       let modelsByPurpose = prov.models;
-      if (selectedPurpose === 'vision') {
+      if (selectedPurpose === 'image_gen') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isImageGen);
+      } else if (selectedPurpose === 'image_edit') {
+        modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isImageEdit);
+      } else if (selectedPurpose === 'vision') {
         modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isVision);
       } else if (selectedPurpose === 'code') {
         modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isCode);
@@ -1660,6 +1710,8 @@ function updateModelDropdownForSelectedProvider() {
           const caps = getModelCapabilities(model);
 
           let tagStr = '';
+          if (caps.isImageGen) tagStr += ' [Vẽ ảnh]';
+          if (caps.isImageEdit) tagStr += ' [Sửa ảnh]';
           if (caps.isVision) tagStr += ' [Vision]';
           if (caps.isCode) tagStr += ' [Code]';
           if (caps.isReasoning) tagStr += ' [Logic]';
@@ -1673,7 +1725,13 @@ function updateModelDropdownForSelectedProvider() {
     });
 
     if (purposeHint) {
-      if (selectedPurpose === 'vision') {
+      if (selectedPurpose === 'image_gen') {
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model chuyên tạo & vẽ ảnh nghệ thuật (Flux, SDXL, Turbo) từ tất cả Provider`;
+        purposeHint.style.color = '#ec4899';
+      } else if (selectedPurpose === 'image_edit') {
+        purposeHint.textContent = `Đã gom ${totalMatchingModels} model chuyên chỉnh sửa, biến đổi phong cách và inpainting ảnh từ tất cả Provider`;
+        purposeHint.style.color = '#a855f7';
+      } else if (selectedPurpose === 'vision') {
         purposeHint.textContent = `Đã gom ${totalMatchingModels} model có khả năng đọc & phân tích ảnh (Vision) từ tất cả Provider`;
         purposeHint.style.color = 'var(--status-green)';
       } else if (selectedPurpose === 'code') {
@@ -1725,7 +1783,11 @@ function updateModelDropdownForSelectedProvider() {
 
   // 1. Lọc danh sách theo Tác vụ / Dùng để làm gì
   let modelsByPurpose = prov.models;
-  if (selectedPurpose === 'vision') {
+  if (selectedPurpose === 'image_gen') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isImageGen);
+  } else if (selectedPurpose === 'image_edit') {
+    modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isImageEdit);
+  } else if (selectedPurpose === 'vision') {
     modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isVision);
   } else if (selectedPurpose === 'code') {
     modelsByPurpose = prov.models.filter(m => getModelCapabilities(m).isCode);
@@ -1742,7 +1804,23 @@ function updateModelDropdownForSelectedProvider() {
 
   // Cập nhật Purpose Hint & Trạng thái hướng dẫn
   if (purposeHint) {
-    if (selectedPurpose === 'vision') {
+    if (selectedPurpose === 'image_gen') {
+      if (modelsByPurpose.length > 0) {
+        purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model vẽ & tạo ảnh nghệ thuật của ${prov.name}`;
+        purposeHint.style.color = '#ec4899';
+      } else {
+        purposeHint.textContent = `Provider "${prov.name}" không hỗ trợ tạo ảnh. Hãy chọn Pollinations AI hoặc "Tất cả nhà cung cấp"`;
+        purposeHint.style.color = '#f87171';
+      }
+    } else if (selectedPurpose === 'image_edit') {
+      if (modelsByPurpose.length > 0) {
+        purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model chỉnh sửa ảnh của ${prov.name}`;
+        purposeHint.style.color = '#a855f7';
+      } else {
+        purposeHint.textContent = `Provider "${prov.name}" không hỗ trợ sửa ảnh. Hãy chọn Pollinations AI hoặc "Tất cả nhà cung cấp"`;
+        purposeHint.style.color = '#f87171';
+      }
+    } else if (selectedPurpose === 'vision') {
       if (modelsByPurpose.length > 0) {
         purposeHint.textContent = `Đã lọc ${modelsByPurpose.length} model có khả năng nhìn & phân tích ảnh (Multimodal Vision)`;
         purposeHint.style.color = 'var(--status-green)';
@@ -1784,6 +1862,8 @@ function updateModelDropdownForSelectedProvider() {
     const caps = getModelCapabilities(model);
 
     let tagStr = '';
+    if (caps.isImageGen) tagStr += ' [Vẽ ảnh]';
+    if (caps.isImageEdit) tagStr += ' [Sửa ảnh]';
     if (caps.isVision) tagStr += ' [Vision]';
     if (caps.isCode) tagStr += ' [Code]';
     if (caps.isReasoning) tagStr += ' [Logic]';
@@ -1804,7 +1884,119 @@ function updateModelDropdownForSelectedProvider() {
 
   renderSnippets();
   updateMobileModelLabel();
+
+  // Bật/tắt thanh tùy chọn Image Studio nếu chọn tác vụ Tạo ảnh hoặc Sửa ảnh
+  const studioBar = document.getElementById('image-studio-bar');
+  if (studioBar) {
+    if (selectedPurpose === 'image_gen') {
+      studioBar.style.display = 'block';
+      if (typeof window.switchStudioMode === 'function') window.switchStudioMode('gen');
+    } else if (selectedPurpose === 'image_edit') {
+      studioBar.style.display = 'block';
+      if (typeof window.switchStudioMode === 'function') window.switchStudioMode('edit');
+    } else {
+      studioBar.style.display = 'none';
+    }
+  }
 }
+
+// Global Image Studio State & Controls
+window.studioState = {
+  mode: 'gen',
+  aspectRatio: '1:1',
+  width: 1024,
+  height: 1024,
+  style: 'natural',
+  sourceImage: null,
+  strength: 0.6
+};
+
+window.switchStudioMode = function(mode) {
+  window.studioState.mode = mode;
+  const btnGen = document.getElementById('btn-mode-text2img');
+  const btnEdit = document.getElementById('btn-mode-img2img');
+  const badge = document.getElementById('studio-mode-badge');
+  const editZone = document.getElementById('studio-edit-source-zone');
+  const strengthWrap = document.getElementById('studio-strength-wrap');
+  const chatInput = document.getElementById('chat-input');
+
+  if (mode === 'edit') {
+    if (btnGen) btnGen.classList.remove('active');
+    if (btnEdit) btnEdit.classList.add('active');
+    if (badge) {
+      badge.textContent = 'Chỉnh sửa ảnh';
+      badge.style.color = '#a855f7';
+      badge.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+    }
+    if (editZone) editZone.style.display = 'block';
+    if (strengthWrap) strengthWrap.style.display = 'flex';
+    if (chatInput) chatInput.placeholder = 'Nhập mô tả yêu cầu sửa ảnh (Ví dụ: "Đổi màu tóc thành vàng kim, thay nền bằng bãi biển hoàng hôn")...';
+  } else {
+    if (btnGen) btnGen.classList.add('active');
+    if (btnEdit) btnEdit.classList.remove('active');
+    if (badge) {
+      badge.textContent = 'Tạo ảnh';
+      badge.style.color = '#ec4899';
+      badge.style.borderColor = 'rgba(236, 72, 153, 0.4)';
+    }
+    if (editZone) editZone.style.display = 'none';
+    if (strengthWrap) strengthWrap.style.display = 'none';
+    if (chatInput) chatInput.placeholder = 'Mô tả hình ảnh bạn muốn tạo bằng AI (Ví dụ: "Một chú rồng pha lê bay qua thành phố tương lai")...';
+  }
+};
+
+window.updateStudioAspect = function() {
+  const sel = document.getElementById('studio-aspect-ratio');
+  if (!sel) return;
+  const val = sel.value;
+  window.studioState.aspectRatio = val;
+  if (val === '1:1') {
+    window.studioState.width = 1024;
+    window.studioState.height = 1024;
+  } else if (val === '16:9') {
+    window.studioState.width = 1280;
+    window.studioState.height = 720;
+  } else if (val === '9:16') {
+    window.studioState.width = 720;
+    window.studioState.height = 1280;
+  } else if (val === '4:3') {
+    window.studioState.width = 1024;
+    window.studioState.height = 768;
+  } else if (val === '3:4') {
+    window.studioState.width = 768;
+    window.studioState.height = 1024;
+  }
+};
+
+window.handleStudioSourceUpload = function(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WEBP).');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    window.studioState.sourceImage = evt.target.result;
+    const placeholder = document.getElementById('studio-source-placeholder');
+    const previewWrap = document.getElementById('studio-source-preview-wrap');
+    const previewImg = document.getElementById('studio-source-preview-img');
+    if (placeholder) placeholder.style.display = 'none';
+    if (previewWrap) previewWrap.style.display = 'inline-flex';
+    if (previewImg) previewImg.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.removeStudioSourceImg = function() {
+  window.studioState.sourceImage = null;
+  const fileInput = document.getElementById('input-studio-source-file');
+  if (fileInput) fileInput.value = '';
+  const placeholder = document.getElementById('studio-source-placeholder');
+  const previewWrap = document.getElementById('studio-source-preview-wrap');
+  if (placeholder) placeholder.style.display = 'block';
+  if (previewWrap) previewWrap.style.display = 'none';
+};
 
 // -------------------------------------------------------------
 // 3. PROVIDERS HUB

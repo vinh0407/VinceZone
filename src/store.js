@@ -132,7 +132,8 @@ const Store = {
   writeDb,
 
   getProviders() {
-    const list = readDb().providers || [];
+    const db = readDb();
+    const list = db.providers || [];
     list.forEach(p => {
       if (p.id === 'prov_openrouter' && (!p.apiKey || p.apiKey === '')) {
         p.apiKey = process.env.OPENROUTER_API_KEY || '';
@@ -144,6 +145,43 @@ const Store = {
         p.apiKey = process.env.OPENCODE_API_KEY || 'oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq';
       }
     });
+
+    // Tự động kích hoạt Provider Tạo & Sửa ảnh Pollinations AI (100% Free không cần Key)
+    let hasPollinations = list.find(p => p.id === 'prov_pollinations');
+    if (!hasPollinations) {
+      hasPollinations = {
+        id: 'prov_pollinations',
+        name: 'Pollinations AI (Tạo & Sửa Ảnh FREE)',
+        type: 'image-studio',
+        baseUrl: 'https://image.pollinations.ai',
+        apiKey: '',
+        models: [
+          'flux',
+          'flux-realism',
+          'flux-anime',
+          'flux-3d',
+          'turbo',
+          'midjourney'
+        ],
+        enabled: true,
+        createdAt: new Date().toISOString()
+      };
+      list.push(hasPollinations);
+      db.providers = list;
+      writeDb(db);
+    }
+
+    // Đảm bảo Cloudflare có model tạo ảnh Flux & SDXL
+    const cfProv = list.find(p => p.id === 'prov_cloudflare_ai');
+    if (cfProv && Array.isArray(cfProv.models)) {
+      if (!cfProv.models.includes('@cf/black-forest-labs/flux-1-schnell')) {
+        cfProv.models.push('@cf/black-forest-labs/flux-1-schnell');
+      }
+      if (!cfProv.models.includes('@cf/stabilityai/stable-diffusion-xl-base-1.0')) {
+        cfProv.models.push('@cf/stabilityai/stable-diffusion-xl-base-1.0');
+      }
+    }
+
     return list;
   },
 
@@ -153,7 +191,7 @@ const Store = {
   },
 
   findProviderForModel(modelName) {
-    const providers = this.getProviders().filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode'));
+    const providers = this.getProviders().filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode' || p.id === 'prov_pollinations'));
     const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normTarget = normalize(modelName);
 

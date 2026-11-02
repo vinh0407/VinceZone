@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const Store = require('./src/store');
 const Auth = require('./src/auth');
 const { routeChatRequest, testProviderConnection } = require('./src/router');
+const imageService = require('./src/imageService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -132,7 +133,7 @@ app.get('/v1/models', (req, res) => {
 });
 
 // ----------------------------------------------------
-// 2. PLAYGROUND CHAT ENDPOINT
+// 2. PLAYGROUND CHAT & IMAGE GENERATION ENDPOINTS
 // ----------------------------------------------------
 
 app.post('/api/playground/chat', async (req, res) => {
@@ -143,6 +144,85 @@ app.post('/api/playground/chat', async (req, res) => {
   }
 
   const user = getSessionUser(req);
+
+  // Kiểm tra nếu model là Model Tạo/Sửa Ảnh AI (Flux, SDXL, Turbo, Midjourney)
+  const isImageModel = imageService.IMAGE_MODELS.some(im => im.id === model) || 
+                       model.includes('flux') || 
+                       model.includes('diffusion');
+
+  if (isImageModel) {
+    try {
+      // Lấy nội dung prompt từ tin nhắn người dùng cuối cùng
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      let promptText = '';
+      let sourceImage = null;
+
+      if (lastUserMsg) {
+        if (typeof lastUserMsg.content === 'string') {
+          promptText = lastUserMsg.content;
+        } else if (Array.isArray(lastUserMsg.content)) {
+          lastUserMsg.content.forEach(part => {
+            if (part.type === 'text') promptText += part.text + ' ';
+            if (part.type === 'image_url') sourceImage = part.image_url?.url || part.image_url;
+          });
+        }
+      }
+
+      promptText = promptText.trim() || 'A beautiful futuristic masterpiece';
+
+      let imgResult;
+      if (sourceImage) {
+        // Chế độ sửa ảnh (Image-to-Image)
+        imgResult = await imageService.editImage({
+          sourceImage,
+          prompt: promptText,
+          model
+        });
+      } else {
+        // Chế độ tạo ảnh (Text-to-Image)
+        imgResult = await imageService.generateImage({
+          prompt: promptText,
+          model
+        });
+      }
+
+      const responseMarkdown = `🎨 **Đã tạo ảnh thành công bằng AI [${imgResult.model}]!**\n\n` +
+        `![${imgResult.prompt}](${imgResult.url})\n\n` +
+        `- **Mô tả (Prompt):** ${imgResult.prompt}\n` +
+        `- **Kích thước:** ${imgResult.width}x${imgResult.height} | **Seed:** ${imgResult.seed}\n` +
+        `- **Nhà cung cấp:** ${imgResult.provider}\n\n` +
+        `[📥 Tải Ảnh Về Máy](${imgResult.url}) • [🔍 Mở Ảnh Tab Mới](${imgResult.url})`;
+
+      if (stream) {
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        // Gửi thông báo bắt đầu
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: responseMarkdown } }] })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        return res.end();
+      } else {
+        return res.json({
+          id: 'chatcmpl-img-' + Date.now(),
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model,
+          choices: [{
+            index: 0,
+            message: { role: 'assistant', content: responseMarkdown },
+            finish_reason: 'stop'
+          }],
+          image: imgResult
+        });
+      }
+    } catch (imgErr) {
+      console.error('Image generation error in playground:', imgErr);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: imgErr.message });
+      }
+    }
+  }
 
   try {
     const result = await routeChatRequest({
@@ -163,6 +243,47 @@ app.post('/api/playground/chat', async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
     }
+  }
+});
+
+// APIs chuyên dụng cho Image Studio
+app.get('/api/image/models', (req, res) => {
+  res.json({ success: true, models: imageService.IMAGE_MODELS });
+});
+
+app.post('/api/image/generate', async (req, res) => {
+  try {
+    const { prompt, model, width, height, seed, style, enhance } = req.body;
+    const result = await imageService.generateImage({
+      prompt,
+      model,
+      width,
+      height,
+      seed,
+      style,
+      enhance
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/image/edit', async (req, res) => {
+  try {
+    const { sourceImage, prompt, model, strength, width, height, style } = req.body;
+    const result = await imageService.editImage({
+      sourceImage,
+      prompt,
+      model,
+      strength,
+      width,
+      height,
+      style
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

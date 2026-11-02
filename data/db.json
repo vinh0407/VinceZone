@@ -83,6 +83,23 @@
       "enabled": true,
       "createdAt": "2026-10-30T13:11:54.620Z",
       "updatedAt": "2026-10-30T14:07:27.048Z"
+    },
+    {
+      "id": "prov_pollinations",
+      "name": "Pollinations AI (Tạo & Sửa Ảnh FREE)",
+      "type": "image-studio",
+      "baseUrl": "https://image.pollinations.ai",
+      "apiKey": "",
+      "models": [
+        "flux",
+        "flux-realism",
+        "flux-anime",
+        "flux-3d",
+        "turbo",
+        "midjourney"
+      ],
+      "enabled": true,
+      "createdAt": "2026-11-02T07:41:38.650Z"
     }
   ],
   "gatewayKeys": [

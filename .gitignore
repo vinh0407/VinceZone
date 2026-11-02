@@ -6,3 +6,5 @@ yarn-error.log*
 .env.local
 .DS_Store
 Thumbs.db
+public/generated_images/*
+!public/generated_images/.gitkeep
