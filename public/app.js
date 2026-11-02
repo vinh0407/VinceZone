@@ -5234,17 +5234,20 @@ function decorateProjectCodeBlocks(containerEl) {
     toolbar.className = 'code-block-action-bar';
 
     let buttonsHtml = '';
-    // Nút Lưu/Áp dụng File thực tế
+    // Nút Lưu File gọn gàng
     if (suggestedFile) {
-      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-file" data-file="${escapeHtml(suggestedFile)}" title="Ghi trực tiếp vào file ${escapeHtml(suggestedFile)} trên máy">💾 Áp Dụng Vào "${escapeHtml(suggestedFile)}"</button>`;
+      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-file" data-file="${escapeHtml(suggestedFile)}" title="Ghi trực tiếp vào file ${escapeHtml(suggestedFile)} trên máy">💾 Lưu File</button>`;
     } else {
-      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-custom-file" title="Ghi code này vào một file trong dự án">💾 Lưu Vào File Dự Án</button>`;
+      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-custom-file" title="Ghi code này vào một file trong dự án">💾 Lưu File...</button>`;
     }
 
-    // Nút Chạy lệnh Terminal thực tế
+    // Nút Chạy Terminal
     if (isTerminal) {
-      buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Trong Terminal</button>`;
+      buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Terminal</button>`;
     }
+
+    // Nút Copy code
+    buttonsHtml += `<button type="button" class="btn-code-action btn-copy-code" title="Sao chép mã nguồn">📋 Copy</button>`;
 
     toolbar.innerHTML = `
       <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
@@ -5252,6 +5255,21 @@ function decorateProjectCodeBlocks(containerEl) {
     `;
 
     pre.parentNode.insertBefore(toolbar, pre);
+
+    // Xử lý copy code
+    const copyBtn = toolbar.querySelector('.btn-copy-code');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(rawText);
+          const origText = copyBtn.textContent;
+          copyBtn.textContent = '✔ Đã Copy';
+          setTimeout(() => { copyBtn.textContent = origText; }, 1600);
+        } catch (e) {
+          showToast('Không thể sao chép');
+        }
+      });
+    }
 
     // Xử lý sự kiện Lưu File
     const applyFileBtn = toolbar.querySelector('.btn-apply-file, .btn-apply-custom-file');
@@ -5407,28 +5425,36 @@ function appendProjectMessageToFeed(msg, feedEl) {
   const msgEl = document.createElement('div');
   msgEl.className = `proj-msg ${isUser ? 'msg-user' : 'msg-agent'}`;
 
+  // Loại bỏ triệt để tiền tố tên trùng lặp (ví dụ [Kiến Trúc Sư]: ...)
+  const rawCleanText = (msg.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+
   // Parse markdown
   let parsedContent = '';
   try {
-    parsedContent = marked.parse(msg.content || '');
+    parsedContent = marked.parse(rawCleanText);
   } catch (e) {
-    parsedContent = escapeHtml(msg.content || '');
+    parsedContent = escapeHtml(rawCleanText);
   }
 
-  // Tự động highlight các tag Mention @Tên khi các AI trao đổi với nhau
-  parsedContent = parsedContent.replace(/@([A-ZÀ-Ỹa-zà-ỹ0-9_\s]{2,30})(?=[^a-zà-ỹ0-9_]|$)/g, (match, rawName) => {
-    const cleanName = rawName.trim();
-    const knownRoles = [
-      'Kiến Trúc Sư', 'Lập Trình Viên', 'Kỹ Sư Kiểm Thử', 'Kỹ Sư CSDL', 'Kỹ Sư CSDL & SQL',
-      'Kỹ Sư Frontend', 'Kỹ Sư Frontend UI/UX', 'Chuyên Gia Bảo Mật', 'Chuyên Gia Review',
-      'Kỹ Sư DevOps', 'Reviewer', 'Coder', 'Tester', 'Architect', 'Database', 'Frontend',
-      'Security', 'DevOps', 'Người Dùng', 'Cả Nhóm', 'Hội Đồng', 'All'
-    ];
-    if (knownRoles.some(r => cleanName.toLowerCase().includes(r.toLowerCase()))) {
-      return `<span class="mention-pill">@${escapeHtml(cleanName)}</span>`;
+  // Tự động highlight chính xác các tag Mention @Tên (tránh khớp tham lam các từ phía sau)
+  const knownRoleNames = [
+    'Kỹ Sư Frontend UI/UX', 'Kỹ Sư Frontend', 'Kỹ Sư CSDL & SQL', 'Kỹ Sư CSDL',
+    'Chuyên Gia Bảo Mật', 'Chuyên Gia Review', 'Kỹ Sư Kiểm Thử', 'Kỹ Sư DevOps',
+    'Kiến Trúc Sư', 'Lập Trình Viên', 'Reviewer', 'Coder', 'Tester', 'Architect',
+    'Database', 'Frontend', 'Security', 'DevOps', 'Người Dùng', 'Cả Nhóm', 'Hội Đồng', 'All'
+  ];
+  if (projectsState.activeChatId && projectsState.activeProjectId) {
+    const curChat = (projectsState.chats || []).find(c => c.id === projectsState.activeChatId);
+    if (curChat && Array.isArray(curChat.agents)) {
+      curChat.agents.forEach(a => {
+        if (a.name && !knownRoleNames.includes(a.name)) knownRoleNames.push(a.name);
+      });
     }
-    return match;
-  });
+  }
+  knownRoleNames.sort((a, b) => b.length - a.length);
+  const escapedNames = knownRoleNames.map(r => r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const mentionPattern = new RegExp("@(" + escapedNames + ")(?=[^a-zA-Z0-9_À-Ỹà-ỹ]|$)", "gi");
+  parsedContent = parsedContent.replace(mentionPattern, (m, name) => `<span class="mention-pill">@${escapeHtml(name)}</span>`);
 
   // Render attachments if attached to message
   let attachHtml = '';

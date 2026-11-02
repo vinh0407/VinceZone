@@ -6263,11 +6263,11 @@ input[type="range"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #18181f;
-  border: 1px solid #2e2e38;
+  background: #141419;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.75rem;
   margin-top: 0.75rem;
 }
 
@@ -6309,6 +6309,11 @@ input[type="range"] {
 .btn-code-action.btn-run-terminal:hover {
   background: #10b981 !important;
   border-color: #10b981 !important;
+}
+
+.btn-code-action.btn-copy-code:hover {
+  background: #6366f1 !important;
+  border-color: #6366f1 !important;
 }
 
 .proj-msg-body pre {
@@ -6408,11 +6413,11 @@ input[type="range"] {
   align-self: flex-start;
   width: 100%;
   max-width: 960px;
-  background: #111114;
-  border: 1px solid #222228;
-  border-radius: 14px;
-  padding: 1.1rem 1.35rem;
-  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.45);
+  background: #111115;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.85rem 1.15rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   position: relative;
 }
 

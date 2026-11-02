@@ -1570,16 +1570,20 @@ Hãy phát lệnh tuyển dụng ở đầu phản hồi theo cú pháp:
 - OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
 Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.` 
         },
-        ...chat.messages.slice(-8).map(m => ({
-          role: m.role === 'user' ? 'user' : 'assistant',
-          content: m.content
-        })),
+        ...chat.messages.slice(-8).map(m => {
+          const cleanTxt = (m.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+          return {
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: cleanTxt
+          };
+        }),
         { role: 'user', content: content.trim() }
       ];
 
       const activeModel = model || chat.model || 'kilo-auto/free';
       const activeProv = req.body.providerId || chat.providerId;
-      const agentResponse = await callInternalAI({ model: activeModel, messages, providerId: activeProv });
+      const rawAgentResponse = await callInternalAI({ model: activeModel, messages, providerId: activeProv });
+      const agentResponse = (rawAgentResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
 
       // Quét lệnh tự tuyển dụng Agent từ AI
       const recruitRegex = /\[(?:RECRUIT_AGENT|AUTO_ADD_AGENT):\s*role="([^"]+)",\s*name="([^"]+)"(?:,\s*model="([^"]+)")?\]/gi;
@@ -1693,10 +1697,16 @@ ${isTargetedWork ? `
 Người dùng đã sử dụng cú pháp @ để chỉ định đích danh bạn (${targetedNames.map(n => '@' + n).join(', ')}) làm việc riêng cho yêu cầu này.
 Hãy tập trung 100% khả năng chuyên môn của bạn để thực hiện trọn vẹn nhiệm vụ được giao.` : ''}
 
-[QUY TẮC GIAO TIẾP & PHỐI HỢP NỘI BỘ]:
-1. HÃY TRÒ CHUYỆN VÀ GIAO TIẾP TỰ NHIÊN: Các AI trong nhóm cần trực tiếp trao đổi, phản hồi và tag tên nhau bằng cú pháp @Tên (ví dụ: @${prevMember ? prevMember.name : 'Kiến Trúc Sư'}, @${nextMember ? nextMember.name : 'Lập Trình Viên'}).
-${prevMember ? `2. BẮT ĐẦU: Hãy phản hồi và tương tác với ý kiến của @${prevMember.name} vừa đưa ra trước bạn (ví dụ: "Chào @${prevMember.name} và Người Dùng, tôi đồng ý với phân tích trên...").` : `2. MỞ ĐẦU: Chào Người Dùng và cả nhóm, phân tích yêu cầu của Người Dùng và giao việc cụ thể cho @${nextMember ? nextMember.name : 'thành viên tiếp theo'}.`}
-${nextMember ? `3. KẾT THÚC: Bàn giao phần việc rõ ràng cho @${nextMember.name} (ví dụ: "@${nextMember.name} ơi, tôi đã hoàn thiện xong phần mã nguồn, nhờ bạn kiểm tra và chạy test nhé!").` : `3. KẾT THÚC: Tổng kết toàn bộ giải pháp của cả nhóm, khẳng định chất lượng và bàn giao kết quả cuối cùng cho Người Dùng.`}
+[QUY TẮC PHẢN HỒI & TRÌNH BÀY GỌN GÀNG - BẮT BUỘC]:
+1. TUYỆT ĐỐI KHÔNG BẮT ĐẦU BẰNG TIỀN TỐ TÊN MÌNH (ví dụ KHÔNG viết "[${member.name}]:" hay "[Architect]:"...). Giao diện đã tự động hiển thị thẻ tên và badge của bạn ở đầu tin nhắn rồi.
+2. TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, find...). Toàn bộ cây thư mục và cấu trúc file của dự án ĐÃ ĐƯỢC CUNG CẤP ĐẦY ĐỦ ở phần [THÔNG TIN & CẤU TRÚC MÃ NGUỒN DỰ ÁN THỰC TẾ] ngay bên dưới. Bạn ĐÃ BIẾT TOÀN BỘ CẤU TRÚC VÀ FILE DỰ ÁN.
+3. KHI ĐƯỢC YÊU CẦU LẬP KẾ HOẠCH & CHIA VIỆC (ĐẶC BIỆT LÀ KIẾN TRÚC SƯ):
+   - Phân tích trực tiếp kiến trúc hiện tại, đưa ra Kế hoạch hành động cụ thể, súc tích (các giai đoạn/sprint).
+   - Phân chia công việc rõ ràng, đích danh cho các thành viên trong nhóm bằng cú pháp @Tên (ví dụ: @Lập Trình Viên phụ trách ..., @Kỹ Sư Kiểm Thử phụ trách ...).
+   - Tuyệt đối không dừng lại ở lời hứa suông hay tạo file PowerShell tạm để quét thư mục.
+4. GIAO TIẾP TỰ NHIÊN, SÚC TÍCH: Các thành viên trao đổi ngắn gọn, tập trung vào giải pháp kỹ thuật, không lặp lại câu hỏi của người dùng.
+${prevMember ? `5. BẮT ĐẦU: Phản hồi súc tích ý kiến của @${prevMember.name} vừa đưa ra trước bạn.` : `5. MỞ ĐẦU: Chào ngắn gọn, phân tích nhanh yêu cầu và phân công việc cho @${nextMember ? nextMember.name : 'thành viên tiếp theo'}.`}
+${nextMember ? `6. BÀN GIAO: Chuyển giao phần việc tiếp theo cho @${nextMember.name} (ví dụ: "@${nextMember.name} ơi, tôi đã lên kế hoạch xong, nhờ bạn bắt tay vào code nhé!").` : `6. TỔNG KẾT: Tóm tắt giải pháp của cả nhóm và bàn giao kết quả cuối cùng cho Người Dùng.`}
 
 [QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
 Nếu bạn nhận thấy dự án hoặc yêu cầu này cần thêm các vị trí chuyên gia chuyên sâu (như "database" CSDL/SQL, "frontend" UI/UX, "security" Bảo Mật, "devops" Môi Trường, "tester" Kiểm Thử) mà Hội Đồng chưa có:
@@ -1725,11 +1735,14 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
           role: 'system',
           content: `${promptInstructions}\n\n${projectContext}`
         },
-        // Lịch sử chat trước đó
-        ...chat.messages.slice(-6).map(m => ({
-          role: m.role === 'user' ? 'user' : 'assistant',
-          content: `${m.author ? `[${m.author}]: ` : ''}${m.content}`
-        })),
+        // Lịch sử chat trước đó (loại bỏ tiền tố lặp lại)
+        ...chat.messages.slice(-6).map(m => {
+          const cleanTxt = (m.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+          return {
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.role === 'user' ? cleanTxt : (m.author ? `[${m.author}]: ${cleanTxt}` : cleanTxt)
+          };
+        }),
         // Ý tưởng mới nhất của người dùng
         { role: 'user', content: `[Ý TƯỞNG CỦA NGƯỜI DÙNG]: ${content.trim()}` }
       ];
@@ -1742,11 +1755,12 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
         });
       }
 
-      const agentResponse = await callInternalAI({ 
+      const rawAgentResponse = await callInternalAI({ 
         model: memberModel, 
         messages: memberMessages, 
         providerId: member.providerId 
       });
+      const agentResponse = (rawAgentResponse || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
 
       // --- TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT (AUTONOMOUS AGENT RECRUITMENT) ---
       const recruitRegex = /\[(?:RECRUIT_AGENT|AUTO_ADD_AGENT):\s*role="([^"]+)",\s*name="([^"]+)"(?:,\s*model="([^"]+)")?\]/gi;

@@ -1576,6 +1576,11 @@ const Store = {
     const chatIdx = (data.projects[projIdx].chats || []).findIndex(c => c.id === chatId);
     if (chatIdx === -1) throw new Error('Không tìm thấy cuộc trò chuyện trong dự án.');
 
+    let cleanContent = message.content || '';
+    if (message.role === 'assistant') {
+      cleanContent = cleanContent.replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
+    }
+
     const msgWithMeta = {
       id: 'msg_' + crypto.randomBytes(6).toString('hex'),
       role: message.role || 'assistant',
@@ -1586,7 +1591,7 @@ const Store = {
       agentModel: message.agentModel || null,
       agentRole: message.agentRole || null,
       attachments: Array.isArray(message.attachments) ? message.attachments : [],
-      content: message.content || '',
+      content: cleanContent,
       timestamp: new Date().toISOString()
     };
 
