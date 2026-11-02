@@ -1411,6 +1411,74 @@ app.use('/api/projects/:id/preview', (req, res, next) => {
   res.status(404).send('Không tìm thấy tệp: ' + cleanSub);
 });
 
+
+// 9.16d Web Proxy phục vụ xem web, Gemini, ChatGPT và tài liệu trực tiếp trong Demo Tab
+app.get('/api/proxy', async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).send('Thiếu tham số url.');
+  }
+
+  let finalUrl = targetUrl.trim();
+  if (!/^https?:\/\//i.test(finalUrl)) {
+    if (finalUrl.includes(' ') || !finalUrl.includes('.')) {
+      finalUrl = 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(finalUrl);
+    } else {
+      finalUrl = 'https://' + finalUrl;
+    }
+  }
+
+  try {
+    const response = await fetch(finalUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8'
+      },
+      redirect: 'follow'
+    });
+
+    const contentType = response.headers.get('content-type') || 'text/html';
+
+    // Xóa các header chặn iframe: X-Frame-Options, CSP
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', contentType);
+
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+      const parsedBase = new URL(finalUrl).origin + new URL(finalUrl).pathname;
+      const baseTag = `<base href="${parsedBase}">`;
+
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', '<head>\n' + baseTag);
+      } else if (html.includes('<HEAD>')) {
+        html = html.replace('<HEAD>', '<HEAD>\n' + baseTag);
+      } else {
+        html = baseTag + html;
+      }
+      return res.send(html);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    return res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>Lỗi Proxy</title></head>
+      <body style="background:#09090b;color:#ef4444;font-family:sans-serif;padding:2rem;text-align:center;">
+        <h3>Không thể tải trang web qua Proxy</h3>
+        <p style="color:#a1a1aa;">${err.message}</p>
+        <p><a href="${finalUrl}" target="_blank" style="color:#38bdf8;">Bấm vào đây để mở trực tiếp trên tab mới ↗</a></p>
+      </body>
+      </html>
+    `);
+  }
+});
+
 // 9.16b Lấy sơ đồ kiến trúc & giải thích chi tiết dự án (Project Architecture & Structure Analysis)
 app.get('/api/projects/:id/structure', (req, res) => {
   const project = Store.getProjectById(req.params.id);
@@ -1600,12 +1668,131 @@ function handleAIChatCreation(projectId, text) {
 }
 
 
+
+async function searchWebHelper(query) {
+  try {
+    const url = 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    const html = await res.text();
+    const results = [];
+    const linkRegex = /<a class="result__url" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = linkRegex.exec(html)) !== null && results.length < 5) {
+      let rawUrl = m[1];
+      if (rawUrl.includes('uddg=')) {
+        try {
+          const uParam = new URL(rawUrl, 'https://duckduckgo.com').searchParams.get('uddg');
+          if (uParam) rawUrl = uParam;
+        } catch (e) {}
+      }
+      results.push({
+        url: rawUrl.trim(),
+        title: m[2].replace(/<[^>]+>/g, '').trim(),
+        snippet: m[3].replace(/<[^>]+>/g, '').trim()
+      });
+    }
+    return results;
+  } catch (err) {
+    console.warn('Search web error:', err.message);
+    return [];
+  }
+}
+
+async function browseWebHelper(targetUrl) {
+  try {
+    const res = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    const html = await res.text();
+    const clean = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return clean.slice(0, 3000);
+  } catch (err) {
+    return 'Lỗi duyệt URL: ' + err.message;
+  }
+}
+
 async function executeAutonomousActions(projectPath, content) {
   const autoSavedFiles = [];
   const executedCommands = [];
 
   if (!projectPath || !fs.existsSync(projectPath)) {
-    return { autoSavedFiles, executedCommands };
+    
+  // 4. Tự động tra cứu Web & Trình duyệt internet (Google, Gemini, ChatGPT, Docs...)
+  const webSearchRegex = /\[(?:WEB_SEARCH|SEARCH_WEB|SEARCH):\s*(?:query="([^"]+)"|([^\r\n\]]+))\]/gi;
+  let wsMatch;
+  while ((wsMatch = webSearchRegex.exec(content)) !== null) {
+    const q = (wsMatch[1] || wsMatch[2] || '').trim();
+    if (q && !executedCmdSet.has(`search_${q}`)) {
+      executedCmdSet.add(`search_${q}`);
+      try {
+        console.log(`[AUTONOMOUS WEB SEARCH]:`, q);
+        const searchResults = await searchWebHelper(q);
+        const formatted = searchResults.length > 0
+          ? searchResults.map((r, i) => `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`).join('\n\n')
+          : `Không tìm thấy kết quả trực tiếp cho từ khóa "${q}".`;
+        executedCommands.push({
+          type: 'web_search',
+          command: `Web Search: ${q}`,
+          stdout: formatted,
+          stderr: '',
+          exitCode: 0,
+          duration: 100
+        });
+      } catch (err) {
+        executedCommands.push({
+          type: 'web_search',
+          command: `Web Search: ${q}`,
+          stdout: '',
+          stderr: err.message,
+          exitCode: -1,
+          duration: 0
+        });
+      }
+    }
+  }
+
+  const webBrowseRegex = /\[(?:WEB_BROWSE|BROWSE_URL|BROWSE):\s*(?:url="([^"]+)"|([^\r\n\]]+))\]/gi;
+  let wbMatch;
+  while ((wbMatch = webBrowseRegex.exec(content)) !== null) {
+    const u = (wbMatch[1] || wbMatch[2] || '').trim();
+    if (u && !executedCmdSet.has(`browse_${u}`)) {
+      executedCmdSet.add(`browse_${u}`);
+      try {
+        console.log(`[AUTONOMOUS WEB BROWSE]:`, u);
+        const pageText = await browseWebHelper(u);
+        executedCommands.push({
+          type: 'web_browse',
+          command: `Browse URL: ${u}`,
+          stdout: pageText,
+          stderr: '',
+          exitCode: 0,
+          duration: 200
+        });
+      } catch (err) {
+        executedCommands.push({
+          type: 'web_browse',
+          command: `Browse URL: ${u}`,
+          stdout: '',
+          stderr: err.message,
+          exitCode: -1,
+          duration: 0
+        });
+      }
+    }
+  }
+
+  return { autoSavedFiles, executedCommands };
   }
 
   // 1. Tự động lưu các file mã nguồn (có tiền tố // File: ...)
@@ -2276,6 +2463,13 @@ Bạn có TOÀN QUYỀN TỰ ĐỘNG TUYỂN THÊM AGENT bằng cú pháp:
 - Kilo Gateway: kilo-auto/free, poolside/laguna-s-2.1:free, dots-studio/dots-3-note-preview:free, nvidia/nemotron-3-ultra-550b-a55b:free, nvidia/nemotron-3.5-lightning:free, cohere/north-mini-code:free, recursive/flint-v1.0:free
 - OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
 Hệ thống sẽ lập tức tạo Agent đó, ghim vào Hội Đồng Dự Án và Agent mới sẽ tham gia trao đổi giải quyết dự án ngay!
+
+
+[QUYỀN TRUY CẬP TRÌNH DUYỆT & TRA CỨU WEB (BROWSER & INTERNET ACCESS)]:
+Bạn có toàn quyền truy cập internet, sử dụng trình duyệt để tìm kiếm thông tin, tài liệu mới nhất hoặc tra cứu Gemini Web, ChatGPT Web để giải quyết nhiệm vụ:
+- Khi cần tìm kiếm thông tin trên mạng, hãy dùng cú pháp: [WEB_SEARCH: query="từ khóa cần tìm"]
+- Khi cần đọc nội dung một trang web hay tài liệu cụ thể, hãy dùng cú pháp: [WEB_BROWSE: url="https://..."]
+Hệ thống sẽ TỰ ĐỘNG THỰC THI TRUY CẬP TRÌNH DUYỆT, bóc tách dữ liệu và cung cấp kết quả trực tiếp cho bạn!
 
 [CHẾ ĐỘ THỰC THI DỰ ÁN THỰC TẾ]:
 Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.path}".

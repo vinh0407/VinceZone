@@ -8941,3 +8941,49 @@ pre code.hljs {
 .hljs-type, .hljs-class .hljs-title {
   color: #4ec9b0 !important; /* VS Code Teal/Turquoise */
 }
+
+
+/* Web Bookmarks Bar trong Demo Tab */
+.demo-web-bookmarks-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  max-width: 320px;
+}
+
+.bookmark-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #18181c;
+  border: 1px solid #2e2e36;
+  border-radius: 6px;
+  color: #d4d4d8;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.bookmark-pill:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.badge-web-search {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(147, 51, 234, 0.18) !important;
+  color: #c084fc !important;
+  border: 1px solid rgba(147, 51, 234, 0.4) !important;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.08rem 0.4rem;
+  letter-spacing: 0.01em;
+}

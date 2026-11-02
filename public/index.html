@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=8.0">
+ <link rel="stylesheet" href="style.css?v=8.2">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -763,10 +763,31 @@
 
         <div class="demo-topbar-right">
           <!-- Source Mode: Static file hay Dev Server URL -->
+          
+          <!-- Quick Web Bookmarks Bar -->
+          <div class="demo-web-bookmarks-bar" id="demo-web-bookmarks-bar" style="display: none;">
+            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://gemini.google.com')" title="Mở Gemini Web">
+              <span>🤖</span> Gemini
+            </button>
+            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://chatgpt.com')" title="Mở ChatGPT Web">
+              <span>🧠</span> ChatGPT
+            </button>
+            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://www.google.com')" title="Mở Google Search">
+              <span>🔍</span> Google
+            </button>
+            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://devdocs.io')" title="Mở DevDocs (Tài liệu lập trình)">
+              <span>📖</span> DevDocs
+            </button>
+            <button type="button" class="bookmark-pill" onclick="window.loadWebBookmark('https://github.com')" title="Mở GitHub">
+              <span>🐙</span> GitHub
+            </button>
+          </div>
+
           <div class="demo-url-bar-wrap">
             <select id="demo-source-mode-select" class="demo-source-select" onchange="window.switchDemoSourceMode(this.value)">
               <option value="static">📁 File Dự Án (index.html)</option>
               <option value="devserver">⚡ Dev Server (Localhost)</option>
+              <option value="web">🌐 Trình Duyệt Web (Gemini, ChatGPT, Docs)</option>
             </select>
             <input type="text" id="demo-url-input" class="demo-url-input" placeholder="http://localhost:5173" value="http://localhost:5173" style="display: none;" onkeydown="if(event.key==='Enter') window.reloadDemoPreview();">
             <button type="button" id="btn-reload-demo-preview" class="btn-micro" onclick="window.reloadDemoPreview()" title="Làm mới khung demo (Reload)">↺</button>
@@ -1898,6 +1919,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=8.0"></script>
+ <script src="app.js?v=8.2"></script>
 </body>
 </html>

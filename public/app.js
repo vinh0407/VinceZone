@@ -5274,14 +5274,15 @@ function decorateProjectCodeBlocks(containerEl) {
 
     pre.parentNode.insertBefore(toolbar, pre);
 
-    // Nếu có kết quả thực thi, hiển thị ngay bên dưới khối code
+    // Nếu có kết quả thực thi (terminal, xóa file hoặc tìm kiếm web)
     if (matchingExec && (matchingExec.stdout || matchingExec.stderr)) {
       const execDrawer = document.createElement('div');
       execDrawer.className = 'code-exec-drawer';
+      const isWebAction = matchingExec.type === 'web_search' || matchingExec.type === 'web_browse';
       const outputText = matchingExec.stdout || matchingExec.stderr || '(Đã thực thi thành công)';
       execDrawer.innerHTML = `
         <div class="code-exec-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="code-exec-status">⚡ Kết quả thực thi trực tiếp trên máy [Mã thoát: ${matchingExec.exitCode}]:</span>
+          <span class="code-exec-status">${isWebAction ? '🌐 Dữ liệu tra cứu Web từ Internet:' : `⚡ Kết quả thực thi trực tiếp trên máy [Mã thoát: ${matchingExec.exitCode}]:`}</span>
           <span class="code-exec-toggle">Chi tiết ▾</span>
         </div>
         <pre class="code-exec-output">${escapeHtml(outputText)}</pre>
@@ -7554,27 +7555,70 @@ function setPhoneMockupFrame(show) {
   window.reloadDemoPreview();
 }
 
-// Đổi nguồn Preview: File Dự Án (index.html) hay Dev Server URL (localhost:5173)
+// Đổi nguồn Preview: File Dự Án (index.html) | Dev Server URL | Web Browser (Gemini, ChatGPT)
 window.switchDemoSourceMode = function(mode) {
   demoState.sourceMode = mode;
   const urlInput = document.getElementById('demo-url-input');
+  const bookmarksBar = document.getElementById('demo-web-bookmarks-bar');
+
   if (urlInput) {
-    urlInput.style.display = mode === 'devserver' ? 'inline-block' : 'none';
+    urlInput.style.display = (mode === 'devserver' || mode === 'web') ? 'inline-block' : 'none';
+    if (mode === 'web') {
+      urlInput.placeholder = 'Nhập URL (vd: https://gemini.google.com, chatgpt.com...)';
+      if (!urlInput.value || urlInput.value.includes('localhost:5173')) {
+        urlInput.value = 'https://gemini.google.com';
+      }
+    } else if (mode === 'devserver') {
+      urlInput.placeholder = 'http://localhost:5173';
+      if (!urlInput.value || urlInput.value.startsWith('https://')) {
+        urlInput.value = 'http://localhost:5173';
+      }
+    }
+  }
+
+  if (bookmarksBar) {
+    bookmarksBar.style.display = mode === 'web' ? 'flex' : 'none';
+  }
+
+  window.reloadDemoPreview();
+};
+
+window.loadWebBookmark = function(targetUrl) {
+  demoState.sourceMode = 'web';
+  const sourceSelect = document.getElementById('demo-source-mode-select');
+  if (sourceSelect) sourceSelect.value = 'web';
+
+  const bookmarksBar = document.getElementById('demo-web-bookmarks-bar');
+  if (bookmarksBar) bookmarksBar.style.display = 'flex';
+
+  const urlInput = document.getElementById('demo-url-input');
+  if (urlInput) {
+    urlInput.style.display = 'inline-block';
+    urlInput.value = targetUrl;
   }
   window.reloadDemoPreview();
 };
 
-// Làm mới khung Live Demo
+// Làm mới khung Live Demo (Hỗ trợ File dự án, Dev Server và Web Proxy)
 window.reloadDemoPreview = function() {
   const targetId = demoState.activeProjectId;
-  if (!targetId) return;
+  if (!targetId && demoState.sourceMode !== 'web') return;
 
   let targetUrl = '';
-  if (demoState.sourceMode === 'devserver') {
+  let displayUrl = '';
+
+  if (demoState.sourceMode === 'web') {
+    const urlInput = document.getElementById('demo-url-input');
+    let rawWeb = (urlInput ? urlInput.value : '').trim() || 'https://gemini.google.com';
+    displayUrl = rawWeb;
+    targetUrl = `/api/proxy?url=${encodeURIComponent(rawWeb)}`;
+  } else if (demoState.sourceMode === 'devserver') {
     const urlInput = document.getElementById('demo-url-input');
     targetUrl = (urlInput ? urlInput.value : '').trim() || 'http://localhost:5173';
+    displayUrl = targetUrl;
   } else {
     targetUrl = `/api/projects/${targetId}/preview/`;
+    displayUrl = `http://localhost:3000/api/projects/${targetId}/preview/`;
   }
 
   const iframeWeb = document.getElementById('demo-iframe-web');
@@ -7582,7 +7626,7 @@ window.reloadDemoPreview = function() {
   const addrText = document.getElementById('browser-address-text');
 
   if (addrText) {
-    addrText.textContent = targetUrl;
+    addrText.textContent = displayUrl;
   }
 
   if (demoState.showPhoneMockup) {
@@ -7590,6 +7634,22 @@ window.reloadDemoPreview = function() {
   } else {
     if (iframeWeb) iframeWeb.src = targetUrl;
   }
+};
+
+window.openDemoInNewTab = function() {
+  let targetUrl = '';
+  if (demoState.sourceMode === 'web') {
+    const urlInput = document.getElementById('demo-url-input');
+    targetUrl = (urlInput ? urlInput.value : '').trim() || 'https://gemini.google.com';
+  } else if (demoState.sourceMode === 'devserver') {
+    const urlInput = document.getElementById('demo-url-input');
+    targetUrl = (urlInput ? urlInput.value : '').trim() || 'http://localhost:5173';
+  } else {
+    const targetId = demoState.activeProjectId;
+    if (!targetId) return;
+    targetUrl = `/api/projects/${targetId}/preview/`;
+  }
+  window.open(targetUrl, '_blank');
 };
 
 // Mở Live Demo ở tab trình duyệt mới
