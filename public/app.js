@@ -7487,6 +7487,18 @@ window.initDemoWorkspace = async function(projectId) {
   const breadcrumbProj = document.getElementById('ide-breadcrumb-proj');
   if (breadcrumbProj) breadcrumbProj.textContent = curProj ? curProj.name : 'Dự án';
 
+  const rootNameEl = document.getElementById('ide-current-proj-name');
+  if (rootNameEl) rootNameEl.textContent = curProj ? curProj.name : 'VinceZone';
+
+  const aiProjNameEl = document.getElementById('ide-ai-active-proj-name');
+  if (aiProjNameEl) aiProjNameEl.textContent = '⌄ ' + (curProj ? curProj.name : 'VinceZone');
+
+  const modelLabel = document.getElementById('antigravity-active-model-label');
+  const ideModelName = document.getElementById('ide-ai-model-name');
+  if (ideModelName && modelLabel && modelLabel.textContent) {
+    ideModelName.textContent = modelLabel.textContent;
+  }
+
   // 3. Khởi chạy đồng hồ trên khung điện thoại
   startPhoneClock();
 
@@ -7741,7 +7753,14 @@ window.refreshDemoFileTree = async function() {
     if (!data.success) throw new Error(data.error || 'Lỗi tải tệp');
 
     demoState.allFiles = flattenProjectFiles(data.files || []);
-    renderDemoFileTreeList(demoState.allFiles);
+    const treeListEl = document.getElementById('ide-tree-list');
+    if (treeListEl && data.files) {
+      treeListEl.innerHTML = '';
+      window.renderDemoHierarchicalTree(data.files, treeListEl);
+    } else {
+      renderDemoFileTreeList(demoState.allFiles);
+    }
+    window.syncIdeAiFeed();
 
     // Mở tệp ưu tiên (index.html hoặc tệp đầu tiên) nếu chưa có tệp nào mở
     if (!demoState.activeFilePath && demoState.allFiles.length > 0) {
@@ -8425,4 +8444,156 @@ window.deleteAntigravityItem = async function(event, projectId, chatId, chatTitl
   } catch (err) {
     showToast('Lỗi: ' + err.message);
   }
+};
+
+
+// =============================================================================
+// ANTIGRAVITY / VS CODE IDE CONTROLLER FUNCTIONS
+// =============================================================================
+
+// Chuyển tab trong Bottom Panel của IDE (Problems / Output / Terminal / Ports)
+window.switchIdeBottomTab = function(tabName) {
+  document.querySelectorAll('.ide-panel-tab').forEach(b => {
+    if (b.dataset.tab === tabName) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+
+  document.querySelectorAll('.ide-panel-content').forEach(c => {
+    c.classList.remove('active');
+  });
+  const activeContent = document.getElementById(`ide-panel-${tabName}-content`);
+  if (activeContent) activeContent.classList.add('active');
+};
+
+// Thu nhỏ / Đóng bottom panel
+window.toggleIdeBottomPanel = function() {
+  const panel = document.getElementById('ide-bottom-panel');
+  if (panel) {
+    if (panel.style.height === '32px') {
+      panel.style.height = '140px';
+    } else {
+      panel.style.height = '32px';
+    }
+  }
+};
+
+window.closeIdeBottomPanel = function() {
+  const panel = document.getElementById('ide-bottom-panel');
+  if (panel) {
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  }
+};
+
+// Ẩn / Hiện bảng AI bên phải
+window.toggleIdeAiPanel = function() {
+  const panel = document.getElementById('ide-ai-panel');
+  if (panel) {
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  }
+};
+
+// Gửi tin nhắn từ AI panel trong IDE sang Agent của dự án
+window.sendIdeAiMessage = async function() {
+  const inputEl = document.getElementById('ide-ai-input');
+  const feedEl = document.getElementById('ide-ai-feed');
+  const text = (inputEl ? inputEl.value : '').trim();
+  if (!text) return;
+
+  // Render tin nhắn của User vào feed
+  if (feedEl) {
+    const userMsg = document.createElement('div');
+    userMsg.style.cssText = 'background: #252528; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #fff; align-self: flex-end; max-width: 90%;';
+    userMsg.textContent = text;
+    feedEl.appendChild(userMsg);
+    feedEl.scrollTop = feedEl.scrollHeight;
+  }
+  if (inputEl) inputEl.value = '';
+
+  // Chuyển câu hỏi sang ô chat dự án và gửi qua sendProjectIdea
+  const mainChatInput = document.getElementById('project-idea-input');
+  if (mainChatInput) {
+    mainChatInput.value = text;
+    if (typeof sendProjectIdea === 'function') {
+      await sendProjectIdea();
+      // Đồng bộ tin nhắn phản hồi về feed IDE
+      window.syncIdeAiFeed();
+    }
+  }
+};
+
+// Đồng bộ tin nhắn của đoạn chat hiện tại vào feed IDE
+window.syncIdeAiFeed = function() {
+  const feedEl = document.getElementById('ide-ai-feed');
+  if (!feedEl) return;
+
+  const curChat = projectsState.activeChat;
+  const messages = curChat ? (curChat.messages || []) : [];
+  if (messages.length === 0) {
+    feedEl.innerHTML = '<div style="color: #666; font-size: 11px; text-align: center; padding: 20px 0;">Chào bạn! Tôi là VinceZone AI. Hãy đặt câu hỏi hoặc yêu cầu viết code để tôi hỗ trợ trực tiếp trong IDE.</div>';
+    return;
+  }
+
+  feedEl.innerHTML = messages.slice(-12).map(m => {
+    const isUser = m.role === 'user';
+    return `
+      <div style="background: ${isUser ? '#27272a' : '#1c1c1e'}; border: 1px solid ${isUser ? '#3f3f46' : '#27272a'}; border-radius: 8px; padding: 6px 10px; font-size: 11.5px; color: #e4e4e7; line-height: 1.45;">
+        <div style="font-weight: 600; font-size: 10.5px; color: ${isUser ? '#60a5fa' : '#34d399'}; margin-bottom: 2px;">${isUser ? 'Bạn' : (m.agentName || 'Agent')}</div>
+        <div style="white-space: pre-wrap; word-break: break-word;">${escapeHtml((m.content || '').slice(0, 300))}${(m.content || '').length > 300 ? '...' : ''}</div>
+      </div>
+    `;
+  }).join('');
+  feedEl.scrollTop = feedEl.scrollHeight;
+};
+
+// Render cây thư mục dạng đa cấp phân cấp (Hierarchical Tree) chuẩn VS Code
+window.renderDemoHierarchicalTree = function(items, container, depth = 0) {
+  if (!container || !Array.isArray(items)) return;
+
+  items.forEach(it => {
+    const isDir = it.type === 'directory';
+    const row = document.createElement('div');
+    row.className = 'ide-tree-node' + (it.path === demoState.activeFilePath ? ' active' : '');
+    row.style.paddingLeft = (depth * 14 + 10) + 'px';
+    row.title = it.path || it.name;
+
+    if (isDir) {
+      row.innerHTML = `
+        <span class="ide-chevron">⌄</span>
+        <span class="vsc-icon icon-folder" style="color: #dcb67a;">📁</span>
+        <span class="ide-tree-name" style="font-weight: 500;">${escapeHtml(it.name)}</span>
+      `;
+
+      const childContainer = document.createElement('div');
+      childContainer.className = 'ide-tree-dir-children';
+
+      row.onclick = (e) => {
+        e.stopPropagation();
+        const chev = row.querySelector('.ide-chevron');
+        if (childContainer.style.display === 'none') {
+          childContainer.style.display = 'block';
+          if (chev) chev.textContent = '⌄';
+        } else {
+          childContainer.style.display = 'none';
+          if (chev) chev.textContent = '›';
+        }
+      };
+
+      container.appendChild(row);
+      container.appendChild(childContainer);
+      if (it.children) {
+        window.renderDemoHierarchicalTree(it.children, childContainer, depth + 1);
+      }
+    } else {
+      const icon = getFileIcon(it.path || it.name);
+      row.innerHTML = `
+        <span class="ide-tree-icon">${icon}</span>
+        <span class="ide-tree-name">${escapeHtml(it.name)}</span>
+      `;
+      row.onclick = (e) => {
+        e.stopPropagation();
+        window.openFileInIde(it.path || it.name);
+      };
+      container.appendChild(row);
+    }
+  });
 };

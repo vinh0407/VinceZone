@@ -740,65 +740,181 @@
 
       <!-- 2. Main Split Area: Code Inspector (Left) & Live Demo (Right) -->
       <div class="demo-main-body" id="demo-main-body">
-        <!-- A. CODE INSPECTOR (Cursor / Visual Studio / OpenCode IDE Theme) -->
+        <!-- A. CODE INSPECTOR (VS Code / Antigravity / Cursor IDE Theme) -->
         <div class="demo-code-pane" id="demo-code-pane">
-          <!-- IDE Sidebar: File Explorer Tree -->
+          <!-- 1. Left Explorer Sidebar (Matches Image 1 Left) -->
           <aside class="ide-file-tree-sidebar">
-            <div class="ide-tree-header">
-              <span class="ide-tree-title">TẬP TIN DỰ ÁN</span>
-              <button type="button" class="btn-tree-icon" onclick="window.refreshDemoFileTree()" title="Làm mới cây tệp">↺</button>
+            <div class="ide-explorer-header">
+              <span class="ide-explorer-title">Explorer</span>
+              <div class="ide-explorer-actions">
+                <button type="button" class="btn-ide-head-icon" onclick="window.refreshDemoFileTree()" title="Làm mới cây tệp">↺</button>
+                <button type="button" class="btn-ide-head-icon" title="Tùy chọn khác">⋯</button>
+              </div>
             </div>
+
+            <!-- Root Project Row -->
+            <div class="ide-project-root-row" onclick="window.toggleIdeProjectRoot()">
+              <span class="ide-chevron" id="ide-proj-chevron">⌄</span>
+              <span class="ide-root-name" id="ide-current-proj-name">VinceZone</span>
+            </div>
+
+            <!-- Search Filter -->
             <div class="ide-tree-search-box">
-              <input type="text" id="ide-file-search" placeholder="Tìm tệp..." oninput="window.filterDemoFiles(this.value)">
+              <input type="text" id="ide-file-search" placeholder="Filter files..." oninput="window.filterDemoFiles(this.value)">
             </div>
+
+            <!-- Hierarchical Tree List -->
             <div class="ide-tree-list" id="ide-tree-list">
-              <span class="tree-loading-text">Đang tải tệp tin...</span>
+              <span class="tree-loading-text">Loading workspace files...</span>
+            </div>
+
+            <!-- Collapsible Sections: Outline & Timeline -->
+            <div class="ide-explorer-bottom-sections">
+              <div class="ide-collapsible-bar" onclick="this.classList.toggle('expanded')">
+                <span class="ide-chevron">›</span>
+                <span>Outline</span>
+              </div>
+              <div class="ide-collapsible-bar" onclick="this.classList.toggle('expanded')">
+                <span class="ide-chevron">›</span>
+                <span>Timeline</span>
+              </div>
             </div>
           </aside>
 
-          <!-- IDE Editor Area -->
+          <!-- 2. Center: Code Editor Area (Matches Image 1 Center) -->
           <div class="ide-editor-area">
             <!-- Tabs Bar -->
-            <div class="ide-tabs-bar" id="ide-tabs-bar">
-              <!-- Dynamically populated file tabs -->
+            <div class="ide-tabs-bar-wrap">
+              <div class="ide-tabs-bar" id="ide-tabs-bar">
+                <!-- Dynamically populated file tabs -->
+              </div>
+              <div class="ide-tab-bar-actions">
+                <button type="button" class="btn-ide-head-icon" onclick="window.switchDemoViewMode('split')" title="Chia đôi màn hình Editor & Preview">⊟</button>
+                <button type="button" class="btn-ide-head-icon" onclick="window.saveCurrentIdeFile()" title="Lưu tệp">💾</button>
+                <button type="button" class="btn-ide-head-icon" title="More Actions">⋯</button>
+              </div>
             </div>
 
             <!-- Breadcrumbs Bar -->
             <div class="ide-breadcrumbs-bar" id="ide-breadcrumbs-bar">
-              <span class="breadcrumb-item">📁 <span id="ide-breadcrumb-proj">Dự án</span></span>
+              <span class="breadcrumb-item"><span id="ide-breadcrumb-proj">desktop</span></span>
               <span class="breadcrumb-sep">›</span>
-              <span class="breadcrumb-item active" id="ide-breadcrumb-file">Chưa chọn tệp</span>
-              <div class="ide-editor-actions">
-                <button type="button" class="btn-micro" onclick="window.copyCurrentIdeCode()" title="Sao chép toàn bộ mã nguồn">📋 Copy</button>
-                <button type="button" class="btn-micro" onclick="window.saveCurrentIdeFile()" title="Lưu thay đổi tệp này vào máy">💾 Lưu</button>
-              </div>
+              <span class="breadcrumb-item active" id="ide-breadcrumb-file">agent-engine.js</span>
+              <span class="breadcrumb-sep">›</span>
+              <span class="breadcrumb-item text-muted">...</span>
             </div>
 
-            <!-- Code Body with Line Numbers Gutter -->
+            <!-- Code Scroll with Gutter and Minimap -->
             <div class="ide-code-scroll" id="ide-code-scroll">
               <div class="ide-editor-viewport" id="ide-editor-viewport">
                 <div class="ide-gutter" id="ide-gutter">
                   <span class="ide-line-num">1</span>
                 </div>
                 <div class="ide-code-content" id="ide-code-content">
-                  <pre><code id="ide-code-block" class="language-javascript">// Chọn một tệp từ danh sách bên trái để xem mã nguồn</code></pre>
+                  <pre><code id="ide-code-block" class="language-javascript">// Select a file to inspect and edit</code></pre>
+                </div>
+                <!-- Minimap simulation (matches Image 1) -->
+                <div class="ide-minimap" id="ide-minimap">
+                  <div class="minimap-code-track" id="minimap-code-track"></div>
+                  <div class="minimap-slider" id="minimap-slider"></div>
                 </div>
               </div>
             </div>
 
-            <!-- Status Bar -->
+            <!-- Bottom Panel: Problems, Output, Debug Console, Terminal, Ports, Comments -->
+            <div class="ide-bottom-panel" id="ide-bottom-panel">
+              <div class="ide-bottom-panel-header">
+                <div class="ide-panel-tabs">
+                  <button type="button" class="ide-panel-tab active" data-tab="problems" onclick="window.switchIdeBottomTab('problems')">Problems <span class="ide-tab-badge">0</span></button>
+                  <button type="button" class="ide-panel-tab" data-tab="output" onclick="window.switchIdeBottomTab('output')">Output</button>
+                  <button type="button" class="ide-panel-tab" data-tab="debug" onclick="window.switchIdeBottomTab('debug')">Debug Console</button>
+                  <button type="button" class="ide-panel-tab" data-tab="terminal" onclick="window.switchIdeBottomTab('terminal')">Terminal</button>
+                  <button type="button" class="ide-panel-tab" data-tab="ports" onclick="window.switchIdeBottomTab('ports')">Ports</button>
+                  <button type="button" class="ide-panel-tab" data-tab="comments" onclick="window.switchIdeBottomTab('comments')">Comments</button>
+                </div>
+                <div class="ide-panel-filter-wrap">
+                  <input type="text" class="ide-panel-filter" placeholder="Filter (e.g. text, **/*.ts, !**/nod...)">
+                  <button type="button" class="btn-ide-head-icon" title="Clear">⊘</button>
+                  <button type="button" class="btn-ide-head-icon" onclick="window.toggleIdeBottomPanel()" title="Thu nhỏ / Mở rộng">⌃</button>
+                  <button type="button" class="btn-ide-head-icon" onclick="window.closeIdeBottomPanel()" title="Đóng panel">✕</button>
+                </div>
+              </div>
+              <div class="ide-bottom-panel-body" id="ide-bottom-panel-body">
+                <div id="ide-panel-problems-content" class="ide-panel-content active">
+                  <p class="ide-panel-empty-text">No problems have been detected in the workspace.</p>
+                </div>
+                <div id="ide-panel-output-content" class="ide-panel-content">
+                  <pre class="ide-panel-output-text">[VinceZone Gateway] Server running at http://localhost:3000
+[Agent Engine] Autonomous ready.</pre>
+                </div>
+                <div id="ide-panel-terminal-content" class="ide-panel-content">
+                  <pre class="ide-panel-terminal-text" id="ide-terminal-text">PowerShell 7.4.5
+PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- VS Code Status Bar (Matches Image 1 Bottom) -->
             <div class="ide-statusbar">
               <div class="ide-status-left">
-                <span class="ide-status-item" id="ide-status-lang">JavaScript</span>
-                <span class="ide-status-item">UTF-8</span>
-                <span class="ide-status-item">Spaces: 2</span>
+                <span class="ide-status-item git-branch">⑂ main*</span>
+                <span class="ide-status-item status-errors"><span class="status-ico-x">⊗</span> 0</span>
+                <span class="ide-status-item status-warnings"><span class="status-ico-w">⚠</span> 0</span>
               </div>
               <div class="ide-status-right">
-                <span class="ide-status-item" id="ide-status-lines">0 dòng</span>
-                <span class="ide-status-item" id="ide-status-size">0 KB</span>
+                <span class="ide-status-item" id="ide-status-cursor">Ln 1, Col 1</span>
+                <span class="ide-status-item">Spaces: 2</span>
+                <span class="ide-status-item">UTF-8</span>
+                <span class="ide-status-item">LF</span>
+                <span class="ide-status-item" id="ide-status-lang">{ } JavaScript</span>
+                <span class="ide-status-item">Tab Settings</span>
+                <span class="ide-status-item brand-badge">Antigravity - Settings</span>
               </div>
             </div>
           </div>
+
+          <!-- 3. Right: Antigravity AI Assistant Panel (Matches Image 1 Right) -->
+          <aside class="ide-ai-panel" id="ide-ai-panel">
+            <div class="ide-ai-header">
+              <div class="ide-ai-header-left">
+                <button type="button" class="btn-ide-head-icon" title="Search Chat">🔍</button>
+                <button type="button" class="btn-ide-head-icon" onclick="window.createNewAntigravityChat()" title="New Chat">+</button>
+              </div>
+              <div class="ide-ai-project-select-wrap">
+                <span class="ide-ai-proj-label" id="ide-ai-active-proj-name">⌄ VinceZone</span>
+              </div>
+              <div class="ide-ai-header-right">
+                <button type="button" class="btn-ide-head-icon" onclick="window.toggleIdeAiPanel()" title="Thu gọn bảng AI">✕</button>
+              </div>
+            </div>
+
+            <!-- Feed for conversation in IDE -->
+            <div class="ide-ai-feed" id="ide-ai-feed">
+              <!-- Dynamically populated with active project chat messages -->
+            </div>
+
+            <!-- Floating Composer Card (Matches Image 1 Right Bottom) -->
+            <div class="ide-ai-composer-card">
+              <textarea id="ide-ai-input" class="ide-ai-textarea" rows="2" placeholder="Ask anything, @ to mention, / for acti..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault(); window.sendIdeAiMessage();}"></textarea>
+              <div class="ide-ai-composer-toolbar">
+                <div class="ide-ai-model-pill" onclick="window.triggerModelSelectClick()" id="ide-ai-model-capsule" title="Đổi Model AI">
+                  <span class="plus-ico">+</span>
+                  <span id="ide-ai-model-name">Gemini 3.8 Flash Medium</span>
+                  <span class="chev-ico">⌄</span>
+                </div>
+                <button type="button" class="btn-ide-ai-send" onclick="window.sendIdeAiMessage()" title="Send (Enter)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                </button>
+              </div>
+              <div class="ide-ai-composer-footer">
+                <span class="footer-chip">Local Checkout</span>
+                <span class="footer-chip branch-chip">⑂ main</span>
+              </div>
+            </div>
+          </aside>
         </div>
 
         <!-- B. LIVE DEMO (Web & Mobile Presentation) -->
