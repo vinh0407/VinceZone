@@ -2728,7 +2728,7 @@ Sau khi hoàn thành, hãy báo cáo chi tiết kết quả cho tôi để tôi 
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
-          agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+          agentModel: pmAgent.model || 'kilo-auto/free',
           content: pmDeptOrder
         });
 
