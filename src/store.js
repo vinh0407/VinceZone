@@ -1757,8 +1757,8 @@ const Store = {
         finalProvId = 'prov_kilo_gateway';
         finalProvName = 'Kilo Gateway';
       } else {
-        finalProvId = 'prov_openrouter';
-        finalProvName = 'OpenRouter';
+        finalProvId = 'prov_kilo_gateway';
+        finalProvName = 'Kilo Gateway';
       }
     } else if (!finalProvName) {
       const pMap = {
@@ -2353,7 +2353,7 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
           badge: 'PM',
           color: pmRole.color || '#3b82f6',
           model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
-          providerId: pmRole.providerId || 'prov_openrouter'
+          providerId: pmRole.providerId || 'prov_kilo_gateway'
         };
         const specAgent = {
           id: 'ag_spec_' + crypto.randomBytes(3).toString('hex'),
@@ -2363,7 +2363,7 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
           badge: specRole.badge,
           color: specRole.color || '#10b981',
           model: specRole.defaultModel || 'cohere/north-mini-code:free',
-          providerId: specRole.providerId || 'prov_openrouter',
+          providerId: specRole.providerId || 'prov_kilo_gateway',
           responsibility: specRole.desc
         };
 
@@ -2447,8 +2447,8 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
       badge: 'PM',
       color: pmRole.color || '#3b82f6',
       model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
-      providerId: pmRole.providerId || 'prov_openrouter',
-      providerName: pmRole.providerName || 'OpenRouter'
+      providerId: pmRole.providerId || 'prov_kilo_gateway',
+      providerName: pmRole.providerName || 'Kilo Gateway'
     };
 
     const specAgent = {
@@ -2459,8 +2459,8 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
       badge: specRole.badge,
       color: specRole.color || '#10b981',
       model: specRole.defaultModel || 'cohere/north-mini-code:free',
-      providerId: specRole.providerId || 'prov_openrouter',
-      providerName: specRole.providerName || 'OpenRouter',
+      providerId: specRole.providerId || 'prov_kilo_gateway',
+      providerName: specRole.providerName || 'Kilo Gateway',
       responsibility: specRole.desc
     };
 

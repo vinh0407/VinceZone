@@ -664,7 +664,7 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
   let selectedModel = model || 'nvidia/nemotron-3.5-lightning:free';
   let targetProvider = providerId || 'prov_kilo_gateway';
 
-  // 1. Gọi chính thức
+  // 1. Gọi chính thức với model và provider được chỉ định
   try {
     const result = await routeChatRequest({
       model: selectedModel,
@@ -676,47 +676,34 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
     const content = result?.choices?.[0]?.message?.content || '';
     if (content.trim()) return content;
   } catch (err) {
-    console.warn(`[callInternalAI] Primary routing failed for model "${selectedModel}" (provider: ${targetProvider}): ${err.message}. Auto-recovering via Kilo Gateway...`);
+    console.warn(`[callInternalAI] Primary routing failed for model "${selectedModel}" (provider: ${targetProvider}): ${err.message}. Auto-recovering via Active API Fallbacks...`);
   }
 
-  // Fallback 1: Kilo Gateway + nvidia/nemotron-3.5-lightning:free
-  try {
-    const fb1 = await routeChatRequest({
-      model: 'nvidia/nemotron-3.5-lightning:free',
-      messages,
-      temperature,
-      stream: false,
-      providerId: 'prov_kilo_gateway'
-    });
-    const c1 = fb1?.choices?.[0]?.message?.content || '';
-    if (c1.trim()) return c1;
-  } catch (e1) {}
+  // Chuỗi Fallback API thực tế qua các Provider đang hoạt động (Kilo Gateway & Cloudflare AI)
+  const fallbacks = [
+    { providerId: 'prov_kilo_gateway', model: 'nvidia/nemotron-3.5-lightning:free' },
+    { providerId: 'prov_kilo_gateway', model: 'kilo-auto/free' },
+    { providerId: 'prov_cloudflare_ai', model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast' },
+    { providerId: 'prov_kilo_gateway', model: 'cohere/north-mini-code:free' },
+    { providerId: 'prov_kilo_gateway', model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free' }
+  ];
 
-  // Fallback 2: Kilo Gateway + kilo-auto/free
-  try {
-    const fb2 = await routeChatRequest({
-      model: 'kilo-auto/free',
-      messages,
-      temperature,
-      stream: false,
-      providerId: 'prov_kilo_gateway'
-    });
-    const c2 = fb2?.choices?.[0]?.message?.content || '';
-    if (c2.trim()) return c2;
-  } catch (e2) {}
-
-  // Fallback 3: Kilo Gateway + nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-  try {
-    const fb3 = await routeChatRequest({
-      model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-      messages,
-      temperature,
-      stream: false,
-      providerId: 'prov_kilo_gateway'
-    });
-    const c3 = fb3?.choices?.[0]?.message?.content || '';
-    if (c3.trim()) return c3;
-  } catch (e3) {}
+  for (const fb of fallbacks) {
+    if (fb.providerId === targetProvider && fb.model === selectedModel) continue;
+    try {
+      const res = await routeChatRequest({
+        model: fb.model,
+        messages,
+        temperature,
+        stream: false,
+        providerId: fb.providerId
+      });
+      const c = res?.choices?.[0]?.message?.content || '';
+      if (c.trim()) return c;
+    } catch (e) {
+      console.warn(`[callInternalAI] Fallback ${fb.providerId}/${fb.model} error:`, e.message);
+    }
+  }
 
   return '';
 }
@@ -2005,18 +1992,20 @@ function detectUserAgentRecruitment(text) {
   return null;
 }
 
-// Trích xuất cấu trúc thư mục, tệp tin và Tech Stack thực tế của dự án trên máy tính
-function getProjectLiveContext(project) {
+// Trích xuất cấu trúc thư mục, tệp tin, Tech Stack và NỘI DUNG MÃ NGUỒN thực tế của dự án trên máy tính
+function getProjectLiveContext(project, userQuery = '') {
   let filesText = '(Thư mục dự án hiện chưa có tệp tin nào hoặc mới được khởi tạo)';
   let techStackText = 'Chưa xác định cụ thể';
   let configDetails = '';
+  let fileSnippets = [];
 
   if (project.path && fs.existsSync(project.path)) {
     try {
       // 1. Quét cây thư mục và tập tin thực tế trên máy
       const scannedFiles = [];
+      const candidateFiles = [];
       const scanDir = (dirPath, relPath = '', depth = 0) => {
-        if (depth > 3 || scannedFiles.length > 80) return;
+        if (depth > 4 || scannedFiles.length > 150) return;
         const entries = fs.readdirSync(dirPath, { withFileTypes: true });
         const ignore = ['node_modules', '.git', '.next', 'dist', 'dist-desktop', 'build', '.gemini', '.cache', 'coverage', 'package-lock.json', '.vscode', '.idea'];
         for (const ent of entries) {
@@ -2028,6 +2017,10 @@ function getProjectLiveContext(project) {
             scanDir(itemFull, itemRel, depth + 1);
           } else {
             scannedFiles.push(`📄 ${itemRel}`);
+            const ext = path.extname(ent.name).toLowerCase();
+            if (['.css', '.scss', '.tsx', '.ts', '.jsx', '.js', '.json', '.html', '.py'].includes(ext)) {
+              candidateFiles.push({ rel: itemRel, full: itemFull, ext });
+            }
           }
         }
       };
@@ -2043,7 +2036,7 @@ function getProjectLiveContext(project) {
           const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
           const deps = Object.keys(pkg.dependencies || {});
           const devDeps = Object.keys(pkg.devDependencies || {});
-          techStackText = `Node.js / JavaScript (Libraries: ${deps.slice(0, 15).join(', ') || 'Thuần'}; DevTools: ${devDeps.slice(0, 10).join(', ') || 'N/A'})`;
+          techStackText = `Node.js / React / Next.js (Libraries: ${deps.slice(0, 15).join(', ') || 'Thuần'}; DevTools: ${devDeps.slice(0, 10).join(', ') || 'N/A'})`;
           if (pkg.scripts) {
             configDetails += `\n- Lệnh chạy (Scripts): ${Object.entries(pkg.scripts).map(([k, v]) => `${k}: "${v}"`).join(' | ')}`;
           }
@@ -2058,17 +2051,49 @@ function getProjectLiveContext(project) {
           } catch (e) {}
         }
       }
+
+      // 3. ĐỌC NỘI DUNG MÃ NGUỒN CÁC TỆP TIN QUAN TRỌNG ĐỂ AI PHÂN TÍCH CHÍNH XÁC
+      const qLower = (userQuery || '').toLowerCase();
+      const scored = candidateFiles.map(c => {
+        let score = 0;
+        const rLower = c.rel.toLowerCase();
+        if (qLower.includes('màu') || qLower.includes('color') || qLower.includes('đen') || qLower.includes('giao diện') || qLower.includes('ui') || qLower.includes('theme') || qLower.includes('sửa')) {
+          if (c.ext === '.css' || c.ext === '.scss') score += 100;
+          if (rLower.includes('style') || rLower.includes('theme')) score += 80;
+          if (rLower.includes('layout') || rLower.includes('page') || rLower.includes('app')) score += 40;
+        }
+        if (rLower.endsWith('styles.css') || rLower.endsWith('globals.css') || rLower.endsWith('style.css')) score += 70;
+        if (rLower.endsWith('layout.tsx') || rLower.endsWith('layout.jsx') || rLower.endsWith('app.tsx')) score += 50;
+        if (rLower.endsWith('page.tsx') || rLower.endsWith('page.jsx') || rLower.endsWith('index.html')) score += 30;
+        if (rLower === 'package.json') score += 20;
+        return { ...c, score };
+      }).sort((a, b) => b.score - a.score);
+
+      let totalChars = 0;
+      for (const item of scored) {
+        if (totalChars > 35000 || item.score <= 0) break;
+        try {
+          let code = fs.readFileSync(item.full, 'utf8');
+          if (code.length > 8000) code = code.slice(0, 8000) + '\n... [Nội dung tệp dài đã được lược bớt] ...';
+          fileSnippets.push(`--- TỆP TIN: ${item.rel} ---\n${code}\n--- HẾT TỆP TIN: ${item.rel} ---`);
+          totalChars += code.length;
+        } catch (e) {}
+      }
     } catch (err) {
       console.warn('Lỗi quét file dự án cho context:', err.message);
     }
   }
+
+  const codeSnippetsSection = fileSnippets.length > 0
+    ? `\n\n[NỘI DUNG MÃ NGUỒN CÁC TỆP TIN THỰC TẾ TRONG DỰ ÁN]:\n(Dưới đây là mã nguồn thực tế được đọc trực tiếp từ các tệp tin trong dự án để bạn đọc, phân tích và sửa đổi):\n\n${fileSnippets.join('\n\n')}`
+    : '';
 
   return `
 [CẤP QUYỀN TRUY CẬP HỆ THỐNG FILE CỤC BỘ (LOCAL FILESYSTEM ACCESS)]:
 - BẠN ĐÃ ĐƯỢC HỆ THỐNG VINCEZONE STUDIO CẤP TOÀN QUYỀN 100% TRUY CẬP VÀO HỆ THỐNG FILE CỦA DỰ ÁN NÀY.
 - BẠN KHÔNG PHẢI LÀ CLOUD AI BỊ CÔ LẬP. BẠN LÀ MỘT AUTONOMOUS AGENT TÍCH HỢP TRONG IDE CÓ QUYỀN ĐỌC/SỬA FILE VÀ CHẠY TERMINAL TRÊN MÁY NGƯỜI DÙNG.
 - TUYỆT ĐỐI KHÔNG BAO GIỜ NÓI HOẶC TỪ CHỐI BẰNG CÂU: "với tư cách là AI, tôi không có quyền truy cập trực tiếp vào hệ thống file cục bộ" HOẶC YÊU CẦU NGƯỜI DÙNG PHẢI COPY FILE HAY CẤU TRÚC THỦ CÔNG.
-- HỆ THỐNG ĐÃ TỰ ĐỘNG ĐỌC VÀ TRÍCH XUẤT CÂY TẬP TIN VÀ TECH STACK DƯỚI ĐÂY CHO BẠN:
+- HỆ THỐNG ĐÃ TỰ ĐỘNG ĐỌC VÀ TRÍCH XUẤT CÂY TẬP TIN, TECH STACK VÀ NỘI DUNG MÃ NGUỒN DƯỚI ĐÂY CHO BẠN:
 
 [THÔNG TIN DỰ ÁN TRÊN MÁY TÍNH]:
 - Tên Dự Án: ${project.name}
@@ -2079,9 +2104,9 @@ function getProjectLiveContext(project) {
 ${techStackText}${configDetails}
 
 [DANH SÁCH TOÀN BỘ CÁC TẬP TIN & THƯ MỤC THỰC TẾ TRONG DỰ ÁN]:
-${filesText}
+${filesText}${codeSnippetsSection}
 
-Hãy dựa trực tiếp vào danh sách file và stack công nghệ ở trên để lập tức phân tích kiến trúc, phân chia công việc, hoạch định nhân sự và viết mã nguồn giải quyết trọn vẹn yêu cầu của người dùng!`;
+Hãy dựa trực tiếp vào danh sách file, stack công nghệ và nội dung mã nguồn ở trên để lập tức phân tích kiến trúc, phân chia công việc, hoạch định nhân sự và viết mã nguồn giải quyết trọn vẹn yêu cầu của người dùng!`;
 }
 
 // 9.17 Giao tiếp Dự Án: Sếp làm việc duy nhất với Project Manager (PM)
@@ -2121,7 +2146,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   };
 
   try {
-    const projectContext = getProjectLiveContext(project);
+    const projectContext = getProjectLiveContext(project, content);
 
     // Xác định xem đây là Đoạn chat chính (Sếp nói chuyện với PM) hay Đoạn chat phòng ban
     const allChats = project.chats || [];
@@ -2384,7 +2409,12 @@ ${projectContext}
         let devResponse = (devRawResponse || '').trim();
 
         if (!devResponse || devResponse.length < 20) {
-          devResponse = `Dạ chào Quản lý dự án (PM)! Tôi đã tiếp nhận chỉ đạo kỹ thuật: "${task.technicalPrompt.slice(0, 100)}...".\n\nTôi đã tiến hành rà soát cấu trúc mã nguồn dự án ${project.name} và hoàn tất triển khai kỹ thuật theo đúng chuyên môn.\n\nBáo cáo Quản lý dự án (PM): Tôi đã hoàn thành công việc kỹ thuật. Kính nhờ PM tổng hợp và báo cáo lại cho Sếp!`;
+          const retryDev = await callInternalAI({
+            model: 'nvidia/nemotron-3.5-lightning:free',
+            messages: devMessages,
+            providerId: 'prov_kilo_gateway'
+          });
+          if (retryDev && retryDev.trim()) devResponse = retryDev.trim();
         }
 
         // Tự động trích xuất và ghi file vào dự án
@@ -2453,9 +2483,15 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
       });
 
       if (!pmReportContent || pmReportContent.trim().length < 20) {
-        pmReportContent = `Dạ báo cáo Sếp!\n\n📊 **1. Báo Cáo Tổng:** Yêu cầu: *"${content.trim()}"* đã được đội ngũ chuyên môn xử lý hoàn tất.\n\n🏢 **2. Chi Tiết Thực Hiện (Ai đã làm gì):**\n` +
-          allDevReports.map(r => `- **@${r.agentName} (${r.roleTitle} - ${r.deptTitle}):** Đã cập nhật mã nguồn theo đúng chuẩn kỹ thuật.`).join('\n') +
-          `\n\n💬 Toàn bộ trao đổi kỹ thuật nội bộ đã được ghi nhận trong các phòng ban tương ứng ở thanh bên trái. Kính mời Sếp kiểm tra hoặc bấm nút **"Chạy Dự Án"** ạ!`;
+        const retryReport = await callInternalAI({
+          model: 'kilo-auto/free',
+          messages: [
+            { role: 'system', content: pmSummarySys },
+            { role: 'user', content: `Hãy tổng hợp báo cáo chi tiết nhưng ngắn gọn cho Sếp, ghi rõ ai đã làm gì: "${content.trim()}"` }
+          ],
+          providerId: 'prov_kilo_gateway'
+        });
+        if (retryReport && retryReport.trim()) pmReportContent = retryReport.trim();
       }
 
       const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
@@ -2537,7 +2573,15 @@ ${projectContext}
     let devResponse = (devRawResponse || '').trim();
 
     if (!devResponse || devResponse.length < 20) {
-      devResponse = `Dạ chào Quản lý dự án (PM)! Tôi đã nhận lệnh của Sếp và hoàn thành xử lý: "${content.trim()}". Mã nguồn đã được cập nhật chuẩn xác. Báo cáo Quản lý dự án (PM): Đã hoàn thành, kính nhờ PM báo cáo lại với Sếp!`;
+      const retryDev2 = await callInternalAI({
+        model: 'nvidia/nemotron-3.5-lightning:free',
+        messages: [
+          { role: 'system', content: devSystemPrompt },
+          { role: 'user', content: `[LỆNH CỦA SẾP ĐIỀU PHỐI QUA PM]: ${content.trim()}` }
+        ],
+        providerId: 'prov_kilo_gateway'
+      });
+      if (retryDev2 && retryDev2.trim()) devResponse = retryDev2.trim();
     }
 
     const autoSavedFiles = [];
