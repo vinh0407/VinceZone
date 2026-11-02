@@ -36,9 +36,6 @@
         <button class="nav-btn" data-tab="ide" id="nav-btn-open-ide" onclick="window.openIdeDirectly()">
           Open IDE
         </button>
-        <button class="nav-btn" data-tab="automated" id="nav-btn-automated">
-          Automated
-        </button>
         <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
           Kho Prompt & Skills
         </button>
@@ -739,10 +736,6 @@
             <span class="row-icon">💻</span>
             <span class="row-label">Open IDE & Demo</span>
           </div>
-          <div class="drawer-menu-row" onclick="window.switchTabByRoute('automated')">
-            <span class="row-icon">⚡</span>
-            <span class="row-label">Automated</span>
-          </div>
           <div class="drawer-menu-row" onclick="window.switchTabByRoute('prompts')">
             <span class="row-icon">🧩</span>
             <span class="row-label">Extensions / Skills</span>
@@ -1001,144 +994,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
                 <iframe id="demo-iframe-web" class="demo-iframe" src="about:blank" allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;" sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"></iframe>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==================== TAB: AUTOMATED (TRUNG TÂM TỰ ĐỘNG HÓA) ==================== -->
-  <section id="tab-automated" class="tab-pane">
-    <div class="prompts-container" style="max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem;">
-      <div class="pane-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
-        <div>
-          <h2 style="font-size: 1.45rem; font-weight: 700; color: #f4f4f5; display: flex; align-items: center; gap: 0.5rem;">
-            <span>⚡</span> Trung Tâm Tự Động Hóa (Automated Workflows)
-          </h2>
-          <p class="pane-subtitle" style="color: #a1a1aa; font-size: 0.88rem; margin-top: 0.35rem; max-width: 780px;">
-            Điều phối các quy trình tự chủ đa tác tử (Autonomous Multi-Agent), tự động phân tích dự án, giao việc cho nhân viên, kiểm thử QA/QC khép kín và xuất báo cáo bàn giao tự động cho Sếp.
-          </p>
-        </div>
-        <div style="display: flex; gap: 0.65rem;">
-          <button type="button" class="btn-primary" onclick="window.triggerFullAutonomousPipeline()" style="background: linear-gradient(135deg, #2563eb, #7c3aed); border: none; padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: 600; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);">
-            <span>🚀</span> Chạy Chu Trình Tự Chủ Toàn Bộ
-          </button>
-        </div>
-      </div>
-
-      <!-- KPI Stats Row -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
-        <div style="background: #121216; border: 1px solid #27272a; border-radius: 12px; padding: 1.1rem 1.25rem;">
-          <div style="color: #a1a1aa; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Quy Trình Đang Bật</div>
-          <div style="font-size: 1.65rem; font-weight: 700; color: #60a5fa; margin-top: 0.35rem;">5 / 5 <span style="font-size: 0.8rem; color: #10b981; font-weight: 500;">● Active</span></div>
-          <div style="color: #71717a; font-size: 0.76rem; margin-top: 0.25rem;">Tất cả Agent sẵn sàng nhận lệnh</div>
-        </div>
-        <div style="background: #121216; border: 1px solid #27272a; border-radius: 12px; padding: 1.1rem 1.25rem;">
-          <div style="color: #a1a1aa; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Quản Lý Dự Án (PM)</div>
-          <div style="font-size: 1.2rem; font-weight: 700; color: #f4f4f5; margin-top: 0.45rem;">Kilo Auto Free</div>
-          <div style="color: #3b82f6; font-size: 0.76rem; margin-top: 0.25rem;">Model: kilo-auto/free (Kilo Gateway)</div>
-        </div>
-        <div style="background: #121216; border: 1px solid #27272a; border-radius: 12px; padding: 1.1rem 1.25rem;">
-          <div style="color: #a1a1aa; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Kiểm Thử QA/QC Tự Động</div>
-          <div style="font-size: 1.65rem; font-weight: 700; color: #10b981; margin-top: 0.35rem;">100% PASS</div>
-          <div style="color: #71717a; font-size: 0.76rem; margin-top: 0.25rem;">Vòng lặp kiểm định Zero-Defect</div>
-        </div>
-        <div style="background: #121216; border: 1px solid #27272a; border-radius: 12px; padding: 1.1rem 1.25rem;">
-          <div style="color: #a1a1aa; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Chế Độ Phân Luồng Ý Định</div>
-          <div style="font-size: 1.2rem; font-weight: 700; color: #f59e0b; margin-top: 0.45rem;">Thông Minh (Strict QA)</div>
-          <div style="color: #71717a; font-size: 0.76rem; margin-top: 0.25rem;">Hỏi -> PM trả lời | Lệnh -> Giao Dev</div>
-        </div>
-      </div>
-
-      <!-- Automated Workflows Grid -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.15rem;">
-        <!-- Card 1 -->
-        <div style="background: #141419; border: 1px solid #27272a; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-              <span style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid rgba(59, 130, 246, 0.3);">CORE PIPELINE</span>
-              <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">● Đang Bật</span>
-            </div>
-            <h3 style="font-size: 1.02rem; font-weight: 700; color: #f4f4f5; margin-bottom: 0.4rem;">👑 Ủy Quyền Tự Chủ Toàn Diện (PM Delegation)</h3>
-            <p style="color: #a1a1aa; font-size: 0.83rem; line-height: 1.5;">
-              Khi Sếp ra lệnh <em>"tôi cấp quyền toàn bộ cho cậu hãy tự phân tích và giao việc cho cấp dưới"</em>: PM đáp <strong>"Đã rõ thưa sếp"</strong>, lập kế hoạch ngắn gọn, giao việc cho từng phòng ban, tổng hợp báo cáo dài, chuyển QA kiểm thử đến khi ĐẠT và xuất file <code>README.md</code> bàn giao.
-            </p>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #222228;">
-            <span style="color: #71717a; font-size: 0.76rem;">Agents: PM, Frontend, Backend, AI, QA</span>
-            <button type="button" onclick="window.triggerFullAutonomousPipeline()" style="background: #27272a; color: #e4e4e7; border: 1px solid #3f3f46; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-weight: 600; cursor: pointer;">Kích hoạt ngay</button>
-          </div>
-        </div>
-
-        <!-- Card 2 -->
-        <div style="background: #141419; border: 1px solid #27272a; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-              <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid rgba(16, 185, 129, 0.3);">INTENT ROUTER</span>
-              <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">● Đang Bật</span>
-            </div>
-            <h3 style="font-size: 1.02rem; font-weight: 700; color: #f4f4f5; margin-bottom: 0.4rem;">🧠 Phân Biệt Thông Minh: Câu Hỏi vs Yêu Cầu</h3>
-            <p style="color: #a1a1aa; font-size: 0.83rem; line-height: 1.5;">
-              Tự động nhận diện câu hỏi tiếng Việt có dấu (<em>"gọi tôi là gì", "đã phân tích chưa", "dự án làm gì"...</em>) để PM trả lời trực tiếp cho Sếp. Chỉ khi có mệnh lệnh sửa code rõ ràng mới điều phối nhân viên.
-            </p>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #222228;">
-            <span style="color: #71717a; font-size: 0.76rem;">Phản hồi: &lt; 1 giây (kilo-auto/free)</span>
-            <span style="color: #60a5fa; font-size: 0.78rem; font-weight: 600;">Luôn trực chiến</span>
-          </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div style="background: #141419; border: 1px solid #27272a; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-              <span style="background: rgba(249, 115, 22, 0.15); color: #fb923c; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid rgba(249, 115, 22, 0.3);">QUALITY LOOP</span>
-              <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">● Đang Bật</span>
-            </div>
-            <h3 style="font-size: 1.02rem; font-weight: 700; color: #f4f4f5; margin-bottom: 0.4rem;">🧪 Vòng Lặp Kiểm Thử Tự Động (QA/QC Gate)</h3>
-            <p style="color: #a1a1aa; font-size: 0.83rem; line-height: 1.5;">
-              Mọi kết quả từ các Agent nhân viên đều được PM tổng hợp và chuyển qua Bộ phận Kiểm thử (<code>Llama 3.1 8B Fast</code>). Nếu phát hiện lỗi sẽ tự động giao lại cho Dev sửa đến khi đạt chuẩn 100%.
-            </p>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #222228;">
-            <span style="color: #71717a; font-size: 0.76rem;">Chuyên viên: Llama 3.1 8B Fast (QA/QC)</span>
-            <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">Zero-Defect</span>
-          </div>
-        </div>
-
-        <!-- Card 4 -->
-        <div style="background: #141419; border: 1px solid #27272a; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-              <span style="background: rgba(168, 85, 247, 0.15); color: #c084fc; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid rgba(168, 85, 247, 0.3);">AUTO FILE SYNC</span>
-              <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">● Đang Bật</span>
-            </div>
-            <h3 style="font-size: 1.02rem; font-weight: 700; color: #f4f4f5; margin-bottom: 0.4rem;">💾 Tự Động Ghi File & Cập Nhật README.md</h3>
-            <p style="color: #a1a1aa; font-size: 0.83rem; line-height: 1.5;">
-              Trích xuất trực tiếp các khối code có đường dẫn <code>// File: ...</code> từ phản hồi của các Agent để ghi thẳng vào đĩa cứng dự án và tự động xuất tài liệu <code>README.md</code> chi tiết.
-            </p>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #222228;">
-            <span style="color: #71717a; font-size: 0.76rem;">Chế độ: 100% Executable</span>
-            <span style="color: #c084fc; font-size: 0.78rem; font-weight: 600;">Real-time Disk I/O</span>
-          </div>
-        </div>
-
-        <!-- Card 5 -->
-        <div style="background: #141419; border: 1px solid #27272a; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-              <span style="background: rgba(236, 72, 153, 0.15); color: #f472b6; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid rgba(236, 72, 153, 0.3);">CHAT AUTHORITY</span>
-              <span style="color: #10b981; font-size: 0.78rem; font-weight: 600;">● Đang Bật</span>
-            </div>
-            <h3 style="font-size: 1.02rem; font-weight: 700; color: #f4f4f5; margin-bottom: 0.4rem;">🧹 Quyền Tự Động Thêm / Xóa Nhóm Chat Phòng Ban</h3>
-            <p style="color: #a1a1aa; font-size: 0.83rem; line-height: 1.5;">
-              PM có toàn quyền tự động khởi tạo nhóm chat phòng ban khi giao việc hoặc xóa sạch các nhóm chat phụ khi Sếp ra lệnh dọn dẹp, đồng bộ tức thì lên thanh Sidebar.
-            </p>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #222228;">
-            <span style="color: #71717a; font-size: 0.76rem;">Quản lý: Kilo Auto Free (PM)</span>
-            <button type="button" onclick="window.triggerCleanDepartmentChats()" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-weight: 600; cursor: pointer;">Dọn nhóm chat</button>
           </div>
         </div>
       </div>
@@ -2160,9 +2015,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
         </button>
         <button class="mobile-nav-btn" data-tab="ide" onclick="window.openIdeDirectly()">
           <span>Open IDE</span>
-        </button>
-        <button class="mobile-nav-btn" data-tab="automated">
-          <span>Automated</span>
         </button>
         <button class="mobile-nav-btn" data-tab="prompts">
           <span>Kho Prompt</span>
