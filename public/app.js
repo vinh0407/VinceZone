@@ -4530,7 +4530,6 @@ function renderProjectsList() {
         </div>
         <div class="active-proj-actions" onclick="event.stopPropagation()">
           <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">Terminal</button>
-          <button type="button" class="btn-micro" onclick="window.openProjectStructureView()" title="Xem sơ đồ cột & cấu trúc chi tiết của dự án" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3);">🏗️ Cấu Trúc</button>
           <button type="button" class="btn-micro action-danger" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án khỏi danh sách">Xóa</button>
         </div>
       `;
