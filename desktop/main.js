@@ -158,6 +158,7 @@ function createApplicationMenu() {
 }
 
 function createWindow() {
+  const appIcon = path.join(__dirname, 'icon.png');
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -165,6 +166,7 @@ function createWindow() {
     minHeight: 680,
     backgroundColor: '#09090b',
     title: 'VinceZone Studio - AI Workplay & Autonomous IDE [Desktop]',
+    icon: fs.existsSync(appIcon) ? appIcon : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

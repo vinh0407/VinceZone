@@ -31,19 +31,24 @@
       width: 90%;
     }
     .splash-logo {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #2563eb, #6366f1);
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.8rem;
-      font-weight: 800;
-      color: #fff;
-      box-shadow: 0 0 30px rgba(37, 99, 235, 0.4);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 35px rgba(255, 255, 255, 0.2);
       margin-bottom: 1.25rem;
       animation: pulseGlow 2s infinite ease-in-out;
+    }
+    .splash-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
     @keyframes pulseGlow {
       0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(37, 99, 235, 0.4); }
@@ -80,7 +85,7 @@
 </head>
 <body>
   <div class="splash-card">
-    <div class="splash-logo">VZ</div>
+    <div class="splash-logo"><img src="logo.png" alt="VinceZone Logo"></div>
     <div class="splash-title">VinceZone Studio</div>
     <div class="splash-subtitle">AI Workplay &amp; Autonomous IDE [Desktop]</div>
     <div class="splash-spinner"></div>
