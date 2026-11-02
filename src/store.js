@@ -2271,6 +2271,149 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
     return departments.find(d => d.key === 'fullstack') || departments.find(d => d.key === 'backend');
   },
 
+    predictAndCreateProjectDepartments(projectId, userIdea = '') {
+    const data = readDb();
+    const proj = (data.projects || []).find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+    proj.chats = proj.chats || [];
+
+    // Ensure main chat is marked isMain
+    if (proj.chats.length > 0 && !proj.chats.some(c => c.isMain)) {
+      proj.chats[0].isMain = true;
+    }
+
+    // 1. Khảo sát ngữ cảnh dự án thực tế
+    let filesStr = '';
+    if (proj.path && fs.existsSync(proj.path)) {
+      try {
+        const entries = fs.readdirSync(proj.path);
+        filesStr = entries.join(' ').toLowerCase();
+      } catch (e) {}
+    }
+
+    const combined = (filesStr + ' ' + (userIdea || '')).toLowerCase();
+    const hasMobile = /(?:mobile|android|ios|flutter|react[-\s]?native|di động|app điện thoại)/i.test(combined);
+    const hasAI = /(?:ai|llm|machine learning|deep learning|rag|langchain|openai|gemini|claude|agent|trí tuệ nhân tạo|chatbot|embedding|skills)/i.test(combined);
+    const hasGame = /(?:game|trò chơi|unity|unreal|godot|pygame)/i.test(combined);
+
+    // 2. Dự đoán toàn bộ các phòng ban cốt lõi cần thiết cho vòng đời dự án
+    const predictedDepts = [
+      { key: 'architecture', title: '🏢 Phòng Kiến Trúc: Cấu Trúc Hệ Thống & Multi-Agent', role: 'software_architect', task: 'Thiết kế kiến trúc hệ thống, luồng dữ liệu và tối ưu hiệu năng' },
+      { key: 'backend', title: '🏢 Phòng Kỹ Thuật: Backend & Data Pipeline', role: 'fullstack_dev', task: 'Phát triển mã nguồn Python core, APIs, xử lý cơ sở dữ liệu và dữ liệu affiliate' },
+      { key: 'frontend', title: '🏢 Phòng Giao Diện: Frontend & Dashboard', role: 'frontend_dev', task: 'Xây dựng giao diện Web, bảng điều khiển Dashboard và trải nghiệm người dùng' },
+      { key: 'qa', title: '🏢 Phòng Kiểm Thử: QA/QC & Test Terminal', role: 'qa_engineer', task: 'Kiểm thử chức năng, tự động hóa test script và rà soát lỗi mã nguồn' },
+      { key: 'devops', title: '🏢 Phòng Hạ Tầng: DevOps & Triển Khai', role: 'devops_security', task: 'Thiết lập môi trường (.venv, dependencies), Docker và an toàn bảo mật hệ thống' }
+    ];
+
+    // Chỉ thêm Phòng AI nếu dự án/ý tưởng có AI
+    if (hasAI) {
+      predictedDepts.splice(1, 0, {
+        key: 'ai',
+        title: '🏢 Phòng Trí Tuệ Nhân Tạo: AI Skills & LLM Engine',
+        role: 'applied_ai_engineer',
+        task: 'Tích hợp LLM, xây dựng các AI Skills, quản lý Agent Prompts và Workflow tự động hóa'
+      });
+    }
+
+    // Chỉ thêm Mobile nếu có Mobile (tuyệt đối không thêm bừa)
+    if (hasMobile) {
+      predictedDepts.push({
+        key: 'mobile',
+        title: '🏢 Phòng Ứng Dụng Di Động: Mobile & App',
+        role: 'flutter_dev',
+        task: 'Phát triển ứng dụng di động đa nền tảng Flutter'
+      });
+    }
+
+    // Chỉ thêm Game nếu có Game
+    if (hasGame) {
+      predictedDepts.push({
+        key: 'desktop_game',
+        title: '🏢 Phòng Phát Triển Game & Desktop',
+        role: 'desktop_game_dev',
+        task: 'Phát triển module Game & ứng dụng Desktop'
+      });
+    }
+
+    const createdList = [];
+    const rolesList = this.getTwentyRolesList();
+    const roleMap = {};
+    rolesList.forEach(r => { roleMap[r.category] = r; });
+    const pmRole = roleMap['pm'];
+
+    predictedDepts.forEach(dept => {
+      const already = proj.chats.find(c => c.departmentKey === dept.key || (c.title && c.title.toLowerCase().includes(dept.key)));
+      if (!already) {
+        const specRole = roleMap[dept.role] || roleMap['fullstack_dev'];
+        const pmAgent = {
+          id: 'ag_pm_' + crypto.randomBytes(3).toString('hex'),
+          category: 'pm',
+          name: pmRole.name,
+          roleTitle: pmRole.roleTitle,
+          badge: 'PM',
+          color: pmRole.color || '#3b82f6',
+          model: pmRole.defaultModel || 'nvidia/nemotron-3.5-lightning:free',
+          providerId: pmRole.providerId || 'prov_openrouter'
+        };
+        const specAgent = {
+          id: 'ag_spec_' + crypto.randomBytes(3).toString('hex'),
+          category: specRole.category,
+          name: specRole.name,
+          roleTitle: specRole.roleTitle,
+          badge: specRole.badge,
+          color: specRole.color || '#10b981',
+          model: specRole.defaultModel || 'cohere/north-mini-code:free',
+          providerId: specRole.providerId || 'prov_openrouter',
+          responsibility: specRole.desc
+        };
+
+        const newDeptChat = {
+          id: 'chat_' + crypto.randomBytes(6).toString('hex'),
+          title: dept.title,
+          model: specAgent.model,
+          providerId: specAgent.providerId,
+          isDepartment: true,
+          departmentKey: dept.key,
+          agents: [pmAgent, specAgent],
+          createdAt: new Date().toISOString(),
+          messages: [
+            {
+              id: 'msg_' + crypto.randomBytes(6).toString('hex'),
+              role: 'assistant',
+              author: 'Project Manager (PM) – Quản lý dự án',
+              agentBadge: 'PM',
+              agentColor: '#3b82f6',
+              agentRole: 'Project Manager (PM)',
+              content: `Chào đồng chí @${specAgent.name} (${specAgent.roleTitle}),\n\nPhòng ban **${dept.title}** chính thức được thành lập phục vụ dự án **${proj.name}**!\n🎯 **Nhiệm vụ trọng tâm:** ${dept.task}.\n\nĐề nghị đồng chí sẵn sàng túc trực, triển khai mã nguồn và báo cáo tiến độ khi có lệnh từ Sếp!`,
+              timestamp: new Date().toISOString()
+            },
+            {
+              id: 'msg_' + crypto.randomBytes(6).toString('hex'),
+              role: 'assistant',
+              author: specAgent.name,
+              agentId: specAgent.id,
+              agentBadge: specAgent.badge,
+              agentColor: specAgent.color,
+              agentRole: specAgent.roleTitle,
+              content: `Dạ chào Quản lý dự án (PM)! Tôi đã nắm rõ trách nhiệm chuyên môn của **${dept.title}**.\n\nTôi đã rà soát sẵn sàng và cam kết phối hợp chặt chẽ cùng các phòng ban khác theo chỉ đạo của Sếp và PM.\n\nBáo cáo Quản lý dự án (PM): Phòng ban đã sẵn sàng nhận nhiệm vụ!`,
+              timestamp: new Date().toISOString()
+            }
+          ]
+        };
+
+        proj.chats.push(newDeptChat);
+        createdList.push(newDeptChat);
+      }
+    });
+
+    if (createdList.length > 0) {
+      proj.updatedAt = new Date().toISOString();
+      writeDb(data);
+    }
+
+    return { allDepartments: proj.chats.filter(c => c.isDepartment), newlyCreated: createdList };
+  },
+
   getOrCreateDepartmentChat(projectId, deptInfo) {
     const data = readDb();
     const proj = (data.projects || []).find(p => p.id === projectId);

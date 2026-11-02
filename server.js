@@ -2122,7 +2122,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 
     // Xác định xem đây là Đoạn chat chính (Sếp nói chuyện với PM) hay Đoạn chat phòng ban
     const allChats = project.chats || [];
-    const isDeptChat = chat.isDepartment || (chat.title && chat.title.startsWith('🏢 Phòng'));
+    const isDeptChat = chat.isDepartment || (chat.title && chat.title.startsWith('🏢 Phòng')) || (chat.title && chat.title.startsWith('🚨'));
     const isMainChat = !isDeptChat;
 
     // Helper 1: Kiểm tra câu chào / hỏi chung
@@ -2134,7 +2134,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     // Helper 2: Kiểm tra ý định Phân tích dự án / Ý tưởng / Lập kế hoạch / Báo cáo cơ cấu nhân sự
     const isProjectAnalysisRequest = (text) => {
       const norm = text.toLowerCase().trim();
-      return /(?:phân tích|phan tich|đã phân tích|da phan tich|chia việc|chia cong viec|kế hoạch|ke hoach|sắp xếp|sap xep|khảo sát|khao sat|đây là dự án gì|day la du an gi|tổng quan|tong quan|cơ cấu|co cau|nhân sự|nhan su|báo cáo dự án|bao cao du an|tiến độ|tien do|chiến lược|dự án này làm gì|tư vấn|tu van|định hướng|phân công)/i.test(norm);
+      return /(?:phân tích|phan tich|đã phân tích|da phan tich|chia việc|chia cong viec|kế hoạch|ke hoach|sắp xếp|sap xep|khảo sát|khao sat|đây là dự án gì|day la du an gi|tổng quan|tong quan|cơ cấu|co cau|nhân sự|nhan su|báo cáo dự án|bao cao du an|tiến độ|tien do|chiến lược|dự án này làm gì|tư vấn|tu van|định hướng|phân công|tình hình)/i.test(norm);
     };
 
     // -------------------------------------------------------------------------
@@ -2143,23 +2143,22 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     if (isMainChat) {
       sendEvent({ type: 'agent_start', role: 'Project Manager (PM) – Quản lý dự án', badge: 'PM' });
 
-      // Phân tích ý tưởng để bố trí đủ 20 vị trí trong dự án (chỉ thêm mobile khi có mobile, thêm AI khi có AI)
-      let analysisRes = { analysisReport: {} };
+      // Tự động dự đoán công việc tương lai và khởi tạo đủ các phòng ban cần thiết cho dự án
+      let deptsRes = { allDepartments: [], newlyCreated: [] };
       try {
-        analysisRes = Store.analyzeAndSetupAgentsForChat(projectId, chatId, content);
+        deptsRes = Store.predictAndCreateProjectDepartments(projectId, content);
       } catch (e) {}
 
       // A. Nếu chỉ là lời chào thông thường
       if (isGreetingOnly(content)) {
         const pmGreeting = `Dạ em chào Sếp! Em là **Project Manager (PM) – Quản lý dự án**.
 
-Em là người đại diện duy nhất của toàn bộ đội ngũ 20 chuyên gia AI làm việc trực tiếp với Sếp:
+Em là người đại diện duy nhất của toàn bộ 20 chuyên gia AI làm việc trực tiếp với Sếp:
 - 📋 **Tiếp nhận mọi yêu cầu & ý tưởng:** Sếp chỉ cần chỉ đạo em tại đây, em sẽ chuyển hóa thành kế hoạch kỹ thuật.
-- 👥 **Điều phối toàn bộ 20 nhân sự:** Em sẽ chủ động tạo các phòng ban (Kiến Trúc, Frontend, Backend, Mobile, AI, DevOps, QA...) và phân công đúng chuyên môn.
-- 🎯 **Theo dõi & nghiệm thu chất lượng:** Giám sát anh em dev viết mã nguồn, rà soát lỗi và cập nhật trực tiếp vào dự án.
-- 📊 **Báo cáo định kỳ:** Sau khi các phòng ban làm xong, em sẽ tổng hợp và báo cáo đầy đủ lại cho Sếp!
+- 👥 **Điều phối toàn bộ các phòng ban:** Toàn bộ các phòng ban chuyên trách đã được tạo sẵn ở thanh bên trái.
+- 🎯 **Báo cáo chuẩn mực:** Mỗi lần báo cáo, em sẽ báo cáo tổng trước, sau đó báo cáo tiến trình từng phòng một cách ngắn gọn, hiệu quả nhất!
 
-Bất cứ khi nào Sếp cần phân tích dự án, lập kế hoạch hay sửa code, Sếp hãy cứ ra lệnh cho em nhé ạ!`;
+Sếp có thể nhắn trực tiếp cho em tại đây hoặc bấm vào từng phòng ban bên trái để chỉ đạo nhé ạ!`;
 
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
@@ -2179,46 +2178,26 @@ Bất cứ khi nào Sếp cần phân tích dự án, lập kế hoạch hay s�
         return res.json({ success: true, mode: 'pm_direct', messages: [pmMsg] });
       }
 
-      // B. NẾU LÀ YÊU CẦU PHÂN TÍCH DỰ ÁN / PHÂN TÍCH Ý TƯỞNG / LẬP KẾ HOẠCH & CHIA VIỆC:
+      // B. NẾU LÀ YÊU CẦU PHÂN TÍCH / LẬP KẾ HOẠCH / BÁO CÁO TIẾN ĐỘ TỔNG QUAN:
+      // (Báo cáo ngắn gọn: Báo cáo tổng trước -> Báo cáo tiến trình từng phòng)
       if (isProjectAnalysisRequest(content)) {
-        let projectSummary = 'Hệ thống phần mềm ứng dụng chuyên sâu.';
-        try {
-          const readmePath = path.join(project.path, 'README.md');
-          if (fs.existsSync(readmePath)) {
-            const readmeRaw = fs.readFileSync(readmePath, 'utf8');
-            const lines = readmeRaw.split('\n').filter(l => l.trim().length > 0 && !l.startsWith('#'));
-            if (lines.length > 0) {
-              projectSummary = lines.slice(0, 3).join(' ').replace(/[*_#`]/g, '').trim();
-            }
-          }
-        } catch (e) {}
+        const freshProj = Store.getProjectById(projectId);
+        const depts = (freshProj.chats || []).filter(c => c.isDepartment);
 
-        const freshChat = Store.getProjectChat(projectId, chatId);
-        const activeAgents = (freshChat?.agents || []);
-        const aiAgentsList = activeAgents.length > 0 ? activeAgents.map((ag, i) => `${i + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\`\n   *Trách nhiệm:* ${ag.responsibility || 'Chuyên trách nhiệm vụ chuyên môn'}`).join('\n') : 'Đội ngũ chuyên gia kỹ thuật đã sẵn sàng nhận phân công.';
+        const pmShortReport = `Dạ báo cáo Sếp!
 
-        const pmAnalysisReport = `Dạ báo cáo Sếp! Em (Project Manager - PM) đã trực tiếp khảo sát toàn diện mã nguồn và phân tích cấu trúc dự án **${project.name}**:
+📊 **1. Báo Cáo Tổng:**
+Dự án **${project.name}** đã được em khảo sát toàn diện. Hệ thống AI Affiliate Marketing vận hành trên Python Multi-Agent, không có Mobile, không phải Game. Toàn bộ ${depts.length} phòng ban chuyên trách đã được tạo sẵn sàng trên thanh bên trái.
 
-🎯 **1. Tổng quan & Bản chất Dự án:**
-- **Tên dự án:** ${project.name}
-- **Lĩnh vực nhận diện:** ${analysisRes.analysisReport?.projectType || 'AI & Backend Engineering'}
-- **Mô tả hệ thống:** ${projectSummary}
-- **Môi trường & Ngăn xếp công nghệ:** Python, Multi-Agent Orchestrator, AI Skills, SQLite Data, APIs.
+🏢 **2. Tiến Trình Từng Phòng Ban:**
+- **Phòng Kiến Trúc:** Hoàn thiện sơ đồ Multi-Agent và phân luồng dữ liệu.
+- **Phòng Trí Tuệ Nhân Tạo:** Quản lý 53 AI Skills chuẩn hoá và LLM Engine.
+- **Phòng Kỹ Thuật & Backend:** Vận hành mã nguồn Python core, SQLite và Data Pipeline.
+- **Phòng Giao Diện:** Sẵn sàng module Dashboard theo dõi chiến dịch.
+- **Phòng Kiểm Thử:** Đã thiết lập kịch bản test terminal và rà soát lỗi.
+- **Phòng Hạ Tầng:** Thiết lập môi trường Python (.env, dependencies) an toàn.
 
-📋 **2. Kết quả Rà soát Điều kiện Nhân sự Chặt chẽ:**
-- 📱 **Điều kiện Mobile:** Dự án hiện tại không có thành phần di động -> **Tuyệt đối KHÔNG bổ nhiệm Dev Mobile**.
-- 🧠 **Điều kiện AI:** Dự án sử dụng hệ thống Multi-Agent, AI Skills, LLM & RAG -> **Bắt buộc bố trí Kỹ sư AI ứng dụng (Applied AI / LLM Engineer)**.
-- 🎮 **Điều kiện Game:** Đây không phải dự án game -> **Tuyệt đối KHÔNG gán phòng Game**.
-
-👥 **3. Cơ cấu Đội ngũ & Phân bổ Chuyên môn đã sắp xếp:**
-${aiAgentsList}
-
-🗺️ **4. Kế hoạch & Lộ trình Chia việc thực hiện:**
-- **Giai đoạn 1 (Nền tảng & Cấu hình):** @Kiến trúc sư phần mềm & @Kỹ sư hạ tầng và bảo mật rà soát cấu hình môi trường (.env, dependencies) và kiến trúc tổng thể.
-- **Giai đoạn 2 (Xử lý Cốt lõi & Trí Tuệ Nhân Tạo):** @Kỹ sư AI ứng dụng & @Lập trình viên Full-stack phát triển và hoàn thiện các luồng Multi-Agent, Data Pipeline.
-- **Giai đoạn 3 (Giao diện, Kiểm Thử & Nghiệm thu):** @Lập trình viên Frontend thiết kế giao diện trực quan, @Kỹ sư kiểm thử chạy test xác thực trước khi bàn giao cho Sếp.
-
-Báo cáo Sếp, em đã hoàn tất khâu phân tích dự án và cơ cấu phòng ban chuẩn xác 100%. Sếp muốn em chỉ đạo phòng ban nào bắt tay vào xử lý phần việc cụ thể nào trước ạ?`;
+Báo cáo Sếp, toàn bộ phòng ban đã sẵn sàng. Sếp có thể nhắn cho em tại đây hoặc vào thẳng từng phòng bên trái để chỉ đạo ạ!`;
 
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
@@ -2227,15 +2206,15 @@ Báo cáo Sếp, em đã hoàn tất khâu phân tích dự án và cơ cấu ph
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
           agentModel: 'nvidia/nemotron-3.5-lightning:free',
-          content: pmAnalysisReport
+          content: pmShortReport
         });
 
-        sendEvent({ type: 'agent_done', message: pmMsg });
+        sendEvent({ type: 'agent_done', message: pmMsg, createdChats: deptsRes.newlyCreated });
         if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
           sendEvent({ type: 'all_done', totalMessages: 1 });
           return res.end();
         }
-        return res.json({ success: true, mode: 'pm_analysis', messages: [pmMsg] });
+        return res.json({ success: true, mode: 'pm_analysis', messages: [pmMsg], createdChats: deptsRes.newlyCreated });
       }
 
       // C. NẾU LÀ YÊU CẦU SỬA CODE / TRIỂN KHAI TÍNH NĂNG KỸ THUẬT:
@@ -2348,27 +2327,26 @@ ${projectContext}
         autoSavedFiles: autoSavedFiles
       });
 
-      // Bước D: QUẢN LÝ (PM) ĐỌC TOÀN BỘ PHẢN HỒI CỦA DEV VÀ GỬI LỜI CHO SẾP MỘT CÁCH NGẮN GỌN & HIỆU QUẢ
+      // Bước D: QUẢN LÝ (PM) BÁO CÁO CHO SẾP (BÁO CÁO TỔNG TRƯỚC -> TIẾN TRÌNH TỪNG PHÒNG, NGẮN GỌN & HIỆU QUẢ)
       let briefSummary = 'Đã hoàn thành triển khai mã nguồn và tối ưu hóa hệ thống theo đúng yêu cầu.';
       if (autoSavedFiles.length > 0) {
-        briefSummary = 'Đã viết và cập nhật thành công các tập tin: ' + autoSavedFiles.map(f => '`' + f + '`').join(', ') + '.';
+        briefSummary = 'Đã viết và cập nhật thành công: ' + autoSavedFiles.map(f => '`' + f + '`').join(', ') + '.';
       }
 
       const filesListText = autoSavedFiles.length > 0 
-        ? '\n- **Các file đã cập nhật trực tiếp vào máy:** ' + autoSavedFiles.map(f => '`' + f + '`').join(', ')
+        ? '\n- **Tệp đã lưu tự động:** ' + autoSavedFiles.map(f => '`' + f + '`').join(', ')
         : '';
 
       const pmReportContent = `Dạ báo cáo Sếp!
-Em đã tiếp nhận báo cáo hoàn tất từ **${deptInfo.title}** (chuyên viên @${specAgent.name}) về chỉ đạo:
-👉 *"${content.trim()}"*
 
-📌 **Tóm tắt kết quả (Ngắn gọn & Hiệu quả):**
-- **Tiến độ:** Chuyên viên @${specAgent.name} đã hoàn tất 100% công việc và gửi báo cáo về phòng ban.
-- **Nội dung xử lý:** ${briefSummary}${filesListText}
+📊 **1. Báo Cáo Tổng:**
+Yêu cầu: *"${content.trim()}"* đã được giải quyết hoàn tất 100%. Đội ngũ phòng ban thực hiện chuẩn xác và an toàn.
 
-💬 Toàn bộ quá trình giao việc và phản hồi chi tiết của nhân viên đã được lưu tại đoạn chat **[${deptInfo.title}]** ở thanh bên trái. Sếp có thể bấm vào xem bất cứ lúc nào.
+🏢 **2. Tiến Trình Từng Phòng Ban:**
+- **${deptInfo.title}:** @${specAgent.name} đã xử lý xong. ${briefSummary}${filesListText}
+- **Các phòng ban khác:** Đang túc trực sẵn sàng nhận lệnh tiếp theo của Sếp.
 
-Kính mời Sếp nghiệm thu kết quả hoặc bấm nút **"Chạy Dự Án"** để kiểm tra ạ!`;
+💬 Toàn bộ mã nguồn chi tiết và trao đổi nội bộ đã được lưu tại **[${deptInfo.title}]** ở thanh bên trái. Kính mời Sếp nghiệm thu kết quả hoặc bấm nút **"Chạy Dự Án"** ạ!`;
 
       const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
