@@ -5706,6 +5706,7 @@ async function sendProjectIdea() {
           attachments,
           model: selectedModel,
           providerId: selectedProviderId,
+          executionMode: window.currentExecutionMode || 'turbo',
           isStream: false
         })
       });
@@ -6114,6 +6115,11 @@ let projectsListenersInitialized = false;
 function initProjectsEventListeners() {
   if (projectsListenersInitialized) return;
   projectsListenersInitialized = true;
+
+  // Khởi tạo chế độ Turbo / Execution Control
+  if (typeof window.initTurboExecutionMode === 'function') {
+    window.initTurboExecutionMode();
+  }
 
   // Gửi ý tưởng / tin nhắn
   const btnSend = document.getElementById('btn-send-project-idea');
@@ -7205,11 +7211,112 @@ window.saveCurrentProjImageToProject = async function() {
   }
 };
 
+// =============================================================================
+// TURBO & EXECUTION CONTROL MODE (Matches Images 1 & 2)
+// =============================================================================
+const TURBO_MODES = {
+  review: {
+    label: 'Request Review',
+    desc: 'Every command requires approval.',
+    iconSvg: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="9.5" cy="12" r="1.8"/><circle cx="14.5" cy="12" r="1.8"/><line x1="11.3" y1="12" x2="12.7" y2="12"/></svg>`
+  },
+  default: {
+    label: 'Default',
+    desc: 'Ask before sensitive operations.',
+    iconSvg: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><rect x="9.5" y="11" width="5" height="4" rx="1"/><path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11"/></svg>`
+  },
+  auto: {
+    label: 'Auto (Preview)',
+    desc: 'Automatically decide if commands run.',
+    iconSvg: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8.5l.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8z"/></svg>`
+  },
+  turbo: {
+    label: 'Turbo',
+    desc: 'Run all commands without restrictions.',
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="#3b82f6" stroke="#60a5fa" stroke-width="1.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
+  }
+};
+
+window.currentExecutionMode = 'turbo';
+
+window.toggleTurboMenu = function(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const dropdown = document.getElementById('antigravity-turbo-dropdown');
+  const badgeBtn = document.getElementById('btn-toggle-turbo-menu');
+  if (!dropdown) return;
+
+  const isVisible = dropdown.style.display === 'block';
+  if (isVisible) {
+    dropdown.style.display = 'none';
+    if (badgeBtn) badgeBtn.classList.remove('active');
+  } else {
+    dropdown.style.display = 'block';
+    if (badgeBtn) badgeBtn.classList.add('active');
+  }
+};
+
+window.selectTurboMode = function(modeKey) {
+  if (!TURBO_MODES[modeKey]) modeKey = 'turbo';
+  window.currentExecutionMode = modeKey;
+  localStorage.setItem('vincezone_execution_mode', modeKey);
+
+  const mode = TURBO_MODES[modeKey];
+  const iconEl = document.getElementById('turbo-badge-icon');
+  const labelEl = document.getElementById('turbo-badge-label');
+  if (iconEl) iconEl.innerHTML = mode.iconSvg;
+  if (labelEl) labelEl.textContent = mode.label;
+
+  // Cập nhật checkmark trong dropdown
+  const items = document.querySelectorAll('.turbo-option-item');
+  items.forEach(item => {
+    if (item.getAttribute('data-mode') === modeKey) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+
+  // Đóng menu
+  const dropdown = document.getElementById('antigravity-turbo-dropdown');
+  const badgeBtn = document.getElementById('btn-toggle-turbo-menu');
+  if (dropdown) dropdown.style.display = 'none';
+  if (badgeBtn) badgeBtn.classList.remove('active');
+
+  if (typeof showToast === 'function') {
+    showToast(`Chế độ thực thi: ${mode.label}`);
+  }
+};
+
+window.initTurboExecutionMode = function() {
+  const savedMode = localStorage.getItem('vincezone_execution_mode') || 'turbo';
+  window.selectTurboMode(savedMode);
+};
+
+// Đóng menu khi click ra ngoài
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('antigravity-turbo-wrapper');
+  const dropdown = document.getElementById('antigravity-turbo-dropdown');
+  const badgeBtn = document.getElementById('btn-toggle-turbo-menu');
+  if (dropdown && dropdown.style.display === 'block') {
+    if (wrapper && !wrapper.contains(e.target)) {
+      dropdown.style.display = 'none';
+      if (badgeBtn) badgeBtn.classList.remove('active');
+    }
+  }
+});
+
 // Tự động khởi chạy Projects listeners khi app load
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initProjectsEventListeners);
+  document.addEventListener('DOMContentLoaded', () => {
+    initProjectsEventListeners();
+    if (typeof window.initTurboExecutionMode === 'function') window.initTurboExecutionMode();
+  });
 } else {
   initProjectsEventListeners();
+  if (typeof window.initTurboExecutionMode === 'function') window.initTurboExecutionMode();
 }
 
 
