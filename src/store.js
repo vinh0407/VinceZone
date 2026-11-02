@@ -30,11 +30,11 @@ const defaultData = {
         'nvidia/nemotron-3-ultra-550b-a55b:free',
         'nvidia/nemotron-3.5-super-vl:free',
         'nvidia/nemotron-3.5-lightning:free',
-        'xingchen-agi/xing4.0-29b-a4b:free',
-        'liquid/lfm-2.5-2.6b:free',
-        'google/gemma-4-26b-a4b-it:free',
+        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        'kilo-auto/free',
+        'kilo-auto/free',
         'cohere/north-mini-code:free',
-        'recursive/flint-v1.0:free',
+        'kilo-auto/free',
         'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         'openrouter/free'
       ],
@@ -48,11 +48,11 @@ const defaultData = {
       baseUrl: 'https://api.cloudflare.com/client/v4/accounts/e155cf04b558472645b9444756a0deed/ai/v1',
       apiKey: process.env.CLOUDFLARE_API_TOKEN || '',
       models: [
-        '@cf/meta/llama-3.2-1b-instruct',
+        'kilo-auto/free',
         '@cf/meta/llama-3.2-3b-instruct',
         '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
         '@cf/meta/llama-3.2-11b-vision-instruct',
-        '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         '@cf/baai/bge-m3',
         '@cf/baai/bge-reranker-base',
         '@cf/black-forest-labs/flux-1-schnell'
@@ -70,10 +70,10 @@ const defaultData = {
         'kilo-auto/free',
         'cohere/north-mini-code:free',
         'dots-studio/dots-3-note-preview:free',
-        'liquid/lfm-2.5-2.6b:free',
+        'kilo-auto/free',
         'nvidia/nemotron-3-ultra-550b-a55b:free',
         'nvidia/nemotron-3.5-lightning:free',
-        'recursive/flint-v1.0:free'
+        'kilo-auto/free'
       ],
       enabled: true,
       createdAt: new Date().toISOString()
@@ -86,9 +86,9 @@ const defaultData = {
       apiKey: process.env.OPENCODE_API_KEY || '',
       models: [
         'deepseek-v4.1-flash-free',
-        'glm-5.3-flash-free',
+        'kilo-auto/free',
         'nemotron-3.5-lightning-free',
-        'nemotron-3.5-super-vl-free',
+        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         'mimo-v2.6-flash-free',
         'flint-40b-free',
         'beam-free',
@@ -233,7 +233,7 @@ const Store = {
   },
 
   findProviderForModel(modelName) {
-    const providers = this.getProviders().filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode' || p.id === 'prov_pollinations'));
+    const providers = this.getProviders().filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode' || p.id === 'prov_pollinations')).sort((a, b) => (a.id === 'prov_kilo_gateway' ? -1 : (b.id === 'prov_kilo_gateway' ? 1 : 0)));
     const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normTarget = normalize(modelName);
 
@@ -901,8 +901,8 @@ const Store = {
         desc: 'Định hướng công nghệ, phê duyệt chiến lược và giải pháp kỹ thuật.',
         color: '#6366f1',
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '02',
@@ -914,8 +914,8 @@ const Store = {
         desc: 'Tiếp nhận dự án, lập kế hoạch, quản lý tiến độ và điều phối nhân sự.',
         color: '#3b82f6',
         defaultModel: 'nvidia/nemotron-3.5-lightning:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '03',
@@ -926,9 +926,9 @@ const Store = {
         domain: 'Management & Project Management',
         desc: 'Phân tích yêu cầu, nghiên cứu nghiệp vụ và đặc tả chức năng.',
         color: '#06b6d4',
-        defaultModel: 'liquid/lfm-2.5-2.6b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        defaultModel: 'kilo-auto/free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 2. Architecture & Technical Leadership – Kiến trúc và chuyên gia kỹ thuật
@@ -942,8 +942,8 @@ const Store = {
         desc: 'Thiết kế kiến trúc tổng thể, lựa chọn công nghệ và định hướng giải pháp.',
         color: '#8b5cf6',
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '05',
@@ -955,8 +955,8 @@ const Store = {
         desc: 'Thiết kế cấu trúc phần mềm, Design Patterns, Scalability và Maintainability.',
         color: '#a855f7',
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '06',
@@ -968,8 +968,8 @@ const Store = {
         desc: 'Review code, định hướng Developer, xử lý vấn đề kỹ thuật phức tạp.',
         color: '#d946ef',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '07',
@@ -980,9 +980,9 @@ const Store = {
         domain: 'Architecture & Technical Leadership',
         desc: 'Thẩm định source code, phản biện giải pháp, tối ưu hệ thống và tư vấn kỹ thuật chuyên sâu.',
         color: '#ec4899',
-        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-        providerId: 'prov_cloudflare_ai',
-        providerName: 'Cloudflare Workers AI'
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 3. Software Development – Phát triển phần mềm
@@ -995,9 +995,9 @@ const Store = {
         domain: 'Software Development',
         desc: 'Phát triển giao diện Web, Responsive, tương tác và tích hợp API.',
         color: '#10b981',
-        defaultModel: 'nemotron-3.5-super-vl-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode'
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '09',
@@ -1008,9 +1008,9 @@ const Store = {
         domain: 'Software Development',
         desc: 'Xây dựng kiến trúc Frontend, tối ưu hiệu năng và review code giao diện.',
         color: '#059669',
-        defaultModel: 'google/gemma-4-26b-a4b-it:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        defaultModel: 'kilo-auto/free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '10',
@@ -1022,8 +1022,8 @@ const Store = {
         desc: 'Phát triển API, xử lý nghiệp vụ, Authentication và Server.',
         color: '#0284c7',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '11',
@@ -1034,9 +1034,9 @@ const Store = {
         domain: 'Software Development',
         desc: 'Thiết kế Backend, tối ưu Database, bảo mật và hiệu năng.',
         color: '#0369a1',
-        defaultModel: 'glm-5.3-flash-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode'
+        defaultModel: 'kilo-auto/free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '12',
@@ -1048,8 +1048,8 @@ const Store = {
         desc: 'Phát triển toàn diện Frontend, Backend và tích hợp hệ thống.',
         color: '#14b8a6',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 4. Mobile & Cross-platform Development – Phát triển ứng dụng di động
@@ -1063,8 +1063,8 @@ const Store = {
         desc: 'Phát triển ứng dụng Android bằng Kotlin/Java.',
         color: '#84cc16',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '14',
@@ -1076,8 +1076,8 @@ const Store = {
         desc: 'Phát triển ứng dụng iOS bằng Swift.',
         color: '#64748b',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '15',
@@ -1089,8 +1089,8 @@ const Store = {
         desc: 'Phát triển ứng dụng Android/iOS và đa nền tảng bằng Flutter.',
         color: '#0284c7',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 5. AI & Data Engineering – Trí tuệ nhân tạo và dữ liệu
@@ -1104,8 +1104,8 @@ const Store = {
         desc: 'Phát triển Machine Learning, Deep Learning, Computer Vision và NLP.',
         color: '#f59e0b',
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '17',
@@ -1116,9 +1116,9 @@ const Store = {
         domain: 'AI & Data Engineering',
         desc: 'Tích hợp LLM, AI Agent, RAG, AI API và tự động hóa quy trình.',
         color: '#eab308',
-        defaultModel: 'xingchen-agi/xing4.0-29b-a4b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 6. Desktop & Game Development – Phát triển Desktop và Game
@@ -1132,8 +1132,8 @@ const Store = {
         desc: 'Phát triển ứng dụng Windows/macOS, game 2D/3D bằng Unity, Unreal hoặc các framework phù hợp.',
         color: '#e11d48',
         defaultModel: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
 
       // 7. Quality Assurance & Infrastructure – Kiểm thử và hạ tầng
@@ -1146,9 +1146,9 @@ const Store = {
         domain: 'Quality Assurance & Infrastructure',
         desc: 'Kiểm thử chức năng, API, hiệu năng, tự động hóa test và kiểm soát chất lượng.',
         color: '#f97316',
-        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-        providerId: 'prov_cloudflare_ai',
-        providerName: 'Cloudflare Workers AI'
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         stt: '20',
@@ -1159,9 +1159,9 @@ const Store = {
         domain: 'Quality Assurance & Infrastructure',
         desc: 'Cloud, Server, Docker, CI/CD, triển khai, giám sát và bảo mật hệ thống.',
         color: '#71717a',
-        defaultModel: 'recursive/flint-v1.0:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        defaultModel: 'kilo-auto/free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       }
     ];
   },
@@ -1178,7 +1178,7 @@ const Store = {
         recommendedModels: [
           { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE OpenRouter]' },
           { id: '@cf/meta/llama-3.2-3b-instruct', name: 'Llama 3.2 3B [FREE Cloudflare]' },
-          { id: 'recursive/flint-v1.0:free', name: 'Flint Coding Agent [FREE OpenRouter]' },
+          { id: 'kilo-auto/free', name: 'Flint Coding Agent [FREE OpenRouter]' },
           { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra [FREE OpenRouter]' }
         ],
         systemPrompt: `Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).
@@ -1193,9 +1193,9 @@ const Store = {
         badge: 'TESTER',
         color: '#f59e0b',
         description: 'Chuyên gia rà soát lỗi logic, kiểm tra trường hợp biên, chạy lệnh terminal PowerShell/CMD để test dự án.',
-        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         recommendedModels: [
-          { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' },
+          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' },
           { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'NVIDIA Nemotron 30B Reasoning [FREE OpenRouter]' },
           { id: '@cf/meta/llama-3.1-8b-instruct-fp8-fast', name: 'Llama 3.1 8B Fast [FREE Cloudflare]' }
         ],
@@ -1214,7 +1214,7 @@ const Store = {
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
         recommendedModels: [
           { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B [FREE OpenRouter]' },
-          { id: 'xingchen-agi/xing4.0-29b-a4b:free', name: 'Xing4.0 Planning [FREE OpenRouter]' },
+          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'Xing4.0 Planning [FREE OpenRouter]' },
           { id: '@cf/meta/llama-3.2-3b-instruct', name: 'Llama 3.2 3B [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).
@@ -1232,7 +1232,7 @@ const Store = {
         defaultModel: 'nvidia/nemotron-3.5-lightning:free',
         recommendedModels: [
           { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning [FREE OpenRouter]' },
-          { id: 'liquid/lfm-2.5-2.6b:free', name: 'Liquid LFM [FREE OpenRouter]' },
+          { id: 'kilo-auto/free', name: 'Liquid LFM [FREE OpenRouter]' },
           { id: '@cf/meta/llama-3.2-11b-vision-instruct', name: 'Llama 3.2 11B Vision [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Chuyên Gia Review Mã Nguồn & Tối Ưu UI/UX (Senior Code Reviewer & UX Specialist).
@@ -1247,10 +1247,10 @@ const Store = {
         badge: 'DEVOPS',
         color: '#06b6d4',
         description: 'Chuyên gia cấu hình môi trường, script build, git status, cài đặt packages (npm, pip) và terminal.',
-        defaultModel: '@cf/meta/llama-3.2-1b-instruct',
+        defaultModel: 'kilo-auto/free',
         recommendedModels: [
-          { id: '@cf/meta/llama-3.2-1b-instruct', name: 'Llama 3.2 1B Instruct [FREE Cloudflare]' },
-          { id: 'recursive/flint-v1.0:free', name: 'Flint Coding Agent [FREE OpenRouter]' }
+          { id: 'kilo-auto/free', name: 'Llama 3.2 1B Instruct [FREE Cloudflare]' },
+          { id: 'kilo-auto/free', name: 'Flint Coding Agent [FREE OpenRouter]' }
         ],
         systemPrompt: `Bạn là Kỹ Sư DevOps & Hệ Thống (DevOps & Terminal Specialist).
 Điểm mạnh cốt lõi:
@@ -1301,7 +1301,7 @@ const Store = {
         defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
         recommendedModels: [
           { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B [FREE OpenRouter]' },
-          { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' }
+          { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' }
         ],
         systemPrompt: `Bạn là Chuyên Gia An Ninh & Kiểm Toán Bảo Mật (Application Security Specialist & Auth Engineer).
 [CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:
@@ -1335,7 +1335,7 @@ const Store = {
                 badge: 'ARCHITECT',
                 color: '#3b82f6',
                 model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-                providerId: 'prov_openrouter',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
               },
               {
@@ -1346,7 +1346,7 @@ const Store = {
                 badge: 'CODER',
                 color: '#10b981',
                 model: 'cohere/north-mini-code:free',
-                providerId: 'prov_openrouter',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
               },
               {
@@ -1356,8 +1356,8 @@ const Store = {
                 roleTitle: 'Kiểm Thử & Terminal',
                 badge: 'TESTER',
                 color: '#f59e0b',
-                model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-                providerId: 'prov_cloudflare_ai',
+                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
               }
             ]
@@ -1390,7 +1390,7 @@ const Store = {
                 badge: 'ARCHITECT',
                 color: '#3b82f6',
                 model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-                providerId: 'prov_openrouter',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().architect.systemPrompt
               },
               {
@@ -1401,7 +1401,7 @@ const Store = {
                 badge: 'CODER',
                 color: '#10b981',
                 model: 'cohere/north-mini-code:free',
-                providerId: 'prov_openrouter',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
               },
               {
@@ -1411,8 +1411,8 @@ const Store = {
                 roleTitle: 'Kiểm Thử & Terminal',
                 badge: 'TESTER',
                 color: '#f59e0b',
-                model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-                providerId: 'prov_cloudflare_ai',
+                model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                providerId: 'prov_kilo_gateway',
                 systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
               }
             ]
@@ -1425,7 +1425,7 @@ const Store = {
             type: 'team',
             teamId: defaultTeamId,
             model: 'cohere/north-mini-code:free',
-            providerId: 'prov_openrouter',
+            providerId: 'prov_kilo_gateway',
             createdAt: new Date().toISOString(),
             messages: []
           }
@@ -1479,7 +1479,7 @@ const Store = {
               badge: 'CODER',
               color: '#10b981',
               model: 'cohere/north-mini-code:free',
-              providerId: 'prov_openrouter',
+              providerId: 'prov_kilo_gateway',
               systemPrompt: this.getSpecializedCatalog().coder.systemPrompt
             },
             {
@@ -1489,8 +1489,8 @@ const Store = {
               roleTitle: 'Kiểm Thử & Terminal',
               badge: 'TESTER',
               color: '#f59e0b',
-              model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-              providerId: 'prov_cloudflare_ai',
+              model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+              providerId: 'prov_kilo_gateway',
               systemPrompt: this.getSpecializedCatalog().tester.systemPrompt
             }
           ]
@@ -1503,7 +1503,7 @@ const Store = {
           type: 'team',
           teamId: defaultTeamId,
           model: 'cohere/north-mini-code:free',
-          providerId: 'prov_openrouter',
+          providerId: 'prov_kilo_gateway',
           createdAt: new Date().toISOString(),
           messages: []
         }
@@ -1673,7 +1673,7 @@ const Store = {
         prov_opencode: 'deepseek-v4.1-flash-free'
       },
       tester: {
-        prov_cloudflare_ai: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        prov_cloudflare_ai: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         prov_openrouter: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         prov_kilo_gateway: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         prov_opencode: 'nemotron-3.5-lightning-free'
@@ -1685,13 +1685,13 @@ const Store = {
         prov_opencode: 'mimo-v2.6-flash-free'
       },
       database: {
-        prov_opencode: 'glm-5.3-flash-free',
+        prov_opencode: 'kilo-auto/free',
         prov_openrouter: 'nvidia/nemotron-3-ultra-550b-a55b:free',
         prov_kilo_gateway: 'poolside/laguna-s-2.1:free',
         prov_cloudflare_ai: '@cf/meta/llama-3.2-3b-instruct'
       },
       frontend: {
-        prov_opencode: 'nemotron-3.5-super-vl-free',
+        prov_opencode: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         prov_cloudflare_ai: '@cf/meta/llama-3.2-11b-vision-instruct',
         prov_openrouter: 'nvidia/nemotron-3.5-lightning:free',
         prov_kilo_gateway: 'kilo-auto/free'
@@ -1703,8 +1703,8 @@ const Store = {
         prov_opencode: 'flint-40b-free'
       },
       devops: {
-        prov_cloudflare_ai: '@cf/meta/llama-3.2-1b-instruct',
-        prov_openrouter: 'recursive/flint-v1.0:free',
+        prov_cloudflare_ai: 'kilo-auto/free',
+        prov_openrouter: 'kilo-auto/free',
         prov_kilo_gateway: 'poolside/laguna-s-2.1:free',
         prov_opencode: 'beam-free'
       },
@@ -1810,8 +1810,8 @@ const Store = {
         badge: 'ARCHITECT',
         color: '#3b82f6',
         model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         category: 'coder',
@@ -1819,35 +1819,35 @@ const Store = {
         badge: 'CODER',
         color: '#10b981',
         model: 'cohere/north-mini-code:free',
-        providerId: 'prov_openrouter',
-        providerName: 'OpenRouter'
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         category: 'tester',
         name: 'Kỹ Sư Kiểm Thử',
         badge: 'TESTER',
         color: '#f59e0b',
-        model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-        providerId: 'prov_cloudflare_ai',
-        providerName: 'Cloudflare Workers AI'
+        model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         category: 'database',
         name: 'Kỹ Sư CSDL & SQL',
         badge: 'DATABASE',
         color: '#14b8a6',
-        model: 'glm-5.3-flash-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode'
+        model: 'kilo-auto/free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       },
       {
         category: 'frontend',
         name: 'Kỹ Sư Frontend UI/UX',
         badge: 'FRONTEND',
         color: '#ec4899',
-        model: 'nemotron-3.5-super-vl-free',
-        providerId: 'prov_opencode',
-        providerName: 'OpenCode'
+        model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        providerId: 'prov_kilo_gateway',
+        providerName: 'Kilo Gateway'
       }
     ];
 
