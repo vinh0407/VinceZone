@@ -4506,6 +4506,113 @@ window.deleteProjectChat = async function(event, chatId) {
   }
 };
 
+// Thiết lập dropdown Nhà cung cấp & Model tương ứng trên Top Bar của đoạn chat
+async function setupChatTopBarProviderAndModel(chat) {
+  const provSelectEl = document.getElementById('chat-active-provider-select');
+  const modelSelectEl = document.getElementById('chat-active-model-select');
+  if (!provSelectEl || !modelSelectEl || !chat) return;
+
+  if (!councilProvidersCache || councilProvidersCache.length === 0) {
+    try {
+      const res = await fetch('/api/providers');
+      councilProvidersCache = await res.json();
+    } catch (e) {
+      councilProvidersCache = [];
+    }
+  }
+
+  // Lọc các nhà cung cấp ĐANG HOẠT ĐỘNG (có API Key hoặc Gateway mặc định hoạt động)
+  const activeProvs = (councilProvidersCache || []).filter(p => {
+    return p.enabled !== false && (
+      p.apiKey ||
+      p.id === 'prov_openrouter' ||
+      p.id === 'prov_cloudflare_ai' ||
+      p.id === 'prov_kilo_gateway' ||
+      p.id === 'prov_opencode'
+    );
+  });
+
+  // Điền danh sách Provider
+  provSelectEl.innerHTML = '';
+  activeProvs.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    const modelCount = (p.models || []).length;
+    opt.textContent = `⚡ ${p.name} (${modelCount} Models)`;
+    provSelectEl.appendChild(opt);
+  });
+
+  // Xác định provider hiện tại của chat
+  let currentProvId = chat.providerId;
+  if (!currentProvId || !activeProvs.some(p => p.id === currentProvId)) {
+    const matched = activeProvs.find(p => (p.models || []).includes(chat.model));
+    currentProvId = matched ? matched.id : (activeProvs[0] ? activeProvs[0].id : null);
+  }
+
+  if (currentProvId) {
+    provSelectEl.value = currentProvId;
+  }
+
+  const updateModelsDropdown = async (isUserTriggered = false) => {
+    const selectedProvId = provSelectEl.value;
+    const prov = activeProvs.find(p => p.id === selectedProvId) || activeProvs[0];
+    modelSelectEl.innerHTML = '';
+    if (!prov) return;
+
+    (prov.models || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      const isFree = m.includes(':free') || m.includes('-free') || m.includes('free');
+      opt.textContent = `${m} ${isFree ? '[FREE]' : ''}`;
+      modelSelectEl.appendChild(opt);
+    });
+
+    if ((prov.models || []).includes(chat.model)) {
+      modelSelectEl.value = chat.model;
+    } else if (prov.models && prov.models.length > 0) {
+      modelSelectEl.value = prov.models[0];
+    }
+
+    if (isUserTriggered) {
+      const newModel = modelSelectEl.value;
+      try {
+        await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chat.id}/model`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: newModel, providerId: selectedProvId })
+        });
+        chat.model = newModel;
+        chat.providerId = selectedProvId;
+        showToast(`⚡ Đã chuyển sang ${prov.name} - Model: ${newModel}`);
+      } catch (e) {
+        showToast('Lỗi đổi model: ' + e.message);
+      }
+    }
+  };
+
+  provSelectEl.onchange = () => updateModelsDropdown(true);
+
+  modelSelectEl.onchange = async () => {
+    const newModel = modelSelectEl.value;
+    const selectedProvId = provSelectEl.value;
+    const prov = activeProvs.find(p => p.id === selectedProvId);
+    try {
+      await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chat.id}/model`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: newModel, providerId: selectedProvId })
+      });
+      chat.model = newModel;
+      chat.providerId = selectedProvId;
+      showToast(`✔ Đã chọn Model: ${newModel}`);
+    } catch (e) {
+      showToast('Lỗi đổi model: ' + e.message);
+    }
+  };
+
+  await updateModelsDropdown(false);
+}
+
 // 7. Render Nội Dung Cuộc Trò Chuyện & Top Bar
 function renderProjectChat(chat) {
   projectsState.activeChat = chat;
@@ -4529,36 +4636,8 @@ function renderProjectChat(chat) {
   if (topBarEl) topBarEl.style.display = 'flex';
   if (titleEl) titleEl.textContent = chat.title;
 
-  // Điền danh sách model cho dropdown đoạn chat
-  if (modelSelectEl) {
-    if (!modelSelectEl.dataset.populated) {
-      modelSelectEl.innerHTML = `
-        <option value="kilo-auto/free">kilo-auto/free [FREE]</option>
-        <option value="beam-free">beam-free [OpenCode FREE]</option>
-        <option value="deepseek-v4.1-flash-free">deepseek-v4.1-flash-free [FREE]</option>
-        <option value="cohere/north-mini-code:free">cohere/north-mini-code:free [FREE Code]</option>
-        <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nemotron-3-nano-omni [FREE Logic]</option>
-        <option value="gemini-1.5-flash-free">gemini-1.5-flash-free [FREE]</option>
-        <option value="gpt-4o">gpt-4o (OpenAI)</option>
-        <option value="claude-3-7-sonnet">claude-3-7-sonnet (Anthropic)</option>
-      `;
-      modelSelectEl.dataset.populated = 'true';
-    }
-    modelSelectEl.value = chat.model || 'kilo-auto/free';
-    modelSelectEl.onchange = async () => {
-      try {
-        await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${chat.id}/model`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: modelSelectEl.value })
-        });
-        chat.model = modelSelectEl.value;
-        showToast(`Đã đổi AI thành: ${modelSelectEl.value}`);
-      } catch (e) {
-        showToast('Lỗi đổi model: ' + e.message);
-      }
-    };
-  }
+  // Đồng bộ Nhà cung cấp (Provider) & Model tương ứng trên Top Bar
+  setupChatTopBarProviderAndModel(chat);
 
   // Render các Agent trong đoạn chat (Tối đa 5 Agent)
   const agents = chat.agents || [];
@@ -4993,6 +5072,8 @@ async function sendProjectIdea() {
   }
 
   const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'kilo-auto/free');
+  const chatProvSelect = document.getElementById('chat-active-provider-select');
+  const selectedProviderId = chatProvSelect ? chatProvSelect.value : (projectsState.activeChat?.providerId);
 
   try {
     const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
@@ -5002,6 +5083,7 @@ async function sendProjectIdea() {
         content,
         attachments,
         model: selectedModel,
+        providerId: selectedProviderId,
         isStream: false
       })
     });

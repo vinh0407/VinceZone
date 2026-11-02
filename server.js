@@ -797,7 +797,7 @@ app.delete('/api/projects/:id/chats/:chatId/agents/:agentId', (req, res) => {
 // Đổi model AI chính của đoạn chat
 app.patch('/api/projects/:id/chats/:chatId/model', (req, res) => {
   try {
-    Store.updateProjectChatModel(req.params.id, req.params.chatId, req.body.model);
+    Store.updateProjectChatModel(req.params.id, req.params.chatId, req.body.model, req.body.providerId);
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -994,7 +994,9 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
         { role: 'user', content: content.trim() }
       ];
 
-      const agentResponse = await callInternalAI({ model, messages });
+      const activeModel = model || chat.model || 'kilo-auto/free';
+      const activeProv = req.body.providerId || chat.providerId;
+      const agentResponse = await callInternalAI({ model: activeModel, messages, providerId: activeProv });
 
       const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',

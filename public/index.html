@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css">
+ <link rel="stylesheet" href="style.css?v=3.1">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -417,13 +417,26 @@
       <!-- Chat Canvas Top Bar: Tiêu đề chat & Góc phải có DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5 AGENT) -->
       <div class="project-chat-topbar" id="project-chat-topbar" style="display: none;">
         <div class="chat-topbar-left">
-          <h4 id="project-chat-title" class="chat-title-heading">Đoạn Chat</h4>
-          <!-- Model Selector cho đoạn chat (giống playground) -->
+          <div class="chat-title-wrap">
+            <span class="chat-title-icon">💬</span>
+            <h4 id="project-chat-title" class="chat-title-heading">Hội đồng Code &amp; Fix lỗi</h4>
+          </div>
+          <!-- Model Selector cho đoạn chat (Chia rõ Provider -> Model tương ứng) -->
           <div class="chat-model-badge-box">
-            <span class="badge-label-micro">AI:</span>
-            <select id="chat-active-model-select" class="chat-model-dropdown" title="Đổi AI Model cho đoạn chat này">
-              <!-- Dynamically populated models -->
-            </select>
+            <div class="topbar-select-capsule" title="Nhà cung cấp AI đang hoạt động">
+              <span class="select-capsule-icon">🏢</span>
+              <span class="select-capsule-label">Provider:</span>
+              <select id="chat-active-provider-select" class="chat-model-dropdown">
+                <!-- Dynamically populated from active providers -->
+              </select>
+            </div>
+            <div class="topbar-select-capsule" title="Mô hình AI tương ứng với Provider">
+              <span class="select-capsule-icon">🤖</span>
+              <span class="select-capsule-label">Model:</span>
+              <select id="chat-active-model-select" class="chat-model-dropdown">
+                <!-- Dynamically populated based on active provider -->
+              </select>
+            </div>
           </div>
         </div>
 
@@ -482,8 +495,8 @@
         <!-- Attached Files & Images Preview Bar -->
         <div id="project-attachments-bar" class="project-attachments-bar" style="display: none;"></div>
 
-        <div class="composer-capsule">
-          <div class="composer-toolbar-left">
+        <div class="composer-capsule" style="background: #14141a; border: 1.5px solid #2e2e38; border-radius: 16px; padding: 0.75rem 1rem; display: flex; align-items: flex-end; gap: 0.75rem; width: 100%; max-width: 960px; box-sizing: border-box;">
+          <div class="composer-toolbar-left" style="display: flex; align-items: center; gap: 0.4rem; padding-bottom: 0.35rem; flex-shrink: 0;">
             <button type="button" id="btn-project-attach-file" class="btn-attach-icon" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
               📎
             </button>
@@ -498,11 +511,12 @@
             <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
           </div>
 
-          <textarea id="project-chat-input" class="composer-textarea" rows="2" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)"></textarea>
+          <textarea id="project-chat-input" class="composer-textarea" rows="2" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)" style="flex: 1; background: transparent; border: none; color: #f4f4f5; font-size: 1rem; line-height: 1.55; min-height: 52px; max-height: 240px; padding: 0.45rem 0.5rem; resize: none; outline: none; font-family: inherit; width: 100%; box-sizing: border-box;"></textarea>
 
-          <div class="composer-toolbar-right">
-            <button id="btn-send-project-idea" class="btn-primary btn-send-idea">
+          <div class="composer-toolbar-right" style="display: flex; align-items: center; padding-bottom: 0.35rem; flex-shrink: 0;">
+            <button id="btn-send-project-idea" class="btn-primary btn-send-idea" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: #ffffff; border: none; border-radius: 12px; padding: 0.75rem 1.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);">
               <span>Gửi</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </button>
           </div>
         </div>
@@ -1323,6 +1337,6 @@
       </nav>
  </div>
 
- <script src="app.js"></script>
+ <script src="app.js?v=3.1"></script>
 </body>
 </html>

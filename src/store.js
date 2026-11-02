@@ -1348,7 +1348,7 @@ const Store = {
     return true;
   },
 
-  updateProjectChatModel(projectId, chatId, model) {
+  updateProjectChatModel(projectId, chatId, model, providerId) {
     const data = readDb();
     data.projects = data.projects || [];
     const proj = data.projects.find(p => p.id === projectId);
@@ -1357,7 +1357,8 @@ const Store = {
     const chat = (proj.chats || []).find(c => c.id === chatId);
     if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
 
-    chat.model = model;
+    if (model) chat.model = model;
+    if (providerId) chat.providerId = providerId;
     proj.updatedAt = new Date().toISOString();
     writeDb(data);
     return true;
