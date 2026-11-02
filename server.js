@@ -1322,6 +1322,95 @@ app.post('/api/projects/:id/read-file', (req, res) => {
   }
 });
 
+
+// 9.16c Live Demo & Preview Phục vụ Web / Mobile App trực tiếp từ Dự Án
+app.use('/api/projects/:id/preview', (req, res, next) => {
+  const project = Store.getProjectById(req.params.id);
+  if (!project || !project.path || !fs.existsSync(project.path)) {
+    return res.status(404).send('<!DOCTYPE html><html><body style="background:#09090b;color:#ef4444;font-family:sans-serif;padding:2rem;text-align:center;"><h3>Thư mục dự án chưa tồn tại trên máy</h3></body></html>');
+  }
+
+  const normalizedProj = path.resolve(project.path);
+  let requestedSub = req.path || '/';
+
+  // Nếu truy cập root preview
+  if (requestedSub === '/' || requestedSub === '') {
+    const candidates = ['index.html', 'public/index.html', 'dist/index.html', 'build/index.html', 'src/index.html', 'app.html'];
+    let foundEntry = null;
+    for (const c of candidates) {
+      const fullCand = path.join(normalizedProj, c);
+      if (fs.existsSync(fullCand)) {
+        foundEntry = fullCand;
+        break;
+      }
+    }
+    if (foundEntry) {
+      return res.sendFile(foundEntry);
+    }
+
+    // Nếu không có index.html, kiểm tra xem có tệp HTML nào khác trong thư mục không
+    try {
+      const allFiles = [];
+      const scanHtml = (dir, depth = 0) => {
+        if (depth > 2) return;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const e of entries) {
+          if (['node_modules', '.git', '.gemini', 'dist-desktop'].includes(e.name)) continue;
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) scanHtml(full, depth + 1);
+          else if (e.name.endsWith('.html')) allFiles.push(path.relative(normalizedProj, full).replace(/\\/g, '/'));
+        }
+      };
+      scanHtml(normalizedProj);
+
+      if (allFiles.length > 0) {
+        return res.sendFile(path.resolve(normalizedProj, allFiles[0]));
+      }
+
+      return res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${project.name} - Live Demo</title>
+  <style>
+    body { background: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1.5rem; box-sizing: border-box; }
+    .card { background: #141417; border: 1px solid #27272a; border-radius: 12px; padding: 2rem; max-width: 480px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    h3 { margin: 0 0 0.5rem; color: #60a5fa; }
+    p { color: #a1a1aa; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.25rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.4rem; background: #2563eb; color: #fff; padding: 0.6rem 1.2rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.85rem; border: none; cursor: pointer; }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🚀</div>
+    <h3>${project.name}</h3>
+    <p>Chưa tìm thấy tệp <code>index.html</code> trong thư mục dự án để làm trang chủ web.</p>
+    <p style="font-size: 0.8rem; color: #71717a;">Bạn có thể nhờ AI viết giao diện web hoặc khởi chạy Dev Server (ví dụ: <code>npm run dev</code>) rồi chọn chế độ Dev Server URL để trình chiếu!</p>
+  </div>
+</body>
+</html>`);
+    } catch (err) {
+      return res.status(500).send(`Lỗi đọc file: ${err.message}`);
+    }
+  }
+
+  // Phục vụ tệp tĩnh trong dự án
+  const cleanSub = requestedSub.replace(/^\/+/, '');
+  const targetFile = path.resolve(normalizedProj, cleanSub);
+  if (!targetFile.toLowerCase().startsWith(normalizedProj.toLowerCase())) {
+    return res.status(403).send('Forbidden: Path Traversal Denied');
+  }
+
+  if (fs.existsSync(targetFile) && !fs.statSync(targetFile).isDirectory()) {
+    return res.sendFile(targetFile);
+  }
+
+  res.status(404).send('Không tìm thấy tệp: ' + cleanSub);
+});
+
 // 9.16b Lấy sơ đồ kiến trúc & giải thích chi tiết dự án (Project Architecture & Structure Analysis)
 app.get('/api/projects/:id/structure', (req, res) => {
   const project = Store.getProjectById(req.params.id);

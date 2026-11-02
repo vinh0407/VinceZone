@@ -7,8 +7,11 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=7.6">
- <!-- Markdown & Code Highlight Support -->
+ <link rel="stylesheet" href="style.css?v=8.0">
+   <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
@@ -703,6 +706,197 @@
       </div>
     </main>
   </div>
+  </section>
+
+  
+  <!-- ==================== TAB: DEMO & CODE INSPECTOR (WEB & MOBILE) ==================== -->
+  <section id="tab-demo" class="tab-pane">
+    <div class="demo-workspace-layout">
+      <!-- 1. Top Control Bar -->
+      <div class="demo-topbar">
+        <div class="demo-topbar-left">
+          <!-- Chọn dự án cần demo -->
+          <div class="demo-capsule-select" title="Chọn dự án muốn trình chiếu">
+            <span class="capsule-icon">📁</span>
+            <span class="capsule-label">Dự Án:</span>
+            <select id="demo-project-select" class="demo-dropdown" onchange="window.switchDemoActiveProject(this.value)">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <!-- Chế độ hiển thị: Song song (Split) | Chỉ Demo | Chỉ Code -->
+          <div class="demo-view-mode-pills">
+            <button type="button" class="demo-mode-pill active" data-mode="split" onclick="window.switchDemoViewMode('split')" title="Hiển thị song song: Code bên trái, Live Demo bên phải">
+              <span>⚡</span> Song Song
+            </button>
+            <button type="button" class="demo-mode-pill" data-mode="preview" onclick="window.switchDemoViewMode('preview')" title="Chỉ hiển thị phòng Live Demo trình chiếu ứng dụng">
+              <span>📱</span> Chỉ Demo
+            </button>
+            <button type="button" class="demo-mode-pill" data-mode="code" onclick="window.switchDemoViewMode('code')" title="Chỉ hiển thị phòng xem Code IDE (Cursor / VS Code)">
+              <span>💻</span> Chỉ Code
+            </button>
+          </div>
+        </div>
+
+        <div class="demo-topbar-center" id="demo-preview-controls">
+          <!-- Viewport Switcher -->
+          <div class="demo-device-pills">
+            <button type="button" class="demo-device-btn active" data-viewport="desktop" onclick="window.setDemoViewport('desktop')" title="Màn hình Máy tính (Desktop 100%)">
+              <span>🖥️</span> Desktop
+            </button>
+            <button type="button" class="demo-device-btn" data-viewport="tablet" onclick="window.setDemoViewport('tablet')" title="Máy tính bảng (iPad 768px)">
+              <span>📱</span> Tablet
+            </button>
+            <button type="button" class="demo-device-btn" data-viewport="mobile" onclick="window.setDemoViewport('mobile')" title="Điện thoại di động (iPhone 375px)">
+              <span>📲</span> iPhone
+            </button>
+            <button type="button" class="demo-device-btn" data-viewport="android" onclick="window.setDemoViewport('android')" title="Điện thoại Android (Pixel 412px)">
+              <span>🤖</span> Android
+            </button>
+          </div>
+
+          <!-- Phone Chassis Mockup Toggle -->
+          <button type="button" id="btn-toggle-phone-mockup" class="btn-micro" onclick="window.togglePhoneMockupFrame()" title="Bật / Tắt khung viền điện thoại chân thực">
+            <span>📱</span> Viền Máy
+          </button>
+        </div>
+
+        <div class="demo-topbar-right">
+          <!-- Source Mode: Static file hay Dev Server URL -->
+          <div class="demo-url-bar-wrap">
+            <select id="demo-source-mode-select" class="demo-source-select" onchange="window.switchDemoSourceMode(this.value)">
+              <option value="static">📁 File Dự Án (index.html)</option>
+              <option value="devserver">⚡ Dev Server (Localhost)</option>
+            </select>
+            <input type="text" id="demo-url-input" class="demo-url-input" placeholder="http://localhost:5173" value="http://localhost:5173" style="display: none;" onkeydown="if(event.key==='Enter') window.reloadDemoPreview();">
+            <button type="button" id="btn-reload-demo-preview" class="btn-micro" onclick="window.reloadDemoPreview()" title="Làm mới khung demo (Reload)">↺</button>
+            <button type="button" id="btn-open-demo-newtab" class="btn-micro" onclick="window.openDemoInNewTab()" title="Mở trang demo ở tab trình duyệt mới">🌐</button>
+          </div>
+
+          <!-- Quick Dev Server Runner -->
+          <button type="button" class="btn-micro btn-structure-accent" onclick="window.quickRunDevServer()" title="Khởi chạy nhanh Dev Server (npm run dev / python http) bằng Terminal">
+            <span>▶</span> Chạy Dev Server
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Main Split Area: Code Inspector (Left) & Live Demo (Right) -->
+      <div class="demo-main-body" id="demo-main-body">
+        <!-- A. CODE INSPECTOR (Cursor / Visual Studio / OpenCode IDE Theme) -->
+        <div class="demo-code-pane" id="demo-code-pane">
+          <!-- IDE Sidebar: File Explorer Tree -->
+          <aside class="ide-file-tree-sidebar">
+            <div class="ide-tree-header">
+              <span class="ide-tree-title">TẬP TIN DỰ ÁN</span>
+              <button type="button" class="btn-tree-icon" onclick="window.refreshDemoFileTree()" title="Làm mới cây tệp">↺</button>
+            </div>
+            <div class="ide-tree-search-box">
+              <input type="text" id="ide-file-search" placeholder="Tìm tệp..." oninput="window.filterDemoFiles(this.value)">
+            </div>
+            <div class="ide-tree-list" id="ide-tree-list">
+              <span class="tree-loading-text">Đang tải tệp tin...</span>
+            </div>
+          </aside>
+
+          <!-- IDE Editor Area -->
+          <div class="ide-editor-area">
+            <!-- Tabs Bar -->
+            <div class="ide-tabs-bar" id="ide-tabs-bar">
+              <!-- Dynamically populated file tabs -->
+            </div>
+
+            <!-- Breadcrumbs Bar -->
+            <div class="ide-breadcrumbs-bar" id="ide-breadcrumbs-bar">
+              <span class="breadcrumb-item">📁 <span id="ide-breadcrumb-proj">Dự án</span></span>
+              <span class="breadcrumb-sep">›</span>
+              <span class="breadcrumb-item active" id="ide-breadcrumb-file">Chưa chọn tệp</span>
+              <div class="ide-editor-actions">
+                <button type="button" class="btn-micro" onclick="window.copyCurrentIdeCode()" title="Sao chép toàn bộ mã nguồn">📋 Copy</button>
+                <button type="button" class="btn-micro" onclick="window.saveCurrentIdeFile()" title="Lưu thay đổi tệp này vào máy">💾 Lưu</button>
+              </div>
+            </div>
+
+            <!-- Code Body with Line Numbers Gutter -->
+            <div class="ide-code-scroll" id="ide-code-scroll">
+              <div class="ide-editor-viewport" id="ide-editor-viewport">
+                <div class="ide-gutter" id="ide-gutter">
+                  <span class="ide-line-num">1</span>
+                </div>
+                <div class="ide-code-content" id="ide-code-content">
+                  <pre><code id="ide-code-block" class="language-javascript">// Chọn một tệp từ danh sách bên trái để xem mã nguồn</code></pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="ide-statusbar">
+              <div class="ide-status-left">
+                <span class="ide-status-item" id="ide-status-lang">JavaScript</span>
+                <span class="ide-status-item">UTF-8</span>
+                <span class="ide-status-item">Spaces: 2</span>
+              </div>
+              <div class="ide-status-right">
+                <span class="ide-status-item" id="ide-status-lines">0 dòng</span>
+                <span class="ide-status-item" id="ide-status-size">0 KB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- B. LIVE DEMO (Web & Mobile Presentation) -->
+        <div class="demo-preview-pane" id="demo-preview-pane">
+          <!-- Preview Frame Wrapper (chứa khung viền điện thoại hoặc browser frame) -->
+          <div class="demo-preview-container" id="demo-preview-container">
+            <!-- 1. Mobile Phone Chassis (iPhone / Android Mockup) -->
+            <div class="phone-mockup-chassis" id="phone-mockup-chassis" style="display: none;">
+              <!-- Dynamic Island / Speaker -->
+              <div class="phone-dynamic-island">
+                <div class="phone-camera-dot"></div>
+                <div class="phone-speaker-cutout"></div>
+              </div>
+              <!-- Phone Status Bar -->
+              <div class="phone-status-bar">
+                <span class="phone-status-time" id="phone-status-clock">9:41</span>
+                <div class="phone-status-icons">
+                  <span class="status-ico">📶</span>
+                  <span class="status-ico" style="font-weight:700;font-size:0.65rem;">5G</span>
+                  <span class="status-ico">🛜</span>
+                  <span class="status-ico">🔋</span>
+                </div>
+              </div>
+              <!-- Phone Screen Iframe Viewport -->
+              <div class="phone-screen-viewport">
+                <iframe id="demo-iframe-phone" class="demo-iframe" src="about:blank" allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;" sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"></iframe>
+              </div>
+              <!-- Phone Bottom Home Indicator -->
+              <div class="phone-home-indicator-bar"></div>
+            </div>
+
+            <!-- 2. Web Browser Frame (Desktop / Tablet / Responsive) -->
+            <div class="browser-mockup-frame" id="browser-mockup-frame">
+              <div class="browser-header-bar">
+                <div class="browser-dots">
+                  <span class="dot dot-red"></span>
+                  <span class="dot dot-yellow"></span>
+                  <span class="dot dot-green"></span>
+                </div>
+                <div class="browser-address-display">
+                  <span class="browser-lock-icon">🔒</span>
+                  <span id="browser-address-text" class="browser-address-text">http://localhost:3000/api/projects/.../preview</span>
+                </div>
+                <div class="browser-actions">
+                  <button type="button" class="btn-micro" onclick="window.reloadDemoPreview()" title="Làm mới">↺</button>
+                  <button type="button" class="btn-micro" onclick="window.openDemoInNewTab()" title="Tab mới">↗</button>
+                </div>
+              </div>
+              <div class="browser-viewport">
+                <iframe id="demo-iframe-web" class="demo-iframe" src="about:blank" allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;" sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
@@ -1704,6 +1898,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=7.6"></script>
+ <script src="app.js?v=8.0"></script>
 </body>
 </html>

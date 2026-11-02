@@ -7396,3 +7396,521 @@ window.triggerAutoTaskChatsCreation = async function() {
     }
   }
 };
+
+
+// Cấu hình Marked kết hợp Highlight.js để hiển thị code màu sắc IDE chuẩn Cursor / VS Code
+if (window.marked) {
+  try {
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (window.hljs) {
+          if (lang && hljs.getLanguage(lang)) {
+            try { return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value; } catch (e) {}
+          }
+          try { return hljs.highlightAuto(code).value; } catch (e) {}
+        }
+        return code;
+      }
+    });
+  } catch (e) {
+    console.warn('Marked hljs setup:', e);
+  }
+}
+
+
+// =============================================================================
+// MODAL & TRANG DEMO: TRÌNH CHIẾU LIVE WEB / MOBILE & CODE INSPECTOR (IDE)
+// =============================================================================
+let demoState = {
+  activeProjectId: null,
+  activeFilePath: null,
+  openTabs: [], // [{ path, name, content, lang }]
+  viewMode: 'split', // 'split' | 'preview' | 'code'
+  viewport: 'desktop', // 'desktop' | 'tablet' | 'mobile' | 'android'
+  showPhoneMockup: false,
+  sourceMode: 'static', // 'static' | 'devserver'
+  devServerUrl: 'http://localhost:5173',
+  allFiles: [],
+  fileContentCache: new Map()
+};
+
+// Khởi chạy phòng Demo & Code Inspector
+window.initDemoWorkspace = async function(projectId) {
+  // 1. Đồng bộ dự án đang kích hoạt
+  const targetProjId = projectId || projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+  demoState.activeProjectId = targetProjId;
+
+  // 2. Điền danh sách dự án vào Dropdown
+  const selectEl = document.getElementById('demo-project-select');
+  if (selectEl) {
+    selectEl.innerHTML = (projectsState.projects || []).map(p => 
+      `<option value="${p.id}" ${p.id === targetProjId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+    ).join('');
+    if (!projectsState.projects || projectsState.projects.length === 0) {
+      selectEl.innerHTML = '<option value="">(Chưa có dự án)</option>';
+    }
+  }
+
+  // Cập nhật tên dự án trên breadcrumb
+  const curProj = (projectsState.projects || []).find(p => p.id === targetProjId);
+  const breadcrumbProj = document.getElementById('ide-breadcrumb-proj');
+  if (breadcrumbProj) breadcrumbProj.textContent = curProj ? curProj.name : 'Dự án';
+
+  // 3. Khởi chạy đồng hồ trên khung điện thoại
+  startPhoneClock();
+
+  if (!targetProjId) {
+    const listEl = document.getElementById('ide-tree-list');
+    if (listEl) listEl.innerHTML = '<div style="padding: 1rem; color: #71717a; text-align: center;">Vui lòng tạo hoặc chọn một dự án trong tab "Dự Án" trước.</div>';
+    return;
+  }
+
+  // 4. Tải cây thư mục dự án cho IDE
+  await window.refreshDemoFileTree();
+
+  // 5. Nạp Preview iframe
+  window.reloadDemoPreview();
+};
+
+function startPhoneClock() {
+  const clockEl = document.getElementById('phone-status-clock');
+  if (!clockEl) return;
+  const update = () => {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+  update();
+  if (!window._phoneClockInterval) {
+    window._phoneClockInterval = setInterval(update, 30000);
+  }
+}
+
+// Đổi dự án đang xem trong phòng Demo
+window.switchDemoActiveProject = async function(projectId) {
+  demoState.activeProjectId = projectId;
+  projectsState.activeProjectId = projectId;
+  demoState.openTabs = [];
+  demoState.activeFilePath = null;
+  demoState.fileContentCache.clear();
+  await window.initDemoWorkspace(projectId);
+};
+
+// Đổi chế độ hiển thị: Song song (Split) | Chỉ Demo | Chỉ Code
+window.switchDemoViewMode = function(mode) {
+  demoState.viewMode = mode;
+  const mainBody = document.getElementById('demo-main-body');
+  if (mainBody) {
+    mainBody.className = `demo-main-body mode-${mode}`;
+  }
+  document.querySelectorAll('.demo-mode-pill').forEach(btn => {
+    if (btn.dataset.mode === mode) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+};
+
+// Đổi kích thước Viewport màn hình thiết bị (Desktop / Tablet / iPhone / Android)
+window.setDemoViewport = function(viewport) {
+  demoState.viewport = viewport;
+  const container = document.getElementById('demo-preview-container');
+  if (container) {
+    container.setAttribute('data-viewport', viewport);
+  }
+  document.querySelectorAll('.demo-device-btn').forEach(btn => {
+    if (btn.dataset.viewport === viewport) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+
+  // Tự động bật khung viền điện thoại nếu chọn iPhone hoặc Android
+  if (viewport === 'mobile' || viewport === 'android') {
+    setPhoneMockupFrame(true);
+  } else {
+    setPhoneMockupFrame(false);
+  }
+};
+
+// Bật / Tắt khung viền điện thoại chân thực (Smartphone Mockup Chassis)
+window.togglePhoneMockupFrame = function() {
+  setPhoneMockupFrame(!demoState.showPhoneMockup);
+};
+
+function setPhoneMockupFrame(show) {
+  demoState.showPhoneMockup = show;
+  const phoneChassis = document.getElementById('phone-mockup-chassis');
+  const browserFrame = document.getElementById('browser-mockup-frame');
+  const toggleBtn = document.getElementById('btn-toggle-phone-mockup');
+
+  if (toggleBtn) {
+    if (show) toggleBtn.classList.add('btn-structure-accent');
+    else toggleBtn.classList.remove('btn-structure-accent');
+  }
+
+  if (show) {
+    if (phoneChassis) phoneChassis.style.display = 'flex';
+    if (browserFrame) browserFrame.style.display = 'none';
+  } else {
+    if (phoneChassis) phoneChassis.style.display = 'none';
+    if (browserFrame) browserFrame.style.display = 'flex';
+  }
+  window.reloadDemoPreview();
+}
+
+// Đổi nguồn Preview: File Dự Án (index.html) hay Dev Server URL (localhost:5173)
+window.switchDemoSourceMode = function(mode) {
+  demoState.sourceMode = mode;
+  const urlInput = document.getElementById('demo-url-input');
+  if (urlInput) {
+    urlInput.style.display = mode === 'devserver' ? 'inline-block' : 'none';
+  }
+  window.reloadDemoPreview();
+};
+
+// Làm mới khung Live Demo
+window.reloadDemoPreview = function() {
+  const targetId = demoState.activeProjectId;
+  if (!targetId) return;
+
+  let targetUrl = '';
+  if (demoState.sourceMode === 'devserver') {
+    const urlInput = document.getElementById('demo-url-input');
+    targetUrl = (urlInput ? urlInput.value : '').trim() || 'http://localhost:5173';
+  } else {
+    targetUrl = `/api/projects/${targetId}/preview/`;
+  }
+
+  const iframeWeb = document.getElementById('demo-iframe-web');
+  const iframePhone = document.getElementById('demo-iframe-phone');
+  const addrText = document.getElementById('browser-address-text');
+
+  if (addrText) {
+    addrText.textContent = targetUrl;
+  }
+
+  if (demoState.showPhoneMockup) {
+    if (iframePhone) iframePhone.src = targetUrl;
+  } else {
+    if (iframeWeb) iframeWeb.src = targetUrl;
+  }
+};
+
+// Mở Live Demo ở tab trình duyệt mới
+window.openDemoInNewTab = function() {
+  const targetId = demoState.activeProjectId;
+  if (!targetId) return;
+  let targetUrl = '';
+  if (demoState.sourceMode === 'devserver') {
+    const urlInput = document.getElementById('demo-url-input');
+    targetUrl = (urlInput ? urlInput.value : '').trim() || 'http://localhost:5173';
+  } else {
+    targetUrl = `/api/projects/${targetId}/preview/`;
+  }
+  window.open(targetUrl, '_blank');
+};
+
+// Chạy nhanh Dev Server bằng Terminal
+window.quickRunDevServer = async function() {
+  if (!demoState.activeProjectId) {
+    showToast('Vui lòng chọn dự án trước.');
+    return;
+  }
+  const curProj = (projectsState.projects || []).find(p => p.id === demoState.activeProjectId);
+  if (!curProj) return;
+
+  const cmd = prompt('Nhập lệnh khởi chạy Dev Server cho dự án:', 'npm run dev');
+  if (!cmd || !cmd.trim()) return;
+
+  showToast('🚀 Đang chạy lệnh: ' + cmd + '...');
+  try {
+    const res = await fetch(`/api/projects/${demoState.activeProjectId}/terminal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd.trim(), shell: 'powershell' })
+    });
+    const data = await res.json();
+    showToast(data.exitCode === 0 ? 'Lệnh chạy thành công!' : 'Đã gửi lệnh chạy tới Terminal.');
+    demoState.sourceMode = 'devserver';
+    const sourceSelect = document.getElementById('demo-source-mode-select');
+    if (sourceSelect) sourceSelect.value = 'devserver';
+    const urlInput = document.getElementById('demo-url-input');
+    if (urlInput) urlInput.style.display = 'inline-block';
+    setTimeout(() => { window.reloadDemoPreview(); }, 1500);
+  } catch (err) {
+    showToast('Lỗi: ' + err.message);
+  }
+};
+
+// Tải cây tệp dự án vào Sidebar của IDE
+window.refreshDemoFileTree = async function() {
+  const targetId = demoState.activeProjectId;
+  const listEl = document.getElementById('ide-tree-list');
+  if (!targetId || !listEl) return;
+
+  listEl.innerHTML = '<span class="tree-loading-text">⏳ Đang tải tệp tin...</span>';
+  try {
+    const res = await fetch(`/api/projects/${targetId}/files`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Lỗi tải tệp');
+
+    demoState.allFiles = flattenProjectFiles(data.files || []);
+    renderDemoFileTreeList(demoState.allFiles);
+
+    // Mở tệp ưu tiên (index.html hoặc tệp đầu tiên) nếu chưa có tệp nào mở
+    if (!demoState.activeFilePath && demoState.allFiles.length > 0) {
+      const preferred = demoState.allFiles.find(f => f.path.toLowerCase().endsWith('index.html')) ||
+                        demoState.allFiles.find(f => f.path.toLowerCase().endsWith('app.js')) ||
+                        demoState.allFiles.find(f => f.path.toLowerCase().endsWith('package.json')) ||
+                        demoState.allFiles[0];
+      if (preferred) {
+        window.openFileInIde(preferred.path);
+      }
+    }
+  } catch (err) {
+    if (listEl) listEl.innerHTML = `<div style="padding: 1rem; color: #ef4444; font-size: 0.78rem;">⚠️ ${escapeHtml(err.message)}</div>`;
+  }
+};
+
+function flattenProjectFiles(items, parentPath = '') {
+  let list = [];
+  items.forEach(it => {
+    if (it.type === 'directory') {
+      if (it.children) {
+        list = list.concat(flattenProjectFiles(it.children, it.path));
+      }
+    } else {
+      list.push(it);
+    }
+  });
+  return list;
+}
+
+function renderDemoFileTreeList(files) {
+  const listEl = document.getElementById('ide-tree-list');
+  if (!listEl) return;
+
+  if (files.length === 0) {
+    listEl.innerHTML = '<div style="padding: 1rem; color: #71717a; text-align: center;">Thư mục dự án đang trống.</div>';
+    return;
+  }
+
+  listEl.innerHTML = files.map(f => {
+    const icon = getFileIcon(f.path);
+    const isActive = f.path === demoState.activeFilePath;
+    return `
+      <div class="ide-tree-node ${isActive ? 'active' : ''}" onclick="window.openFileInIde('${escapeHtml(f.path)}')" title="${escapeHtml(f.path)}">
+        <span class="ide-tree-icon">${icon}</span>
+        <span class="ide-tree-name">${escapeHtml(f.path)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function getFileIcon(filePath) {
+  const ext = filePath.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': case 'htm': return '🌐';
+    case 'js': case 'mjs': return '🟨';
+    case 'ts': case 'tsx': return '🔷';
+    case 'jsx': return '⚛️';
+    case 'css': case 'scss': case 'sass': return '🎨';
+    case 'json': return '📋';
+    case 'py': return '🐍';
+    case 'c': case 'cpp': case 'h': return '⚙️';
+    case 'cs': return '🟣';
+    case 'sql': return '🗄️';
+    case 'md': return '📝';
+    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': return '🖼️';
+    case 'ps1': case 'sh': case 'bat': return '⚡';
+    default: return '📄';
+  }
+}
+
+function getLanguageByExt(filePath) {
+  const ext = (filePath || '').split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': case 'htm': return 'html';
+    case 'js': case 'mjs': case 'jsx': return 'javascript';
+    case 'ts': case 'tsx': return 'typescript';
+    case 'css': case 'scss': return 'css';
+    case 'json': return 'json';
+    case 'py': return 'python';
+    case 'c': case 'h': return 'c';
+    case 'cpp': return 'cpp';
+    case 'cs': return 'csharp';
+    case 'sql': return 'sql';
+    case 'md': return 'markdown';
+    case 'ps1': return 'powershell';
+    case 'sh': case 'bash': return 'bash';
+    case 'xml': case 'svg': return 'xml';
+    case 'yaml': case 'yml': return 'yaml';
+    default: return 'plaintext';
+  }
+}
+
+// Lọc tệp tin trong sidebar IDE
+window.filterDemoFiles = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    renderDemoFileTreeList(demoState.allFiles);
+    return;
+  }
+  const filtered = demoState.allFiles.filter(f => f.path.toLowerCase().includes(q));
+  renderDemoFileTreeList(filtered);
+};
+
+// Mở một tệp trong Code Inspector (IDE Theme)
+window.openFileInIde = async function(filePath) {
+  if (!filePath || !demoState.activeProjectId) return;
+  demoState.activeFilePath = filePath;
+
+  // Highlight trong cây tệp
+  document.querySelectorAll('.ide-tree-node').forEach(node => {
+    if (node.title === filePath) node.classList.add('active');
+    else node.classList.remove('active');
+  });
+
+  // Cập nhật Breadcrumbs
+  const breadcrumbFile = document.getElementById('ide-breadcrumb-file');
+  if (breadcrumbFile) breadcrumbFile.textContent = filePath;
+
+  // Quản lý Tab tệp
+  let tab = demoState.openTabs.find(t => t.path === filePath);
+  if (!tab) {
+    tab = {
+      path: filePath,
+      name: filePath.split('/').pop(),
+      content: '',
+      lang: getLanguageByExt(filePath)
+    };
+    demoState.openTabs.push(tab);
+  }
+  renderIdeTabs();
+
+  // Đọc nội dung tệp (từ cache hoặc API)
+  let content = demoState.fileContentCache.get(filePath);
+  if (content === undefined) {
+    try {
+      const res = await fetch(`/api/projects/${demoState.activeProjectId}/read-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+      const data = await res.json();
+      content = data.content || '';
+      demoState.fileContentCache.set(filePath, content);
+      tab.content = content;
+    } catch (err) {
+      content = `// Lỗi đọc file: ${err.message}`;
+    }
+  }
+
+  renderCodeToEditor(content, tab.lang);
+};
+
+function renderIdeTabs() {
+  const tabsBar = document.getElementById('ide-tabs-bar');
+  if (!tabsBar) return;
+
+  tabsBar.innerHTML = demoState.openTabs.map(t => {
+    const isActive = t.path === demoState.activeFilePath;
+    const icon = getFileIcon(t.path);
+    return `
+      <div class="ide-tab ${isActive ? 'active' : ''}" onclick="window.openFileInIde('${escapeHtml(t.path)}')">
+        <span>${icon}</span>
+        <span>${escapeHtml(t.name)}</span>
+        <span class="ide-tab-close" onclick="window.closeIdeTab(event, '${escapeHtml(t.path)}')">&times;</span>
+      </div>
+    `;
+  }).join('');
+}
+
+window.closeIdeTab = function(event, filePath) {
+  event.stopPropagation();
+  demoState.openTabs = demoState.openTabs.filter(t => t.path !== filePath);
+  if (demoState.activeFilePath === filePath) {
+    if (demoState.openTabs.length > 0) {
+      window.openFileInIde(demoState.openTabs[demoState.openTabs.length - 1].path);
+    } else {
+      demoState.activeFilePath = null;
+      renderCodeToEditor('// Chưa chọn tệp tin nào', 'plaintext');
+      const breadcrumbFile = document.getElementById('ide-breadcrumb-file');
+      if (breadcrumbFile) breadcrumbFile.textContent = 'Chưa chọn tệp';
+    }
+  }
+  renderIdeTabs();
+};
+
+function renderCodeToEditor(rawContent, lang) {
+  const codeBlock = document.getElementById('ide-code-block');
+  const gutter = document.getElementById('ide-gutter');
+  const statusLang = document.getElementById('ide-status-lang');
+  const statusLines = document.getElementById('ide-status-lines');
+  const statusSize = document.getElementById('ide-status-size');
+
+  if (!codeBlock) return;
+
+  // Tô màu cú pháp bằng Highlight.js chuẩn Cursor / VS Code
+  let highlightedHtml = '';
+  if (window.hljs) {
+    try {
+      if (lang && hljs.getLanguage(lang)) {
+        highlightedHtml = hljs.highlight(rawContent, { language: lang, ignoreIllegals: true }).value;
+      } else {
+        highlightedHtml = hljs.highlightAuto(rawContent).value;
+      }
+    } catch (e) {
+      highlightedHtml = escapeHtml(rawContent);
+    }
+  } else {
+    highlightedHtml = escapeHtml(rawContent);
+  }
+
+  codeBlock.className = `language-${lang} hljs`;
+  codeBlock.innerHTML = highlightedHtml;
+
+  // Tạo đánh số dòng (Gutter)
+  const lines = rawContent.split(/\r?\n/);
+  if (gutter) {
+    gutter.innerHTML = lines.map((_, i) => `<span class="ide-line-num">${i + 1}</span>`).join('');
+  }
+
+  // Cập nhật Status Bar
+  if (statusLang) statusLang.textContent = lang.toUpperCase();
+  if (statusLines) statusLines.textContent = `${lines.length} dòng`;
+  if (statusSize) {
+    const bytes = new Blob([rawContent]).size;
+    statusSize.textContent = bytes > 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`;
+  }
+}
+
+// Copy toàn bộ mã nguồn tệp hiện tại
+window.copyCurrentIdeCode = async function() {
+  if (!demoState.activeFilePath) return;
+  const content = demoState.fileContentCache.get(demoState.activeFilePath) || '';
+  try {
+    await navigator.clipboard.writeText(content);
+    showToast('✔ Đã sao chép mã nguồn vào Clipboard!');
+  } catch (e) {
+    showToast('Không thể sao chép');
+  }
+};
+
+// Lưu thay đổi tệp hiện tại
+window.saveCurrentIdeFile = async function() {
+  if (!demoState.activeFilePath || !demoState.activeProjectId) return;
+  const content = demoState.fileContentCache.get(demoState.activeFilePath) || '';
+  try {
+    const res = await fetch(`/api/projects/${demoState.activeProjectId}/files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: demoState.activeFilePath, content, type: 'file' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✔ Đã lưu tệp "${demoState.activeFilePath}" thành công!`);
+      window.reloadDemoPreview();
+    } else {
+      showToast('Lỗi lưu: ' + data.error);
+    }
+  } catch (err) {
+    showToast('Lỗi lưu file: ' + err.message);
+  }
+};
