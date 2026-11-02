@@ -430,29 +430,13 @@
   <div class="projects-layout antigravity-layout" id="antigravity-layout">
     <!-- 1. Left Sidebar: Antigravity Unified Tree (Image 1) -->
     <aside class="antigravity-sidebar" id="antigravity-sidebar">
-      <!-- Top: + New Conversation, Automations, Customizations -->
-      <div class="antigravity-sidebar-header">
-        <button type="button" class="btn-antigravity-new-conv" onclick="window.createNewAntigravityChat()" title="Tạo cuộc hội thoại mới (+ New Conversation)">
-          <span class="plus-icon">+</span>
-          <span>New Conversation</span>
-        </button>
-        
-        <div class="antigravity-quick-nav">
-          <div class="antigravity-nav-row" onclick="window.switchTabByRoute('prompts')" title="Automations & Skills">
-            <span class="nav-row-icon">🕒</span>
-            <span class="nav-row-text">Automations</span>
-          </div>
-          <div class="antigravity-nav-row" onclick="window.switchSettingsSubtab('providers')" title="Customizations / Tùy biến">
-            <span class="nav-row-icon">💼</span>
-            <span class="nav-row-text">Customizations</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Projects Section Heading with Filter & Add Project -->
       <div class="antigravity-section-heading">
         <span class="heading-label">Projects</span>
         <div class="heading-actions">
+          <button type="button" class="btn-antigravity-icon" onclick="window.createNewAntigravityChat()" title="Tạo cuộc hội thoại mới (+ Chat)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
           <button type="button" class="btn-antigravity-icon" onclick="window.toggleProjectFilter()" title="Lọc dự án">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
           </button>

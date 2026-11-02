@@ -8078,6 +8078,7 @@ window.renderAntigravityProjectsTree = function() {
              title="${escapeHtml(p.name)} (${escapeHtml(p.path || 'Local')})">
           <span class="folder-icon">📁</span>
           <span class="project-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${escapeHtml(p.name)}</span>
+          <button type="button" class="btn-antigravity-icon" onclick="event.stopPropagation(); window.createNewAntigravityChat('${p.id}')" title="Thêm đoạn chat mới vào ${escapeHtml(p.name)}" style="opacity: 0.7; padding: 2px 6px; font-size: 12px; border-radius: 4px;">+</button>
         </div>
         <div class="antigravity-conversations-list">
           ${chatsHtml}
@@ -8105,8 +8106,8 @@ window.selectAntigravityConversation = function(projectId, chatId) {
 };
 
 // Tạo cuộc hội thoại mới (+ New Conversation)
-window.createNewAntigravityChat = async function() {
-  const curProjId = projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+window.createNewAntigravityChat = async function(specificProjId) {
+  const curProjId = specificProjId || projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
   if (!curProjId) {
     showToast('Vui lòng thêm hoặc mở dự án trước.');
     document.getElementById('btn-open-create-project')?.click();
