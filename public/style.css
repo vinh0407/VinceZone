@@ -10253,6 +10253,7 @@ pre code.hljs {
 /* Code Viewport with Gutter & Minimap */
 .ide-code-scroll {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   position: relative;
   background: #1e1e1e;
@@ -10328,13 +10329,17 @@ pre code.hljs {
   );
 }
 
-/* Bottom Problems / Terminal Panel */
+/* Bottom Problems / Terminal Panel (Luôn cố định ở đáy) */
 .ide-bottom-panel {
   height: 140px;
-  background: #181818;
-  border-top: 1px solid #282828;
-  display: flex;
-  flex-direction: column;
+  min-height: 140px;
+  flex-shrink: 0;
+  background: #181818 !important;
+  border-top: 1px solid #282828 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative;
+  z-index: 2;
 }
 
 .ide-bottom-panel-header {
@@ -10428,17 +10433,21 @@ pre code.hljs {
   margin: 0;
 }
 
-/* VS Code Status Bar */
+/* VS Code Status Bar (Luôn cố định ở đáy) */
 .ide-statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 22px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  flex-shrink: 0 !important;
   background: #007acc !important;
   color: #ffffff !important;
   font-size: 11px !important;
   padding: 0 8px !important;
   user-select: none !important;
+  position: relative !important;
+  z-index: 2 !important;
 }
 
 .ide-status-left,
