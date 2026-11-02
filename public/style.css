@@ -8169,3 +8169,74 @@ input[type="range"] {
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
 }
+
+/* Badge & Drawer cho lệnh Terminal tự động thực thi */
+.badge-auto-executed {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(14, 165, 233, 0.16) !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(14, 165, 233, 0.38) !important;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.08rem 0.4rem;
+  letter-spacing: 0.01em;
+}
+
+.code-exec-drawer {
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  margin-top: -0.4rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.code-exec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  background: #141417;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  transition: background 0.15s ease;
+}
+
+.code-exec-header:hover {
+  background: #1c1c20;
+  color: #e4e4e7;
+}
+
+.code-exec-status {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.code-exec-toggle {
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.code-exec-output {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  color: #d4d4d8;
+  background: #09090b;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.code-exec-drawer.collapsed .code-exec-output {
+  display: none;
+}

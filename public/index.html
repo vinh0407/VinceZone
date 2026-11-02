@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=7.4">
+ <link rel="stylesheet" href="style.css?v=7.6">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -535,6 +535,12 @@
           <button type="button" id="btn-add-agent-plus" class="btn-add-agent-plus" title="Thêm Agent vào đoạn chat này (Tối đa 5 Agent)">
             <span class="plus-icon">+</span>
             <span class="plus-label">Agent</span>
+          </button>
+          <button type="button" class="btn-micro btn-structure-accent" onclick="window.openProjectStructureModal()" title="Xem sơ đồ công việc & file đã chỉnh của các AI Agent">
+            <span style="margin-right: 3px;">🏗️</span> Cấu Trúc
+          </button>
+          <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">
+            <span style="margin-right: 3px;">💻</span> Terminal
           </button>
           <button type="button" id="btn-hide-chat-topbar" class="btn-icon-sidebar-toggle" title="Ẩn thanh bar ngang này (Ctrl+Shift+T)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1698,6 +1704,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=7.4"></script>
+ <script src="app.js?v=7.6"></script>
 </body>
 </html>

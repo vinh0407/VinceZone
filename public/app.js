@@ -5228,8 +5228,20 @@ function decorateProjectCodeBlocks(containerEl) {
       }
     }
 
-    const isTerminal = /powershell|cmd|bash|sh|terminal/.test(codeEl?.className || '') ||
-                       /^(npm|git|node|pip|yarn|pnpm|python|dir|ls|cd|mkdir|cat|curl|powershell)\s+/im.test(rawText.trim());
+    const isTerminal = /powershell|cmd|bash|sh|terminal|ps1/.test(codeEl?.className || '') ||
+                       /^(npm|git|node|pip|yarn|pnpm|python|dir|ls|cd|mkdir|cat|curl|powershell|del|rm|Remove-Item|Get-ChildItem)\s+/im.test(rawText.trim()) ||
+                       suggestedFile.endsWith('.ps1') || suggestedFile.endsWith('.bat') || suggestedFile.endsWith('.sh') || suggestedFile.endsWith('.cmd');
+
+    const parentMsg = pre.closest('.proj-msg');
+    const msgData = parentMsg?._msgData || {};
+    const executedCmds = Array.isArray(msgData.executedCommands) ? msgData.executedCommands : [];
+
+    // Tìm kết quả thực thi tương ứng với khối lệnh này (nếu có)
+    const matchingExec = executedCmds.find(e => {
+      const cleanCmd = (e.command || '').trim();
+      const cleanRaw = rawText.trim();
+      return cleanCmd.includes(cleanRaw) || cleanRaw.includes(cleanCmd);
+    }) || (isTerminal && executedCmds.length > 0 ? executedCmds[0] : null);
 
     const toolbar = document.createElement('div');
     toolbar.className = 'code-block-action-bar';
@@ -5242,9 +5254,10 @@ function decorateProjectCodeBlocks(containerEl) {
       buttonsHtml += `<button type="button" class="btn-code-action btn-apply-custom-file" title="Ghi code này vào một file trong dự án">💾 Lưu File...</button>`;
     }
 
-    // Nút Chạy Terminal
+    // Nút Chạy Terminal (Chạy lại vì hệ thống đã tự động thực thi)
     if (isTerminal) {
-      buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Terminal</button>`;
+      const runTitle = matchingExec ? 'Lệnh đã được AI tự động chạy trên máy. Bấm để chạy lại nếu muốn.' : 'Chạy lệnh này trực tiếp trong Terminal của dự án';
+      buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="${runTitle}">▶ Chạy Lại</button>`;
     }
 
     // Nút Copy code
@@ -5254,11 +5267,27 @@ function decorateProjectCodeBlocks(containerEl) {
       <div class="code-bar-left">
         <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
         ${suggestedFile ? `<span class="badge-auto-saved" title="Agent đã có toàn quyền và tự động ghi vào máy">⚡ Đã tự động lưu</span>` : ''}
+        ${isTerminal ? `<span class="badge-auto-executed" title="Agent đã có toàn quyền và lệnh đã được tự động thực thi trực tiếp trên máy">⚡ Đã tự động thực thi${matchingExec ? ` (Mã: ${matchingExec.exitCode})` : ''}</span>` : ''}
       </div>
       <div class="code-bar-actions">${buttonsHtml}</div>
     `;
 
     pre.parentNode.insertBefore(toolbar, pre);
+
+    // Nếu có kết quả thực thi, hiển thị ngay bên dưới khối code
+    if (matchingExec && (matchingExec.stdout || matchingExec.stderr)) {
+      const execDrawer = document.createElement('div');
+      execDrawer.className = 'code-exec-drawer';
+      const outputText = matchingExec.stdout || matchingExec.stderr || '(Đã thực thi thành công)';
+      execDrawer.innerHTML = `
+        <div class="code-exec-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="code-exec-status">⚡ Kết quả thực thi trực tiếp trên máy [Mã thoát: ${matchingExec.exitCode}]:</span>
+          <span class="code-exec-toggle">Chi tiết ▾</span>
+        </div>
+        <pre class="code-exec-output">${escapeHtml(outputText)}</pre>
+      `;
+      pre.parentNode.insertBefore(execDrawer, pre.nextSibling);
+    }
 
     // Xử lý copy code
     const copyBtn = toolbar.querySelector('.btn-copy-code');
@@ -5348,6 +5377,9 @@ function decorateProjectCodeBlocks(containerEl) {
             outputPre.textContent = `> ${cmdToRun}\n\n${data.stdout || ''}${data.stderr ? `\n[Lỗi]: ${data.stderr}` : ''}\n\n[Mã thoát]: ${data.exitCode} (${data.duration}ms)`;
           }
           showToast(data.exitCode === 0 ? 'Chạy lệnh hoàn tất thành công!' : 'Lệnh chạy xong với cảnh báo/lỗi.');
+          if (typeof loadProjectFiles === 'function') {
+            loadProjectFiles(projectsState.activeProjectId);
+          }
         } catch (err) {
           if (outputPre) outputPre.textContent = `Lỗi thực thi terminal: ${err.message}`;
           showToast('Lỗi chạy terminal: ' + err.message);

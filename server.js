@@ -1510,6 +1510,119 @@ function handleAIChatCreation(projectId, text) {
   return createdChats;
 }
 
+
+async function executeAutonomousActions(projectPath, content) {
+  const autoSavedFiles = [];
+  const executedCommands = [];
+
+  if (!projectPath || !fs.existsSync(projectPath)) {
+    return { autoSavedFiles, executedCommands };
+  }
+
+  // 1. Tự động lưu các file mã nguồn (có tiền tố // File: ...)
+  const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*|--)\s*(?:File|Tệp|Đường dẫn):\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
+  let fMatch;
+  while ((fMatch = codeFileRegex.exec(content)) !== null) {
+    const filePath = fMatch[1].trim();
+    const fileContent = fMatch[2];
+    // Không lưu các script explore / list thừa làm bẩn dự án
+    if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
+    try {
+      const written = writeProjectFileHelper(projectPath, filePath, fileContent);
+      if (written) autoSavedFiles.push(written.relativePath);
+    } catch (e) {
+      console.warn('Auto save error:', e.message);
+    }
+  }
+
+  // 2. Tự động chạy tất cả các khối lệnh Terminal (powershell, cmd, bash, sh, terminal, ps1)
+  const terminalRegex = /```(?:powershell|cmd|bash|sh|terminal|ps1)\s*\r?\n([\s\S]*?)```/gi;
+  let tMatch;
+  const executedCmdSet = new Set();
+
+  while ((tMatch = terminalRegex.exec(content)) !== null) {
+    let cmdBlock = (tMatch[1] || '').trim();
+    if (!cmdBlock) continue;
+    // Bỏ dòng comment File nếu có
+    cmdBlock = cmdBlock.replace(/^(?:#|\/\/|\/\*|--)\s*(?:File|Tệp|Đường dẫn):[^\r\n]*\r?\n/i, '').trim();
+    if (!cmdBlock || executedCmdSet.has(cmdBlock)) continue;
+    executedCmdSet.add(cmdBlock);
+
+    try {
+      console.log(`[AUTONOMOUS TERMINAL RUN] In: ${projectPath} | Cmd:`, cmdBlock.slice(0, 80));
+      const result = await runTerminalCommand(cmdBlock, projectPath, 'powershell');
+      executedCommands.push({
+        command: cmdBlock,
+        stdout: (result.stdout || '').trim(),
+        stderr: (result.stderr || '').trim(),
+        exitCode: result.exitCode,
+        duration: result.duration
+      });
+
+      // Nếu có lệnh xóa file (Remove-Item, del, rm, unlink), đảm bảo file bị xóa khỏi ổ đĩa
+      const delMatches = cmdBlock.match(/(?:Remove-Item|del|rm|unlink)\s+(?:-Force\s+)?["']?([^"'\r\n;]+)["']?/gi);
+      if (delMatches) {
+        delMatches.forEach(dm => {
+          const m = dm.match(/(?:Remove-Item|del|rm|unlink)\s+(?:-Force\s+)?["']?([^"'\r\n;]+)["']?/i);
+          if (m && m[1]) {
+            const relTarget = m[1].trim();
+            try {
+              const fullTarget = path.isAbsolute(relTarget) ? path.resolve(relTarget) : path.resolve(projectPath, relTarget);
+              if (fullTarget.toLowerCase().startsWith(path.resolve(projectPath).toLowerCase()) && fs.existsSync(fullTarget)) {
+                if (fs.statSync(fullTarget).isDirectory()) {
+                  fs.rmSync(fullTarget, { recursive: true, force: true });
+                } else {
+                  fs.unlinkSync(fullTarget);
+                }
+                console.log(`[AUTONOMOUS DISK FILE REMOVED]: ${fullTarget}`);
+              }
+            } catch (err) {}
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Autonomous terminal run error:', err.message);
+      executedCommands.push({
+        command: cmdBlock,
+        stdout: '',
+        stderr: err.message,
+        exitCode: -1,
+        duration: 0
+      });
+    }
+  }
+
+  // 3. Quét các chỉ thị xóa file trực tiếp trong nội dung văn bản nếu AI viết dạng mô tả
+  const directDelRegex = /(?:xác nhận lệnh xóa file|lệnh xóa file|xóa file|xóa tệp|xóa tập tin|remove file|delete file)\s*[`"']?([a-zA-Z0-9_.\-\\/]+)[`"']?/gi;
+  let ddMatch;
+  while ((ddMatch = directDelRegex.exec(content)) !== null) {
+    const rawF = ddMatch[1].trim();
+    if (rawF && !executedCmdSet.has(`del_${rawF}`)) {
+      executedCmdSet.add(`del_${rawF}`);
+      try {
+        const fullTarget = path.isAbsolute(rawF) ? path.resolve(rawF) : path.resolve(projectPath, rawF);
+        if (fullTarget.toLowerCase().startsWith(path.resolve(projectPath).toLowerCase()) && fs.existsSync(fullTarget)) {
+          if (fs.statSync(fullTarget).isDirectory()) {
+            fs.rmSync(fullTarget, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(fullTarget);
+          }
+          executedCommands.push({
+            command: `Remove-Item "${rawF}" -Force`,
+            stdout: `Đã tự động xóa tệp: ${rawF}`,
+            stderr: '',
+            exitCode: 0,
+            duration: 2
+          });
+          console.log(`[AUTONOMOUS DIRECT REMOVED]: ${fullTarget}`);
+        }
+      } catch (e) {}
+    }
+  }
+
+  return { autoSavedFiles, executedCommands };
+}
+
 function detectTaskChatCreationIntent(text) {
   if (!text) return false;
   const lower = text.toLowerCase();
