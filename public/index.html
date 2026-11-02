@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=8.2">
+ <link rel="stylesheet" href="style.css?v=8.5">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -421,174 +421,114 @@
 
 <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
   <section id="tab-projects" class="tab-pane active">
-  <div class="projects-layout">
-    <!-- 1. Left Sidebar: Quản lý Dự Án, Cây Tập Tin & Cây Đoạn Chat -->
-    <aside class="projects-sidebar">
-      <!-- Nút Thêm Dự Án trên đầu & Nút Thu Gọn Sidebar -->
-      <div class="projects-sidebar-top" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
-        <button id="btn-open-create-project" class="btn-primary btn-add-project-hero" style="flex: 1; margin-bottom: 0;" title="Thêm dự án mới trên máy tính">
-          + Thêm Dự Án
+  <div class="projects-layout antigravity-layout" id="antigravity-layout">
+    <!-- 1. Left Sidebar: Antigravity Unified Tree (Image 1) -->
+    <aside class="antigravity-sidebar" id="antigravity-sidebar">
+      <!-- Top: + New Conversation, Automations, Customizations -->
+      <div class="antigravity-sidebar-header">
+        <button type="button" class="btn-antigravity-new-conv" onclick="window.createNewAntigravityChat()" title="Tạo cuộc hội thoại mới (+ New Conversation)">
+          <span class="plus-icon">+</span>
+          <span>New Conversation</span>
         </button>
-        <button type="button" id="btn-collapse-sidebar" class="btn-icon-sidebar-toggle" title="Thu gọn thanh bên (Ctrl+B)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="9" y1="3" x2="9" y2="21"></line>
-            <path d="m14 9-3 3 3 3"></path>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Danh Sách Các Dự Án Hiện Có -->
-      <div class="projects-list-section">
-        <div class="section-label-row">
-          <span class="section-label-text">DỰ ÁN HIỆN CÓ</span>
-        </div>
-        <div id="projects-list-items" class="projects-list-items">
-          <!-- Populated dynamically -->
-        </div>
-      </div>
-
-      <!-- Khu Vực Chi Tiết Của Dự Án Đang Mở (Tập tin & Danh sách chat) -->
-      <div id="active-project-workspace" class="active-project-workspace" style="display: none;">
-        <!-- CÂY THƯ MỤC & TẬP TIN DỰ ÁN -->
-        <div class="project-files-tree-section">
-          <div class="section-label-row tree-header-row" id="tree-section-header" style="cursor: pointer; user-select: none;" title="Bấm để ẩn / hiện danh sách tập tin">
-            <div style="display: flex; align-items: center; gap: 0.4rem;">
-              <span id="tree-toggle-arrow" class="accordion-chevron">▾</span>
-              <span class="section-label-text">TẬP TIN DỰ ÁN</span>
-            </div>
-            <div class="tree-header-actions" onclick="event.stopPropagation()">
-              <button type="button" id="btn-tree-new-file" class="btn-tree-icon" title="Tạo tệp mới">+ File</button>
-              <button type="button" id="btn-tree-new-folder" class="btn-tree-icon" title="Tạo thư mục mới">+ Folder</button>
-              <button type="button" id="btn-refresh-files" class="btn-tree-icon" title="Làm mới cây tập tin">↺</button>
-            </div>
+        
+        <div class="antigravity-quick-nav">
+          <div class="antigravity-nav-row" onclick="window.switchTabByRoute('prompts')" title="Automations & Skills">
+            <span class="nav-row-icon">🕒</span>
+            <span class="nav-row-text">Automations</span>
           </div>
-          <div id="project-files-list" class="project-files-tree-list">
-            <span class="tree-loading-text">Đang tải tập tin dự án...</span>
-          </div>
-        </div>
-
-        <!-- CÂY DANH SÁCH CÁC ĐOẠN CHAT -->
-        <div class="project-chats-section">
-          <div class="section-label-row chat-header-row" id="chats-section-header" style="cursor: pointer; user-select: none;" title="Bấm để ẩn / hiện danh sách đoạn chat">
-            <div style="display: flex; align-items: center; gap: 0.4rem;">
-              <span id="chats-toggle-arrow" class="accordion-chevron">▾</span>
-              <span class="section-label-text">CÁC ĐOẠN CHAT</span>
-            </div>
-            <div onclick="event.stopPropagation()">
-              <button type="button" id="btn-open-new-chat-modal" class="btn-small-primary" title="Thêm đoạn chat mới">+ Thêm Đoạn Chat</button>
-            </div>
-          </div>
-          <div id="project-chats-list" class="project-chats-list">
-            <!-- Populated dynamically -->
+          <div class="antigravity-nav-row" onclick="window.switchSettingsSubtab('providers')" title="Customizations / Tùy biến">
+            <span class="nav-row-icon">💼</span>
+            <span class="nav-row-text">Customizations</span>
           </div>
         </div>
       </div>
+
+      <!-- Projects Section Heading with Filter & Add Project -->
+      <div class="antigravity-section-heading">
+        <span class="heading-label">Projects</span>
+        <div class="heading-actions">
+          <button type="button" class="btn-antigravity-icon" onclick="window.toggleProjectFilter()" title="Lọc dự án">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+          </button>
+          <button type="button" class="btn-antigravity-icon" onclick="document.getElementById('btn-open-create-project').click()" title="Thêm dự án mới (+ Project)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter input (hidden by default) -->
+      <div id="antigravity-project-filter-box" class="antigravity-filter-box" style="display: none;">
+        <input type="text" id="antigravity-search-input" placeholder="Lọc dự án hoặc chat..." oninput="window.filterAntigravityTree(this.value)">
+      </div>
+
+      <!-- Unified Tree: Project Folders & Nested Conversations -->
+      <div id="antigravity-unified-tree" class="antigravity-unified-tree">
+        <!-- Populated dynamically via renderAntigravityProjectsTree() -->
+      </div>
+
+      <!-- Hidden triggers for modals -->
+      <button id="btn-open-create-project" style="display: none;"></button>
+      <button id="btn-open-new-chat-modal" style="display: none;"></button>
+      <div id="projects-list-items" style="display: none;"></div>
+      <div id="project-chats-list" style="display: none;"></div>
+      <div id="project-files-list" style="display: none;"></div>
+      <div id="active-project-workspace" style="display: none;"></div>
     </aside>
 
-    <!-- 2. Main Workspace: Chat Canvas -->
-    <main class="projects-main">
-      <!-- Chat Canvas Top Bar: Tiêu đề chat & Góc phải có DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5 AGENT) -->
-      <div class="project-chat-topbar" id="project-chat-topbar" style="display: none;">
-        <div class="chat-topbar-left">
-          <!-- Nút Ẩn / Hiện Sidebar bên trái -->
+    <!-- 2. Main Workspace: Chat Canvas (Image 4) -->
+    <main class="projects-main antigravity-main">
+      <!-- Antigravity Top Header Bar -->
+      <div class="antigravity-topbar" id="project-chat-topbar">
+        <div class="antigravity-topbar-left">
           <button type="button" id="btn-toggle-projects-sidebar" class="btn-icon-sidebar-toggle" title="Ẩn / Hiện thanh bên dự án (Ctrl+B)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="9" y1="3" x2="9" y2="21"></line>
             </svg>
           </button>
 
-          <div class="chat-title-wrap">
-            <span class="chat-title-icon">💬</span>
-            <h4 id="project-chat-title" class="chat-title-heading">Hội đồng Code &amp; Fix lỗi</h4>
-          </div>
-
-          <!-- Nút Toggle Thu gọn / Mở rộng Model Selector -->
-          <button type="button" id="btn-toggle-chat-models-box" class="btn-toggle-models-summary" title="Bấm để Ẩn / Hiện bộ chọn Provider &amp; Model">
-            <span class="model-summary-icon">⚡</span>
-            <span id="topbar-model-summary-name" class="model-summary-name">cohere/north-mini-code:free</span>
-            <span id="topbar-model-summary-arrow" class="model-summary-arrow">▾</span>
-          </button>
-
-          <!-- Model Selector cho đoạn chat (Chia rõ Provider -> Model tương ứng) -->
-          <div class="chat-model-badge-box" id="chat-model-badge-box">
-            <div class="topbar-select-capsule" title="Nhà cung cấp AI đang hoạt động">
-              <span class="select-capsule-icon">🏢</span>
-              <span class="select-capsule-label">Provider:</span>
-              <select id="chat-active-provider-select" class="chat-model-dropdown">
-                <!-- Dynamically populated from active providers -->
-              </select>
-            </div>
-            <div class="topbar-select-capsule" title="Mô hình AI tương ứng với Provider">
-              <span class="select-capsule-icon">🤖</span>
-              <span class="select-capsule-label">Model:</span>
-              <select id="chat-active-model-select" class="chat-model-dropdown">
-                <!-- Dynamically populated based on active provider -->
-              </select>
-            </div>
+          <!-- Breadcrumbs: Project / Chat Title (Image 4) -->
+          <div class="antigravity-breadcrumbs">
+            <span class="bc-proj" id="antigravity-topbar-proj">VinceZone</span>
+            <span class="bc-sep">/</span>
+            <span class="bc-chat" id="antigravity-topbar-chat">Đoạn Chat</span>
           </div>
         </div>
 
-        <!-- GÓC PHẢI: AGENT BAR, THÊM AGENT (TỐI ĐA 5) & NÚT ẨN THANH BAR NGANG -->
-        <div class="chat-topbar-right">
-          <div class="chat-agents-pills-row" id="chat-agents-pills-row">
-            <!-- Chips of active agents in this chat -->
-          </div>
-          <button type="button" id="btn-add-agent-plus" class="btn-add-agent-plus" title="Thêm Agent vào đoạn chat này (Tối đa 5 Agent)">
-            <span class="plus-icon">+</span>
-            <span class="plus-label">Agent</span>
+        <div class="antigravity-topbar-right">
+          <!-- Active Agents Pills -->
+          <div class="chat-agents-pills-row" id="chat-agents-pills-row"></div>
+
+          <!-- Open IDE button (Image 3) -->
+          <button type="button" class="btn-antigravity-pill" onclick="window.switchTabByRoute('demo')" title="Mở phòng xem Code & Live Demo (Open IDE)">
+            <span>Open IDE</span>
           </button>
-          <button type="button" class="btn-micro btn-structure-accent" onclick="window.openProjectStructureModal()" title="Xem sơ đồ công việc & file đã chỉnh của các AI Agent">
-            <span style="margin-right: 3px;">🏗️</span> Cấu Trúc
+
+          <!-- Terminal Button -->
+          <button type="button" class="btn-antigravity-icon-btn" onclick="window.toggleProjectTerminal()" title="Mở Terminal">
+            <span>⌨️</span>
           </button>
-          <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">
-            <span style="margin-right: 3px;">💻</span> Terminal
-          </button>
-          <button type="button" id="btn-hide-chat-topbar" class="btn-icon-sidebar-toggle" title="Ẩn thanh bar ngang này (Ctrl+Shift+T)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m18 15-6-6-6 6"/>
-            </svg>
+
+          <!-- Toggle Antigravity Overview Drawer (Image 3) -->
+          <button type="button" class="btn-antigravity-icon-btn active" id="btn-toggle-right-drawer" onclick="window.toggleRightDrawer()" title="Bảng thông tin tổng quan (Overview Drawer)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </button>
         </div>
       </div>
-
-      <!-- Floating View Controls: Nút nổi khôi phục khi ẩn bảng bên hoặc ẩn thanh bar ngang -->
-      <div id="projects-floating-view-controls" class="projects-floating-view-controls">
-        <button type="button" id="btn-floating-show-sidebar" class="btn-floating-view-toggle" title="Hiện lại bảng bên dự án (Ctrl+B)" style="display: none;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="9" y1="3" x2="9" y2="21"></line>
-            <path d="m10 9 3 3-3 3"></path>
-          </svg>
-          <span>Hiện Bảng Bên</span>
-        </button>
-
-        <button type="button" id="btn-floating-show-topbar" class="btn-floating-view-toggle" title="Hiện lại thanh bar ngang (Ctrl+Shift+T)" style="display: none;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m6 9 6 6 6-6"/>
-          </svg>
-          <span>Hiện Thanh Bar Ngang</span>
-        </button>
-      </div>
-
-      
 
       <!-- Embedded Terminal Drawer -->
       <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
         <div class="terminal-drawer-header">
           <div class="terminal-title-row">
-            <span class="term-dot dot-red"></span>
-            <span class="term-dot dot-yellow"></span>
-            <span class="term-dot dot-green"></span>
+            <span class="terminal-badge-pulse"></span>
             <span class="terminal-title-text">Terminal Dự Án (PowerShell / CMD)</span>
           </div>
           <button id="btn-close-terminal-drawer" class="btn-micro" title="Đóng terminal">Đóng</button>
         </div>
         <div class="terminal-cmd-bar">
           <select id="terminal-shell-select" class="terminal-shell-select">
-            <option value="powershell">PowerShell</option>
-            <option value="cmd">CMD</option>
+            <option value="powershell" selected>PowerShell</option>
+            <option value="cmd">Command Prompt (CMD)</option>
           </select>
           <input type="text" id="terminal-cmd-input" class="terminal-cmd-input" placeholder="Nhập lệnh (vd: git status, dir, npm test)...">
           <button id="btn-execute-terminal" class="btn-primary btn-small">Chạy</button>
@@ -596,90 +536,25 @@
         <pre id="terminal-output-pre" class="terminal-output-pre">Sẵn sàng thực thi lệnh trong thư mục dự án.</pre>
       </div>
 
-      <!-- Live Agent Orchestration Progress Indicator -->
-      <div id="project-team-progress" class="project-team-progress" style="display: none;">
-        <div class="team-progress-spinner"></div>
-        <div class="team-progress-info">
-          <strong id="team-progress-title">Agent đang suy nghĩ và làm việc...</strong>
-          <span id="team-progress-sub">Đang phân tích code và thực thi</span>
-        </div>
-      </div>
-
-      <!-- Khung Hiển Thị Sơ Đồ Cấu Trúc Dự Án Kèm Giải Thích Chi Tiết -->
-      <div id="project-structure-view" class="project-structure-view" style="display: none;">
-        <div class="structure-view-header">
-          <div class="structure-header-left">
-            <button type="button" id="btn-back-to-chat" class="btn-back-to-chat" onclick="window.closeProjectStructureView()" title="Quay ngược lại trang đoạn chat ban đầu (phím Esc)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              <span>Quay Lại Đoạn Chat</span>
-            </button>
-            <div class="structure-title-wrap">
-              <h3 id="structure-project-name" class="structure-project-name">Sơ Đồ Kiến Trúc &amp; Cấu Trúc Dự Án</h3>
-              <span id="structure-project-path" class="structure-project-path">C:\...</span>
-            </div>
-          </div>
-          <div class="structure-header-right">
-            <button type="button" class="btn-micro" onclick="window.loadProjectStructure()" title="Làm mới sơ đồ">↺ Làm Mới</button>
-          </div>
-        </div>
-
-        <div id="structure-content-area" class="structure-content-area">
-          <div class="structure-loading">
-            <div class="team-progress-spinner"></div>
-            <span>Đang phân tích sơ đồ kiến trúc và chi tiết dự án...</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Messages Canvas: Pure and Clean! -->
-      <div class="projects-chat-feed" id="projects-chat-feed">
+      <!-- Messages Canvas: Pure and Clean -->
+      <div class="projects-chat-feed antigravity-feed" id="projects-chat-feed">
         <div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án để bắt đầu.</div>
       </div>
 
-      <!-- Chat Input Area with Attachments (File, Image, Folder, Paste) - Phong cách chuẩn Playground -->
-      <div class="projects-chat-composer">
-        <!-- Attached Files & Images Preview Bar -->
-        <div id="project-attachments-bar" class="project-attachments-bar" style="display: none;"></div>
+      <!-- Floating Antigravity Composer Card (Image 4) -->
+      <div class="antigravity-composer-wrapper">
+        <div class="antigravity-composer-card">
+          <!-- Attached Files Preview Bar -->
+          <div id="project-attachments-bar" class="project-attachments-bar" style="display: none;"></div>
 
-        <div class="project-chat-form">
-          <!-- Top toolbar: Các nút đính kèm tinh tế & gợi ý kéo thả -->
-          <div class="composer-toolbar-top">
-            <div class="composer-attach-pills">
-              <button type="button" id="btn-project-attach-file" class="btn-attach-pill" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
-                <span class="pill-icon">📎</span>
-                <span class="pill-text">Tệp</span>
-              </button>
-              <button type="button" id="btn-project-attach-folder" class="btn-attach-pill" title="Đính kèm toàn bộ thư mục">
-                <span class="pill-icon">📁</span>
-                <span class="pill-text">Thư mục</span>
-              </button>
-              <button type="button" id="btn-project-attach-image" class="btn-attach-pill" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
-                <span class="pill-icon">🖼️</span>
-                <span class="pill-text">Hình ảnh</span>
-              </button>
-              <input type="file" id="project-file-input" style="display: none;" multiple>
-              <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
-              <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
-            </div>
-            <div class="composer-drag-hint">
-              <span>Kéo thả tệp hoặc dán ảnh (Ctrl+V)</span>
-            </div>
-          </div>
-
-          <!-- Ô nhập tin nhắn (Toàn màn hình, không bị ép ngang, căn chuẩn từ góc trên) -->
+          <!-- Textarea with @mention Autocomplete -->
           <div class="composer-textarea-wrap" style="position: relative;">
-            <!-- Floating @mention Autocomplete Dropdown List -->
             <div id="project-mention-dropdown" class="project-mention-dropdown" style="display: none;">
               <div class="mention-dropdown-header">
                 <span class="mention-header-icon">💬</span>
                 <span>Giao việc riêng cho AI (Bấm chọn hoặc dùng phím ↑ ↓ Enter)</span>
               </div>
-              <div id="mention-dropdown-list" class="mention-dropdown-list">
-                <!-- Dynamically populated from active agents in this chat -->
-              </div>
+              <div id="mention-dropdown-list" class="mention-dropdown-list"></div>
             </div>
 
             <textarea id="project-chat-input" rows="1" 
@@ -687,17 +562,41 @@
               placeholder="Nêu yêu cầu lập trình, gõ @ để giao việc riêng cho AI, hoặc gõ 'thêm agent coder / database...'"></textarea>
           </div>
 
-          <!-- Bottom Actions: Phím tắt bên trái, Nút Gửi bên phải chuẩn mực Playground -->
-          <div class="composer-actions-row">
-            <div class="composer-hints-left">
-              <span>Nhấn <strong>Enter</strong> để gửi • <strong>Shift + Enter</strong> xuống dòng</span>
+          <!-- Bottom Action Row: Attach (+) & Model Picker on left, Turbo & Send on right -->
+          <div class="antigravity-composer-bottom">
+            <div class="composer-bottom-left">
+              <!-- Attach (+) button -->
+              <button type="button" id="btn-project-attach-file" class="btn-composer-icon" title="Đính kèm tệp / tài liệu / thư mục">
+                <span style="font-size: 1.15rem; font-weight: 300; line-height: 1;">+</span>
+              </button>
+              <input type="file" id="project-file-input" style="display: none;" multiple>
+              <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
+              <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
+
+              <!-- Model Selector Pill (Image 4) -->
+              <div class="antigravity-model-capsule" onclick="window.triggerModelSelectClick()" title="Chọn mô hình AI">
+                <span class="model-capsule-name" id="antigravity-active-model-label">Gemini 3.8 Flash Medium</span>
+                <span class="model-capsule-arrow">▾</span>
+                <!-- Hidden native select for compatibility -->
+                <select id="chat-active-model-select" class="antigravity-hidden-model-select" onchange="window.onAntigravityModelChange(this)">
+                  <!-- Dynamically populated -->
+                </select>
+                <select id="chat-active-provider-select" style="display: none;"></select>
+              </div>
             </div>
-            <div class="composer-actions-right">
-              <button type="button" id="btn-send-project-idea" class="btn-project-send" onclick="sendProjectIdea()">
-                <span>Gửi</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+
+            <div class="composer-bottom-right">
+              <!-- Turbo Badge -->
+              <div class="antigravity-turbo-badge" title="Chế độ xử lý tăng tốc (Turbo Mode)">
+                <span>🛡️ Turbo</span>
+                <span style="font-size: 0.65rem; color: #71717a;">▾</span>
+              </div>
+
+              <!-- Circular Send Button (Image 4) -->
+              <button type="button" id="btn-send-project-idea" class="btn-antigravity-send" onclick="sendProjectIdea()" title="Gửi (Enter)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
                 </svg>
               </button>
             </div>
@@ -705,10 +604,79 @@
         </div>
       </div>
     </main>
+
+    <!-- 3. Antigravity Right Context Drawer (Image 3) -->
+    <aside class="antigravity-right-drawer" id="antigravity-right-drawer">
+      <div class="drawer-header-bar">
+        <span class="drawer-title">Overview</span>
+        <div class="drawer-header-actions">
+          <button type="button" class="btn-drawer-icon" onclick="window.toggleRightDrawer()" title="Thu gọn">✕</button>
+        </div>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Overview Menu Items -->
+        <div class="drawer-menu-card">
+          <div class="drawer-menu-row" onclick="window.openProjectStructureModal()">
+            <span class="row-icon">📄⁺</span>
+            <span class="row-label">Review / Cấu Trúc</span>
+          </div>
+          <div class="drawer-menu-row" onclick="window.openFilesDrawerModal()">
+            <span class="row-icon">📄</span>
+            <span class="row-label">Files</span>
+          </div>
+          <div class="drawer-menu-row" onclick="window.toggleProjectTerminal()">
+            <span class="row-icon">⌨️</span>
+            <span class="row-label">Terminal</span>
+          </div>
+          <div class="drawer-menu-row" onclick="window.switchTabByRoute('demo')">
+            <span class="row-icon">🚀</span>
+            <span class="row-label">Live Demo & IDE</span>
+          </div>
+          <div class="drawer-menu-row" onclick="window.switchTabByRoute('prompts')">
+            <span class="row-icon">🧩</span>
+            <span class="row-label">Extensions / Skills</span>
+            <span class="row-arrow">&rsaquo;</span>
+          </div>
+        </div>
+
+        <!-- Section Background Commands (Image 3) -->
+        <div class="drawer-section">
+          <div class="drawer-section-title-row">
+            <span class="section-title">Background Commands</span>
+            <span class="section-badge" id="antigravity-cmd-count">2</span>
+          </div>
+          <div class="drawer-list" id="antigravity-cmd-list">
+            <div class="drawer-list-item">
+              <span class="list-item-icon">&gt;_</span>
+              <span class="list-item-text">Start VinceZone server daemon</span>
+            </div>
+            <div class="drawer-list-item">
+              <span class="list-item-icon">&gt;_</span>
+              <span class="list-item-text">Launch VinceZone Studio desktop app</span>
+            </div>
+          </div>
+          <span class="drawer-see-all" onclick="window.toggleProjectTerminal()">See all</span>
+        </div>
+
+        <!-- Section Artifacts (Image 3) -->
+        <div class="drawer-section">
+          <div class="drawer-section-title-row">
+            <span class="section-title">Artifacts</span>
+            <span class="section-badge" id="antigravity-artifact-count">1</span>
+          </div>
+          <div class="drawer-list" id="antigravity-artifact-list">
+            <div class="drawer-list-item" onclick="window.switchTabByRoute('demo')">
+              <span class="list-item-icon">📄</span>
+              <span class="list-item-text">Design System Audit And Plan</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
   </div>
   </section>
 
-  
   <!-- ==================== TAB: DEMO & CODE INSPECTOR (WEB & MOBILE) ==================== -->
   <section id="tab-demo" class="tab-pane">
     <div class="demo-workspace-layout">
@@ -1919,6 +1887,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=8.2"></script>
+ <script src="app.js?v=8.5"></script>
 </body>
 </html>

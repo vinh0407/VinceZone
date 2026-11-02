@@ -4508,6 +4508,7 @@ async function loadProjects() {
 
 // 2. Render Danh Sách Các Dự Án Trong Sidebar
 function renderProjectsList() {
+  if (typeof renderAntigravityProjectsTree === "function") renderAntigravityProjectsTree();
   const container = document.getElementById('projects-list-items');
   if (!container) return;
   container.innerHTML = '';
@@ -7973,4 +7974,228 @@ window.saveCurrentIdeFile = async function() {
   } catch (err) {
     showToast('Lỗi lưu file: ' + err.message);
   }
+};
+
+
+// =============================================================================
+// GOOGLE ANTIGRAVITY UI & LOGIC (EXACT REPLICA)
+// =============================================================================
+
+function formatAntigravityTimeAgo(timestamp) {
+  if (!timestamp) return 'now';
+  const diff = Math.max(0, Date.now() - new Date(timestamp).getTime());
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d`;
+  const months = Math.floor(days / 30);
+  return `${months}mo`;
+}
+
+// 1. Render cây dự án và các đoạn chat lồng nhau chuẩn Antigravity (Image 1)
+window.renderAntigravityProjectsTree = function() {
+  const treeContainer = document.getElementById('antigravity-unified-tree');
+  if (!treeContainer) return;
+
+  const projects = projectsState.projects || [];
+  if (projects.length === 0) {
+    treeContainer.innerHTML = `
+      <div style="padding: 1rem 0.5rem; text-align: center; color: #666666; font-size: 0.78rem;">
+        Chưa có dự án nào.<br>Bấm nút 📁+ ở trên để thêm dự án.
+      </div>
+    `;
+    return;
+  }
+
+  // Tự động chọn dự án đầu tiên nếu chưa có active
+  if (!projectsState.activeProjectId && projects.length > 0) {
+    projectsState.activeProjectId = projects[0].id;
+    projectsState.activeProject = projects[0];
+  }
+
+  treeContainer.innerHTML = projects.map(p => {
+    const isProjActive = p.id === projectsState.activeProjectId;
+    const chats = p.chats || [];
+
+    const chatsHtml = chats.length > 0 ? chats.map(c => {
+      const isChatActive = isProjActive && c.id === projectsState.activeChatId;
+      const timeStr = formatAntigravityTimeAgo(c.updatedAt || c.createdAt);
+      return `
+        <div class="antigravity-conv-item ${isChatActive ? 'active' : ''}" 
+             onclick="window.selectAntigravityConversation('${p.id}', '${c.id}')"
+             title="${escapeHtml(c.title)}">
+          <div class="conv-item-left">
+            <span class="conv-title">${escapeHtml(c.title)}</span>
+          </div>
+          <div style="display: flex; align-items: center;">
+            <span class="conv-time">${timeStr}</span>
+            ${isChatActive ? '<span class="conv-active-dots">⠿</span>' : ''}
+          </div>
+        </div>
+      `;
+    }).join('') : `
+      <div style="padding: 0.3rem 0.65rem; color: #555555; font-size: 0.72rem; font-style: italic;">
+        (Chưa có hội thoại)
+      </div>
+    `;
+
+    return `
+      <div class="antigravity-project-group" data-proj-id="${p.id}">
+        <div class="antigravity-project-row ${isProjActive ? 'active' : ''}" 
+             onclick="window.selectAntigravityProject('${p.id}')" 
+             title="${escapeHtml(p.name)} (${escapeHtml(p.path || 'Local')})">
+          <span class="folder-icon">📁</span>
+          <span class="project-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${escapeHtml(p.name)}</span>
+        </div>
+        <div class="antigravity-conversations-list">
+          ${chatsHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  window.updateAntigravityTopBreadcrumbs();
+};
+
+// Chọn dự án trong Antigravity tree
+window.selectAntigravityProject = function(projectId) {
+  selectProject(projectId);
+  window.renderAntigravityProjectsTree();
+};
+
+// Chọn hội thoại trong Antigravity tree
+window.selectAntigravityConversation = function(projectId, chatId) {
+  if (projectId !== projectsState.activeProjectId) {
+    selectProject(projectId);
+  }
+  selectProjectChat(chatId);
+  window.renderAntigravityProjectsTree();
+};
+
+// Tạo cuộc hội thoại mới (+ New Conversation)
+window.createNewAntigravityChat = async function() {
+  const curProjId = projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+  if (!curProjId) {
+    showToast('Vui lòng thêm hoặc mở dự án trước.');
+    document.getElementById('btn-open-create-project')?.click();
+    return;
+  }
+
+  const title = prompt('Nhập tiêu đề cuộc trò chuyện mới:', 'Hội thoại ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  if (!title || !title.trim()) return;
+
+  try {
+    const res = await fetch(`/api/projects/${curProjId}/chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim() })
+    });
+    const data = await res.json();
+    if (data.success && data.chat) {
+      showToast('✔ Đã tạo cuộc trò chuyện mới!');
+      await loadProjectChats(curProjId);
+      selectProjectChat(data.chat.id);
+      window.renderAntigravityProjectsTree();
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi tạo chat: ' + err.message);
+  }
+};
+
+// Cập nhật Breadcrumbs trên thanh topbar: VinceZone / Phân Tích Dự Án N8n
+window.updateAntigravityTopBreadcrumbs = function() {
+  const projEl = document.getElementById('antigravity-topbar-proj');
+  const chatEl = document.getElementById('antigravity-topbar-chat');
+
+  const curProj = (projectsState.projects || []).find(p => p.id === projectsState.activeProjectId);
+  const curChat = curProj && (curProj.chats || []).find(c => c.id === projectsState.activeChatId);
+
+  if (projEl) projEl.textContent = curProj ? curProj.name : 'Dự Án';
+  if (chatEl) chatEl.textContent = curChat ? curChat.title : (curProj ? 'Hội đồng lập trình' : 'Chưa chọn');
+
+  // Cập nhật nhãn model trên thanh composer
+  const modelSelect = document.getElementById('chat-active-model-select');
+  const modelLabel = document.getElementById('antigravity-active-model-label');
+  if (modelSelect && modelLabel && modelSelect.value) {
+    modelLabel.textContent = modelSelect.options[modelSelect.selectedIndex]?.text?.replace(/\[[^\]]+\]/g, '')?.trim() || modelSelect.value;
+  }
+};
+
+// Toggle Bảng thông tin tổng quan Overview bên phải (Image 3)
+window.toggleRightDrawer = function() {
+  const drawer = document.getElementById('antigravity-right-drawer');
+  const btn = document.getElementById('btn-toggle-right-drawer');
+  if (!drawer) return;
+
+  drawer.classList.toggle('closed');
+  const isOpen = !drawer.classList.contains('closed');
+  if (btn) {
+    if (isOpen) btn.classList.add('active');
+    else btn.classList.remove('active');
+  }
+};
+
+// Toggle bộ lọc tìm kiếm trong Antigravity tree
+window.toggleProjectFilter = function() {
+  const filterBox = document.getElementById('antigravity-project-filter-box');
+  if (filterBox) {
+    const isHidden = filterBox.style.display === 'none';
+    filterBox.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      document.getElementById('antigravity-search-input')?.focus();
+    }
+  }
+};
+
+// Lọc cây dự án theo từ khóa
+window.filterAntigravityTree = function(keyword) {
+  const q = (keyword || '').toLowerCase().trim();
+  document.querySelectorAll('.antigravity-project-group').forEach(group => {
+    const projName = (group.querySelector('.project-name')?.textContent || '').toLowerCase();
+    let hasMatchingChat = false;
+    group.querySelectorAll('.antigravity-conv-item').forEach(conv => {
+      const title = (conv.querySelector('.conv-title')?.textContent || '').toLowerCase();
+      if (!q || title.includes(q)) {
+        conv.style.display = 'flex';
+        hasMatchingChat = true;
+      } else {
+        conv.style.display = 'none';
+      }
+    });
+
+    if (!q || projName.includes(q) || hasMatchingChat) {
+      group.style.display = 'flex';
+    } else {
+      group.style.display = 'none';
+    }
+  });
+};
+
+// Đổi model từ capsule composer
+window.triggerModelSelectClick = function() {
+  const sel = document.getElementById('chat-active-model-select');
+  if (sel) {
+    sel.focus();
+    try { sel.showPicker(); } catch (e) { sel.click(); }
+  }
+};
+
+window.onAntigravityModelChange = function(selectEl) {
+  const modelLabel = document.getElementById('antigravity-active-model-label');
+  if (modelLabel && selectEl) {
+    modelLabel.textContent = selectEl.options[selectEl.selectedIndex]?.text?.replace(/\[[^\]]+\]/g, '')?.trim() || selectEl.value;
+  }
+};
+
+// Mở cửa sổ xem files từ Drawer
+window.openFilesDrawerModal = function() {
+  window.openProjectStructureModal();
+  setTimeout(() => {
+    window.switchStructureTab('files');
+  }, 300);
 };
