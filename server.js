@@ -1355,7 +1355,21 @@ function detectUserAgentRecruitment(text) {
     return { type: 'all' };
   }
 
-  // 2. Thêm từng vai trò cụ thể
+  const hasAddKeyword = 
+    lower.includes('thêm') || lower.includes('them') ||
+    lower.includes('tạo') || lower.includes('tao') ||
+    lower.includes('bổ sung') || lower.includes('bo sung') ||
+    lower.includes('triệu tập') || lower.includes('trieu tap') ||
+    lower.includes('cần') || lower.includes('can') ||
+    lower.includes('muốn') || lower.includes('muon') ||
+    lower.includes('tuyển') || lower.includes('tuyen') ||
+    lower.includes('chọn') || lower.includes('chon') ||
+    lower.includes('add') || lower.includes('recruit') ||
+    lower.startsWith('/add-agent');
+
+  if (!hasAddKeyword) return null;
+
+  // 2. Thêm từng vai trò cụ thể (Hỗ trợ chọn nhiều nhà cung cấp 1 lúc)
   const roles = [
     { key: 'database', patterns: ['database', 'csdl', 'cơ sở dữ liệu', 'co so du lieu', 'sql', 'db', 'data engineer'] },
     { key: 'frontend', patterns: ['frontend', 'front-end', 'giao diện', 'giao dien', 'ui/ux', 'ui', 'ux', 'css', 'html'] },
@@ -1367,25 +1381,35 @@ function detectUserAgentRecruitment(text) {
     { key: 'reviewer', patterns: ['reviewer', 'review', 'soát code', 'soat code', 'đánh giá code'] }
   ];
 
-  const hasAddKeyword = 
-    lower.includes('thêm') || lower.includes('them') ||
-    lower.includes('tạo') || lower.includes('tao') ||
-    lower.includes('bổ sung') || lower.includes('bo sung') ||
-    lower.includes('triệu tập') || lower.includes('trieu tap') ||
-    lower.includes('cần') || lower.includes('can') ||
-    lower.includes('muốn') || lower.includes('muon') ||
-    lower.includes('add') || lower.includes('recruit') ||
-    lower.startsWith('/add-agent');
-
-  if (!hasAddKeyword) return null;
+  const matchedItems = [];
 
   for (const r of roles) {
-    for (const pat of r.patterns) {
-      const regex = new RegExp(`(?:thêm|them|tạo|tao|bổ sung|bo sung|triệu tập|trieu tap|cần|can|muốn|muon|add|recruit)(?:\\s+thêm)?(?:\\s+agent|\\s+chuyên gia|\\s+vị trí|\\s+người)?(?:\\s+về|\\s+cho|\\s+chuyên)?\\s+${pat}`, 'i');
-      if (regex.test(lower) || lower.includes(`agent ${pat}`) || lower.includes(`${pat} agent`) || lower.includes(`chuyên gia ${pat}`)) {
-        return { type: 'single', category: r.key };
+    const isMatched = r.patterns.some(pat => {
+      return lower.includes(pat);
+    });
+
+    if (isMatched) {
+      // Phân tích nhà cung cấp được yêu cầu (nếu có đề cập gần tên vai trò hoặc trong câu)
+      let providerId = null;
+      if (lower.includes('cloudflare') || lower.includes('workers ai') || lower.includes(' cf ')) {
+        providerId = 'prov_cloudflare_ai';
+      } else if (lower.includes('opencode') || lower.includes('open code')) {
+        providerId = 'prov_opencode';
+      } else if (lower.includes('kilo')) {
+        providerId = 'prov_kilo_gateway';
+      } else if (lower.includes('openrouter') || lower.includes('open router')) {
+        providerId = 'prov_openrouter';
       }
+
+      matchedItems.push({
+        category: r.key,
+        providerId: providerId
+      });
     }
+  }
+
+  if (matchedItems.length > 0) {
+    return { type: 'multi', items: matchedItems };
   }
 
   return null;
@@ -1516,16 +1540,23 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       if (userRecruitIntent.type === 'all') {
         const added = Store.autoSetupAgentsForChat(projectId, chatId);
         newlyRecruited.push(...added);
-      } else if (userRecruitIntent.type === 'single') {
+      } else if (userRecruitIntent.items && userRecruitIntent.items.length > 0) {
         const freshChat = Store.getProjectChat(projectId, chatId);
         const existingAgents = freshChat.agents || [];
-        const alreadyExists = existingAgents.some(a => a.category === userRecruitIntent.category);
-        if (existingAgents.length < 5 && !alreadyExists) {
-          try {
-            const addedAg = Store.addAgentToChat(projectId, chatId, { category: userRecruitIntent.category });
-            newlyRecruited.push(addedAg);
-          } catch (e) {
-            console.warn('Lỗi thêm agent qua botchat:', e.message);
+        for (const item of userRecruitIntent.items) {
+          if (existingAgents.length + newlyRecruited.length >= 5) break;
+          const alreadyExists = existingAgents.some(a => a.category === item.category) ||
+                                newlyRecruited.some(a => a.category === item.category);
+          if (!alreadyExists) {
+            try {
+              const addedAg = Store.addAgentToChat(projectId, chatId, { 
+                category: item.category,
+                providerId: item.providerId
+              });
+              newlyRecruited.push(addedAg);
+            } catch (e) {
+              console.warn('Lỗi thêm agent qua botchat:', e.message);
+            }
           }
         }
       }

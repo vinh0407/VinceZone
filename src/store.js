@@ -1382,6 +1382,60 @@ const Store = {
     return newChat;
   },
 
+  getBestModelForRoleAndProvider(category, providerId) {
+    const matrix = {
+      coder: {
+        prov_openrouter: 'cohere/north-mini-code:free',
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-3b-instruct',
+        prov_kilo_gateway: 'cohere/north-mini-code:free',
+        prov_opencode: 'deepseek-v4.1-flash-free'
+      },
+      tester: {
+        prov_cloudflare_ai: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        prov_openrouter: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        prov_kilo_gateway: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        prov_opencode: 'nemotron-3.5-lightning-free'
+      },
+      architect: {
+        prov_openrouter: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        prov_kilo_gateway: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-3b-instruct',
+        prov_opencode: 'mimo-v2.6-flash-free'
+      },
+      database: {
+        prov_opencode: 'glm-5.3-flash-free',
+        prov_openrouter: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        prov_kilo_gateway: 'poolside/laguna-s-2.1:free',
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-3b-instruct'
+      },
+      frontend: {
+        prov_opencode: 'nemotron-3.5-super-vl-free',
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-11b-vision-instruct',
+        prov_openrouter: 'nvidia/nemotron-3.5-lightning:free',
+        prov_kilo_gateway: 'kilo-auto/free'
+      },
+      security: {
+        prov_cloudflare_ai: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+        prov_openrouter: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        prov_kilo_gateway: 'dots-studio/dots-3-note-preview:free',
+        prov_opencode: 'flint-40b-free'
+      },
+      devops: {
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-1b-instruct',
+        prov_openrouter: 'recursive/flint-v1.0:free',
+        prov_kilo_gateway: 'poolside/laguna-s-2.1:free',
+        prov_opencode: 'beam-free'
+      },
+      reviewer: {
+        prov_openrouter: 'nvidia/nemotron-3.5-lightning:free',
+        prov_cloudflare_ai: '@cf/meta/llama-3.2-11b-vision-instruct',
+        prov_kilo_gateway: 'kilo-auto/free',
+        prov_opencode: 'big-pickle'
+      }
+    };
+    return matrix[category]?.[providerId] || null;
+  },
+
   addAgentToChat(projectId, chatId, { category, model, name, providerId, providerName }) {
     const data = readDb();
     data.projects = data.projects || [];
@@ -1398,7 +1452,16 @@ const Store = {
 
     const catalog = this.getSpecializedCatalog();
     const roleConfig = catalog[category] || catalog.coder;
-    const finalModel = model || roleConfig.defaultModel;
+
+    // Tự động chọn Model tối ưu theo vai trò và nhà cung cấp nếu chưa chỉ định rõ
+    let finalModel = model;
+    if (!finalModel) {
+      if (providerId) {
+        finalModel = this.getBestModelForRoleAndProvider(roleConfig.category, providerId) || roleConfig.defaultModel;
+      } else {
+        finalModel = roleConfig.defaultModel;
+      }
+    }
 
     // Tự động gán Provider tương ứng chuẩn xác theo Model từ 4 Provider
     let finalProvId = providerId;
@@ -1417,6 +1480,14 @@ const Store = {
         finalProvId = 'prov_openrouter';
         finalProvName = 'OpenRouter';
       }
+    } else if (!finalProvName) {
+      const pMap = {
+        prov_openrouter: 'OpenRouter',
+        prov_cloudflare_ai: 'Cloudflare Workers AI',
+        prov_kilo_gateway: 'Kilo Gateway',
+        prov_opencode: 'OpenCode'
+      };
+      finalProvName = pMap[finalProvId] || 'Provider';
     }
 
     const newAgent = {
