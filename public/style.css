@@ -4809,8 +4809,8 @@ input[type="range"] {
 }
 
 .project-chat-form:focus-within {
-  border-color: var(--border-focus, #52525b);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.6);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22), 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 /* Toolbar phía trên của ô nhập */
@@ -4920,26 +4920,26 @@ input[type="range"] {
 
 .btn-project-send,
 #btn-send-project-idea {
-  background: #ffffff !important;
-  color: #09090b !important;
-  border: none !important;
-  border-radius: 6px;
-  padding: 0.45rem 1.15rem;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px;
+  padding: 0.48rem 1.2rem;
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+  gap: 0.45rem;
+  transition: all 0.16s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
 }
 
 .btn-project-send:hover,
 #btn-send-project-idea:hover {
-  opacity: 0.9;
+  background: #1d4ed8 !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.5);
 }
 
 .btn-project-send:active,
@@ -5278,14 +5278,7 @@ input[type="range"] {
 /* ========================================================================= */
 
 .active-project-info-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.65rem 0.75rem;
-  background: #141417;
-  border: 1px solid #222226;
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
+  display: none !important;
 }
 
 .active-proj-info-text {
@@ -5401,24 +5394,25 @@ input[type="range"] {
 }
 
 .btn-small-primary {
-  background: #27272a;
-  color: #e4e4e7;
-  border: 1px solid #3f3f46;
+  background: #27272a !important;
+  color: #e4e4e7 !important;
+  border: 1px solid #3f3f46 !important;
   font-size: 0.72rem;
   font-weight: 500;
-  padding: 0.22rem 0.55rem;
-  border-radius: 4px;
+  padding: 0.24rem 0.6rem;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.25rem;
 }
 
 .btn-small-primary:hover {
-  background: #3f3f46;
-  color: #ffffff;
-  border-color: #52525b;
+  background: #3f3f46 !important;
+  color: #ffffff !important;
+  border-color: #52525b !important;
 }
 
 /* Nút icon Thu gọn / Ẩn hiện Sidebar */
@@ -6496,6 +6490,55 @@ input[type="range"] {
   border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
+.badge-database {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.35);
+}
+
+.badge-frontend {
+  background: rgba(236, 72, 153, 0.15);
+  color: #f472b6;
+  border: 1px solid rgba(236, 72, 153, 0.35);
+}
+
+.badge-security {
+  background: rgba(225, 29, 72, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(225, 29, 72, 0.35);
+}
+
+/* Thẻ Thông Báo Tự Động Tuyển Dụng Thêm Agent */
+.agent-recruit-announcement {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  padding: 0.45rem 1.15rem;
+  border-radius: var(--radius-full);
+  margin: 0.5rem 0;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.15);
+  animation: messageSlideIn 0.25s ease both;
+}
+
+.recruit-icon {
+  font-size: 1rem;
+}
+
+.recruit-text {
+  font-size: 0.82rem;
+  color: #bfdbfe;
+}
+
+.recruit-highlight {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: #3b82f6;
+}
+
 /* Thẻ Mention (@Tên) - Thể hiện các AI trực tiếp gọi nhau */
 .agent-mention {
   display: inline-flex;
@@ -6660,4 +6703,318 @@ input[type="range"] {
   color: #a1a1aa;
   margin-left: 0.45rem;
   font-style: italic;
+}
+
+/* ========================================================================= */
+/* SƠ ĐỒ & CẤU TRÚC DỰ ÁN (PROJECT ARCHITECTURE & EXPLANATION CANVAS)         */
+/* ========================================================================= */
+
+.btn-structure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #18181c;
+  color: #e4e4e7;
+  border: 1px solid var(--border-subtle);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s var(--ease-spring);
+  user-select: none;
+}
+
+.btn-structure-toggle:hover {
+  background: #272730;
+  color: #ffffff;
+  border-color: #52525b;
+  transform: translateY(-1px);
+}
+
+.btn-structure-toggle .btn-struct-icon {
+  font-size: 0.95rem;
+}
+
+.project-structure-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--bg-primary);
+  animation: fadeInPane 0.22s var(--ease-spring);
+}
+
+.structure-view-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1.5rem;
+  background: rgba(18, 18, 21, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.structure-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-back-to-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #202026;
+  color: #f4f4f5;
+  border: 1px solid #3f3f46;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s var(--ease-spring);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn-back-to-chat:hover {
+  background: #2f2f38;
+  color: #ffffff;
+  border-color: #60a5fa;
+  transform: translateX(-2px);
+}
+
+.structure-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.structure-project-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.structure-project-path {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.structure-content-area {
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.structure-hero-card {
+  background: #141418;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.structure-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.structure-hero-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tech-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tech-badge-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-xs);
+  background: #202026;
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Sơ đồ các tầng kiến trúc (Architectural Layers Grid) */
+.structure-layers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.structure-layer-card {
+  background: #141418;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.2s var(--ease-spring);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.structure-layer-card:hover {
+  border-color: #3f3f46;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.layer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.6rem;
+}
+
+.layer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.layer-card-icon {
+  font-size: 1.25rem;
+}
+
+.layer-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.layer-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.layer-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.layer-modules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #0d0d10;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem;
+}
+
+.layer-module-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.module-item-name {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.module-item-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Sơ đồ luồng hoạt động (Data Lifecycle) */
+.structure-lifecycle-box {
+  background: #141418;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lifecycle-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lifecycle-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  position: relative;
+}
+
+.lifecycle-step-card {
+  background: #1b1b22;
+  border: 1px solid #282834;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.step-num-pill {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.step-card-title {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.step-card-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
 }

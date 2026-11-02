@@ -894,6 +894,58 @@ const Store = {
 Điểm mạnh cốt lõi:
 1. Cấu hình môi trường, script package.json, build và deploy.
 2. Xử lý các câu lệnh git, terminal và biến môi trường.`
+      },
+      database: {
+        category: 'database',
+        roleTitle: 'Cơ Sở Dữ Liệu (Database & SQL Engineer)',
+        badge: 'DATABASE',
+        color: '#14b8a6',
+        description: 'Chuyên gia thiết kế bảng (Schema), quan hệ dữ liệu, tối ưu truy vấn SQL/NoSQL và migrations.',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        recommendedModels: [
+          { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B [FREE OpenRouter]' },
+          { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE OpenRouter]' },
+          { id: '@cf/meta/llama-3.2-3b-instruct', name: 'Llama 3.2 3B [FREE Cloudflare]' }
+        ],
+        systemPrompt: `Bạn là Kỹ Sư Cơ Sở Dữ Liệu & SQL (Senior Database Architect & Data Engineer).
+[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:
+1. Thiết kế bảng dữ liệu, quan hệ khóa ngoại (ERD), script migrations hoàn chỉnh.
+2. Viết câu truy vấn SQL/NoSQL tối ưu, đánh index tránh nghẽn hiệu năng.
+3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án.`
+      },
+      frontend: {
+        category: 'frontend',
+        roleTitle: 'Giao Diện & Trải Nghiệm (Frontend / UI Engineer)',
+        badge: 'FRONTEND',
+        color: '#ec4899',
+        description: 'Chuyên gia thiết kế UI/UX hiện đại, responsive CSS, animation mượt mà và component hóa.',
+        defaultModel: 'cohere/north-mini-code:free',
+        recommendedModels: [
+          { id: 'cohere/north-mini-code:free', name: 'Cohere North Mini Code [FREE OpenRouter]' },
+          { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning [FREE OpenRouter]' }
+        ],
+        systemPrompt: `Bạn là Kỹ Sư Giao Diện Người Dùng (Senior Frontend & UI/UX Engineer).
+[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:
+1. Thiết kế giao diện hiện đại chuẩn SaaS, responsive 100% trên cả Desktop và Mobile.
+2. Viết HTML/CSS/JS sạch, tối ưu hiệu ứng chuyển động và trải nghiệm tương tác.
+3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án.`
+      },
+      security: {
+        category: 'security',
+        roleTitle: 'An Ninh & Bảo Mật (Security & Auth Auditor)',
+        badge: 'SECURITY',
+        color: '#e11d48',
+        description: 'Chuyên gia rà soát lỗ hổng bảo mật (OWASP, SQLi, XSS, CSRF), phân quyền JWT/OAuth2 và mã hóa.',
+        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        recommendedModels: [
+          { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B [FREE OpenRouter]' },
+          { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Distill 32B [FREE Cloudflare]' }
+        ],
+        systemPrompt: `Bạn là Chuyên Gia An Ninh & Kiểm Toán Bảo Mật (Application Security Specialist & Auth Engineer).
+[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:
+1. Rà soát triệt để các lỗ hổng bảo mật (SQL Injection, XSS, CSRF, Token Leak).
+2. Thiết lập cơ chế xác thực JWT, mã hóa mật khẩu và phân quyền an toàn.
+3. Cung cấp giải pháp vá lỗi cụ thể kèm mã nguồn sẵn sàng chạy.`
       }
     };
   },
@@ -1345,6 +1397,9 @@ const Store = {
       agentId: message.agentId || null,
       agentBadge: message.agentBadge || null,
       agentColor: message.agentColor || null,
+      agentModel: message.agentModel || null,
+      agentRole: message.agentRole || null,
+      attachments: Array.isArray(message.attachments) ? message.attachments : [],
       content: message.content || '',
       timestamp: new Date().toISOString()
     };

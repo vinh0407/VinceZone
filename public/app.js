@@ -4691,13 +4691,56 @@ async function setupChatTopBarProviderAndModel(chat) {
 }
 
 // 7. Render Nội Dung Cuộc Trò Chuyện & Top Bar
+function renderActiveChatAgents(chat) {
+  const agentsRowEl = document.getElementById('chat-agents-pills-row');
+  const addAgentBtn = document.getElementById('btn-add-agent-plus');
+  const agents = (chat && chat.agents) ? chat.agents : [];
+  if (agentsRowEl) {
+    agentsRowEl.innerHTML = '';
+    agents.forEach(ag => {
+      let badgeClass = 'badge-coder';
+      const b = (ag.badge || '').toUpperCase();
+      const cat = (ag.category || '').toLowerCase();
+      if (b.includes('ARCH') || cat === 'architect') badgeClass = 'badge-arch';
+      else if (b.includes('TEST') || cat === 'tester') badgeClass = 'badge-tester';
+      else if (b.includes('REVIEW') || cat === 'reviewer') badgeClass = 'badge-reviewer';
+      else if (b.includes('DEVOPS') || cat === 'devops') badgeClass = 'badge-devops';
+      else if (b.includes('DATA') || cat === 'database') badgeClass = 'badge-database';
+      else if (b.includes('FRONT') || cat === 'frontend') badgeClass = 'badge-frontend';
+      else if (b.includes('SEC') || cat === 'security') badgeClass = 'badge-security';
+
+      const chip = document.createElement('div');
+      chip.className = 'chat-agent-pill';
+      const provText = ag.providerName ? ` [${ag.providerName}]` : '';
+      chip.title = `Model: ${ag.model || 'Auto'}${provText} - Vai trò: ${ag.roleTitle || ag.name}`;
+      chip.innerHTML = `
+        <span class="agent-badge ${badgeClass}">${escapeHtml(ag.badge || 'AI')}</span>
+        <span class="agent-name-text">${escapeHtml(ag.name)}</span>
+        <span class="agent-model-pill-tag" style="font-size:0.65rem; color:#71717a; font-family:monospace;">(${escapeHtml(ag.model || 'Auto')})</span>
+        <button type="button" class="chip-remove-btn" onclick="removeAgentFromActiveChat('${ag.id}')" title="Xóa Agent khỏi Hội Đồng">&times;</button>
+      `;
+      agentsRowEl.appendChild(chip);
+    });
+  }
+  if (addAgentBtn) {
+    if (agents.length >= 5) {
+      addAgentBtn.disabled = true;
+      addAgentBtn.title = 'Đoạn chat này đã có tối đa 5 Agent';
+      addAgentBtn.classList.add('disabled');
+    } else {
+      addAgentBtn.disabled = false;
+      addAgentBtn.title = `Thêm Agent vào đoạn chat này (${agents.length}/5 Agent)`;
+      addAgentBtn.classList.remove('disabled');
+    }
+  }
+}
+window.renderActiveChatAgents = renderActiveChatAgents;
+
 function renderProjectChat(chat) {
   projectsState.activeChat = chat;
   const topBarEl = document.getElementById('project-chat-topbar');
   const titleEl = document.getElementById('project-chat-title');
   const modelSelectEl = document.getElementById('chat-active-model-select');
-  const agentsRowEl = document.getElementById('chat-agents-pills-row');
-  const addAgentBtn = document.getElementById('btn-add-agent-plus');
   const feedEl = document.getElementById('projects-chat-feed');
 
   if (!feedEl) return;
@@ -4724,42 +4767,7 @@ function renderProjectChat(chat) {
   setupChatTopBarProviderAndModel(chat);
 
   // Render các Agent trong đoạn chat (Tối đa 5 Agent)
-  const agents = chat.agents || [];
-  if (agentsRowEl) {
-    agentsRowEl.innerHTML = '';
-    agents.forEach(ag => {
-      let badgeClass = 'badge-coder';
-      if ((ag.badge || '').includes('ARCH')) badgeClass = 'badge-arch';
-      if ((ag.badge || '').includes('TEST')) badgeClass = 'badge-tester';
-      if ((ag.badge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
-      if ((ag.badge || '').includes('DEVOPS')) badgeClass = 'badge-arch';
-
-      const chip = document.createElement('div');
-      chip.className = 'chat-agent-pill';
-      const provText = ag.providerName ? ` [${ag.providerName}]` : '';
-      chip.title = `Model: ${ag.model || 'Auto'}${provText} - Vai trò: ${ag.roleTitle || ag.name}`;
-      chip.innerHTML = `
-        <span class="agent-badge ${badgeClass}">${escapeHtml(ag.badge || 'AI')}</span>
-        <span class="agent-name-text">${escapeHtml(ag.name)}</span>
-        <span class="agent-model-pill-tag" style="font-size:0.65rem; color:#71717a; font-family:monospace;">(${escapeHtml(ag.model || 'Auto')})</span>
-        <button type="button" class="chip-remove-btn" onclick="removeAgentFromActiveChat('${ag.id}')" title="Xóa Agent khỏi Hội Đồng">&times;</button>
-      `;
-      agentsRowEl.appendChild(chip);
-    });
-  }
-
-  // Cập nhật trạng thái nút thêm Agent (+)
-  if (addAgentBtn) {
-    if (agents.length >= 5) {
-      addAgentBtn.disabled = true;
-      addAgentBtn.title = 'Đoạn chat này đã có tối đa 5 Agent';
-      addAgentBtn.classList.add('disabled');
-    } else {
-      addAgentBtn.disabled = false;
-      addAgentBtn.title = `Thêm Agent vào đoạn chat này (${agents.length}/5 Agent)`;
-      addAgentBtn.classList.remove('disabled');
-    }
-  }
+  renderActiveChatAgents(chat);
 
   const messages = chat.messages || [];
 
@@ -5355,6 +5363,31 @@ async function sendProjectIdea() {
         }
       }
 
+      // Quét và hiển thị thông báo nếu AI tự động tuyển dụng thêm Agent
+      messages.forEach(msg => {
+        const recruitRegex = /\[(?:RECRUIT_AGENT|AUTO_ADD_AGENT):\s*role="([^"]+)",\s*name="([^"]+)"(?:,\s*model="([^"]+)")?\]/gi;
+        let rMatch;
+        while ((rMatch = recruitRegex.exec(msg.content)) !== null) {
+          const rRole = rMatch[1];
+          const rName = rMatch[2];
+          const rModel = rMatch[3] || 'Auto';
+          renderRecruitmentNotice(rName, rRole, rModel);
+        }
+      });
+
+      // Tự động đồng bộ và nạp lại danh sách Agent nếu vừa có thành viên mới được tuyển dụng
+      if (projectsState.activeProjectId && projectsState.activeChatId) {
+        try {
+          const refChatRes = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`);
+          const refChatData = await refChatRes.json();
+          const updatedChat = (refChatData.chats || []).find(c => c.id === projectsState.activeChatId);
+          if (updatedChat && projectsState.activeChat) {
+            projectsState.activeChat.agents = updatedChat.agents || [];
+            renderActiveChatAgents(projectsState.activeChat);
+          }
+        } catch (e) {}
+      }
+
       // Lưu vào state chat hiện tại
       if (projectsState.activeChat) {
         projectsState.activeChat.messages = projectsState.activeChat.messages || [];
@@ -5376,6 +5409,167 @@ async function sendProjectIdea() {
   }
 }
 window.sendProjectIdea = sendProjectIdea;
+
+// Hàm hiển thị thông báo AI tự động tuyển dụng thêm thành viên
+function renderRecruitmentNotice(recruitedName, role, model) {
+  const feedEl = document.getElementById('projects-chat-feed');
+  if (!feedEl) return;
+  const notice = document.createElement('div');
+  notice.className = 'agent-recruit-announcement';
+  notice.innerHTML = `
+    <span class="recruit-icon">⚡</span>
+    <span class="recruit-text">Hội đồng AI vừa <strong>tự động tuyển dụng</strong>: <span class="recruit-highlight">${escapeHtml(recruitedName)}</span> (${escapeHtml(model || 'Auto')}) vào dự án!</span>
+  `;
+  feedEl.appendChild(notice);
+}
+window.renderRecruitmentNotice = renderRecruitmentNotice;
+
+// =========================================================================
+// 11b. SƠ ĐỒ & CẤU TRÚC DỰ ÁN KÈM GIẢI THÍCH CHI TIẾT (ARCHITECTURE CANVAS)
+// =========================================================================
+
+window.openProjectStructureView = function() {
+  const structureView = document.getElementById('project-structure-view');
+  const chatFeed = document.getElementById('projects-chat-feed');
+  const composer = document.querySelector('.projects-chat-composer');
+  const topbar = document.getElementById('project-chat-topbar');
+
+  if (!structureView) return;
+
+  if (chatFeed) chatFeed.style.display = 'none';
+  if (composer) composer.style.display = 'none';
+  structureView.style.display = 'flex';
+
+  window.loadProjectStructure();
+};
+
+window.closeProjectStructureView = function() {
+  const structureView = document.getElementById('project-structure-view');
+  const chatFeed = document.getElementById('projects-chat-feed');
+  const composer = document.querySelector('.projects-chat-composer');
+
+  if (structureView) structureView.style.display = 'none';
+  if (chatFeed) {
+    chatFeed.style.display = 'flex';
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+  }
+  if (composer) composer.style.display = 'flex';
+};
+
+window.loadProjectStructure = async function() {
+  const container = document.getElementById('structure-content-area');
+  const nameEl = document.getElementById('structure-project-name');
+  const pathEl = document.getElementById('structure-project-path');
+
+  if (!projectsState.activeProjectId) {
+    if (container) {
+      container.innerHTML = '<div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án trước để xem sơ đồ kiến trúc.</div>';
+    }
+    return;
+  }
+
+  if (container) {
+    container.innerHTML = `
+      <div class="structure-loading" style="display: flex; align-items: center; justify-content: center; padding: 3rem; gap: 0.75rem; color: #a1a1aa;">
+        <div class="team-progress-spinner"></div>
+        <span>Đang phân tích sơ đồ kiến trúc & bóc tách cấu trúc dự án...</span>
+      </div>
+    `;
+  }
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/structure`);
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Không thể tải cấu trúc dự án.');
+    }
+
+    if (nameEl) nameEl.textContent = `Sơ Đồ Kiến Trúc: ${data.project.name}`;
+    if (pathEl) pathEl.textContent = data.project.path;
+
+    const techBadges = (data.techStack || []).map(t => `<span class="tech-badge-pill">${escapeHtml(t)}</span>`).join('');
+
+    const layersHtml = (data.layers || []).map(layer => `
+      <div class="structure-layer-card">
+        <div class="layer-card-header">
+          <div class="layer-header-left">
+            <span class="layer-card-icon">${layer.icon}</span>
+            <strong class="layer-card-title">${escapeHtml(layer.title)}</strong>
+          </div>
+          <span class="layer-badge" style="background: ${layer.color}22; color: ${layer.color}; border: 1px solid ${layer.color}44;">${escapeHtml(layer.badge)}</span>
+        </div>
+        <p class="layer-card-desc">${escapeHtml(layer.roleDescription)}</p>
+        <div class="layer-modules-list">
+          ${(layer.keyModules || []).map(mod => `
+            <div class="layer-module-item">
+              <span class="module-item-name">${escapeHtml(mod.name)}</span>
+              <span class="module-item-desc">${escapeHtml(mod.desc)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    const lifecycleHtml = (data.lifecycle || []).map(st => `
+      <div class="lifecycle-step-card">
+        <div class="step-num-pill">${st.step}</div>
+        <strong class="step-card-title">${escapeHtml(st.title)}</strong>
+        <p class="step-card-desc">${escapeHtml(st.desc)}</p>
+      </div>
+    `).join('');
+
+    container.innerHTML = `
+      <!-- Thẻ thông tin tổng quan -->
+      <div class="structure-hero-card">
+        <div class="structure-hero-top">
+          <div class="structure-hero-title">
+            <span>🏛️</span>
+            <span>Tổng Quan Dự Án: <strong>${escapeHtml(data.project.name)}</strong></span>
+          </div>
+          <div class="tech-badges-row">
+            ${techBadges}
+          </div>
+        </div>
+        <p style="font-size: 0.85rem; color: #a1a1aa; line-height: 1.5; margin: 0;">
+          ${escapeHtml(data.project.description || 'Dự án thực tế đang mở trên máy tính. Hệ thống phân tích đa tầng kiến trúc và quản lý luồng thực thi.')}
+        </p>
+      </div>
+
+      <!-- Sơ đồ phân tầng kiến trúc -->
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🧩</span>
+          <span>Sơ Đồ Phân Tầng Kiến Trúc Dự Án</span>
+        </h4>
+        <div class="structure-layers-grid">
+          ${layersHtml}
+        </div>
+      </div>
+
+      <!-- Luồng vận hành & vòng đời xử lý -->
+      <div class="structure-lifecycle-box">
+        <div class="lifecycle-title">
+          <span>🔄</span>
+          <span>Quy Trình Phối Hợp &amp; Vòng Đời Thực Thi Dự Án (Execution Lifecycle)</span>
+        </div>
+        <div class="lifecycle-steps-grid">
+          ${lifecycleHtml}
+        </div>
+      </div>
+    `;
+
+  } catch (err) {
+    if (container) {
+      container.innerHTML = `
+        <div style="padding: 2rem; text-align: center; color: #ef4444;">
+          <p>Lỗi tải cấu trúc dự án: ${escapeHtml(err.message)}</p>
+          <button type="button" class="btn-primary btn-small" onclick="window.loadProjectStructure()">Thử lại</button>
+        </div>
+      `;
+    }
+  }
+};
 
 // 12. Render Staged Attachments
 function renderProjectAttachments() {
@@ -6136,12 +6330,15 @@ function initProjectsEventListeners() {
   const chatsSectionHeader = document.getElementById('chats-section-header');
   const chatsList = document.getElementById('project-chats-list');
   const chatsArrow = document.getElementById('chats-toggle-arrow');
-  if (chatsSectionHeader && chatsList) {
-    chatsSectionHeader.addEventListener('click', () => {
-      const isCollapsed = chatsList.classList.toggle('collapsed');
-      if (chatsArrow) chatsArrow.classList.toggle('collapsed', isCollapsed);
-    });
-  }
+  // 4. Phím tắt Escape để nhanh chóng quay lại chat khi đang xem cấu trúc dự án
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const structView = document.getElementById('project-structure-view');
+      if (structView && structView.style.display !== 'none') {
+        window.closeProjectStructureView();
+      }
+    }
+  });
 }
 
 // Tự động khởi chạy Projects listeners khi app load
