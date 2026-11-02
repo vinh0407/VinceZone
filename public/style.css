@@ -9180,6 +9180,34 @@ pre code.hljs {
   font-size: 0.85rem;
 }
 
+.antigravity-project-row .btn-add-chat-proj {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #71717a;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.antigravity-project-row .btn-add-chat-proj:hover {
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.15);
+  transform: scale(1.1);
+}
+
+.antigravity-project-row:hover .btn-add-chat-proj {
+  color: #a1a1aa;
+}
+
 .antigravity-conversations-list {
   display: flex;
   flex-direction: column;

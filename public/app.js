@@ -8078,7 +8078,12 @@ window.renderAntigravityProjectsTree = function() {
              title="${escapeHtml(p.name)} (${escapeHtml(p.path || 'Local')})">
           <span class="folder-icon">📁</span>
           <span class="project-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${escapeHtml(p.name)}</span>
-          <button type="button" class="btn-antigravity-icon" onclick="event.stopPropagation(); window.createNewAntigravityChat('${p.id}')" title="Thêm đoạn chat mới vào ${escapeHtml(p.name)}" style="opacity: 0.7; padding: 2px 6px; font-size: 12px; border-radius: 4px;">+</button>
+          <button type="button" class="btn-add-chat-proj" onclick="event.stopPropagation(); window.createNewAntigravityChat('${p.id}')" title="Thêm đoạn chat mới vào dự án ${escapeHtml(p.name)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </div>
         <div class="antigravity-conversations-list">
           ${chatsHtml}
@@ -8112,6 +8117,10 @@ window.createNewAntigravityChat = async function(specificProjId) {
     showToast('Vui lòng thêm hoặc mở dự án trước.');
     document.getElementById('btn-open-create-project')?.click();
     return;
+  }
+
+  if (specificProjId && specificProjId !== projectsState.activeProjectId) {
+    selectProject(specificProjId);
   }
 
   const title = prompt('Nhập tiêu đề cuộc trò chuyện mới:', 'Hội thoại ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
