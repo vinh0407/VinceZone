@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=4.0">
+ <link rel="stylesheet" href="style.css?v=4.1">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -490,38 +490,58 @@
         <div class="chat-empty-clean">Vui lòng chọn hoặc thêm một dự án để bắt đầu.</div>
       </div>
 
-      <!-- Chat Input Area with Attachments (File, Image, Paste) -->
+      <!-- Chat Input Area with Attachments (File, Image, Folder, Paste) - Phong cách chuẩn Playground -->
       <div class="projects-chat-composer">
         <!-- Attached Files & Images Preview Bar -->
         <div id="project-attachments-bar" class="project-attachments-bar" style="display: none;"></div>
 
-        <div class="composer-capsule" style="background: #14141a; border: 1.5px solid #2e2e38; border-radius: 16px; padding: 0.75rem 1rem; display: flex; align-items: flex-end; gap: 0.75rem; width: 100%; max-width: 960px; box-sizing: border-box;">
-          <div class="composer-toolbar-left" style="display: flex; align-items: center; gap: 0.4rem; padding-bottom: 0.35rem; flex-shrink: 0;">
-            <button type="button" id="btn-project-attach-file" class="btn-attach-icon" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
-              📎
-            </button>
-            <button type="button" id="btn-project-attach-folder" class="btn-attach-icon" title="Đính kèm toàn bộ thư mục">
-              📁
-            </button>
-            <button type="button" id="btn-project-attach-image" class="btn-attach-icon" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
-              🖼️
-            </button>
-            <input type="file" id="project-file-input" style="display: none;" multiple>
-            <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
-            <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
+        <div class="project-chat-form">
+          <!-- Top toolbar: Các nút đính kèm tinh tế & gợi ý kéo thả -->
+          <div class="composer-toolbar-top">
+            <div class="composer-attach-pills">
+              <button type="button" id="btn-project-attach-file" class="btn-attach-pill" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
+                <span class="pill-icon">📎</span>
+                <span class="pill-text">Tệp</span>
+              </button>
+              <button type="button" id="btn-project-attach-folder" class="btn-attach-pill" title="Đính kèm toàn bộ thư mục">
+                <span class="pill-icon">📁</span>
+                <span class="pill-text">Thư mục</span>
+              </button>
+              <button type="button" id="btn-project-attach-image" class="btn-attach-pill" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
+                <span class="pill-icon">🖼️</span>
+                <span class="pill-text">Hình ảnh</span>
+              </button>
+              <input type="file" id="project-file-input" style="display: none;" multiple>
+              <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
+              <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
+            </div>
+            <div class="composer-drag-hint">
+              <span>Kéo thả tệp hoặc dán ảnh (Ctrl+V)</span>
+            </div>
           </div>
 
-          <textarea id="project-chat-input" class="composer-textarea" rows="2" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); sendProjectIdea(); }" placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent... (Hỗ trợ dán ảnh chụp màn hình Ctrl+V)" style="flex: 1; background: transparent; border: none; color: #f4f4f5; font-size: 1rem; line-height: 1.55; min-height: 52px; max-height: 240px; padding: 0.45rem 0.5rem; resize: none; outline: none; font-family: inherit; width: 100%; box-sizing: border-box;"></textarea>
-
-          <div class="composer-toolbar-right" style="display: flex; align-items: center; padding-bottom: 0.35rem; flex-shrink: 0;">
-            <button id="btn-send-project-idea" class="btn-primary btn-send-idea" onclick="sendProjectIdea()" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: #ffffff; border: none; border-radius: 12px; padding: 0.75rem 1.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);">
-              <span>Gửi</span>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-            </button>
+          <!-- Ô nhập tin nhắn (Toàn màn hình, không bị ép ngang, căn chuẩn từ góc trên) -->
+          <div class="composer-textarea-wrap">
+            <textarea id="project-chat-input" rows="2" 
+              onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); sendProjectIdea(); }" 
+              placeholder="Nêu yêu cầu lập trình, trao đổi với AI hoặc giao việc cho nhóm Agent..."></textarea>
           </div>
-        </div>
-        <div class="composer-hint-row">
-          <span>Nhấn <strong>Enter</strong> để gửi • <strong>Shift + Enter</strong> xuống dòng • Hỗ trợ dán ảnh (Ctrl+V) &amp; đính kèm tệp</span>
+
+          <!-- Bottom Actions: Phím tắt bên trái, Nút Gửi bên phải chuẩn mực Playground -->
+          <div class="composer-actions-row">
+            <div class="composer-hints-left">
+              <span>Nhấn <strong>Enter</strong> để gửi • <strong>Shift + Enter</strong> xuống dòng</span>
+            </div>
+            <div class="composer-actions-right">
+              <button type="button" id="btn-send-project-idea" class="btn-project-send" onclick="sendProjectIdea()">
+                <span>Gửi</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -1337,6 +1357,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=4.0"></script>
+ <script src="app.js?v=4.1"></script>
 </body>
 </html>

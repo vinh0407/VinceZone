@@ -5376,8 +5376,8 @@ function initProjectsEventListeners() {
   const btnAttachFile = document.getElementById('btn-project-attach-file');
   const fileInput = document.getElementById('project-file-input');
   if (btnAttachFile && fileInput) {
-    btnAttachFile.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
+    btnAttachFile.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
       const files = Array.from(e.target.files || []);
       files.forEach(f => {
         const reader = new FileReader();
@@ -5392,15 +5392,15 @@ function initProjectsEventListeners() {
         reader.readAsDataURL(f);
       });
       fileInput.value = '';
-    });
+    };
   }
 
-    // Đính kèm Thư mục
+  // Đính kèm Thư mục
   const btnAttachFolder = document.getElementById('btn-project-attach-folder');
   const folderInput = document.getElementById('project-folder-input');
   if (btnAttachFolder && folderInput) {
-    btnAttachFolder.addEventListener('click', () => folderInput.click());
-    folderInput.addEventListener('change', (e) => {
+    btnAttachFolder.onclick = () => folderInput.click();
+    folderInput.onchange = (e) => {
       const files = Array.from(e.target.files || []);
       const folderName = files[0]?.webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Folder';
       projectsState.attachments.push({
@@ -5411,15 +5411,15 @@ function initProjectsEventListeners() {
       });
       renderProjectAttachments();
       folderInput.value = '';
-    });
+    };
   }
 
   // Đính kèm Ảnh
   const btnAttachImage = document.getElementById('btn-project-attach-image');
   const imageInput = document.getElementById('project-image-input');
   if (btnAttachImage && imageInput) {
-    btnAttachImage.addEventListener('click', () => imageInput.click());
-    imageInput.addEventListener('change', (e) => {
+    btnAttachImage.onclick = () => imageInput.click();
+    imageInput.onchange = (e) => {
       const files = Array.from(e.target.files || []);
       files.forEach(f => {
         const reader = new FileReader();
@@ -5434,7 +5434,7 @@ function initProjectsEventListeners() {
         reader.readAsDataURL(f);
       });
       imageInput.value = '';
-    });
+    };
   }
 
   // Dấu cộng nhỏ (+) mở Modal chọn Provider & Model thêm Agent vào Hội đồng
