@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=5.6">
+ <link rel="stylesheet" href="style.css?v=5.7">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -537,6 +537,10 @@
           <button type="button" id="btn-add-agent-plus" class="btn-add-agent-plus" title="Thêm Agent vào đoạn chat này (Tối đa 5 Agent)">
             <span class="plus-icon">+</span>
             <span class="plus-label">Agent</span>
+          </button>
+          <button type="button" id="btn-auto-add-agents" class="btn-auto-add-agents" title="Tự động thêm đủ 5 Agent chuyên môn cao cấp từ 4 Provider (OpenRouter, Cloudflare, Kilo, OpenCode)" onclick="window.autoSetupCouncilAgents()">
+            <span class="auto-icon">⚡</span>
+            <span class="auto-label">Tự Thêm Agent</span>
           </button>
           <button type="button" id="btn-hide-chat-topbar" class="btn-icon-sidebar-toggle" title="Ẩn thanh bar ngang này (Ctrl+Shift+T)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1434,16 +1438,31 @@
         <h3 id="modal-council-title">Thêm Agent Vào Hội Đồng Code & Fix Lỗi</h3>
         <button type="button" id="btn-close-council-modal" class="btn-close">&times;</button>
       </div>
+
+      <!-- Quick Auto-Setup Banner từ 4 Provider -->
+      <div class="council-auto-preset-banner" style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+        <div style="font-size: 0.76rem; color: #d4d4d8; line-height: 1.4;">
+          <strong style="color: #60a5fa; display: block; font-size: 0.82rem; margin-bottom: 0.15rem;">⚡ Tự Động Thiết Lập Trọn Bộ 5 Agent</strong>
+          Hệ thống tự động thêm 5 Agent tinh nhuệ từ 4 Provider (OpenRouter, Cloudflare, Kilo, OpenCode).
+        </div>
+        <button type="button" class="btn-primary btn-micro" onclick="window.autoSetupCouncilAgents(); document.getElementById('btn-close-council-modal').click();" style="white-space: nowrap; padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+          ⚡ Tự Thêm Ngay
+        </button>
+      </div>
+
       <form id="add-agent-council-form">
         <!-- 1. VỊ TRÍ / VAI TRÒ CHUYÊN MÔN -->
         <div class="form-group">
           <label>1. Chọn Vị Trí / Vai Trò Trong Hội Đồng:</label>
           <select id="council-role-category" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
-            <option value="coder" selected>💻 Lập Trình Viên (Coder) - Viết mã, sửa code, giải thuật, cập nhật files</option>
-            <option value="tester">🧪 Kỹ Sư Kiểm Thử (Tester) - Chạy lệnh PowerShell/CMD, phát hiện lỗi</option>
-            <option value="architect">🏛️ Kiến Trúc Sư (Architect) - Phân tích ý tưởng, thiết kế hệ thống, chia việc</option>
-            <option value="reviewer">🧐 Chuyên Gia Review (Reviewer) - Chuẩn hóa Clean Code, bảo mật, tối ưu UI/UX</option>
-            <option value="devops">🚀 Kỹ Sư DevOps (DevOps) - Quản lý dependencies, scripts build & deploy</option>
+            <option value="architect" selected>🏛️ Kiến Trúc Sư (Architect) - Phân tích ý tưởng, hoạch định module, chia việc [OpenRouter Nemotron 550B]</option>
+            <option value="coder">💻 Lập Trình Viên (Coder) - Viết mã nguồn, giải thuật, cập nhật files [Cohere North Mini Code / DeepSeek]</option>
+            <option value="tester">🧪 Kỹ Sư Kiểm Thử (Tester) - Rà soát lỗi logic, chạy Terminal PowerShell/CMD [Cloudflare DeepSeek R1]</option>
+            <option value="database">🗄️ Kỹ Sư CSDL &amp; SQL (Database) - Thiết kế bảng, schema, tối ưu truy vấn [OpenCode GLM 5.3 / Llama 3.1]</option>
+            <option value="frontend">🎨 Kỹ Sư Giao Diện (Frontend UI/UX) - Responsive CSS, component hóa [OpenCode Nemotron Super VL / Laguna]</option>
+            <option value="security">🛡️ Chuyên Gia Bảo Mật (Security) - Kiểm toán Auth, JWT, chống lỗ hổng [OpenCode Lightning / Nemotron]</option>
+            <option value="reviewer">🧐 Chuyên Gia Review (Reviewer) - Chuẩn hóa Clean Code, loại bỏ code thừa [OpenRouter Lightning]</option>
+            <option value="devops">🚀 Kỹ Sư DevOps (DevOps) - Cấu hình môi trường, script build &amp; deploy [Flint Coding Agent]</option>
           </select>
         </div>
 
@@ -1499,6 +1518,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=5.6"></script>
+ <script src="app.js?v=5.7"></script>
 </body>
 </html>

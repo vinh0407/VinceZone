@@ -5088,11 +5088,23 @@ window.openAddAgentCouncilModal = async function() {
     // Tự động gợi ý model phù hợp với vai trò
     const currentRole = roleSelect ? roleSelect.value : 'coder';
     if (currentRole === 'coder') {
-      const codeModel = prov.models.find(m => m.toLowerCase().includes('code') || m.toLowerCase().includes('coder'));
+      const codeModel = prov.models.find(m => m.toLowerCase().includes('code') || m.toLowerCase().includes('coder') || m.toLowerCase().includes('deepseek'));
       if (codeModel) modelSelect.value = codeModel;
     } else if (currentRole === 'tester') {
-      const logicModel = prov.models.find(m => m.toLowerCase().includes('reasoning') || m.toLowerCase().includes('logic') || m.toLowerCase().includes('nano'));
+      const logicModel = prov.models.find(m => m.toLowerCase().includes('reasoning') || m.toLowerCase().includes('r1') || m.toLowerCase().includes('nano'));
       if (logicModel) modelSelect.value = logicModel;
+    } else if (currentRole === 'architect') {
+      const archModel = prov.models.find(m => m.toLowerCase().includes('ultra') || m.toLowerCase().includes('550b') || m.toLowerCase().includes('xing') || m.toLowerCase().includes('auto'));
+      if (archModel) modelSelect.value = archModel;
+    } else if (currentRole === 'database') {
+      const dbModel = prov.models.find(m => m.toLowerCase().includes('glm') || m.toLowerCase().includes('llama-3.1-8b') || m.toLowerCase().includes('sql') || m.toLowerCase().includes('code'));
+      if (dbModel) modelSelect.value = dbModel;
+    } else if (currentRole === 'frontend') {
+      const feModel = prov.models.find(m => m.toLowerCase().includes('vl') || m.toLowerCase().includes('vision') || m.toLowerCase().includes('laguna') || m.toLowerCase().includes('lightning'));
+      if (feModel) modelSelect.value = feModel;
+    } else if (currentRole === 'security') {
+      const secModel = prov.models.find(m => m.toLowerCase().includes('lightning') || m.toLowerCase().includes('ultra') || m.toLowerCase().includes('r1'));
+      if (secModel) modelSelect.value = secModel;
     }
   };
 
@@ -5102,9 +5114,12 @@ window.openAddAgentCouncilModal = async function() {
   if (roleSelect) {
     roleSelect.onchange = () => {
       const roleTitles = {
+        architect: 'Kiến Trúc Sư',
         coder: 'Lập Trình Viên',
         tester: 'Kỹ Sư Kiểm Thử',
-        architect: 'Kiến Trúc Sư',
+        database: 'Kỹ Sư CSDL & SQL',
+        frontend: 'Kỹ Sư Frontend UI/UX',
+        security: 'Chuyên Gia Bảo Mật',
         reviewer: 'Chuyên Gia Review',
         devops: 'Kỹ Sư DevOps'
       };
@@ -5113,10 +5128,38 @@ window.openAddAgentCouncilModal = async function() {
     };
   }
 
-  if (nameInput && !nameInput.value) nameInput.value = 'Lập Trình Viên';
+  if (nameInput && !nameInput.value) nameInput.value = 'Kiến Trúc Sư';
   updateCouncilModels();
 
   modal.classList.add('active'); modal.classList.add('open');
+};
+
+// Tự động thêm trọn bộ 5 Agent chuyên sâu từ 4 Provider: OpenRouter, Cloudflare, Kilo, OpenCode
+window.autoSetupCouncilAgents = async function() {
+  if (!projectsState.activeProjectId || !projectsState.activeChatId) {
+    showToast('Vui lòng chọn hoặc mở một đoạn chat trước.');
+    return;
+  }
+
+  try {
+    showToast('Đang tự động tuyển chọn 5 Agent từ 4 Provider...');
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/auto-add-agents`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (data.success && data.agents) {
+      if (projectsState.activeChat) {
+        projectsState.activeChat.agents = data.agents;
+      }
+      renderActiveChatAgents(projectsState.activeChat);
+      renderActiveProject();
+      showToast('Đã tự động thêm đủ 5 Agent từ 4 Provider: OpenRouter, Cloudflare, Kilo, OpenCode!');
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Không thể tự động thêm agent.'));
+    }
+  } catch (err) {
+    showToast('Lỗi tự động thêm agent: ' + err.message);
+  }
 };
 
 // 9. Xóa Agent khỏi đoạn chat

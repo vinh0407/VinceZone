@@ -113,6 +113,99 @@
   ],
   "logs": [
     {
+      "id": "log_22a90e11e5a1",
+      "timestamp": "2026-11-02T08:00:51.827Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 8466,
+      "stream": false,
+      "tokens": 4746
+    },
+    {
+      "id": "log_64dd52aeba8f",
+      "timestamp": "2026-11-02T08:00:43.353Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/command",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 500,
+      "latency": 178,
+      "error": "[OpenRouter] HTTP 404: cohere/command is no longer available on OpenRouter: no provider serves this model anymore. See available models at https://openrouter.ai/models"
+    },
+    {
+      "id": "log_e4054c5a6cd7",
+      "timestamp": "2026-11-02T08:00:43.159Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 8232,
+      "stream": false,
+      "tokens": 4211
+    },
+    {
+      "id": "log_62a13157e7ba",
+      "timestamp": "2026-11-02T08:00:34.918Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/command",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 500,
+      "latency": 188,
+      "error": "[OpenRouter] HTTP 404: cohere/command is no longer available on OpenRouter: no provider serves this model anymore. See available models at https://openrouter.ai/models"
+    },
+    {
+      "id": "log_c146956401e1",
+      "timestamp": "2026-11-02T08:00:34.722Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 8368,
+      "stream": false,
+      "tokens": 4003
+    },
+    {
+      "id": "log_482aab874d66",
+      "timestamp": "2026-11-02T08:00:26.347Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/command",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 500,
+      "latency": 176,
+      "error": "[OpenRouter] HTTP 404: cohere/command is no longer available on OpenRouter: no provider serves this model anymore. See available models at https://openrouter.ai/models"
+    },
+    {
+      "id": "log_e656492a12bb",
+      "timestamp": "2026-11-02T08:00:26.151Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 30221,
+      "stream": false,
+      "tokens": 3474
+    },
+    {
+      "id": "log_633de9dbf022",
+      "timestamp": "2026-11-02T07:59:55.897Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 5456,
+      "stream": false,
+      "tokens": 2798
+    },
+    {
       "id": "log_8da2d32268b4",
       "timestamp": "2026-11-02T07:08:10.707Z",
       "endpoint": "/v1/chat/completions",
@@ -1153,38 +1246,152 @@
               "attachments": [],
               "content": "[Kỹ Sư DevOps]: @Lập Trình Viên @Người Dùng\n\nHiểu rồi, bạn muốn **cả nhóm AI tự phối hợp với nhau (War-room mode)** để giải quyết vấn đề từ A-Z, đúng không? Tức là: Kiến Trúc Sư thiết kế → Lập Trình Viên code → Kỹ Sư DevOps setup môi trường/chạy test → Reviewer chốt → Bàn giao cho bạn.\n\n---\n\n**Quy trình đề xuất cho lần này:**\n\n1. **Bạn nêu yêu cầu/bài toán cụ thể** (1-2 câu).\n2. **@Kiến Trúc Sư** (nếu cần) sẽ phân tích & đưa ra spec kỹ thuật.\n3. **@Lập Trình Viên** viết code hoàn chỉnh, kèm đường dẫn file `// File: ...`.\n4. **Tôi (@Kỹ Sư DevOps)** cung cấp lệnh Terminal PowerShell để cài đặt, build, chạy, test ngay tại `C:\\VisualStudio\\VinceZone`.\n5. **@Reviewer** soát lỗi logic/bảo mật/Clean Code.\n6. **Tổng kết & bàn giao** kết quả cuối cùng.\n\n---\n\n**Mời bạn đưa ra yêu cầu đầu tiên** (ví dụ: \"Tạo project React + Vite + TypeScript + Tailwind\", \"Fix lỗi build ở file X\", \"Viết CI/CD cho GitHub Actions\", \"Refactor module auth\"...). Nhóm sẵn sàng chạy ngay!",
               "timestamp": "2026-11-02T07:08:10.710Z"
+            },
+            {
+              "id": "msg_d02dd95a516b",
+              "role": "user",
+              "author": "Người Dùng (Ý Tưởng)",
+              "agentId": null,
+              "agentBadge": null,
+              "agentColor": null,
+              "agentModel": null,
+              "agentRole": null,
+              "attachments": [],
+              "content": "tự thêm các agent cần thiết cho dự án trên",
+              "timestamp": "2026-11-02T07:59:50.429Z"
+            },
+            {
+              "id": "msg_9abd094d580f",
+              "role": "assistant",
+              "author": "Lập Trình Viên",
+              "agentId": "ag_d78fa79f",
+              "agentBadge": "CODER",
+              "agentColor": "#10b981",
+              "agentModel": "cohere/north-mini-code:free",
+              "agentRole": "Lập Trình (Coder / Developer)",
+              "attachments": [],
+              "content": "[RECRUIT_AGENT: role=\"database\", name=\"CSDL\", model=\"cohere/command\"]\n[RECRUIT_AGENT: role=\"frontend\", name=\"Giao Diện\", model=\"cohere/command\"]\n[RECRUIT_AGENT: role=\"security\", name=\"Bảo Mật\", model=\"cohere/command\"]\n[RECRUIT_AGENT: role=\"tester\", name=\"Kiểm Thử\", model=\"cohere/command\"]\n[RECRUIT_AGENT: role=\"reviewer\", name=\"Reviewer\", model=\"cohere/command\"]\n\nChào mừng! **Hội Đồng AI** hiện đã đầy đủ:\n\n- @Lập Trình Viên (Coder) – code hoàn chỉnh\n- @Kỹ Sư DevOps (DevOps) – môi trường & chạy script\n- @CSDL (Database) – thiết kế schema & truy vấn SQL/NoSQL\n- @Giao Diện (Frontend) – HTML/CSS/JS hiện đại, responsive\n- @Bảo Mật (Security) – kiểm tra xác thực, JWT, hardening\n- @Kiểm Thử (Tester) – lệnh PowerShell/CMD để test nhanh\n- @Reviewer (Reviewer) – kiểm tra logic, bảo mật, Clean Code\n\nHãy cho tôi biết bạn muốn bắt đầu với phần việc nào trong dự án VinceZone Workspace!",
+              "timestamp": "2026-11-02T07:59:55.924Z"
+            },
+            {
+              "id": "msg_8950e75b0c14",
+              "role": "assistant",
+              "author": "Kỹ Sư DevOps",
+              "agentId": "ag_24879de8",
+              "agentBadge": "DEVOPS",
+              "agentColor": "#06b6d4",
+              "agentModel": "nvidia/nemotron-3-ultra-550b-a55b:free",
+              "agentRole": "DevOps & Môi Trường (DevOps / Terminal)",
+              "attachments": [],
+              "content": "[Kỹ Sư DevOps]: @Lập Trình Viên @Người Dùng\n\nNhìn danh sách hiện tại, **Hội Đồng AI đã đủ khả năng覆盖全生命周期** (Full-cycle) cho VinceZone Workspace:\n\n| Vai trò | Agent | Trạng thái |\n| :--- | :--- | :--- |\n| **Kiến Trúc / Điều phối** | *Người Dùng / Tự điều phối* | ✅ Có mặt |\n| **Lập Trình Viên (Backend/Logic)** | @Lập Trình Viên | ✅ Đã có |\n| **DevOps / Môi Trường / CI-CD** | **@Kỹ Sư DevOps (Tôi)** | ✅ Đã có |\n| **Cơ Sở Dữ Liệu (SQL/NoSQL)** | @CSDL | ✅ Đã có (Command-R) |\n| **Giao Diện / Frontend / UI-UX** | @Giao Diện | ✅ Đã có (Command-R) |\n| **An Ninh / Bảo Mật / Auth** | @Bảo Mật | ✅ Đã có (Command-R) |\n| **Kiểm Thử / Test / QA** | @Kiểm Thử | ✅ Đã có (Command-R) |\n| **Review Code / Chất Lượng** | @Reviewer | ✅ Đã có (Command-R) |\n\n---\n\n### 🤔 **Còn thiếu vai trò nào không?**\nNếu dự án VinceZone có yêu cầu đặc thù, chúng ta có thể bổ sung thêm:\n1. **@Kiến Trúc Sư (Architect)** – Nếu cần thiết kế hệ thống phức tạp, microservices, event-driven, ADR.\n2. **@Mobile (React Native / Flutter)** – Nếu có app di động.\n3. **@Data/ML Engineer** – Nếu có tính năng AI, analytics, pipeline dữ liệu.\n4. **@Tech Writer** – Viết tài liệu kỹ thuật, API docs (OpenAPI/Swagger), changelog.\n5. **@Scrum Master / PM** – Quản lý sprint, backlog, user story mapping.\n\n---\n\n### ✅ **Quyết định của tôi (DevOps):**\n> **Không tuyển thêm agent nữa lúc này.** Đội hình hiện tại đã **đủ mạnh** để xây dựng, deploy, bảo mật, test và review một sản phẩm SaaS/Web App chuẩn production tại `C:\\VisualStudio\\VinceZone`.\n\n---\n\n### 🚀 **Bước tiếp theo:**\n**@Người Dùng**, hãy nêu **yêu cầu cụ thể đầu tiên** (User Story / Task / Issue). Ví dụ:\n- *\"Khởi tạo project Node.js/TypeScript + Express + Prisma + PostgreSQL\"*\n- *\"Setup monorepo (Nx/Turborepo) cho FE + BE + Shared\"*\n- *\"Viết Dockerfile + docker-compose + GitHub Actions CI/CD\"*\n- *\"Thiết kế schema DB cho module User/Workspace/Subscription\"*\n- *\"Tạo component UI: Sidebar, Header, Theme Switcher (Tailwind + Shadcn)\"*\n\n**Nhóm đang chờ lệnh để \"chạy thật\" trên máy bạn!** ⌨️🔥",
+              "timestamp": "2026-11-02T08:00:26.160Z"
+            },
+            {
+              "id": "msg_927f3507907a",
+              "role": "assistant",
+              "author": "CSDL",
+              "agentId": "ag_af9fb157",
+              "agentBadge": "DATABASE",
+              "agentColor": "#14b8a6",
+              "agentModel": "cohere/command",
+              "agentRole": "Cơ Sở Dữ Liệu (Database & SQL Engineer)",
+              "attachments": [],
+              "content": "[Lập Trình Viên]: Kính chào @Kỹ Sư DevOps và Người Dùng, tôi đồng ý với phân tích trên.\n\nĐội hình hiện tại đã hoàn thiện, tôi sẵn sàng để bắt đầu **viết code hoàn chỉnh** cho VinceZone Workspace. Hãy cho tôi biết bạn muốn bắt đầu với phần việc nào:\n\n- Khởi tạo project (ví dụ: Node.js + TypeScript + Express, React + Vite + Tailwind, v.v.)\n- Thiết kế API endpoints (ví dụ: `/api/users`, `/api/workspaces`, `/api/auth`)\n- Logic nghiệp vụ (ví dụ: CRUD, authentication, authorization)\n- Tích hợp với database (qua schema @CSDL)\n- Code sẵn sàng deploy (bao gồm đường dẫn file `// File: <path>`)\n\nHãy nêu **user story / task cụ thể** đầu tiên (ví dụ: \"Tạo model User với validation và route CRUD\"), và tôi sẽ viết code hoàn chỉnh ngay, kèm theo lệnh terminal để bạn test nhanh.\n\nSau khi hoàn thành code, tôi sẽ chuyển giao cho @Giao Diện để bắt đầu xây dựng UI.",
+              "timestamp": "2026-11-02T08:00:34.724Z"
+            },
+            {
+              "id": "msg_61bf04aae421",
+              "role": "assistant",
+              "author": "Giao Diện",
+              "agentId": "ag_f5edb7c7",
+              "agentBadge": "FRONTEND",
+              "agentColor": "#ec4899",
+              "agentModel": "cohere/command",
+              "agentRole": "Giao Diện & Trải Nghiệm (Frontend / UI Engineer)",
+              "attachments": [],
+              "content": "[Kỹ Sư DevOps]: Chào @Kỹ Sư DevOps và Người Dùng, tôi đồng ý với phân tích trên.\n\n**Hội đồng AI hiện tại đã đầy đủ năng lực:**\n\n- @Lập Trình Viên – code hoàn chỉnh\n- @Kỹ Sư DevOps – môi trường & CI/CD\n- @CSDL – thiết kế schema & truy vấn\n- @Giao Diện – giao diện hiện đại, responsive\n- @Bảo Mật – kiểm tra xác thực, JWT, hardening\n- @Kiểm Thử – lệnh terminal kiểm tra nhanh\n- @Reviewer – soát lỗi logic, bảo mật, Clean Code\n\nNếu bạn vẫn cần thêm vai trò chuyên sâu nào đó (ví dụ: @Kiến Trúc Sư, @Mobile, @Tech Writer, @PM), chỉ cần cho tôi biết vai trò cụ thể và tôi sẽ tự động tuyển thêm agent phù hợp.\n\n**Bây giờ bạn muốn bắt đầu phần việc nào?** (Ví dụ: khởi tạo project, thiết kế API, viết code, setup CI/CD, v.v.)\n\n---\n\n[Bảo Mật ơi, tôi đã hoàn thiện xong phần tổng hợp đội hình, nhờ bạn kiểm tra và đảm bảo mọi thứ đều tuân thủ chính sách bảo mật nhé!]",
+              "timestamp": "2026-11-02T08:00:43.166Z"
+            },
+            {
+              "id": "msg_b036944589aa",
+              "role": "assistant",
+              "author": "Bảo Mật",
+              "agentId": "ag_0552c8ec",
+              "agentBadge": "SECURITY",
+              "agentColor": "#e11d48",
+              "agentModel": "cohere/command",
+              "agentRole": "An Ninh & Bảo Mật (Security & Auth Auditor)",
+              "attachments": [],
+              "content": "[Bảo Mật]: Xin chào! Tôi đã xem qua **bảng tổng hợp đội hình** và **kế hoạch thực hiện** hiện tại:\n\n**✅ Những điểm tích cực / tuân thủ bảo mật:**\n- Hội đồng AI đã có đủ các chuyên gia bảo mật chuyên sâu (tôi ở đây + @Bảo Mật sẽ được gọi khi cần).\n- Có một `Reviewer` chuyên trách để kiểm tra các vấn đề về bảo mật, logic và Clean Code.\n- Sẽ có `@Kiểm Thử` cung cấp các lệnh PowerShell/CMD để **test nhanh** các chức năng bảo mật (ví dụ: kiểm tra bảo vệ brute-force, header CORS, JWT validation).\n\n**🛡️ Checklist bảo mật mà tôi sẽ thực hiện ngay khi có code / schema / thiết kế:**\n1. **Xác thực & Authorization** – JWT (RS256), refresh token, OAuth2, RBAC cho các role `owner`, `member`, `guest` trong workspace.\n2. **Mã hóa mật khẩu** – bcrypt/scrypt, salt độc nhất cho mỗi user.\n3. **Input validation & sanitization** – Zod/Joi / ORM whitelists, chống SQL injection, XSS trong frontend.\n4. **Hardening môi trường** – Biến môi trường (`.env`) an toàn, không lưu secret trong code, giới hạn CORS, CSP.\n5. **Bảo vệ API** – Rate limiting (ví dụ: `express-rate-limit`), logging audit cho các sự kiện bảo mật.\n6. **Schema & DB** – @CSDL sẽ thiết kế các bảng `users`, `workspaces`, `members` với các cột `password_hash`, `salt`, `last_login`, `failed_login_attempts`.\n7. **Code & CI/CD** – @Kỹ Sư DevOps sẽ thêm các bước kiểm tra bảo mật trong pipeline (ví dụ: `npm audit`, `semgrep`, `secret scanning`).\n8. **UI/UX** – @Giao Diện sẽ đảm bảo các form có `autocomplete=\"off\"`, CSP, và không expose tokens trong URL/hash.\n9. **Kiểm tra bảo mật** – @Kiểm Thử sẽ cung cấp các script PowerShell/CMD để **test nhanh**: kiểm tra các endpoint không được bảo vệ, kiểm tra header bảo mật, validate JWT.\n10. **Review** – @Reviewer sẽ thực hiện kiểm tra bảo mật toàn diện, kiểm tra lỗ hổng OWASP Top 10, và đảm bảo tuân thủ Clean Code.\n\n**📋 Bước tiếp theo:**\nĐể đảm bảo chúng ta **tích hợp bảo mật ngay từ đầu**, tôi cần biết **user story / task đầu tiên** bạn muốn thực hiện (ví dụ: đăng ký người dùng, đăng nhập, tạo workspace, mời thành viên, v.v.).\n\nKhi bạn cho tôi biết, tôi có thể:\n- Cung cấp **kiểm tra bảo mật nhanh** cho code sẽ được viết bởi @Lập Trình Viên.\n- Đề xuất **kỹ thuật bảo mật phù hợp** cho từng tính năng.\n- Viết **các script kiểm tra bảo mật** cho @Kiểm Thử để bạn có thể bấm 1 lần và chạy ngay.\n\n**Bạn muốn bắt đầu với phần việc nào?** Hãy cho tôi biết, và chúng ta sẽ cùng nhau xây dựng một VinceZone Workspace an toàn, ngay từ đầu! 🚀\n\n*(Nếu bạn muốn tôi trả lời bằng tiếng Việt trong tương lai, chỉ cần cho tôi biết!)*",
+              "timestamp": "2026-11-02T08:00:51.831Z"
             }
           ],
           "agents": [
             {
-              "id": "ag_d78fa79f",
+              "id": "ag_arch",
+              "category": "architect",
+              "roleTitle": "Kiến Trúc Hệ Thống (Architect)",
+              "name": "Kiến Trúc Sư",
+              "badge": "ARCHITECT",
+              "color": "#3b82f6",
+              "providerId": "prov_openrouter",
+              "providerName": "OpenRouter",
+              "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+              "systemPrompt": "Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).\\n1. Phân tích ý tưởng của Người Dùng.\\n2. Hoạch định cấu trúc module và danh sách file cần tác động.\\n3. Chia nhỏ các bước công việc rõ ràng theo thế mạnh của các thành viên trong nhóm."
+            },
+            {
+              "id": "ag_coder",
               "category": "coder",
-              "roleTitle": "Lập Trình (Coder / Developer)",
+              "roleTitle": "Lập Trình Chuyên Sâu (Coder)",
               "name": "Lập Trình Viên",
               "badge": "CODER",
               "color": "#10b981",
               "providerId": "prov_openrouter",
-              "providerName": "✔ OpenRouter [Sẵn Sàng - 10 Models]",
+              "providerName": "OpenRouter",
               "model": "cohere/north-mini-code:free",
-              "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
+              "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
             },
             {
-              "id": "ag_24879de8",
-              "category": "devops",
-              "roleTitle": "DevOps & Môi Trường (DevOps / Terminal)",
-              "name": "Kỹ Sư DevOps",
-              "badge": "DEVOPS",
-              "color": "#06b6d4",
-              "providerId": "prov_openrouter",
-              "providerName": "✔ OpenRouter [Sẵn Sàng - 10 Models]",
-              "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-              "systemPrompt": "Bạn là Kỹ Sư DevOps & Hệ Thống (DevOps & Terminal Specialist).\nĐiểm mạnh cốt lõi:\n1. Cấu hình môi trường, script package.json, build và deploy.\n2. Xử lý các câu lệnh git, terminal và biến môi trường."
+              "id": "ag_tester",
+              "category": "tester",
+              "roleTitle": "Kiểm Thử & Terminal Debugger",
+              "name": "Kỹ Sư Kiểm Thử",
+              "badge": "TESTER",
+              "color": "#f59e0b",
+              "providerId": "prov_cloudflare_ai",
+              "providerName": "Cloudflare Workers AI",
+              "model": "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+              "systemPrompt": "Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).\\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\\n1. Rà soát trực tiếp mã nguồn của dự án, kiểm tra lỗi runtime và bảo mật.\\n2. Cung cấp lệnh Terminal (PowerShell/CMD) chuẩn xác để chạy test trong khối \\powershell để người dùng bấm 1 nút chạy trực tiếp.\\n3. Phân tích log lỗi và xác nhận dự án đã sẵn sàng hoạt động."
+            },
+            {
+              "id": "ag_db",
+              "category": "database",
+              "roleTitle": "Cơ Sở Dữ Liệu & SQL (Database Engineer)",
+              "name": "Kỹ Sư CSDL",
+              "badge": "DATABASE",
+              "color": "#14b8a6",
+              "providerId": "prov_opencode",
+              "providerName": "OpenCode",
+              "model": "glm-5.3-flash-free",
+              "systemPrompt": "Bạn là Kỹ Sư Cơ Sở Dữ Liệu & SQL (Senior Database Architect & Data Engineer).\\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\\n1. Thiết kế bảng dữ liệu, quan hệ khóa ngoại (ERD), script migrations hoàn chỉnh.\\n2. Viết câu truy vấn SQL/NoSQL tối ưu, đánh index tránh nghẽn hiệu năng.\\n3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án."
+            },
+            {
+              "id": "ag_ui",
+              "category": "frontend",
+              "roleTitle": "Giao Diện & Trải Nghiệm (Frontend UI/UX)",
+              "name": "Kỹ Sư Frontend",
+              "badge": "FRONTEND",
+              "color": "#ec4899",
+              "providerId": "prov_opencode",
+              "providerName": "OpenCode",
+              "model": "nemotron-3.5-super-vl-free",
+              "systemPrompt": "Bạn là Kỹ Sư Giao Diện Người Dùng (Senior Frontend & UI/UX Engineer).\\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\\n1. Thiết kế giao diện hiện đại chuẩn SaaS, responsive 100% trên cả Desktop và Mobile.\\n2. Viết HTML/CSS/JS sạch, tối ưu hiệu ứng chuyển động và trải nghiệm tương tác.\\n3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án."
             }
           ]
         }
       ],
       "createdAt": "2026-11-02T05:47:32.177Z",
-      "updatedAt": "2026-11-02T07:08:10.710Z"
+      "updatedAt": "2026-11-02T08:08:59.774Z"
     }
   ]
 }

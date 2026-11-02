@@ -1356,6 +1356,26 @@ const Store = {
 
     const catalog = this.getSpecializedCatalog();
     const roleConfig = catalog[category] || catalog.coder;
+    const finalModel = model || roleConfig.defaultModel;
+
+    // Tự động gán Provider tương ứng chuẩn xác theo Model từ 4 Provider
+    let finalProvId = providerId;
+    let finalProvName = providerName;
+    if (!finalProvId) {
+      if (finalModel.startsWith('@cf/')) {
+        finalProvId = 'prov_cloudflare_ai';
+        finalProvName = 'Cloudflare Workers AI';
+      } else if (finalModel.includes('-free') || finalModel === 'big-pickle' || finalModel === 'beam-free') {
+        finalProvId = 'prov_opencode';
+        finalProvName = 'OpenCode';
+      } else if (finalModel.includes('kilo') || finalModel.includes('laguna') || finalModel.includes('dots')) {
+        finalProvId = 'prov_kilo_gateway';
+        finalProvName = 'Kilo Gateway';
+      } else {
+        finalProvId = 'prov_openrouter';
+        finalProvName = 'OpenRouter';
+      }
+    }
 
     const newAgent = {
       id: 'ag_' + crypto.randomBytes(4).toString('hex'),
@@ -1364,9 +1384,9 @@ const Store = {
       name: (name || '').trim() || roleConfig.roleTitle.split('(')[0].trim(),
       badge: roleConfig.badge,
       color: roleConfig.color,
-      providerId: providerId || null,
-      providerName: providerName || null,
-      model: model || roleConfig.defaultModel,
+      providerId: finalProvId,
+      providerName: finalProvName,
+      model: finalModel,
       systemPrompt: roleConfig.systemPrompt
     };
 
@@ -1374,6 +1394,92 @@ const Store = {
     proj.updatedAt = new Date().toISOString();
     writeDb(data);
     return newAgent;
+  },
+
+  // Tự động thêm trọn bộ Agent dựa vào 4 Provider: OpenRouter, Cloudflare, Kilo, OpenCode
+  autoSetupAgentsForChat(projectId, chatId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+
+    const chat = (proj.chats || []).find(c => c.id === chatId);
+    if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
+
+    chat.agents = chat.agents || [];
+    const catalog = this.getSpecializedCatalog();
+
+    // Đội ngũ 5 Agent tinh nhuệ từ 4 Provider (OpenRouter, Cloudflare, Kilo, OpenCode)
+    const dreamTeam = [
+      {
+        category: 'architect',
+        name: 'Kiến Trúc Sư',
+        badge: 'ARCHITECT',
+        color: '#3b82f6',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        category: 'coder',
+        name: 'Lập Trình Viên',
+        badge: 'CODER',
+        color: '#10b981',
+        model: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter'
+      },
+      {
+        category: 'tester',
+        name: 'Kỹ Sư Kiểm Thử',
+        badge: 'TESTER',
+        color: '#f59e0b',
+        model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI'
+      },
+      {
+        category: 'database',
+        name: 'Kỹ Sư CSDL & SQL',
+        badge: 'DATABASE',
+        color: '#14b8a6',
+        model: 'glm-5.3-flash-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode'
+      },
+      {
+        category: 'frontend',
+        name: 'Kỹ Sư Frontend UI/UX',
+        badge: 'FRONTEND',
+        color: '#ec4899',
+        model: 'nemotron-3.5-super-vl-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode'
+      }
+    ];
+
+    dreamTeam.forEach(member => {
+      const alreadyHas = chat.agents.some(a => a.category === member.category);
+      if (!alreadyHas && chat.agents.length < 5) {
+        const roleConfig = catalog[member.category] || catalog.coder;
+        chat.agents.push({
+          id: 'ag_' + crypto.randomBytes(4).toString('hex'),
+          category: member.category,
+          roleTitle: roleConfig.roleTitle,
+          name: member.name,
+          badge: member.badge,
+          color: member.color,
+          model: member.model,
+          providerId: member.providerId,
+          providerName: member.providerName,
+          systemPrompt: roleConfig.systemPrompt
+        });
+      }
+    });
+
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return chat.agents;
   },
 
   removeAgentFromChat(projectId, chatId, agentId) {

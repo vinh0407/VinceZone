@@ -909,6 +909,16 @@ app.post('/api/projects/:id/chats/:chatId/agents', (req, res) => {
   }
 });
 
+// Tự động thêm trọn bộ 5 Agent chuyên sâu từ 4 Provider (OpenRouter, Cloudflare, Kilo, OpenCode)
+app.post('/api/projects/:id/chats/:chatId/auto-add-agents', (req, res) => {
+  try {
+    const agents = Store.autoSetupAgentsForChat(req.params.id, req.params.chatId);
+    res.json({ success: true, agents });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Xóa Agent khỏi đoạn chat
 app.delete('/api/projects/:id/chats/:chatId/agents/:agentId', (req, res) => {
   try {
