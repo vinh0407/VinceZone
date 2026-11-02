@@ -9363,3 +9363,35 @@ if (document.readyState === 'loading') {
 } else {
   initInteractiveResizers();
 }
+
+
+// ==================== AUTOMATED TAB ACTIONS ====================
+window.triggerFullAutonomousPipeline = function() {
+  if (typeof window.switchTabByRoute === 'function') {
+    window.switchTabByRoute('projects', true);
+  }
+  setTimeout(() => {
+    const inputEl = document.getElementById('project-chat-input');
+    if (inputEl) {
+      inputEl.value = 'tôi cấp quyền toàn bộ cho cậu hãy tự phân tích và giao việc cho cấp dưới';
+      if (typeof sendProjectIdea === 'function') {
+        sendProjectIdea();
+      }
+    }
+  }, 250);
+};
+
+window.triggerCleanDepartmentChats = function() {
+  if (typeof window.switchTabByRoute === 'function') {
+    window.switchTabByRoute('projects', true);
+  }
+  setTimeout(() => {
+    const inputEl = document.getElementById('project-chat-input');
+    if (inputEl) {
+      inputEl.value = 'xóa các nhóm chat đi chừa lại tôi với cậu thôi';
+      if (typeof sendProjectIdea === 'function') {
+        sendProjectIdea();
+      }
+    }
+  }, 250);
+};

@@ -2537,17 +2537,51 @@ Em đã tự động biên soạn và cập nhật tệp **\`README.md\`** chi t
         });
       }
 
-      // Dấu hiệu rõ ràng của CÂU HỎI / THẮC MẮC / TRAO ĐỔI / CHÀO HỎI / GIỚI THIỆU:
-      const hasQuestionMark = qLower.includes('?') || qLower.includes('？');
-      const hasQuestionPatterns = /\b(?:chưa|sao|thế nào|ra sao|không|ko|chăng|tại sao|sao lại|vì sao|như thế nào|gì|nào|bao nhiêu|ở đâu|ai|hả|hử|nhỉ|nhé|phải không|được không|giải thích|cho biết|cho xem|cho hỏi|hỏi|thắc mắc|tư vấn|đánh giá|ý kiến|review|nghĩ sao|phân tích cho tôi|giới thiệu|chào|hello|hi|làm gì|có tính năng gì|chạy thế nào|tổng quan|hôm nay|cần gì)\b/i.test(qLower);
-      
-      // Dấu hiệu chỉ thị quy trình (ví dụ người dùng hướng dẫn PM cách làm việc):
-      const isWorkflowGuidance = /(?:nếu\s+đó\s+là\s+câu\s+hỏi|không\s+phải\s+lúc\s+nào\s+cũng\s+gửi\s+lệnh|chỉ\s+nói\s+chuyện\s+với\s+pm|pm\s+phải\s+trả\s+lời)/i.test(qLower);
+      // HÀM KIỂM TRA CHÍNH XÁC CÂU HỎI / TRAO ĐỔI (UNICODE TIẾNG VIỆT TOÀN DIỆN)
+      const isWorkflowGuidance = /(?:nếu\s+đó\s+là\s+câu\s+hỏi|không\s+phải\s+lúc\s+nào\s+cũng\s+gửi\s+lệnh|chỉ\s+nói\s+chuyện\s+với\s+pm|pm\s+phải\s+trả\s+lời|phải\s+biết\s+đâu\s+là\s+câu\s+hỏi|tôi\s+hỏi\s+thì\s+phải\s+trả\s+lời)/i.test(qLower);
 
-      // Dấu hiệu rõ ràng của LỆNH THỰC THI SỬA MÃ NGUỒN / SỬA FILE CỤ THỂ:
-      const hasExplicitCodeAction = /(?:hãy\s+)?(?:chỉnh\s+sửa|sửa\s+code|sửa\s+màu|đổi\s+màu|thay\s+màu|viết\s+thêm|tạo\s+file|tạo\s+tệp|thêm\s+api|viết\s+api|fix\s+lỗi|sửa\s+lỗi|cài\s+đặt|refactor|triển\s+khai\s+code|chuyển\s+màu|sửa\s+lại\s+giao\s+diện|chỉnh\s+css|thay\s+nút|xóa\s+tính\s+năng|thêm\s+chức\s+năng|thực\s+hiện\s+ngay)/i.test(qLower);
+      function isQuestionOrInquiry(text) {
+        const q = text.trim().toLowerCase();
+        
+        // 1. Có dấu hỏi ?
+        if (q.includes('?') || q.includes('？')) return true;
 
-      const isDefiniteQuestion = isWorkflowGuidance || ((hasQuestionMark || hasQuestionPatterns) && !hasExplicitCodeAction);
+        // 2. Chào hỏi / Xã giao đơn thuần
+        if (/^(?:chào|xin chào|hello|hi|hey|alo|ê|ơi)(?:$|[^a-zA-Z0-9_À-ỹ])/i.test(q)) return true;
+
+        // 3. Chỉ thị quy trình từ Sếp
+        if (isWorkflowGuidance) return true;
+
+        // 4. Các từ nghi vấn hỏi đáp tiếng Việt (Unicode aware boundary)
+        const questionWords = [
+          'gì', 'là gì', 'cái gì', 'làm gì', 'thế nào', 'ra sao', 'sao', 'tại sao', 'vì sao', 
+          'như thế nào', 'chưa', 'ai', 'ở đâu', 'đâu', 'nào', 'bao nhiêu', 'mấy', 
+          'không', 'ko', 'chăng', 'hả', 'hử', 'nhỉ', 'nhé', 'phải không', 'được không',
+          'giải thích', 'cho biết', 'cho xem', 'cho hỏi', 'hỏi', 'thắc mắc', 'tư vấn', 
+          'đánh giá', 'ý kiến', 'nghĩ sao', 'phân tích cho tôi', 'giới thiệu', 'tổng quan',
+          'gọi tôi là', 'tên gì', 'ai là', 'tôi là', 'bạn là', 'cậu là', 'em là'
+        ];
+
+        for (const w of questionWords) {
+          const reg = new RegExp('(^|[^a-zA-Z0-9_À-ỹ])' + w + '($|[^a-zA-Z0-9_À-ỹ])', 'i');
+          if (reg.test(q)) {
+            const isExplicitOrder = /^(?:hãy|tiến hành|bắt đầu|mau|lập tức)\s+(?:sửa|chỉnh|đổi|thay|viết|tạo|code|fix)/i.test(q);
+            if (!isExplicitOrder) return true;
+          }
+        }
+
+        // 5. Kiểm tra xem có động từ hành động kỹ thuật thực sự không
+        const hasActionVerb = /(?:chỉnh\s+sửa|chỉnh\s+màu|sửa\s+code|sửa\s+màu|đổi\s+màu|thay\s+màu|viết\s+thêm|tạo\s+file|tạo\s+tệp|thêm\s+api|viết\s+api|fix\s+lỗi|sửa\s+lỗi|cài\s+đặt|refactor|triển\s+khai\s+code|chuyển\s+màu|sửa\s+lại|thay\s+nút|xóa\s+tính\s+năng|thêm\s+chức\s+năng|viết\s+code|code\s+cho\s+tôi|thêm\s+trang|tạo\s+trang)/i.test(q);
+
+        if (!hasActionVerb) {
+          // Không có bất kỳ động từ sửa code nào -> MẶC ĐỊNH LÀ CÂU HỎI / TRAO ĐỔI!
+          return true;
+        }
+
+        return false;
+      }
+
+      const isDefiniteQuestion = isQuestionOrInquiry(qTrim);
 
       // =========================================================================
       // NẾU ĐÓ LÀ CÂU HỎI / TRAO ĐỔI: PM PHẢI TRỰC TIẾP TRẢ LỜI SẾP
@@ -2556,34 +2590,43 @@ Em đã tự động biên soạn và cập nhật tệp **\`README.md\`** chi t
       if (isDefiniteQuestion) {
         sendEvent({ type: 'agent_start', role: 'Kilo Auto Free (PM – Quản lý dự án)', badge: 'PM' });
 
+        const compactProjInfo = projectContext.slice(0, 4500);
         const pmDirectSys = `Bạn là Kilo Auto Free (PM – Quản lý dự án của VinceZone).
-Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ làm việc trực tiếp với Sếp (người dùng).
-Dự án: "${project.name}" (Thư mục làm việc: "${project.path}")
-${projectContext}
+Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ 20 thành viên làm việc trực tiếp với Sếp (người dùng).
+Dự án hiện tại: "${project.name}" (Thư mục làm việc: "${project.path}")
+Thông tin dự án:
+${compactProjInfo}
 
-[NGUYÊN TẮC BẮT BUỘC TỪ SẾP]:
-1. ĐÂY LÀ CÂU HỎI / THẮC MẮC / TRAO ĐỔI / CHỈ THỊ QUY TRÌNH TỪ SẾP: "${qTrim}"
-2. BẠN (PM) PHẢI TRỰC TIẾP TRẢ LỜI SẾP RÕ RÀNG, ĐẦY ĐỦ VÀ NGAY TẠI ĐÂY.
-3. TUYỆT ĐỐI KHÔNG GỬI LỆNH CHO NHÂN VIÊN. KHÔNG PHẢI LÚC NÀO CŨNG GỬI LỆNH CHO NHÂN VIÊN!
-4. Xưng hô: Luôn gọi là "Sếp", xưng "em" (Ví dụ: "Dạ báo cáo Sếp!...", "Dạ tuân lệnh Sếp!...").
-5. Phong thái: Chuyên nghiệp, nhã nhặn, tôn trọng, giải thích sâu sắc và chính xác dựa trên mã nguồn thực tế của dự án.
-- Nếu Sếp chỉ thị về quy trình (ví dụ: câu hỏi thì PM trả lời, lệnh thì mới bảo nhân viên làm): Hãy tiếp thu 100%, tuân lệnh Sếp và khẳng định đã ghi nhớ nguyên tắc vàng này.
-- Nếu Sếp hỏi về dự án: giải đáp chi tiết, thấu đáo và hỏi Sếp xem có lệnh chỉ đạo kỹ thuật nào cụ thể để em điều phối nhân sự không.`;
+[QUY TẮC BẮT BUỘC TỪ SẾP]:
+1. Sếp vừa hỏi hoặc trao đổi với bạn: "${qTrim}"
+2. ĐÂY LÀ CÂU HỎI / TRAO ĐỔI -> BẠN (PM) PHẢI TRỰC TIẾP TRẢ LỜI ĐÚNG TRỌNG TÂM CÂU HỎI CỦA SẾP NGAY TẠI ĐÂY!
+3. TUYỆT ĐỐI KHÔNG GỬI LỆNH CHO NHÂN VIÊN, KHÔNG BÁO CÁO GIẢ LẬP ĐÃ GIAO VIỆC CHO DEV!
+4. Cách xưng hô: Luôn gọi người dùng là "Sếp", xưng "em" (Ví dụ: Nếu Sếp hỏi "gọi tôi là gì" -> trả lời: "Dạ em gọi anh/chị là Sếp ạ! Sếp là người lãnh đạo cao nhất của dự án và toàn bộ đội ngũ chúng em.").
+5. Trả lời ngắn gọn, thông minh, lịch sự, đi thẳng vào câu hỏi của Sếp.`;
+
+        // Lấy lịch sử 6 tin nhắn gần nhất để PM hiểu mạch chuyện
+        const recentHistory = (chat.messages || []).slice(-7, -1).map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: (m.content || '').slice(0, 600)
+        }));
 
         let pmAnswer = await callInternalAI({
           model: 'kilo-auto/free',
           messages: [
             { role: 'system', content: pmDirectSys },
+            ...recentHistory,
             { role: 'user', content: qTrim }
           ],
           providerId: 'prov_kilo_gateway'
         });
 
-        if (!pmAnswer || pmAnswer.trim().length < 20) {
-          if (isWorkflowGuidance) {
-            pmAnswer = `Dạ tuân lệnh Sếp! Em (Project Manager - PM) đã ghi nhớ và khắc sâu chỉ đạo của Sếp: Bất kỳ câu hỏi, thắc mắc, khảo sát hay trao đổi nào từ Sếp thì em sẽ trực tiếp trả lời Sếp ngay tại đây. Chỉ khi nào Sếp ra lệnh thực thi kỹ thuật rõ ràng (sửa code, đổi màu, thêm tính năng, fix bug), em mới bảo các nhân viên phòng ban đi làm. Em cam kết tuân thủ tuyệt đối quy tắc này ạ!`;
+        if (!pmAnswer || pmAnswer.trim().length < 5) {
+          if (/gọi\s+tôi\s+là\s+gì/i.test(qLower)) {
+            pmAnswer = 'Dạ em gọi người dùng là **Sếp** ạ! Sếp là người chỉ đạo cao nhất của dự án và toàn bộ đội ngũ 20 thành viên AI chúng em.';
+          } else if (isWorkflowGuidance) {
+            pmAnswer = 'Dạ tuân lệnh Sếp! Em đã ghi nhớ tuyệt đối: Khi Sếp hỏi thì em (PM) phải trực tiếp trả lời đúng câu hỏi của Sếp ngay tại đây. Chỉ khi Sếp ra yêu cầu/mệnh lệnh sửa code cụ thể thì em mới giao việc cho nhân viên ạ!';
           } else {
-            pmAnswer = `Dạ báo cáo Sếp! Em (Project Manager - PM) đã nắm rõ câu hỏi của Sếp: "${qTrim}". Dự án ${project.name} đang được em và toàn thể đội ngũ theo dõi sát sao. Em xin phép giải đáp trực tiếp cho Sếp ngay tại đây và sẵn sàng nhận lệnh chỉ đạo kỹ thuật tiếp theo của Sếp ạ!`;
+            pmAnswer = `Dạ báo cáo Sếp! Em (Kilo Auto Free - PM) xin giải đáp trực tiếp câu hỏi "${qTrim}" của Sếp tại đây. Sếp cần em làm rõ thêm thông tin gì về dự án ${project.name} không ạ?`;
           }
         }
 
