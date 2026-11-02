@@ -4278,6 +4278,7 @@ const projectsState = {
   activeChatId: null,
   activeProject: null,
   activeChat: null,
+  attachments: [],
   isRunning: false
 };
 
@@ -5089,133 +5090,153 @@ function appendProjectMessageToFeed(msg, feedEl) {
 
 // 11. Gửi tin nhắn / ý tưởng vào đoạn chat
 async function sendProjectIdea() {
-  const inputEl = document.getElementById('project-chat-input');
-  const feedEl = document.getElementById('projects-chat-feed');
-  const progressEl = document.getElementById('project-team-progress');
-  const progressTitleEl = document.getElementById('team-progress-title');
-  const chatModelSelect = document.getElementById('chat-active-model-select');
+  try {
+    const inputEl = document.getElementById('project-chat-input');
+    const feedEl = document.getElementById('projects-chat-feed');
+    const progressEl = document.getElementById('project-team-progress');
+    const progressTitleEl = document.getElementById('team-progress-title');
+    const chatModelSelect = document.getElementById('chat-active-model-select');
 
-  // Tự động khôi phục dự án nếu chưa có trong state
-  if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
-    projectsState.activeProjectId = projectsState.projects[0].id;
-  }
-  let curProj = projectsState.projects.find(p => p.id === projectsState.activeProjectId) || projectsState.projects[0];
-  if (!curProj) {
-    showToast('Vui lòng tạo hoặc mở một dự án trước khi gửi tin nhắn.');
-    return;
-  }
-  projectsState.activeProjectId = curProj.id;
-  projectsState.activeProject = curProj;
+    if (!inputEl) return;
 
-  // Tự động khôi phục hoặc tạo đoạn chat mới nếu chưa có
-  if (!projectsState.activeChatId || !(curProj.chats || []).some(c => c.id === projectsState.activeChatId)) {
-    if (curProj.chats && curProj.chats.length > 0) {
-      projectsState.activeChatId = curProj.chats[0].id;
-      projectsState.activeChat = curProj.chats[0];
-    } else {
+    // Đảm bảo mảng attachments luôn hợp lệ
+    if (!Array.isArray(projectsState.attachments)) {
+      projectsState.attachments = [];
+    }
+
+    // Tự động tải lại danh sách dự án nếu đang rỗng
+    if (!projectsState.projects || projectsState.projects.length === 0) {
       try {
-        const createRes = await fetch(`/api/projects/${curProj.id}/chats`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: 'Đoạn chat mới', model: 'cohere/north-mini-code:free', providerId: 'prov_openrouter' })
-        });
-        const newChat = await createRes.json();
-        curProj.chats = curProj.chats || [];
-        curProj.chats.push(newChat);
-        projectsState.activeChatId = newChat.id;
-        projectsState.activeChat = newChat;
+        const pRes = await fetch('/api/projects');
+        const pData = await pRes.json();
+        projectsState.projects = pData.projects || [];
       } catch (e) {
-        showToast('Không thể tạo đoạn chat: ' + e.message);
-        return;
+        console.warn('Auto fetch projects notice:', e);
       }
     }
-  }
 
-  if (!inputEl) {
-    return;
-  }
-
-  const content = inputEl.value.trim();
-  const attachments = [...projectsState.attachments];
-
-  if (!content && attachments.length === 0) return;
-
-  if (projectsState.isRunning) {
-    showToast('Agent đang xử lý yêu cầu trước đó. Đang gửi tiếp...');
-  }
-
-  // Clear input & attachments
-  inputEl.value = '';
-  inputEl.style.height = 'auto';
-  projectsState.attachments = [];
-  renderProjectAttachments();
-  projectsState.isRunning = true;
-
-  // Render user msg immediately
-  const tempUserMsg = {
-    role: 'user',
-    author: 'Bạn',
-    content,
-    attachments,
-    timestamp: new Date().toISOString()
-  };
-  appendProjectMessageToFeed(tempUserMsg, feedEl);
-  feedEl.scrollTop = feedEl.scrollHeight;
-
-  // Show progress indicator
-  if (progressEl) {
-    progressEl.style.display = 'flex';
-    if (progressTitleEl) {
-      progressTitleEl.textContent = 'Agent đang phân tích và xử lý...';
+    // Tự động khôi phục dự án nếu chưa có trong state
+    if (!projectsState.activeProjectId && projectsState.projects.length > 0) {
+      projectsState.activeProjectId = projectsState.projects[0].id;
     }
-  }
+    let curProj = projectsState.projects.find(p => p.id === projectsState.activeProjectId) || projectsState.projects[0];
+    if (!curProj) {
+      showToast('Vui lòng tạo hoặc mở một dự án trước khi gửi tin nhắn.');
+      return;
+    }
+    projectsState.activeProjectId = curProj.id;
+    projectsState.activeProject = curProj;
 
-  const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'cohere/north-mini-code:free');
-  const chatProvSelect = document.getElementById('chat-active-provider-select');
-  const selectedProviderId = chatProvSelect ? chatProvSelect.value : (projectsState.activeChat?.providerId || 'prov_openrouter');
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        content,
-        attachments,
-        model: selectedModel,
-        providerId: selectedProviderId,
-        isStream: false
-      })
-    });
-    clearTimeout(timeoutId);
-
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới Agent.');
+    // Tự động khôi phục hoặc tạo đoạn chat mới nếu chưa có
+    if (!projectsState.activeChatId || !(curProj.chats || []).some(c => c.id === projectsState.activeChatId)) {
+      if (curProj.chats && curProj.chats.length > 0) {
+        projectsState.activeChatId = curProj.chats[0].id;
+        projectsState.activeChat = curProj.chats[0];
+      } else {
+        try {
+          const createRes = await fetch(`/api/projects/${curProj.id}/chats`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'Đoạn chat mới', model: 'cohere/north-mini-code:free', providerId: 'prov_openrouter' })
+          });
+          const createData = await createRes.json();
+          const newChat = createData.chat || createData;
+          curProj.chats = curProj.chats || [];
+          curProj.chats.push(newChat);
+          projectsState.activeChatId = newChat.id;
+          projectsState.activeChat = newChat;
+        } catch (e) {
+          showToast('Không thể tạo đoạn chat: ' + e.message);
+          return;
+        }
+      }
     }
 
-    // Append generated agent messages to feed
-    const messages = data.messages || [];
-    messages.forEach(msg => {
-      appendProjectMessageToFeed(msg, feedEl);
-    });
+    const content = inputEl.value.trim();
+    const attachments = Array.isArray(projectsState.attachments) ? [...projectsState.attachments] : [];
 
-    // Update local chat messages
-    if (projectsState.activeChat) {
-      projectsState.activeChat.messages = projectsState.activeChat.messages || [];
-      projectsState.activeChat.messages.push(tempUserMsg, ...messages);
+    if (!content && attachments.length === 0) return;
+
+    if (projectsState.isRunning) {
+      showToast('Agent đang xử lý yêu cầu trước đó. Đang gửi tiếp...');
     }
 
-    feedEl.scrollTop = feedEl.scrollHeight;
-  } catch (err) {
-    console.error('Lỗi sendProjectIdea:', err);
-    showToast('Lỗi: ' + err.message);
-  } finally {
-    projectsState.isRunning = false;
-    if (progressEl) progressEl.style.display = 'none';
+    // Clear input & attachments ngay lập tức trên UI
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    projectsState.attachments = [];
+    renderProjectAttachments();
+    projectsState.isRunning = true;
+
+    // Render tin nhắn của user ngay lập tức lên feed
+    const tempUserMsg = {
+      role: 'user',
+      author: 'Bạn',
+      content,
+      attachments,
+      timestamp: new Date().toISOString()
+    };
+    appendProjectMessageToFeed(tempUserMsg, feedEl);
+    if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+
+    // Hiển thị thanh tiến trình
+    if (progressEl) {
+      progressEl.style.display = 'flex';
+      if (progressTitleEl) {
+        progressTitleEl.textContent = 'Agent đang phân tích và xử lý...';
+      }
+    }
+
+    const selectedModel = chatModelSelect ? chatModelSelect.value : (projectsState.activeChat?.model || 'cohere/north-mini-code:free');
+    const chatProvSelect = document.getElementById('chat-active-provider-select');
+    const selectedProviderId = chatProvSelect ? chatProvSelect.value : (projectsState.activeChat?.providerId || 'prov_openrouter');
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+      const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          content,
+          attachments,
+          model: selectedModel,
+          providerId: selectedProviderId,
+          isStream: false
+        })
+      });
+      clearTimeout(timeoutId);
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới Agent.');
+      }
+
+      // Đưa câu trả lời của Agent lên màn hình chat
+      const messages = data.messages || [];
+      messages.forEach(msg => {
+        appendProjectMessageToFeed(msg, feedEl);
+      });
+
+      // Lưu vào state chat hiện tại
+      if (projectsState.activeChat) {
+        projectsState.activeChat.messages = projectsState.activeChat.messages || [];
+        projectsState.activeChat.messages.push(tempUserMsg, ...messages);
+      }
+
+      if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+    } catch (err) {
+      console.error('Lỗi API gửi tin:', err);
+      showToast('Lỗi: ' + err.message);
+    } finally {
+      projectsState.isRunning = false;
+      if (progressEl) progressEl.style.display = 'none';
+    }
+  } catch (outerErr) {
+    console.error('Lỗi ngoại lệ trong sendProjectIdea:', outerErr);
+    showToast('Lỗi xử lý gửi: ' + outerErr.message);
   }
 }
 window.sendProjectIdea = sendProjectIdea;
