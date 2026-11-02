@@ -5388,10 +5388,16 @@ function appendProjectMessageToFeed(msg, feedEl) {
   }
 
   // Tự động highlight các tag Mention @Tên khi các AI trao đổi với nhau
-  parsedContent = parsedContent.replace(/@([A-ZÀ-Ỹa-zà-ỹ0-9_\s]{2,25})(?=[^a-zà-ỹ0-9_]|$)/g, (match, rawName) => {
+  parsedContent = parsedContent.replace(/@([A-ZÀ-Ỹa-zà-ỹ0-9_\s]{2,30})(?=[^a-zà-ỹ0-9_]|$)/g, (match, rawName) => {
     const cleanName = rawName.trim();
-    if (['Kiến Trúc Sư', 'Lập Trình Viên', 'Kỹ Sư Kiểm Thử', 'Chuyên Gia Review', 'Kỹ Sư DevOps', 'Reviewer', 'Coder', 'Tester', 'Architect', 'DevOps', 'Người Dùng'].some(r => cleanName.toLowerCase().includes(r.toLowerCase()))) {
-      return `<span class="agent-mention">@${escapeHtml(cleanName)}</span>`;
+    const knownRoles = [
+      'Kiến Trúc Sư', 'Lập Trình Viên', 'Kỹ Sư Kiểm Thử', 'Kỹ Sư CSDL', 'Kỹ Sư CSDL & SQL',
+      'Kỹ Sư Frontend', 'Kỹ Sư Frontend UI/UX', 'Chuyên Gia Bảo Mật', 'Chuyên Gia Review',
+      'Kỹ Sư DevOps', 'Reviewer', 'Coder', 'Tester', 'Architect', 'Database', 'Frontend',
+      'Security', 'DevOps', 'Người Dùng', 'Cả Nhóm', 'Hội Đồng', 'All'
+    ];
+    if (knownRoles.some(r => cleanName.toLowerCase().includes(r.toLowerCase()))) {
+      return `<span class="mention-pill">@${escapeHtml(cleanName)}</span>`;
     }
     return match;
   });
@@ -6625,6 +6631,179 @@ function initProjectsEventListeners() {
       if (structView && structView.style.display !== 'none') {
         window.closeProjectStructureView();
       }
+    }
+  });
+
+  // 5. Khởi tạo tính năng gõ @ hiển thị danh sách AI để giao việc riêng
+  setupMentionDropdown();
+}
+
+// ==================== @MENTION AGENTS AUTOCOMPLETE ====================
+let mentionDropdownIndex = 0;
+
+function setupMentionDropdown() {
+  const input = document.getElementById('project-chat-input');
+  const dropdown = document.getElementById('project-mention-dropdown');
+  const list = document.getElementById('mention-dropdown-list');
+  if (!input || !dropdown || !list) return;
+
+  function closeMentionDropdown() {
+    dropdown.style.display = 'none';
+    mentionDropdownIndex = 0;
+  }
+
+  function getActiveChatAgents() {
+    return projectsState.activeChat?.agents || [];
+  }
+
+  function renderMentionOptions(query = '') {
+    const agents = getActiveChatAgents();
+    if (agents.length === 0) {
+      closeMentionDropdown();
+      return;
+    }
+
+    const q = query.toLowerCase().trim();
+    const items = [
+      {
+        id: 'all',
+        name: 'Cả Nhóm',
+        badge: 'ALL',
+        badgeClass: 'badge-arch',
+        roleTitle: 'Tất cả các AI cùng trao đổi',
+        avatar: '👥'
+      },
+      ...agents.map(a => {
+        let av = '💻';
+        let bClass = 'badge-coder';
+        const b = (a.badge || '').toUpperCase();
+        if (b.includes('ARCH')) { av = '🏛️'; bClass = 'badge-arch'; }
+        else if (b.includes('TEST')) { av = '🧪'; bClass = 'badge-tester'; }
+        else if (b.includes('DATA') || b.includes('SQL')) { av = '🗄️'; bClass = 'badge-database'; }
+        else if (b.includes('FRONT') || b.includes('UI')) { av = '🎨'; bClass = 'badge-frontend'; }
+        else if (b.includes('SEC')) { av = '🛡️'; bClass = 'badge-security'; }
+        else if (b.includes('DEV')) { av = '🚀'; bClass = 'badge-devops'; }
+        else if (b.includes('REV')) { av = '🧐'; bClass = 'badge-reviewer'; }
+        return {
+          id: a.id,
+          name: a.name,
+          badge: a.badge,
+          badgeClass: bClass,
+          roleTitle: a.roleTitle || a.name,
+          avatar: av,
+          model: a.model
+        };
+      })
+    ];
+
+    const filtered = items.filter(it => 
+      !q || it.name.toLowerCase().includes(q) || it.roleTitle.toLowerCase().includes(q) || (it.badge && it.badge.toLowerCase().includes(q))
+    );
+
+    if (filtered.length === 0) {
+      closeMentionDropdown();
+      return;
+    }
+
+    if (mentionDropdownIndex >= filtered.length) {
+      mentionDropdownIndex = 0;
+    }
+
+    list.innerHTML = filtered.map((item, idx) => `
+      <div class="mention-dropdown-item ${idx === mentionDropdownIndex ? 'selected' : ''}" data-index="${idx}" data-name="${escapeHtml(item.name)}">
+        <span class="mention-item-avatar">${item.avatar}</span>
+        <div class="mention-item-info">
+          <div class="mention-item-title-row">
+            <span class="mention-item-name">@${escapeHtml(item.name)}</span>
+            <span class="agent-badge ${item.badgeClass}">${escapeHtml(item.badge || 'AI')}</span>
+          </div>
+          <span class="mention-item-role">${escapeHtml(item.roleTitle)}${item.model ? ` • ${escapeHtml(item.model)}` : ''}</span>
+        </div>
+      </div>
+    `).join('');
+
+    dropdown.style.display = 'block';
+
+    // Click handler chọn item
+    list.querySelectorAll('.mention-dropdown-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectMention(el.dataset.name);
+      });
+    });
+  }
+
+  function selectMention(agentName) {
+    const val = input.value;
+    const cursorPos = input.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const lastAtPos = textBefore.lastIndexOf('@');
+
+    if (lastAtPos !== -1) {
+      const textAfter = val.slice(cursorPos);
+      const insertText = `@${agentName} `;
+      input.value = textBefore.slice(0, lastAtPos) + insertText + textAfter;
+      const newCursorPos = lastAtPos + insertText.length;
+      input.setSelectionRange(newCursorPos, newCursorPos);
+    }
+    closeMentionDropdown();
+    input.focus();
+  }
+
+  input.addEventListener('input', () => {
+    const val = input.value;
+    const cursorPos = input.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const lastAtPos = textBefore.lastIndexOf('@');
+
+    if (lastAtPos !== -1) {
+      const query = textBefore.slice(lastAtPos + 1);
+      if (!query.includes('\n')) {
+        renderMentionOptions(query);
+        return;
+      }
+    }
+    closeMentionDropdown();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (dropdown.style.display !== 'block') return;
+
+    const items = list.querySelectorAll('.mention-dropdown-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentionDropdownIndex = (mentionDropdownIndex + 1) % items.length;
+      updateSelectedMention(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentionDropdownIndex = (mentionDropdownIndex - 1 + items.length) % items.length;
+      updateSelectedMention(items);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      const selected = items[mentionDropdownIndex];
+      if (selected) {
+        e.preventDefault();
+        selectMention(selected.dataset.name);
+      }
+    } else if (e.key === 'Escape') {
+      closeMentionDropdown();
+    }
+  });
+
+  function updateSelectedMention(items) {
+    items.forEach((it, idx) => {
+      it.classList.toggle('selected', idx === mentionDropdownIndex);
+      if (idx === mentionDropdownIndex) {
+        it.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== input) {
+      closeMentionDropdown();
     }
   });
 }

@@ -1241,13 +1241,76 @@ app.get('/api/projects/:id/structure', (req, res) => {
   }
 });
 
+// Hàm loại bỏ dấu tiếng Việt để so khớp linh hoạt
+function removeVietnameseTones(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
+// Hàm phân tích ý định thêm Agent từ văn bản người dùng gõ vào Botchat
+function detectUserAgentRecruitment(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase().trim();
+
+  // 1. Thêm toàn bộ các agent / thêm đủ 5 agent / triệu tập hội đồng agent
+  const addAllPatterns = [
+    'thêm các agent', 'them cac agent', 'thêm tat ca agent', 'them tat ca agent', 'thêm tất cả agent',
+    'thêm đủ agent', 'them du agent', 'thêm 5 agent', 'them 5 agent', 'triệu tập các agent',
+    'triệu tập hội đồng', 'trieu tap hoi dong', 'tự thêm agent', 'tu them agent', 'thêm nhóm agent',
+    'tạo nhóm agent', 'bổ sung các agent', 'add all agents', '/auto-agents', '/add-all-agents'
+  ];
+  if (addAllPatterns.some(p => lower.includes(p))) {
+    return { type: 'all' };
+  }
+
+  // 2. Thêm từng vai trò cụ thể
+  const roles = [
+    { key: 'database', patterns: ['database', 'csdl', 'cơ sở dữ liệu', 'co so du lieu', 'sql', 'db', 'data engineer'] },
+    { key: 'frontend', patterns: ['frontend', 'front-end', 'giao diện', 'giao dien', 'ui/ux', 'ui', 'ux', 'css', 'html'] },
+    { key: 'security', patterns: ['security', 'bảo mật', 'bao mat', 'an ninh', 'auth', 'jwt', 'hacker'] },
+    { key: 'devops', patterns: ['devops', 'triển khai', 'trien khai', 'deploy', 'docker', 'ci/cd', 'môi trường'] },
+    { key: 'tester', patterns: ['tester', 'kiểm thử', 'kiem thu', 'test', 'qa', 'bắt lỗi', 'debug terminal', 'qc'] },
+    { key: 'architect', patterns: ['architect', 'kiến trúc sư', 'kien truc su', 'kiến trúc', 'kien truc', 'thiết kế hệ thống', 'planner'] },
+    { key: 'coder', patterns: ['coder', 'lập trình viên', 'lap trinh vien', 'lập trình', 'lap trinh', 'code', 'dev', 'developer', 'fullstack', 'backend'] },
+    { key: 'reviewer', patterns: ['reviewer', 'review', 'soát code', 'soat code', 'đánh giá code'] }
+  ];
+
+  const hasAddKeyword = 
+    lower.includes('thêm') || lower.includes('them') ||
+    lower.includes('tạo') || lower.includes('tao') ||
+    lower.includes('bổ sung') || lower.includes('bo sung') ||
+    lower.includes('triệu tập') || lower.includes('trieu tap') ||
+    lower.includes('cần') || lower.includes('can') ||
+    lower.includes('muốn') || lower.includes('muon') ||
+    lower.includes('add') || lower.includes('recruit') ||
+    lower.startsWith('/add-agent');
+
+  if (!hasAddKeyword) return null;
+
+  for (const r of roles) {
+    for (const pat of r.patterns) {
+      const regex = new RegExp(`(?:thêm|them|tạo|tao|bổ sung|bo sung|triệu tập|trieu tap|cần|can|muốn|muon|add|recruit)(?:\\s+thêm)?(?:\\s+agent|\\s+chuyên gia|\\s+vị trí|\\s+người)?(?:\\s+về|\\s+cho|\\s+chuyên)?\\s+${pat}`, 'i');
+      if (regex.test(lower) || lower.includes(`agent ${pat}`) || lower.includes(`${pat} agent`) || lower.includes(`chuyên gia ${pat}`)) {
+        return { type: 'single', category: r.key };
+      }
+    }
+  }
+
+  return null;
+}
+
 // 9.17 Gửi tin nhắn và điều phối Nhóm Agent (Tối đa 5 thành viên được chọn)
 app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   const { id: projectId, chatId } = req.params;
   const project = Store.getProjectById(projectId);
   if (!project) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
 
-  const chat = Store.getProjectChat(projectId, chatId);
+  let chat = Store.getProjectChat(projectId, chatId);
   if (!chat) return res.status(404).json({ error: 'Không tìm thấy cuộc trò chuyện trong dự án.' });
 
   const { content, model, isStream = false } = req.body;
@@ -1277,6 +1340,34 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   };
 
   try {
+    // -------------------------------------------------------------------------
+    // 0. TỰ ĐỘNG THÊM AGENT TỪ LỆNH GHI VÀO BOTCHAT CỦA NGƯỜI DÙNG
+    // -------------------------------------------------------------------------
+    const userRecruitIntent = detectUserAgentRecruitment(content);
+    const newlyRecruited = [];
+
+    if (userRecruitIntent) {
+      if (userRecruitIntent.type === 'all') {
+        const added = Store.autoSetupAgentsForChat(projectId, chatId);
+        newlyRecruited.push(...added);
+      } else if (userRecruitIntent.type === 'single') {
+        const freshChat = Store.getProjectChat(projectId, chatId);
+        const existingAgents = freshChat.agents || [];
+        const alreadyExists = existingAgents.some(a => a.category === userRecruitIntent.category);
+        if (existingAgents.length < 5 && !alreadyExists) {
+          try {
+            const addedAg = Store.addAgentToChat(projectId, chatId, { category: userRecruitIntent.category });
+            newlyRecruited.push(addedAg);
+          } catch (e) {
+            console.warn('Lỗi thêm agent qua botchat:', e.message);
+          }
+        }
+      }
+
+      // Nạp lại thông tin cuộc trò chuyện mới nhất sau khi tuyển dụng
+      chat = Store.getProjectChat(projectId, chatId);
+    }
+
     const projectContext = `
 [THÔNG TIN DỰ ÁN TRÊN MÁY TÍNH]
 - Tên Dự Án: ${project.name}
@@ -1291,6 +1382,59 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       ? chat.agents.slice(0, 5)
       : null;
     const teamName = chat.title || 'Hội đồng Agent';
+
+    // Nếu người dùng vừa tuyển dụng agent qua botchat và không có yêu cầu sâu thêm:
+    const substantiveText = content
+      .replace(/(?:thêm|them|tạo|tao|bổ sung|bo sung|triệu tập|trieu tap|cần|can|muốn|muon|add|recruit)(?:\s+thêm)?(?:\s+agent|\s+chuyên gia|\s+vị trí|\s+người)?(?:\s+về|\s+cho|\s+chuyên)?\s+(?:database|csdl|cơ sở dữ liệu|co so du lieu|sql|db|frontend|front-end|giao diện|giao dien|ui\/ux|ui|ux|security|bảo mật|bao mat|devops|tester|kiểm thử|kiem thu|architect|kiến trúc sư|kien truc su|coder|lập trình viên|lap trinh vien|reviewer|các agent|đủ agent|5 agent)/gi, '')
+      .replace(/[,.!?]/g, '')
+      .trim();
+
+    if (newlyRecruited.length > 0 && substantiveText.length < 5) {
+      // Người dùng chỉ ghi câu lệnh đơn thuần để thêm Agent (ví dụ: "thêm agent coder", "thêm csdl", "thêm các agent")
+      const messagesToReturn = [];
+
+      if (userRecruitIntent.type === 'all') {
+        const recruitNotice = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Hội Đồng AI',
+          agentBadge: 'COUNCIL',
+          agentColor: '#3b82f6',
+          agentRole: 'Điều Phối Viên',
+          content: `${newlyRecruited.map(ag => `[RECRUIT_AGENT: role="${ag.category}", name="${ag.name}", model="${ag.model}"]`).join('\n')}
+
+🎉 **Đã thêm thành công ${newlyRecruited.length} Agent chuyên môn vào Hội đồng theo tin nhắn của bạn:**
+${newlyRecruited.map((ag, idx) => `${idx + 1}. **${ag.name}** (${ag.roleTitle}) — Model: \`${ag.model}\``).join('\n')}
+
+Hội đồng đã sẵn sàng nhận chỉ đạo công việc cho dự án của bạn!`
+        });
+        messagesToReturn.push(recruitNotice);
+      } else {
+        newlyRecruited.forEach(ag => {
+          const welcomeMsg = Store.saveProjectChatMessage(projectId, chatId, {
+            role: 'assistant',
+            author: ag.name,
+            agentId: ag.id,
+            agentBadge: ag.badge,
+            agentColor: ag.color,
+            agentModel: ag.model,
+            agentRole: ag.roleTitle,
+            content: `[RECRUIT_AGENT: role="${ag.category}", name="${ag.name}", model="${ag.model}"]
+
+👋 **Chào bạn! Tôi là ${ag.name} (${ag.roleTitle})**, được vận hành bởi AI \`${ag.model}\`.
+Tôi đã chính thức tham gia Hội đồng dự án theo lệnh bạn vừa ghi trong ô chat! Tôi sẵn sàng đảm nhận các công việc về **${ag.roleTitle}**. Bạn hãy giao việc cho tôi nhé!`
+          });
+          messagesToReturn.push(welcomeMsg);
+        });
+      }
+
+      if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+        messagesToReturn.forEach(m => sendEvent({ type: 'agent_done', message: m }));
+        sendEvent({ type: 'all_done', totalMessages: messagesToReturn.length });
+        return res.end();
+      }
+
+      return res.json({ success: true, mode: 'recruited', messages: messagesToReturn });
+    }
 
     // A. NẾU LÀ CHAT ĐƠN (CHƯA THÊM AGENT NÀO)
     if (!teamMembers || teamMembers.length === 0) {
@@ -1368,6 +1512,44 @@ Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.
     }
 
     // B. NẾU LÀ CHAT NHÓM: LẦN LƯỢT CÁC AGENT TRONG NHÓM (TỐI ĐA 5 AGENT) CÙNG NÓI CHUYỆN & FIX CODE
+    // Lọc thành viên nếu người dùng chỉ định đích danh qua @mention để làm việc riêng
+    let isTargetedWork = false;
+    let targetedNames = [];
+    if (teamMembers && teamMembers.length > 0) {
+      const lowerContent = content.toLowerCase();
+      const normContent = removeVietnameseTones(content);
+
+      if (lowerContent.includes('@')) {
+        const isAll = normContent.includes('@all') || normContent.includes('@tat ca') || normContent.includes('@ca nhom') || normContent.includes('@hoi dong');
+        if (!isAll) {
+          const matchedMembers = teamMembers.filter(m => {
+            const nameLower = m.name.toLowerCase();
+            const normName = removeVietnameseTones(m.name);
+            const catLower = (m.category || '').toLowerCase();
+
+            return lowerContent.includes(`@${nameLower}`) ||
+                   normContent.includes(`@${normName}`) ||
+                   lowerContent.includes(`@${catLower}`) ||
+                   normContent.includes(`@${catLower}`) ||
+                   (catLower === 'coder' && (normContent.includes('@lap trinh') || normContent.includes('@code') || normContent.includes('@coder') || normContent.includes('@dev'))) ||
+                   (catLower === 'tester' && (normContent.includes('@kiem thu') || normContent.includes('@tester') || normContent.includes('@test') || normContent.includes('@qa'))) ||
+                   (catLower === 'database' && (normContent.includes('@csdl') || normContent.includes('@co so du lieu') || normContent.includes('@database') || normContent.includes('@sql') || normContent.includes('@db'))) ||
+                   (catLower === 'frontend' && (normContent.includes('@giao dien') || normContent.includes('@frontend') || normContent.includes('@ui') || normContent.includes('@ux'))) ||
+                   (catLower === 'security' && (normContent.includes('@bao mat') || normContent.includes('@security') || normContent.includes('@an ninh') || normContent.includes('@sec'))) ||
+                   (catLower === 'architect' && (normContent.includes('@kien truc') || normContent.includes('@architect') || normContent.includes('@arch'))) ||
+                   (catLower === 'devops' && (normContent.includes('@devops') || normContent.includes('@trien khai'))) ||
+                   (catLower === 'reviewer' && (normContent.includes('@reviewer') || normContent.includes('@review') || normContent.includes('@soat code')));
+          });
+
+          if (matchedMembers.length > 0) {
+            teamMembers = matchedMembers;
+            isTargetedWork = true;
+            targetedNames = matchedMembers.map(m => m.name);
+          }
+        }
+      }
+    }
+
     const generatedMessages = [];
     const previousTurnsContext = [];
 
@@ -1394,6 +1576,10 @@ Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.
 - Vị trí chuyên môn: ${member.roleTitle} [${member.badge}]
 - AI vận hành: ${memberModel}
 - Các thành viên cùng dự án: ${teamMembers.map(m => `@${m.name} (${m.roleTitle})`).join(', ')}
+${isTargetedWork ? `
+[CHỈ ĐỊNH ĐÍCH DANH - BẠN ĐƯỢC GIAO LÀM VIỆC RIÊNG CHO YÊU CẦU NÀY]:
+Người dùng đã sử dụng cú pháp @ để chỉ định đích danh bạn (${targetedNames.map(n => '@' + n).join(', ')}) làm việc riêng cho yêu cầu này.
+Hãy tập trung 100% khả năng chuyên môn của bạn để thực hiện trọn vẹn nhiệm vụ được giao.` : ''}
 
 [QUY TẮC GIAO TIẾP & PHỐI HỢP NỘI BỘ]:
 1. HÃY TRÒ CHUYỆN VÀ GIAO TIẾP TỰ NHIÊN: Các AI trong nhóm cần trực tiếp trao đổi, phản hồi và tag tên nhau bằng cú pháp @Tên (ví dụ: @${prevMember ? prevMember.name : 'Kiến Trúc Sư'}, @${nextMember ? nextMember.name : 'Lập Trình Viên'}).

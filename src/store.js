@@ -72,7 +72,7 @@ const defaultData = {
       name: 'OpenCode',
       type: 'openai-compatible',
       baseUrl: 'https://opencode.ai/zen/v1',
-      apiKey: process.env.OPENCODE_API_KEY || 'oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq',
+      apiKey: process.env.OPENCODE_API_KEY || '',
       models: [
         'deepseek-v4.1-flash-free',
         'glm-5.3-flash-free',
@@ -112,7 +112,24 @@ function readDb() {
   ensureDb();
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    if (Array.isArray(data.providers)) {
+      data.providers.forEach(p => {
+        if (p.id === 'prov_openrouter' && (!p.apiKey || p.apiKey === '')) {
+          p.apiKey = process.env.OPENROUTER_API_KEY || '';
+        }
+        if (p.id === 'prov_cloudflare_ai' && (!p.apiKey || p.apiKey === '')) {
+          p.apiKey = process.env.CLOUDFLARE_API_TOKEN || '';
+        }
+        if (p.id === 'prov_kilo_gateway' && (!p.apiKey || p.apiKey === '')) {
+          p.apiKey = process.env.KILO_GATEWAY_API_KEY || '';
+        }
+        if (p.id === 'prov_opencode' && (!p.apiKey || p.apiKey === '')) {
+          p.apiKey = process.env.OPENCODE_API_KEY || '';
+        }
+      });
+    }
+    return data;
   } catch (err) {
     console.error('Error reading db.json:', err);
     return defaultData;
@@ -122,7 +139,14 @@ function readDb() {
 function writeDb(data) {
   ensureDb();
   const tmpFile = DB_FILE + '.tmp';
-  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+  // Loại bỏ các API key nhạy cảm khi ghi xuống đĩa để tránh GitHub push protection
+  const toSave = JSON.parse(JSON.stringify(data));
+  if (Array.isArray(toSave.providers)) {
+    toSave.providers.forEach(p => {
+      p.apiKey = '';
+    });
+  }
+  fs.writeFileSync(tmpFile, JSON.stringify(toSave, null, 2), 'utf8');
   fs.renameSync(tmpFile, DB_FILE);
 }
 
@@ -142,7 +166,7 @@ const Store = {
         p.apiKey = process.env.CLOUDFLARE_API_TOKEN || '';
       }
       if (p.id === 'prov_opencode' && (!p.apiKey || p.apiKey === '')) {
-        p.apiKey = process.env.OPENCODE_API_KEY || 'oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq';
+        p.apiKey = process.env.OPENCODE_API_KEY || '';
       }
     });
 
