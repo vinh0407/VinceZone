@@ -740,20 +740,14 @@
             <div class="ide-explorer-header">
               <span class="ide-explorer-title">Explorer</span>
               <div class="ide-explorer-actions">
-                <button type="button" class="btn-ide-head-icon" onclick="window.refreshDemoFileTree()" title="Làm mới cây tệp">↺</button>
-                <button type="button" class="btn-ide-head-icon" title="Tùy chọn khác">⋯</button>
+                <button type="button" class="btn-ide-head-icon" onclick="window.refreshDemoFileTree()" title="Làm mới cây tệp">⋯</button>
               </div>
             </div>
 
             <!-- Root Project Row -->
             <div class="ide-project-root-row" onclick="window.toggleIdeProjectRoot()">
-              <span class="ide-chevron" id="ide-proj-chevron">⌄</span>
+              <span class="ide-chevron" id="ide-proj-chevron">∨</span>
               <span class="ide-root-name" id="ide-current-proj-name">VinceZone</span>
-            </div>
-
-            <!-- Search Filter -->
-            <div class="ide-tree-search-box">
-              <input type="text" id="ide-file-search" placeholder="Filter files..." oninput="window.filterDemoFiles(this.value)">
             </div>
 
             <!-- Hierarchical Tree List -->
@@ -1977,6 +1971,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=9.2"></script>
+ <script src="app.js?v=9.3"></script>
 </body>
 </html>

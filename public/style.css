@@ -10451,3 +10451,209 @@ body.is-resizing {
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+
+/* =============================================================================
+   VS CODE EXACT EXPLORER THEME (Matches media_1793645367988_f45dd09f.png 100%)
+============================================================================= */
+
+.ide-file-tree-sidebar {
+  width: 220px !important;
+  min-width: 170px !important;
+  background: #181818 !important;
+  border-right: 1px solid #222222 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  user-select: none !important;
+  color: #cccccc !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 13px !important;
+}
+
+.ide-explorer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c5c5c5;
+  letter-spacing: 0.5px;
+}
+
+.ide-explorer-title {
+  text-transform: capitalize;
+  font-size: 11.5px;
+  color: #cccccc;
+}
+
+.ide-project-root-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #cccccc;
+  cursor: pointer;
+}
+
+.ide-project-root-row:hover {
+  background: #202020;
+}
+
+.ide-project-root-row .ide-chevron {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  color: #aaaaaa;
+}
+
+.ide-tree-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1px 0;
+}
+
+.ide-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  line-height: 22px;
+  padding-right: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cccccc;
+  white-space: nowrap;
+}
+
+.ide-tree-node:hover {
+  background: #2a2d2e;
+}
+
+.ide-tree-node.active {
+  background: #37373d !important;
+  color: #ffffff !important;
+}
+
+.ide-tree-node .ide-chevron {
+  font-size: 9px;
+  width: 12px;
+  text-align: center;
+  color: #888888;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ide-tree-node .ide-tree-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Precise File Icons matching Image 1 */
+.vsc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.vsc-icon.icon-folder {
+  color: #cccccc;
+  font-size: 12px;
+}
+
+.vsc-icon.icon-js {
+  color: #f7df1e;
+  font-weight: 800;
+  font-size: 10px;
+  font-family: Consolas, monospace;
+}
+
+.vsc-icon.icon-json {
+  color: #00b894;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vsc-icon.icon-npm {
+  color: #00b894;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vsc-icon.icon-env {
+  color: #888888;
+  font-size: 12px;
+}
+
+.vsc-icon.icon-git {
+  color: #f4511e;
+  font-size: 12px;
+}
+
+.vsc-icon.icon-docker {
+  color: #2496ed;
+  font-size: 12px;
+}
+
+.vsc-icon.icon-md {
+  color: #42a5f5;
+  font-size: 11px;
+}
+
+.vsc-icon.icon-yaml {
+  color: #a855f7;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vsc-icon.icon-html {
+  color: #e44d26;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.vsc-icon.icon-css {
+  color: #264de4;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Outline & Timeline sections at bottom */
+.ide-explorer-bottom-sections {
+  border-top: 1px solid #252526;
+}
+
+.ide-collapsible-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  color: #cccccc;
+  background: #181818;
+  cursor: pointer;
+  border-bottom: 1px solid #202020;
+}
+
+.ide-collapsible-bar:hover {
+  background: #202020;
+  color: #ffffff;
+}
+
+.ide-collapsible-bar .ide-chevron {
+  font-size: 9px;
+  color: #888888;
+  width: 10px;
+}

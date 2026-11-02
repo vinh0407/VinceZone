@@ -7829,22 +7829,43 @@ function renderDemoFileTreeList(files) {
 }
 
 function getFileIcon(filePath) {
-  const ext = filePath.split('.').pop().toLowerCase();
+  const name = (filePath || '').split('/').pop().toLowerCase();
+  const ext = name.split('.').pop().toLowerCase();
+
+  if (name === '.env' || name.startsWith('.env.')) {
+    return '<span class="vsc-icon icon-env">⚙</span>';
+  }
+  if (name === '.gitignore') {
+    return '<span class="vsc-icon icon-git">⑂</span>';
+  }
+  if (name === 'dockerfile') {
+    return '<span class="vsc-icon icon-docker">🐳</span>';
+  }
+  if (name === 'package.json' || name === 'package-lock.json') {
+    return '<span class="vsc-icon icon-npm">JS</span>';
+  }
+  if (name === 'readme.md') {
+    return '<span class="vsc-icon icon-md">M↓</span>';
+  }
+  if (name.endsWith('.yaml') || name.endsWith('.yml')) {
+    return '<span class="vsc-icon icon-yaml">Y</span>';
+  }
+
   switch (ext) {
-    case 'html': case 'htm': return '🌐';
-    case 'js': case 'mjs': return '🟨';
-    case 'ts': case 'tsx': return '🔷';
-    case 'jsx': return '⚛️';
-    case 'css': case 'scss': case 'sass': return '🎨';
-    case 'json': return '📋';
-    case 'py': return '🐍';
-    case 'c': case 'cpp': case 'h': return '⚙️';
-    case 'cs': return '🟣';
-    case 'sql': return '🗄️';
-    case 'md': return '📝';
-    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': return '🖼️';
-    case 'ps1': case 'sh': case 'bat': return '⚡';
-    default: return '📄';
+    case 'js': case 'mjs': case 'cjs':
+      return '<span class="vsc-icon icon-js">JS</span>';
+    case 'ts': case 'tsx':
+      return '<span class="vsc-icon icon-ts">TS</span>';
+    case 'html': case 'htm':
+      return '<span class="vsc-icon icon-html">&lt;/&gt;</span>';
+    case 'css': case 'scss': case 'sass':
+      return '<span class="vsc-icon icon-css">#</span>';
+    case 'json':
+      return '<span class="vsc-icon icon-json">{ }</span>';
+    case 'md':
+      return '<span class="vsc-icon icon-md">M↓</span>';
+    default:
+      return '<span class="vsc-icon" style="color:#888;">📄</span>';
   }
 }
 
@@ -8565,32 +8586,50 @@ window.syncIdeAiFeed = function() {
 window.renderDemoHierarchicalTree = function(items, container, depth = 0) {
   if (!container || !Array.isArray(items)) return;
 
-  items.forEach(it => {
+  // Sắp xếp: Thư mục lên đầu (A-Z), tệp tin ở sau (A-Z) chuẩn VS Code
+  const sorted = [...items].sort((a, b) => {
+    if (a.type === 'directory' && b.type !== 'directory') return -1;
+    if (a.type !== 'directory' && b.type === 'directory') return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  sorted.forEach(it => {
     const isDir = it.type === 'directory';
     const row = document.createElement('div');
     row.className = 'ide-tree-node' + (it.path === demoState.activeFilePath ? ' active' : '');
-    row.style.paddingLeft = (depth * 14 + 10) + 'px';
+    row.style.paddingLeft = (depth * 12 + 6) + 'px';
     row.title = it.path || it.name;
 
     if (isDir) {
+      // Special folder icons
+      let folderIcon = '<span class="vsc-icon icon-folder" style="color: #cccccc;">📁</span>';
+      if (it.name === 'node_modules') {
+        folderIcon = '<span class="vsc-icon icon-folder" style="color: #4ade80;">📁</span>';
+      } else if (it.name === 'src') {
+        folderIcon = '<span class="vsc-icon icon-folder" style="color: #38bdf8;">📁</span>';
+      } else if (it.name === 'public') {
+        folderIcon = '<span class="vsc-icon icon-folder" style="color: #c084fc;">📁</span>';
+      }
+
       row.innerHTML = `
-        <span class="ide-chevron">⌄</span>
-        <span class="vsc-icon icon-folder" style="color: #dcb67a;">📁</span>
-        <span class="ide-tree-name" style="font-weight: 500;">${escapeHtml(it.name)}</span>
+        <span class="ide-chevron">&gt;</span>
+        ${folderIcon}
+        <span class="ide-tree-name">${escapeHtml(it.name)}</span>
       `;
 
       const childContainer = document.createElement('div');
       childContainer.className = 'ide-tree-dir-children';
+      childContainer.style.display = 'none'; // Mặc định thu gọn các folder chuẩn VS Code
 
       row.onclick = (e) => {
         e.stopPropagation();
         const chev = row.querySelector('.ide-chevron');
         if (childContainer.style.display === 'none') {
           childContainer.style.display = 'block';
-          if (chev) chev.textContent = '⌄';
+          if (chev) chev.innerHTML = '&or;';
         } else {
           childContainer.style.display = 'none';
-          if (chev) chev.textContent = '›';
+          if (chev) chev.innerHTML = '&gt;';
         }
       };
 
@@ -8602,16 +8641,33 @@ window.renderDemoHierarchicalTree = function(items, container, depth = 0) {
     } else {
       const icon = getFileIcon(it.path || it.name);
       row.innerHTML = `
+        <span class="ide-chevron" style="visibility: hidden;">&gt;</span>
         <span class="ide-tree-icon">${icon}</span>
         <span class="ide-tree-name">${escapeHtml(it.name)}</span>
       `;
       row.onclick = (e) => {
         e.stopPropagation();
+        document.querySelectorAll('.ide-tree-node').forEach(n => n.classList.remove('active'));
+        row.classList.add('active');
         window.openFileInIde(it.path || it.name);
       };
       container.appendChild(row);
     }
   });
+};
+
+// Toggle ẩn hiện thư mục gốc Explorer
+window.toggleIdeProjectRoot = function() {
+  const treeList = document.getElementById('ide-tree-list');
+  const chev = document.getElementById('ide-proj-chevron');
+  if (!treeList) return;
+  if (treeList.style.display === 'none') {
+    treeList.style.display = 'block';
+    if (chev) chev.innerHTML = '&or;';
+  } else {
+    treeList.style.display = 'none';
+    if (chev) chev.innerHTML = '&gt;';
+  }
 };
 
 
