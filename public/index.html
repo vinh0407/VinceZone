@@ -353,10 +353,17 @@
   <div class="projects-layout">
     <!-- 1. Left Sidebar: Quản lý Dự Án, Cây Tập Tin & Cây Đoạn Chat -->
     <aside class="projects-sidebar">
-      <!-- Nút Thêm Dự Án trên đầu -->
-      <div class="projects-sidebar-top">
-        <button id="btn-open-create-project" class="btn-primary btn-add-project-hero" title="Thêm dự án mới trên máy tính">
+      <!-- Nút Thêm Dự Án trên đầu & Nút Thu Gọn Sidebar -->
+      <div class="projects-sidebar-top" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+        <button id="btn-open-create-project" class="btn-primary btn-add-project-hero" style="flex: 1; margin-bottom: 0;" title="Thêm dự án mới trên máy tính">
           + Thêm Dự Án
+        </button>
+        <button type="button" id="btn-collapse-sidebar" class="btn-icon-sidebar-toggle" title="Thu gọn thanh bên (Ctrl+B)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <path d="m14 9-3 3 3 3"></path>
+          </svg>
         </button>
       </div>
 
@@ -386,9 +393,12 @@
 
         <!-- CÂY THƯ MỤC & TẬP TIN DỰ ÁN -->
         <div class="project-files-tree-section">
-          <div class="section-label-row tree-header-row">
-            <span class="section-label-text">TẬP TIN DỰ ÁN</span>
-            <div class="tree-header-actions">
+          <div class="section-label-row tree-header-row" id="tree-section-header" style="cursor: pointer; user-select: none;" title="Bấm để ẩn / hiện danh sách tập tin">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span id="tree-toggle-arrow" class="accordion-chevron">▾</span>
+              <span class="section-label-text">TẬP TIN DỰ ÁN</span>
+            </div>
+            <div class="tree-header-actions" onclick="event.stopPropagation()">
               <button type="button" id="btn-tree-new-file" class="btn-tree-icon" title="Tạo tệp mới">+ File</button>
               <button type="button" id="btn-tree-new-folder" class="btn-tree-icon" title="Tạo thư mục mới">+ Folder</button>
               <button type="button" id="btn-refresh-files" class="btn-tree-icon" title="Làm mới cây tập tin">↺</button>
@@ -401,9 +411,14 @@
 
         <!-- CÂY DANH SÁCH CÁC ĐOẠN CHAT -->
         <div class="project-chats-section">
-          <div class="section-label-row chat-header-row">
-            <span class="section-label-text">CÁC ĐOẠN CHAT</span>
-            <button type="button" id="btn-open-new-chat-modal" class="btn-small-primary" title="Thêm đoạn chat mới">+ Thêm Đoạn Chat</button>
+          <div class="section-label-row chat-header-row" id="chats-section-header" style="cursor: pointer; user-select: none;" title="Bấm để ẩn / hiện danh sách đoạn chat">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span id="chats-toggle-arrow" class="accordion-chevron">▾</span>
+              <span class="section-label-text">CÁC ĐOẠN CHAT</span>
+            </div>
+            <div onclick="event.stopPropagation()">
+              <button type="button" id="btn-open-new-chat-modal" class="btn-small-primary" title="Thêm đoạn chat mới">+ Thêm Đoạn Chat</button>
+            </div>
           </div>
           <div id="project-chats-list" class="project-chats-list">
             <!-- Populated dynamically -->
@@ -417,12 +432,28 @@
       <!-- Chat Canvas Top Bar: Tiêu đề chat & Góc phải có DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5 AGENT) -->
       <div class="project-chat-topbar" id="project-chat-topbar" style="display: none;">
         <div class="chat-topbar-left">
+          <!-- Nút Ẩn / Hiện Sidebar bên trái -->
+          <button type="button" id="btn-toggle-projects-sidebar" class="btn-icon-sidebar-toggle" title="Ẩn / Hiện thanh bên dự án (Ctrl+B)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+            </svg>
+          </button>
+
           <div class="chat-title-wrap">
             <span class="chat-title-icon">💬</span>
             <h4 id="project-chat-title" class="chat-title-heading">Hội đồng Code &amp; Fix lỗi</h4>
           </div>
+
+          <!-- Nút Toggle Thu gọn / Mở rộng Model Selector -->
+          <button type="button" id="btn-toggle-chat-models-box" class="btn-toggle-models-summary" title="Bấm để Ẩn / Hiện bộ chọn Provider &amp; Model">
+            <span class="model-summary-icon">⚡</span>
+            <span id="topbar-model-summary-name" class="model-summary-name">cohere/north-mini-code:free</span>
+            <span id="topbar-model-summary-arrow" class="model-summary-arrow">▾</span>
+          </button>
+
           <!-- Model Selector cho đoạn chat (Chia rõ Provider -> Model tương ứng) -->
-          <div class="chat-model-badge-box">
+          <div class="chat-model-badge-box" id="chat-model-badge-box">
             <div class="topbar-select-capsule" title="Nhà cung cấp AI đang hoạt động">
               <span class="select-capsule-icon">🏢</span>
               <span class="select-capsule-label">Provider:</span>
@@ -1357,6 +1388,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=4.2"></script>
+ <script src="app.js?v=4.4"></script>
 </body>
 </html>

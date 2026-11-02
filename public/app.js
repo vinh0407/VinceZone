@@ -4521,6 +4521,16 @@ window.deleteProjectChat = async function(event, chatId) {
   }
 };
 
+function updateTopbarModelSummary() {
+  const modelSelectEl = document.getElementById('chat-active-model-select');
+  const summaryEl = document.getElementById('topbar-model-summary-name');
+  if (summaryEl) {
+    const text = (modelSelectEl && modelSelectEl.value) || (projectsState.activeChat ? projectsState.activeChat.model : 'Model AI');
+    summaryEl.textContent = text;
+    summaryEl.title = text;
+  }
+}
+
 // Thiết lập dropdown Nhà cung cấp & Model tương ứng trên Top Bar của đoạn chat
 async function setupChatTopBarProviderAndModel(chat) {
   const provSelectEl = document.getElementById('chat-active-provider-select');
@@ -4619,6 +4629,7 @@ async function setupChatTopBarProviderAndModel(chat) {
         });
         chat.model = newModel;
         chat.providerId = selectedProvId;
+        updateTopbarModelSummary();
         showToast(`⚡ Đã chuyển sang ${prov.name} - Model: ${newModel}`);
       } catch (e) {
         showToast('Lỗi đổi model: ' + e.message);
@@ -4640,6 +4651,7 @@ async function setupChatTopBarProviderAndModel(chat) {
       });
       chat.model = newModel;
       chat.providerId = selectedProvId;
+      updateTopbarModelSummary();
       showToast(`✔ Đã chọn Model: ${newModel}`);
     } catch (e) {
       showToast('Lỗi đổi model: ' + e.message);
@@ -4647,6 +4659,7 @@ async function setupChatTopBarProviderAndModel(chat) {
   };
 
   await updateModelsDropdown(false);
+  updateTopbarModelSummary();
 }
 
 // 7. Render Nội Dung Cuộc Trò Chuyện & Top Bar
@@ -5779,6 +5792,87 @@ function initProjectsEventListeners() {
       if (projectsState.activeProject) {
         deleteProjectItem(null, projectsState.activeProject.id, projectsState.activeProject.name);
       }
+    });
+  }
+
+  // 1. Ẩn / Hiện Sidebar bên trái (Projects Sidebar Toggle & Hotkey Ctrl+B)
+  const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
+  const btnToggleSidebar = document.getElementById('btn-toggle-projects-sidebar');
+  const projectsLayout = document.querySelector('.projects-layout');
+
+  const toggleProjectsSidebar = () => {
+    if (!projectsLayout) return;
+    const isCollapsed = projectsLayout.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('vincezone_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+    showToast(isCollapsed ? 'Đã thu gọn thanh bên (Mở rộng chat)' : 'Đã mở thanh bên');
+  };
+
+  if (btnCollapseSidebar) btnCollapseSidebar.addEventListener('click', toggleProjectsSidebar);
+  if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleProjectsSidebar);
+
+  // Khôi phục trạng thái sidebar từ localStorage
+  if (projectsLayout && localStorage.getItem('vincezone_sidebar_collapsed') === 'true') {
+    projectsLayout.classList.add('sidebar-collapsed');
+  }
+
+  // Phím tắt Ctrl + B / Cmd + B để ẩn/hiện thanh bên
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+      const tabProjects = document.getElementById('tab-projects');
+      if (tabProjects && tabProjects.classList.contains('active')) {
+        e.preventDefault();
+        toggleProjectsSidebar();
+      }
+    }
+  });
+
+  // 2. Ẩn / Hiện cụm chọn Provider & Model trên Topbar
+  const btnToggleModelsBox = document.getElementById('btn-toggle-chat-models-box');
+  const chatModelBadgeBox = document.getElementById('chat-model-badge-box');
+
+  const toggleModelsBox = () => {
+    if (!chatModelBadgeBox) return;
+    const isHidden = chatModelBadgeBox.classList.toggle('hidden-models');
+    if (btnToggleModelsBox) {
+      btnToggleModelsBox.classList.toggle('active', !isHidden);
+    }
+    localStorage.setItem('vincezone_model_box_collapsed', isHidden ? 'true' : 'false');
+  };
+
+  if (btnToggleModelsBox) {
+    btnToggleModelsBox.addEventListener('click', toggleModelsBox);
+  }
+
+  // Khôi phục trạng thái ẩn hiện Model Box (Mặc định ẩn dropdown để gọn gàng như giao diện gốc)
+  if (chatModelBadgeBox) {
+    const isHiddenSaved = localStorage.getItem('vincezone_model_box_collapsed');
+    if (isHiddenSaved === null || isHiddenSaved === 'true') {
+      chatModelBadgeBox.classList.add('hidden-models');
+      if (btnToggleModelsBox) btnToggleModelsBox.classList.remove('active');
+    } else {
+      chatModelBadgeBox.classList.remove('hidden-models');
+      if (btnToggleModelsBox) btnToggleModelsBox.classList.add('active');
+    }
+  }
+
+  // 3. Accordion ẩn / hiện Cây tập tin dự án & Danh sách đoạn chat
+  const treeSectionHeader = document.getElementById('tree-section-header');
+  const treeFilesList = document.getElementById('project-files-list');
+  const treeArrow = document.getElementById('tree-toggle-arrow');
+  if (treeSectionHeader && treeFilesList) {
+    treeSectionHeader.addEventListener('click', () => {
+      const isCollapsed = treeFilesList.classList.toggle('collapsed');
+      if (treeArrow) treeArrow.classList.toggle('collapsed', isCollapsed);
+    });
+  }
+
+  const chatsSectionHeader = document.getElementById('chats-section-header');
+  const chatsList = document.getElementById('project-chats-list');
+  const chatsArrow = document.getElementById('chats-toggle-arrow');
+  if (chatsSectionHeader && chatsList) {
+    chatsSectionHeader.addEventListener('click', () => {
+      const isCollapsed = chatsList.classList.toggle('collapsed');
+      if (chatsArrow) chatsArrow.classList.toggle('collapsed', isCollapsed);
     });
   }
 }

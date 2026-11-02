@@ -3882,6 +3882,23 @@ input[type="range"] {
   height: calc(100vh - 65px);
   overflow: hidden;
   background: var(--bg-main, #09090b);
+  transition: grid-template-columns 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.projects-layout.sidebar-collapsed {
+  grid-template-columns: 0px 1fr !important;
+}
+
+.projects-layout.sidebar-collapsed .projects-sidebar {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border-right: none !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
 }
 
 /* 1. Projects Sidebar */
@@ -3893,6 +3910,7 @@ input[type="range"] {
   overflow-y: auto;
   padding: 1rem;
   gap: 1rem;
+  transition: opacity 0.15s ease, padding 0.2s ease;
 }
 
 .projects-sidebar-header {
@@ -5310,6 +5328,100 @@ input[type="range"] {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.4rem;
+}
+
+/* Nút icon Thu gọn / Ẩn hiện Sidebar */
+.btn-icon-sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #141417;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  color: #a1a1aa;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-icon-sidebar-toggle:hover {
+  background: #202025;
+  border-color: #3f3f46;
+  color: #ffffff;
+}
+
+/* Nút Toggle tóm tắt Model trên Topbar (Thu gọn dropdown cồng kềnh) */
+.btn-toggle-models-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #141417;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  color: #f4f4f5;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-toggle-models-summary:hover {
+  background: #1a1a20;
+  border-color: #3f3f46;
+  color: #ffffff;
+}
+
+.btn-toggle-models-summary.active {
+  background: #1a1a20;
+  border-color: #52525b;
+}
+
+.model-summary-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.model-summary-name {
+  font-weight: 500;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-summary-arrow {
+  font-size: 0.68rem;
+  color: #71717a;
+  transition: transform 0.2s ease;
+}
+
+.btn-toggle-models-summary.active .model-summary-arrow {
+  transform: rotate(180deg);
+}
+
+.chat-model-badge-box.hidden-models {
+  display: none !important;
+}
+
+/* Accordion chevrons cho Cây tập tin & Cây chat */
+.accordion-chevron {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: #71717a;
+  transition: transform 0.2s ease;
+}
+
+.accordion-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.project-files-tree-list.collapsed,
+.project-chats-list.collapsed {
+  display: none !important;
 }
 
 /* Chat Top Bar & Agent Bar - Tông màu Đen - Xám chuẩn sang trọng */
