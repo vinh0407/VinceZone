@@ -8264,18 +8264,15 @@ window.refreshAntigravityOverviewDrawer = async function(projectId) {
   const artifactListEl = document.getElementById('antigravity-artifact-list');
   const filesLabel = document.getElementById('antigravity-drawer-files-label');
 
-  // 1. Luôn cập nhật Background Commands
-  const commands = [
-    { name: 'Start VinceZone server daemon', status: 'Active Gateway :3000' },
-    { name: 'Launch VinceZone Studio desktop app', status: 'Electron / Web Ready' }
-  ];
+  // 1. Luôn cập nhật Background Commands thực tế từ các lệnh ngầm đã chạy
+  const commands = [];
 
   if (curChat && Array.isArray(curChat.messages)) {
     curChat.messages.forEach(msg => {
       if (Array.isArray(msg.executedCommands)) {
         msg.executedCommands.forEach(cmd => {
           commands.push({
-            name: cmd.cmd || cmd.command || 'PowerShell execution',
+            name: cmd.cmd || cmd.command || 'Command execution',
             status: `Mã thoát: ${cmd.exitCode !== undefined ? cmd.exitCode : 0}`
           });
         });
@@ -8284,13 +8281,20 @@ window.refreshAntigravityOverviewDrawer = async function(projectId) {
   }
 
   if (cmdCountBadge) cmdCountBadge.textContent = commands.length;
+  const cmdSeeAll = document.getElementById('antigravity-cmd-see-all');
+  if (cmdSeeAll) cmdSeeAll.style.display = commands.length > 0 ? 'inline-block' : 'none';
+
   if (cmdListEl) {
-    cmdListEl.innerHTML = commands.map(c => `
-      <div class="drawer-list-item" title="${escapeHtml(c.name)} (${escapeHtml(c.status)})" onclick="alert('Lệnh: ' + ${JSON.stringify(c.name)} + '\\nTrạng thái: ' + ${JSON.stringify(c.status)})">
-        <span class="list-item-icon">&gt;_</span>
-        <span class="list-item-text">${escapeHtml(c.name)}</span>
-      </div>
-    `).join('');
+    if (commands.length === 0) {
+      cmdListEl.innerHTML = `<div style="padding: 4px 0; color: #71717a; font-size: 0.75rem; font-style: italic;">Chưa có lệnh ngầm</div>`;
+    } else {
+      cmdListEl.innerHTML = commands.map(c => `
+        <div class="drawer-list-item" title="${escapeHtml(c.name)} (${escapeHtml(c.status)})" onclick="alert('Lệnh: ' + ${JSON.stringify(c.name)} + '\\nTrạng thái: ' + ${JSON.stringify(c.status)})">
+          <span class="list-item-icon">&gt;_</span>
+          <span class="list-item-text">${escapeHtml(c.name)}</span>
+        </div>
+      `).join('');
+    }
   }
 
   if (!curProj) {
@@ -8305,7 +8309,7 @@ window.refreshAntigravityOverviewDrawer = async function(projectId) {
     return;
   }
 
-  // 2. Thu thập Artifacts & Files từ dự án
+  // 2. Thu thập Artifacts & Files thực tế từ dự án
   try {
     const res = await fetch(`/api/projects/${curProj.id}/files`);
     const data = await res.json();
@@ -8338,37 +8342,33 @@ window.refreshAntigravityOverviewDrawer = async function(projectId) {
       artifacts = artifacts.slice(0, 10);
     }
 
-    if (artifacts.length === 0) {
-      artifacts = [
-        { name: 'AGENTS.md', path: 'AGENTS.md' },
-        { name: 'Design System Audit And Plan', path: 'design-system-audit-and-plan.md' },
-        { name: 'package.json', path: 'package.json' }
-      ];
-    }
-
     if (artifactCountBadge) artifactCountBadge.textContent = artifacts.length;
     if (artifactListEl) {
-      artifactListEl.innerHTML = artifacts.map(art => {
-        const filePath = art.path || art.name;
-        return `
-          <div class="drawer-list-item" onclick="window.openArtifactInIde('${escapeHtml(filePath)}')" title="Mở ${escapeHtml(art.name)} trong IDE">
-            <span class="list-item-icon">📄</span>
-            <span class="list-item-text">${escapeHtml(art.name)}</span>
+      if (artifacts.length === 0) {
+        artifactListEl.innerHTML = `
+          <div style="padding: 4px 0; color: #71717a; font-size: 0.75rem; font-style: italic;">
+            Chưa có artifact nào
           </div>
         `;
-      }).join('');
+      } else {
+        artifactListEl.innerHTML = artifacts.map(art => {
+          const filePath = art.path || art.name;
+          return `
+            <div class="drawer-list-item" onclick="window.openArtifactInIde('${escapeHtml(filePath)}')" title="Mở ${escapeHtml(art.name)} trong IDE">
+              <span class="list-item-icon">📄</span>
+              <span class="list-item-text">${escapeHtml(art.name)}</span>
+            </div>
+          `;
+        }).join('');
+      }
     }
   } catch (err) {
     console.warn('Lỗi đọc files cho overview drawer:', err);
+    if (artifactCountBadge) artifactCountBadge.textContent = '0';
     if (artifactListEl) {
       artifactListEl.innerHTML = `
-        <div class="drawer-list-item" onclick="window.openArtifactInIde('AGENTS.md')">
-          <span class="list-item-icon">📄</span>
-          <span class="list-item-text">AGENTS.md</span>
-        </div>
-        <div class="drawer-list-item" onclick="window.openArtifactInIde('design-system-audit-and-plan.md')">
-          <span class="list-item-icon">📄</span>
-          <span class="list-item-text">Design System Audit And Plan</span>
+        <div style="padding: 4px 0; color: #71717a; font-size: 0.75rem; font-style: italic;">
+          Chưa có artifact nào
         </div>
       `;
     }
