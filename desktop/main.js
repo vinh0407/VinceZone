@@ -39,22 +39,23 @@ async function ensureGatewayRunning() {
     return true;
   }
 
-  console.log('[VinceZone Desktop] Starting embedded VinceZone server...');
-  const serverScript = path.join(__dirname, '..', 'server.js');
-  if (fs.existsSync(serverScript)) {
-    embeddedServerProcess = spawn('node', [serverScript], {
-      cwd: path.join(__dirname, '..'),
-      stdio: 'pipe',
-      windowsHide: true,
-      env: { ...process.env, PORT: SERVER_PORT }
-    });
-
-    embeddedServerProcess.stdout.on('data', (d) => {
-      console.log(`[Server]: ${d.toString().trim()}`);
-    });
-    embeddedServerProcess.stderr.on('data', (d) => {
-      console.error(`[Server Err]: ${d.toString().trim()}`);
-    });
+  console.log('[VinceZone Desktop] Starting embedded VinceZone server in-process...');
+  try {
+    const serverScript = path.join(__dirname, '..', 'server.js');
+    if (fs.existsSync(serverScript)) {
+      require(serverScript);
+    }
+  } catch (err) {
+    console.warn('[VinceZone Desktop] In-process server require notice:', err.message);
+    try {
+      const serverScript = path.join(__dirname, '..', 'server.js');
+      embeddedServerProcess = spawn('node', [serverScript], {
+        cwd: path.join(__dirname, '..'),
+        stdio: 'pipe',
+        windowsHide: true,
+        env: { ...process.env, PORT: SERVER_PORT }
+      });
+    } catch (e2) {}
   }
 
   return await waitForServer();

@@ -3,7 +3,18 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+let DATA_DIR;
+try {
+  const electron = require('electron');
+  const electronApp = electron.app || (electron.remote && electron.remote.app);
+  if (electronApp && typeof electronApp.getPath === 'function') {
+    DATA_DIR = path.join(electronApp.getPath('userData'), 'data');
+  } else {
+    DATA_DIR = path.join(__dirname, '..', 'data');
+  }
+} catch (e) {
+  DATA_DIR = path.join(__dirname, '..', 'data');
+}
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 // Default initial state - Chỉ giữ 2 Provider Miễn Phí (OpenRouter & Cloudflare Workers AI) + Kilo Gateway Fallback
@@ -104,6 +115,13 @@ function ensureDb() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
   if (!fs.existsSync(DB_FILE)) {
+    const templateDb = path.join(__dirname, '..', 'data', 'db.json');
+    if (fs.existsSync(templateDb)) {
+      try {
+        fs.copyFileSync(templateDb, DB_FILE);
+        return;
+      } catch (e) {}
+    }
     fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), 'utf8');
   }
 }
