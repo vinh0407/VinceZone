@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=4.2">
+ <link rel="stylesheet" href="style.css?v=5.0">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -379,8 +379,8 @@
 
       <!-- Khu Vực Chi Tiết Của Dự Án Đang Mở -->
       <div id="active-project-workspace" class="active-project-workspace" style="display: none;">
-        <!-- Header thông tin dự án đang mở -->
-        <div class="active-project-info-card">
+        <!-- Header dự án đã được tích hợp trực tiếp vào thẻ dự án đang chọn ở trên để loại bỏ trùng lặp -->
+        <div class="active-project-info-card" style="display: none !important;">
           <div class="active-proj-info-text">
             <strong id="active-project-name" class="proj-name-title">Dự án</strong>
             <span id="active-project-path" class="proj-path-subtitle" title="Thư mục">C:\...</span>
@@ -1412,6 +1412,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=4.7"></script>
+ <script src="app.js?v=5.0"></script>
 </body>
 </html>

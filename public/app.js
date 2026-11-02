@@ -4330,13 +4330,26 @@ function renderProjectsList() {
     card.className = `project-list-card ${isSelected ? 'active' : ''}`;
     card.onclick = () => selectProject(p.id);
 
-    card.innerHTML = `
-      <div class="project-list-card-main">
-        <strong class="project-list-name">${escapeHtml(p.name)}</strong>
-        <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
-      </div>
-      <button type="button" class="project-list-delete-btn" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án">&times;</button>
-    `;
+    if (isSelected) {
+      card.innerHTML = `
+        <div class="project-list-card-main">
+          <strong class="project-list-name">${escapeHtml(p.name)}</strong>
+          <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
+        </div>
+        <div class="active-proj-actions" onclick="event.stopPropagation()">
+          <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">Terminal</button>
+          <button type="button" class="btn-micro action-danger" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án khỏi danh sách">Xóa</button>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="project-list-card-main">
+          <strong class="project-list-name">${escapeHtml(p.name)}</strong>
+          <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
+        </div>
+        <button type="button" class="project-list-delete-btn" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án">&times;</button>
+      `;
+    }
     container.appendChild(card);
   });
 
@@ -4345,6 +4358,14 @@ function renderProjectsList() {
     activeWs.style.display = projectsState.activeProjectId ? 'block' : 'none';
   }
 }
+
+window.toggleProjectTerminal = function() {
+  const termDrawer = document.getElementById('project-terminal-drawer');
+  if (termDrawer) {
+    const isHidden = termDrawer.style.display === 'none' || !termDrawer.style.display;
+    termDrawer.style.display = isHidden ? 'block' : 'none';
+  }
+};
 
 window.selectProject = function(id) {
   projectsState.activeProjectId = id;
@@ -5046,6 +5067,45 @@ function decorateProjectCodeBlocks(containerEl) {
   });
 }
 
+function showAgentTypingIndicator(authorName, badge, text) {
+  const feedEl = document.getElementById('projects-chat-feed');
+  if (!feedEl) return;
+  hideAgentTypingIndicator();
+
+  let avatarIcon = '💻';
+  let badgeClass = 'badge-coder';
+  if ((badge || '').includes('ARCH')) { avatarIcon = '🏛️'; badgeClass = 'badge-arch'; }
+  else if ((badge || '').includes('TEST')) { avatarIcon = '🧪'; badgeClass = 'badge-tester'; }
+  else if ((badge || '').includes('REVIEW')) { avatarIcon = '🧐'; badgeClass = 'badge-reviewer'; }
+  else if ((badge || '').includes('DEVOPS')) { avatarIcon = '🚀'; badgeClass = 'badge-devops'; }
+
+  const typingEl = document.createElement('div');
+  typingEl.id = 'agent-live-typing-indicator';
+  typingEl.className = 'proj-msg msg-agent msg-typing-card';
+  typingEl.innerHTML = `
+    <div class="proj-msg-header" style="margin-bottom: 0.35rem; padding-bottom: 0.25rem;">
+      <div class="proj-msg-author-wrap">
+        <span class="agent-avatar-icon">${avatarIcon}</span>
+        <span class="agent-badge ${badgeClass}">${escapeHtml(badge || 'AI')}</span>
+        <span class="proj-msg-author" style="font-size: 0.84rem;">${escapeHtml(authorName || 'Agent')} đang phản hồi...</span>
+      </div>
+    </div>
+    <div class="typing-indicator-wave">
+      <span class="typing-dot dot-1"></span>
+      <span class="typing-dot dot-2"></span>
+      <span class="typing-dot dot-3"></span>
+      <span class="typing-status-text">${escapeHtml(text || 'Đang trao đổi và phối hợp cùng hội đồng...')}</span>
+    </div>
+  `;
+  feedEl.appendChild(typingEl);
+  feedEl.scrollTop = feedEl.scrollHeight;
+}
+
+function hideAgentTypingIndicator() {
+  const el = document.getElementById('agent-live-typing-indicator');
+  if (el) el.remove();
+}
+
 function appendProjectMessageToFeed(msg, feedEl) {
   if (!feedEl) feedEl = document.getElementById('projects-chat-feed');
   if (!feedEl) return;
@@ -5062,15 +5122,6 @@ function appendProjectMessageToFeed(msg, feedEl) {
   const msgEl = document.createElement('div');
   msgEl.className = `proj-msg ${isUser ? 'msg-user' : 'msg-agent'}`;
 
-  let badgeHtml = '';
-  if (!isUser && msg.agentBadge) {
-    let badgeClass = 'badge-coder';
-    if ((msg.agentBadge || '').includes('ARCH')) badgeClass = 'badge-arch';
-    if ((msg.agentBadge || '').includes('TEST')) badgeClass = 'badge-tester';
-    if ((msg.agentBadge || '').includes('REVIEW')) badgeClass = 'badge-reviewer';
-    badgeHtml = `<span class="agent-badge ${badgeClass}">${escapeHtml(msg.agentBadge)}</span>`;
-  }
-
   // Parse markdown
   let parsedContent = '';
   try {
@@ -5078,6 +5129,15 @@ function appendProjectMessageToFeed(msg, feedEl) {
   } catch (e) {
     parsedContent = escapeHtml(msg.content || '');
   }
+
+  // Tự động highlight các tag Mention @Tên khi các AI trao đổi với nhau
+  parsedContent = parsedContent.replace(/@([A-ZÀ-Ỹa-zà-ỹ0-9_\s]{2,25})(?=[^a-zà-ỹ0-9_]|$)/g, (match, rawName) => {
+    const cleanName = rawName.trim();
+    if (['Kiến Trúc Sư', 'Lập Trình Viên', 'Kỹ Sư Kiểm Thử', 'Chuyên Gia Review', 'Kỹ Sư DevOps', 'Reviewer', 'Coder', 'Tester', 'Architect', 'DevOps', 'Người Dùng'].some(r => cleanName.toLowerCase().includes(r.toLowerCase()))) {
+      return `<span class="agent-mention">@${escapeHtml(cleanName)}</span>`;
+    }
+    return match;
+  });
 
   // Render attachments if attached to message
   let attachHtml = '';
@@ -5094,17 +5154,46 @@ function appendProjectMessageToFeed(msg, feedEl) {
     `;
   }
 
-  msgEl.innerHTML = `
-    <div class="proj-msg-header">
-      ${badgeHtml}
-      <span class="proj-msg-author">${escapeHtml(msg.author || (isUser ? 'Bạn' : 'AI'))}</span>
-      <span class="proj-msg-time">${timeStr}</span>
-    </div>
-    <div class="proj-msg-body markdown-content">
-      ${parsedContent}
-      ${attachHtml}
-    </div>
-  `;
+  if (isUser) {
+    msgEl.innerHTML = `
+      <div class="proj-msg-header">
+        <span class="proj-msg-author">👤 ${escapeHtml(msg.author || 'Bạn')}</span>
+        <span class="proj-msg-time">${timeStr}</span>
+      </div>
+      <div class="proj-msg-body markdown-content">
+        ${parsedContent}
+        ${attachHtml}
+      </div>
+    `;
+  } else {
+    let avatarIcon = '💻';
+    let badgeClass = 'badge-coder';
+    const badgeText = msg.agentBadge || 'AI';
+    if (badgeText.includes('ARCH')) { avatarIcon = '🏛️'; badgeClass = 'badge-arch'; }
+    else if (badgeText.includes('TEST')) { avatarIcon = '🧪'; badgeClass = 'badge-tester'; }
+    else if (badgeText.includes('REVIEW')) { avatarIcon = '🧐'; badgeClass = 'badge-reviewer'; }
+    else if (badgeText.includes('DEVOPS')) { avatarIcon = '🚀'; badgeClass = 'badge-devops'; }
+
+    const modelTagHtml = msg.agentModel ? `<span class="agent-model-tag">${escapeHtml(msg.agentModel)}</span>` : '';
+
+    msgEl.innerHTML = `
+      <div class="proj-msg-header">
+        <div class="proj-msg-author-wrap">
+          <span class="agent-avatar-icon">${avatarIcon}</span>
+          <span class="agent-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
+          <span class="proj-msg-author">${escapeHtml(msg.author || 'AI')}</span>
+        </div>
+        <div class="proj-msg-meta-right">
+          ${modelTagHtml}
+          <span class="proj-msg-time">${timeStr}</span>
+        </div>
+      </div>
+      <div class="proj-msg-body markdown-content">
+        ${parsedContent}
+        ${attachHtml}
+      </div>
+    `;
+  }
 
   feedEl.appendChild(msgEl);
   decorateProjectCodeBlocks(msgEl);
@@ -5201,11 +5290,19 @@ async function sendProjectIdea() {
     appendProjectMessageToFeed(tempUserMsg, feedEl);
     if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
 
+    // Hiển thị animation typing indicator cho Agent đầu tiên trong hội đồng
+    const firstAgent = projectsState.activeChat?.agents?.[0];
+    if (firstAgent) {
+      showAgentTypingIndicator(firstAgent.name, firstAgent.badge, 'Đang phân tích yêu cầu và mở đầu cuộc họp hội đồng...');
+    } else {
+      showAgentTypingIndicator('AI Trợ Lý', 'AI', 'Đang phân tích và xử lý yêu cầu...');
+    }
+
     // Hiển thị thanh tiến trình
     if (progressEl) {
       progressEl.style.display = 'flex';
       if (progressTitleEl) {
-        progressTitleEl.textContent = 'Agent đang phân tích và xử lý...';
+        progressTitleEl.textContent = 'Hội đồng Agent đang làm việc và phối hợp...';
       }
     }
 
@@ -5236,11 +5333,27 @@ async function sendProjectIdea() {
         throw new Error(data.error || 'Lỗi khi gửi yêu cầu tới Agent.');
       }
 
-      // Đưa câu trả lời của Agent lên màn hình chat
+      // Đưa câu trả lời của các Agent lên màn hình chat với animation tuần tự mượt mà
       const messages = data.messages || [];
-      messages.forEach(msg => {
-        appendProjectMessageToFeed(msg, feedEl);
-      });
+      hideAgentTypingIndicator();
+
+      if (messages.length <= 1) {
+        messages.forEach(msg => {
+          appendProjectMessageToFeed(msg, feedEl);
+        });
+      } else {
+        // Nhiều Agent trong hội đồng: hiển thị tuần tự với hiệu ứng đang gõ giữa các lượt trao đổi
+        for (let i = 0; i < messages.length; i++) {
+          const msg = messages[i];
+          if (i > 0) {
+            showAgentTypingIndicator(msg.author, msg.agentBadge, `${msg.author} đang tiếp nhận ý kiến và phản hồi...`);
+            await new Promise(r => setTimeout(r, 700));
+            hideAgentTypingIndicator();
+          }
+          appendProjectMessageToFeed(msg, feedEl);
+          if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+        }
+      }
 
       // Lưu vào state chat hiện tại
       if (projectsState.activeChat) {
@@ -5253,6 +5366,7 @@ async function sendProjectIdea() {
       console.error('Lỗi API gửi tin:', err);
       showToast('Lỗi: ' + err.message);
     } finally {
+      hideAgentTypingIndicator();
       projectsState.isRunning = false;
       if (progressEl) progressEl.style.display = 'none';
     }
