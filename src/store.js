@@ -66,6 +66,25 @@ const defaultData = {
       ],
       enabled: true,
       createdAt: new Date().toISOString()
+    },
+    {
+      id: 'prov_opencode',
+      name: 'OpenCode',
+      type: 'openai-compatible',
+      baseUrl: 'https://opencode.ai/zen/v1',
+      apiKey: process.env.OPENCODE_API_KEY || 'oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq',
+      models: [
+        'deepseek-v4.1-flash-free',
+        'glm-5.3-flash-free',
+        'nemotron-3.5-lightning-free',
+        'nemotron-3.5-super-vl-free',
+        'mimo-v2.6-flash-free',
+        'flint-40b-free',
+        'beam-free',
+        'big-pickle'
+      ],
+      enabled: true,
+      createdAt: new Date().toISOString()
     }
   ],
   gatewayKeys: [
@@ -120,6 +139,9 @@ const Store = {
       }
       if (p.id === 'prov_cloudflare_ai' && (!p.apiKey || p.apiKey === '')) {
         p.apiKey = process.env.CLOUDFLARE_API_TOKEN || '';
+      }
+      if (p.id === 'prov_opencode' && (!p.apiKey || p.apiKey === '')) {
+        p.apiKey = process.env.OPENCODE_API_KEY || 'oc_sk_7d0be3f1bfef_hwzhwSkqayOPMZu44wIEhg4SNY5vXaeq';
       }
     });
     return list;

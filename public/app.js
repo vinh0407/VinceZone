@@ -4601,7 +4601,15 @@ async function setupChatTopBarProviderAndModel(chat) {
       '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 'Reasoning suy luận sâu',
       '@cf/baai/bge-m3': 'Embedding tìm kiếm',
       '@cf/baai/bge-reranker-base': 'Xếp hạng tìm kiếm',
-      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh'
+      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh',
+      'deepseek-v4.1-flash-free': 'DeepSeek V4.1 Siêu Nhanh',
+      'glm-5.3-flash-free': 'GLM 5.3 Flash Thông Minh',
+      'nemotron-3.5-lightning-free': 'Nemotron 3.5 Lightning',
+      'nemotron-3.5-super-vl-free': 'Nemotron Vision Đa Phương Tiện',
+      'mimo-v2.6-flash-free': 'Mimo V2.6 Xử Lý Nhanh',
+      'flint-40b-free': 'Flint 40B Coding Agent',
+      'beam-free': 'Beam AI Đa Năng',
+      'big-pickle': 'Big Pickle Thử Nghiệm'
     };
 
     (prov.models || []).forEach(m => {
@@ -4837,7 +4845,15 @@ window.openAddAgentCouncilModal = async function() {
       '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 'Reasoning suy luận sâu',
       '@cf/baai/bge-m3': 'Embedding tìm kiếm',
       '@cf/baai/bge-reranker-base': 'Xếp hạng tìm kiếm',
-      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh'
+      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh',
+      'deepseek-v4.1-flash-free': 'DeepSeek V4.1 Siêu Nhanh',
+      'glm-5.3-flash-free': 'GLM 5.3 Flash Thông Minh',
+      'nemotron-3.5-lightning-free': 'Nemotron 3.5 Lightning',
+      'nemotron-3.5-super-vl-free': 'Nemotron Vision Đa Phương Tiện',
+      'mimo-v2.6-flash-free': 'Mimo V2.6 Xử Lý Nhanh',
+      'flint-40b-free': 'Flint 40B Coding Agent',
+      'beam-free': 'Beam AI Đa Năng',
+      'big-pickle': 'Big Pickle Thử Nghiệm'
     };
 
     prov.models.forEach(m => {
