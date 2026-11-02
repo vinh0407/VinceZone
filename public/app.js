@@ -4530,6 +4530,7 @@ function renderProjectsList() {
         </div>
         <div class="active-proj-actions" onclick="event.stopPropagation()">
           <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">Terminal</button>
+          <button type="button" class="btn-micro" onclick="window.openProjectStructureView()" title="Xem sơ đồ cột & cấu trúc chi tiết của dự án" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3);">🏗️ Cấu Trúc</button>
           <button type="button" class="btn-micro action-danger" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án khỏi danh sách">Xóa</button>
         </div>
       `;
@@ -5682,21 +5683,32 @@ window.loadProjectStructure = async function() {
 
     const techBadges = (data.techStack || []).map(t => `<span class="tech-badge-pill">${escapeHtml(t)}</span>`).join('');
 
-    const layersHtml = (data.layers || []).map(layer => `
-      <div class="structure-layer-card">
-        <div class="layer-card-header">
-          <div class="layer-header-left">
-            <span class="layer-card-icon">${layer.icon}</span>
-            <strong class="layer-card-title">${escapeHtml(layer.title)}</strong>
+    // Sơ đồ các Cột Kiến Trúc (Column Architecture Diagram)
+    const columnsHtml = (data.layers || []).map((layer, idx) => `
+      <div class="arch-column" style="--col-accent: ${layer.color || '#3b82f6'};">
+        <div class="arch-column-header">
+          <div class="arch-column-top">
+            <span class="arch-column-badge" style="background: ${layer.color}22; color: ${layer.color}; border: 1px solid ${layer.color}44;">
+              CỘT ${idx + 1}: ${escapeHtml(layer.badge)}
+            </span>
           </div>
-          <span class="layer-badge" style="background: ${layer.color}22; color: ${layer.color}; border: 1px solid ${layer.color}44;">${escapeHtml(layer.badge)}</span>
+          <div class="arch-column-title">
+            <span>${layer.icon}</span>
+            <span>${escapeHtml(layer.title.split('(')[0].trim())}</span>
+          </div>
+          <span class="arch-column-tech">${escapeHtml(layer.roleDescription)}</span>
         </div>
-        <p class="layer-card-desc">${escapeHtml(layer.roleDescription)}</p>
-        <div class="layer-modules-list">
+        <div class="arch-column-body">
           ${(layer.keyModules || []).map(mod => `
-            <div class="layer-module-item">
-              <span class="module-item-name">${escapeHtml(mod.name)}</span>
-              <span class="module-item-desc">${escapeHtml(mod.desc)}</span>
+            <div class="arch-module-card" onclick="this.querySelector('.arch-module-extra')?.classList.toggle('open')" title="Nhấn để xem / thu gọn giải thích chi tiết">
+              <div class="arch-module-name">
+                <span>${escapeHtml(mod.name)}</span>
+                <span style="font-size: 0.65rem; color: #71717a;">▾</span>
+              </div>
+              <div class="arch-module-desc">${escapeHtml(mod.desc)}</div>
+              <div class="arch-module-extra" style="display: block;">
+                <span style="color: #60a5fa; font-weight: 600;">Chức năng:</span> Xử lý trực tiếp các tác vụ liên quan đến ${escapeHtml(layer.badge.toLowerCase())}.
+              </div>
             </div>
           `).join('')}
         </div>
@@ -5728,19 +5740,36 @@ window.loadProjectStructure = async function() {
         </p>
       </div>
 
-      <!-- Sơ đồ phân tầng kiến trúc -->
+      <!-- Đường ống luồng dữ liệu giữa các cột (Pipeline Flow) -->
+      <div class="structure-column-pipeline">
+        <div class="pipeline-node" style="color: #3b82f6;"><span>🌐</span> 1. Frontend UI</div>
+        <span class="pipeline-arrow">➔</span>
+        <div class="pipeline-node" style="color: #10b981;"><span>⚙️</span> 2. Backend Gateway</div>
+        <span class="pipeline-arrow">➔</span>
+        <div class="pipeline-node" style="color: #8b5cf6;"><span>🤖</span> 3. Hội Đồng AI</div>
+        <span class="pipeline-arrow">➔</span>
+        <div class="pipeline-node" style="color: #f59e0b;"><span>💾</span> 4. Lưu Trữ Dữ Liệu</div>
+        <span class="pipeline-arrow">➔</span>
+        <div class="pipeline-node" style="color: #06b6d4;"><span>🚀</span> 5. Môi Trường Thực Thi</div>
+      </div>
+
+      <!-- Sơ đồ cột kiến trúc trực quan (Column Architecture Diagram) -->
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-        <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-          <span>🧩</span>
-          <span>Sơ Đồ Phân Tầng Kiến Trúc Dự Án</span>
-        </h4>
-        <div class="structure-layers-grid">
-          ${layersHtml}
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+            <span>📊</span>
+            <span>Sơ Đồ Cột Cấu Trúc Dự Án (Bấm vào hộp để xem giải thích chi tiết)</span>
+          </h4>
+          <span style="font-size: 0.75rem; color: #71717a;">5 Cột Kiến Trúc Hoàn Chỉnh</span>
+        </div>
+
+        <div class="structure-columns-grid">
+          ${columnsHtml}
         </div>
       </div>
 
       <!-- Luồng vận hành & vòng đời xử lý -->
-      <div class="structure-lifecycle-box">
+      <div class="structure-lifecycle-box" style="margin-top: 1rem;">
         <div class="lifecycle-title">
           <span>🔄</span>
           <span>Quy Trình Phối Hợp &amp; Vòng Đời Thực Thi Dự Án (Execution Lifecycle)</span>
@@ -5748,6 +5777,17 @@ window.loadProjectStructure = async function() {
         <div class="lifecycle-steps-grid">
           ${lifecycleHtml}
         </div>
+      </div>
+
+      <!-- Nút Quay Lại Đoạn Chat Nổi Bật Ở Cuối Trang -->
+      <div class="structure-bottom-bar">
+        <button type="button" class="btn-back-to-chat-lg" onclick="window.closeProjectStructureView()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Quay Lại Đoạn Chat Ban Đầu (Esc)</span>
+        </button>
       </div>
     `;
 
