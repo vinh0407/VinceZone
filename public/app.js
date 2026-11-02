@@ -344,13 +344,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 const tabRoutes = {
   'playground': '/Playground',
   'projects': '/Dự Án',
+  'ide': '/Open-IDE',
+  'demo': '/Demo',
   'prompts': '/Kho Prompt & Skills',
   'settings': '/Cài Đặt (Settings)'
 };
 
 function parseCurrentUrlRoute() {
   const rawPath = decodeURIComponent(window.location.pathname || '').trim().toLowerCase();
-  
+
+  if (rawPath.includes('ide') || rawPath.includes('open-ide')) {
+    return 'ide';
+  }
+  if (rawPath.includes('demo') || rawPath.includes('preview')) {
+    return 'demo';
+  }
   if (rawPath.includes('dự án') || rawPath.includes('project') || rawPath.includes('du-an')) {
     return 'projects';
   }
@@ -382,11 +390,27 @@ window.switchTabByRoute = function(targetTab, updateHistory = true) {
   const tabPanes = document.querySelectorAll('.tab-pane');
   tabPanes.forEach(p => p.classList.remove('active'));
 
-  const pane = document.getElementById(`tab-${targetTab}`);
+  const paneId = (targetTab === 'ide' || targetTab === 'demo') ? 'tab-demo' : `tab-${targetTab}`;
+  const pane = document.getElementById(paneId);
   if (pane) pane.classList.add('active');
   document.body.setAttribute('data-active-tab', targetTab);
 
   closeMobileDrawers();
+
+  if (targetTab === 'ide') {
+    if (typeof window.switchDemoViewMode === 'function') {
+      window.switchDemoViewMode('code');
+    }
+    const pId = projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+    if (pId && window.initDemoWorkspace) window.initDemoWorkspace(pId);
+  }
+  if (targetTab === 'demo') {
+    if (typeof window.switchDemoViewMode === 'function') {
+      window.switchDemoViewMode('preview');
+    }
+    const pId = projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+    if (pId && window.initDemoWorkspace) window.initDemoWorkspace(pId);
+  }
 
   if (targetTab === 'projects') {
     loadProjects();
@@ -4538,7 +4562,6 @@ function renderProjectsList() {
         </div>
         <div class="active-proj-actions" onclick="event.stopPropagation()">
           <button type="button" class="btn-micro btn-structure-accent" onclick="window.openProjectStructureModal('${p.id}')" title="Xem sơ đồ công việc & file đã chỉnh của các AI Agent">Cấu Trúc</button>
-          <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">Terminal</button>
           <button type="button" class="btn-micro action-danger" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án khỏi danh sách">Xóa</button>
         </div>
       `;
@@ -4572,6 +4595,9 @@ window.selectProject = function(id) {
   projectsState.activeProjectId = id;
   renderProjectsList();
   renderActiveProject();
+  if (typeof window.refreshAntigravityOverviewDrawer === 'function') {
+    window.refreshAntigravityOverviewDrawer(id);
+  }
 };
 
 window.deleteProjectItem = async function(event, id, name) {
@@ -4714,6 +4740,9 @@ window.selectProjectChat = function(chatId) {
     items.forEach(el => el.classList.remove('active'));
   }
   renderActiveProject();
+  if (typeof window.refreshAntigravityOverviewDrawer === 'function') {
+    window.refreshAntigravityOverviewDrawer();
+  }
 };
 
 // 6. Xóa đoạn chat trong dự án
@@ -8126,6 +8155,155 @@ window.updateAntigravityTopBreadcrumbs = function() {
   }
 };
 
+// Mở trực tiếp Code IDE
+window.openIdeDirectly = function() {
+  window.switchTabByRoute('ide', true);
+  if (typeof window.switchDemoViewMode === 'function') {
+    window.switchDemoViewMode('code');
+  }
+};
+
+// Mở trực tiếp Live Demo
+window.openDemoDirectly = function() {
+  window.switchTabByRoute('demo', true);
+  if (typeof window.switchDemoViewMode === 'function') {
+    window.switchDemoViewMode('preview');
+  }
+};
+
+// Mở tệp Artifact trực tiếp trong Code IDE
+window.openArtifactInIde = async function(filePath) {
+  window.openIdeDirectly();
+  setTimeout(async () => {
+    if (typeof window.openFileInIde === 'function') {
+      await window.openFileInIde(filePath);
+    }
+  }, 150);
+};
+
+// Làm mới và đồng bộ dữ liệu vào bảng Overview Drawer bên phải (Không bao giờ để trắng thông tin)
+window.refreshAntigravityOverviewDrawer = async function(projectId) {
+  const pId = projectId || projectsState.activeProjectId || (projectsState.projects && projectsState.projects[0]?.id);
+  const curProj = (projectsState.projects || []).find(p => p.id === pId);
+  const curChat = curProj && (curProj.chats || []).find(c => c.id === projectsState.activeChatId);
+
+  const cmdCountBadge = document.getElementById('antigravity-cmd-count');
+  const cmdListEl = document.getElementById('antigravity-cmd-list');
+  const artifactCountBadge = document.getElementById('antigravity-artifact-count');
+  const artifactListEl = document.getElementById('antigravity-artifact-list');
+  const filesLabel = document.getElementById('antigravity-drawer-files-label');
+
+  // 1. Luôn cập nhật Background Commands
+  const commands = [
+    { name: 'Start VinceZone server daemon', status: 'Active Gateway :3000' },
+    { name: 'Launch VinceZone Studio desktop app', status: 'Electron / Web Ready' }
+  ];
+
+  if (curChat && Array.isArray(curChat.messages)) {
+    curChat.messages.forEach(msg => {
+      if (Array.isArray(msg.executedCommands)) {
+        msg.executedCommands.forEach(cmd => {
+          commands.push({
+            name: cmd.cmd || cmd.command || 'PowerShell execution',
+            status: `Mã thoát: ${cmd.exitCode !== undefined ? cmd.exitCode : 0}`
+          });
+        });
+      }
+    });
+  }
+
+  if (cmdCountBadge) cmdCountBadge.textContent = commands.length;
+  if (cmdListEl) {
+    cmdListEl.innerHTML = commands.map(c => `
+      <div class="drawer-list-item" title="${escapeHtml(c.name)} (${escapeHtml(c.status)})" onclick="alert('Lệnh: ' + ${JSON.stringify(c.name)} + '\\nTrạng thái: ' + ${JSON.stringify(c.status)})">
+        <span class="list-item-icon">&gt;_</span>
+        <span class="list-item-text">${escapeHtml(c.name)}</span>
+      </div>
+    `).join('');
+  }
+
+  if (!curProj) {
+    if (artifactCountBadge) artifactCountBadge.textContent = '0';
+    if (artifactListEl) {
+      artifactListEl.innerHTML = `
+        <div style="padding: 0.5rem 0.6rem; color: #71717a; font-size: 0.75rem; font-style: italic;">
+          Chưa chọn dự án nào.
+        </div>
+      `;
+    }
+    return;
+  }
+
+  // 2. Thu thập Artifacts & Files từ dự án
+  try {
+    const res = await fetch(`/api/projects/${curProj.id}/files`);
+    const data = await res.json();
+    const rawFiles = data.files || [];
+
+    const flatFiles = [];
+    function flatten(items) {
+      if (!Array.isArray(items)) return;
+      items.forEach(it => {
+        if (it.type === 'file' || (it.name && it.name.includes('.'))) {
+          flatFiles.push(it);
+        }
+        if (it.children) flatten(it.children);
+      });
+    }
+    flatten(rawFiles);
+
+    if (filesLabel) {
+      filesLabel.textContent = `Files (${flatFiles.length} tệp)`;
+    }
+
+    let artifacts = flatFiles.filter(f => {
+      const lower = (f.name || '').toLowerCase();
+      return lower.endsWith('.md') || lower.endsWith('.json') || lower.endsWith('.ps1') || lower.endsWith('.html') || lower.endsWith('.js');
+    });
+
+    if (artifacts.length === 0) {
+      artifacts = flatFiles.slice(0, 8);
+    } else {
+      artifacts = artifacts.slice(0, 10);
+    }
+
+    if (artifacts.length === 0) {
+      artifacts = [
+        { name: 'AGENTS.md', path: 'AGENTS.md' },
+        { name: 'Design System Audit And Plan', path: 'design-system-audit-and-plan.md' },
+        { name: 'package.json', path: 'package.json' }
+      ];
+    }
+
+    if (artifactCountBadge) artifactCountBadge.textContent = artifacts.length;
+    if (artifactListEl) {
+      artifactListEl.innerHTML = artifacts.map(art => {
+        const filePath = art.path || art.name;
+        return `
+          <div class="drawer-list-item" onclick="window.openArtifactInIde('${escapeHtml(filePath)}')" title="Mở ${escapeHtml(art.name)} trong IDE">
+            <span class="list-item-icon">📄</span>
+            <span class="list-item-text">${escapeHtml(art.name)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (err) {
+    console.warn('Lỗi đọc files cho overview drawer:', err);
+    if (artifactListEl) {
+      artifactListEl.innerHTML = `
+        <div class="drawer-list-item" onclick="window.openArtifactInIde('AGENTS.md')">
+          <span class="list-item-icon">📄</span>
+          <span class="list-item-text">AGENTS.md</span>
+        </div>
+        <div class="drawer-list-item" onclick="window.openArtifactInIde('design-system-audit-and-plan.md')">
+          <span class="list-item-icon">📄</span>
+          <span class="list-item-text">Design System Audit And Plan</span>
+        </div>
+      `;
+    }
+  }
+};
+
 // Toggle Bảng thông tin tổng quan Overview bên phải (Image 3)
 window.toggleRightDrawer = function() {
   const drawer = document.getElementById('antigravity-right-drawer');
@@ -8137,6 +8315,9 @@ window.toggleRightDrawer = function() {
   if (btn) {
     if (isOpen) btn.classList.add('active');
     else btn.classList.remove('active');
+  }
+  if (isOpen) {
+    window.refreshAntigravityOverviewDrawer();
   }
 };
 

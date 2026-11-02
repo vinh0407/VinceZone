@@ -1556,6 +1556,14 @@
       ],
       "chats": [
         {
+          "id": "chat_1265dd2713c9",
+          "title": "Hội thoại 01:28",
+          "model": "kilo-auto/free",
+          "agents": [],
+          "createdAt": "2026-11-02T18:28:56.041Z",
+          "messages": []
+        },
+        {
           "id": "chat_adc0014cf3b6",
           "title": "Đoạn chat đầu tiên",
           "type": "team",
@@ -2123,72 +2131,11 @@
               "timestamp": "2026-11-02T17:56:34.852Z"
             }
           ],
-          "agents": [
-            {
-              "id": "ag_9df141f9",
-              "category": "architect",
-              "roleTitle": "Kiến Trúc (Architect / Planner)",
-              "name": "Kiến Trúc Sư",
-              "badge": "ARCHITECT",
-              "color": "#3b82f6",
-              "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-              "providerId": "prov_openrouter",
-              "providerName": "OpenRouter",
-              "systemPrompt": "Bạn là Kiến Trúc Sư Hệ Thống (Software Architect & Planner).\nĐiểm mạnh cốt lõi:\n1. Phân tích ý tưởng của Người Dùng.\n2. Hoạch định cấu trúc module và danh sách file cần tác động.\n3. Chia nhỏ các bước công việc rõ ràng theo thế mạnh của các thành viên trong nhóm."
-            },
-            {
-              "id": "ag_a95fdc0a",
-              "category": "coder",
-              "roleTitle": "Lập Trình (Coder / Developer)",
-              "name": "Lập Trình Viên",
-              "badge": "CODER",
-              "color": "#10b981",
-              "model": "cohere/north-mini-code:free",
-              "providerId": "prov_openrouter",
-              "providerName": "OpenRouter",
-              "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
-            },
-            {
-              "id": "ag_a51bb413",
-              "category": "tester",
-              "roleTitle": "Kiểm Thử (Tester / Terminal Debugger)",
-              "name": "Kỹ Sư Kiểm Thử",
-              "badge": "TESTER",
-              "color": "#f59e0b",
-              "model": "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-              "providerId": "prov_cloudflare_ai",
-              "providerName": "Cloudflare Workers AI",
-              "systemPrompt": "Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Rà soát trực tiếp mã nguồn của dự án, kiểm tra lỗi runtime và bảo mật.\n2. Cung cấp lệnh Terminal (PowerShell/CMD) chuẩn xác để chạy test trong khối ```powershell để người dùng bấm 1 nút chạy trực tiếp.\n3. Phân tích log lỗi và xác nhận dự án đã sẵn sàng hoạt động."
-            },
-            {
-              "id": "ag_a7f2c030",
-              "category": "database",
-              "roleTitle": "Cơ Sở Dữ Liệu (Database & SQL Engineer)",
-              "name": "Kỹ Sư CSDL & SQL",
-              "badge": "DATABASE",
-              "color": "#14b8a6",
-              "model": "glm-5.3-flash-free",
-              "providerId": "prov_opencode",
-              "providerName": "OpenCode",
-              "systemPrompt": "Bạn là Kỹ Sư Cơ Sở Dữ Liệu & SQL (Senior Database Architect & Data Engineer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\n1. Thiết kế bảng dữ liệu, quan hệ khóa ngoại (ERD), script migrations hoàn chỉnh.\n2. Viết câu truy vấn SQL/NoSQL tối ưu, đánh index tránh nghẽn hiệu năng.\n3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án."
-            },
-            {
-              "id": "ag_7f672476",
-              "category": "frontend",
-              "roleTitle": "Giao Diện & Trải Nghiệm (Frontend / UI Engineer)",
-              "name": "Kỹ Sư Frontend UI/UX",
-              "badge": "FRONTEND",
-              "color": "#ec4899",
-              "model": "nemotron-3.5-super-vl-free",
-              "providerId": "prov_opencode",
-              "providerName": "OpenCode",
-              "systemPrompt": "Bạn là Kỹ Sư Giao Diện Người Dùng (Senior Frontend & UI/UX Engineer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ]:\n1. Thiết kế giao diện hiện đại chuẩn SaaS, responsive 100% trên cả Desktop và Mobile.\n2. Viết HTML/CSS/JS sạch, tối ưu hiệu ứng chuyển động và trải nghiệm tương tác.\n3. Luôn ghi rõ tên file ở đầu khối code: // File: <đường_dẫn> để lưu thẳng vào dự án."
-            }
-          ]
+          "agents": []
         }
       ],
       "createdAt": "2026-11-02T08:12:59.257Z",
-      "updatedAt": "2026-11-02T17:56:34.852Z"
+      "updatedAt": "2026-11-02T18:28:56.041Z"
     }
   ]
 }

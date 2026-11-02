@@ -33,6 +33,12 @@
         <button class="nav-btn active" data-tab="projects" id="nav-btn-projects">
           Dự Án
         </button>
+        <button class="nav-btn" data-tab="ide" id="nav-btn-open-ide" onclick="window.openIdeDirectly()">
+          Open IDE
+        </button>
+        <button class="nav-btn" data-tab="demo" id="nav-btn-demo" onclick="window.openDemoDirectly()">
+          Demo
+        </button>
         <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
           Kho Prompt & Skills
         </button>
@@ -500,14 +506,11 @@
           <div class="chat-agents-pills-row" id="chat-agents-pills-row"></div>
 
           <!-- Open IDE button (Image 3) -->
-          <button type="button" class="btn-antigravity-pill" onclick="window.switchTabByRoute('demo')" title="Mở phòng xem Code & Live Demo (Open IDE)">
+          <button type="button" class="btn-antigravity-pill" onclick="window.openIdeDirectly()" title="Mở phòng xem Code & Live Demo (Open IDE)">
             <span>Open IDE</span>
           </button>
 
-          <!-- Terminal Button -->
-          <button type="button" class="btn-antigravity-icon-btn" onclick="window.toggleProjectTerminal()" title="Mở Terminal">
-            <span>⌨️</span>
-          </button>
+          
 
           <!-- Toggle Antigravity Overview Drawer (Image 3) -->
           <button type="button" class="btn-antigravity-icon-btn active" id="btn-toggle-right-drawer" onclick="window.toggleRightDrawer()" title="Bảng thông tin tổng quan (Overview Drawer)">
@@ -516,25 +519,7 @@
         </div>
       </div>
 
-      <!-- Embedded Terminal Drawer -->
-      <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
-        <div class="terminal-drawer-header">
-          <div class="terminal-title-row">
-            <span class="terminal-badge-pulse"></span>
-            <span class="terminal-title-text">Terminal Dự Án (PowerShell / CMD)</span>
-          </div>
-          <button id="btn-close-terminal-drawer" class="btn-micro" title="Đóng terminal">Đóng</button>
-        </div>
-        <div class="terminal-cmd-bar">
-          <select id="terminal-shell-select" class="terminal-shell-select">
-            <option value="powershell" selected>PowerShell</option>
-            <option value="cmd">Command Prompt (CMD)</option>
-          </select>
-          <input type="text" id="terminal-cmd-input" class="terminal-cmd-input" placeholder="Nhập lệnh (vd: git status, dir, npm test)...">
-          <button id="btn-execute-terminal" class="btn-primary btn-small">Chạy</button>
-        </div>
-        <pre id="terminal-output-pre" class="terminal-output-pre">Sẵn sàng thực thi lệnh trong thư mục dự án.</pre>
-      </div>
+      
 
       <!-- Messages Canvas: Pure and Clean -->
       <div class="projects-chat-feed antigravity-feed" id="projects-chat-feed">
@@ -622,16 +607,16 @@
             <span class="row-label">Review / Cấu Trúc</span>
           </div>
           <div class="drawer-menu-row" onclick="window.openFilesDrawerModal()">
-            <span class="row-icon">📄</span>
-            <span class="row-label">Files</span>
+            <span class="row-icon">📁</span>
+            <span class="row-label" id="antigravity-drawer-files-label">Files</span>
           </div>
-          <div class="drawer-menu-row" onclick="window.toggleProjectTerminal()">
-            <span class="row-icon">⌨️</span>
-            <span class="row-label">Terminal</span>
+          <div class="drawer-menu-row" onclick="window.openIdeDirectly()">
+            <span class="row-icon">💻</span>
+            <span class="row-label">Open IDE</span>
           </div>
-          <div class="drawer-menu-row" onclick="window.switchTabByRoute('demo')">
+          <div class="drawer-menu-row" onclick="window.openDemoDirectly()">
             <span class="row-icon">🚀</span>
-            <span class="row-label">Live Demo & IDE</span>
+            <span class="row-label">Live Demo Web & App</span>
           </div>
           <div class="drawer-menu-row" onclick="window.switchTabByRoute('prompts')">
             <span class="row-icon">🧩</span>
@@ -656,7 +641,7 @@
               <span class="list-item-text">Launch VinceZone Studio desktop app</span>
             </div>
           </div>
-          <span class="drawer-see-all" onclick="window.toggleProjectTerminal()">See all</span>
+          <span class="drawer-see-all" onclick="window.openProjectStructureModal()">See all</span>
         </div>
 
         <!-- Section Artifacts (Image 3) -->
