@@ -4737,6 +4737,143 @@ window.removeAgentFromActiveChat = async function(agentId) {
 };
 
 // 10. Gắn 1 tin nhắn vào Feed
+
+// Hàm trang trí các khối Code để LÀM VIỆC THỰC TẾ (Lưu File vào Dự Án & Chạy Terminal)
+function decorateProjectCodeBlocks(containerEl) {
+  if (!containerEl) return;
+  const preElements = containerEl.querySelectorAll('pre');
+  preElements.forEach(pre => {
+    if (pre.dataset.decorated) return;
+    pre.dataset.decorated = 'true';
+
+    const codeEl = pre.querySelector('code');
+    const rawText = codeEl ? codeEl.innerText : pre.innerText;
+
+    // Phát hiện chú thích file: // File: src/main.js hoặc # File: app.py
+    const fileMatch = rawText.match(/^(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)/im);
+    const suggestedFile = fileMatch ? fileMatch[1].replace(/\*\/$/, '').trim() : '';
+
+    const isTerminal = /powershell|cmd|bash|sh|terminal/.test(codeEl?.className || '') ||
+                       /^(npm|git|node|pip|yarn|pnpm|python|dir|ls|cd|mkdir|cat|curl|powershell)\s+/im.test(rawText.trim());
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'code-block-action-bar';
+
+    let buttonsHtml = '';
+    // Nút Lưu/Áp dụng File thực tế
+    if (suggestedFile) {
+      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-file" data-file="${escapeHtml(suggestedFile)}" title="Ghi trực tiếp vào file ${escapeHtml(suggestedFile)} trên máy">💾 Áp Dụng Vào "${escapeHtml(suggestedFile)}"</button>`;
+    } else {
+      buttonsHtml += `<button type="button" class="btn-code-action btn-apply-custom-file" title="Ghi code này vào một file trong dự án">💾 Lưu Vào File Dự Án</button>`;
+    }
+
+    // Nút Chạy lệnh Terminal thực tế
+    if (isTerminal) {
+      buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Trong Terminal</button>`;
+    }
+
+    // Nút Sao chép
+    buttonsHtml += `<button type="button" class="btn-code-action btn-copy-code" title="Sao chép mã nguồn">📋 Sao Chép</button>`;
+
+    toolbar.innerHTML = `
+      <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
+      <div class="code-bar-actions">${buttonsHtml}</div>
+    `;
+
+    pre.parentNode.insertBefore(toolbar, pre);
+
+    // Xử lý sự kiện Lưu File
+    const applyFileBtn = toolbar.querySelector('.btn-apply-file, .btn-apply-custom-file');
+    if (applyFileBtn) {
+      applyFileBtn.addEventListener('click', async () => {
+        let targetFile = applyFileBtn.dataset.file || prompt('Nhập tên/đường dẫn file cần lưu trong dự án (ví dụ: src/app.js):');
+        if (!targetFile || !targetFile.trim()) return;
+        targetFile = targetFile.trim();
+
+        if (!projectsState.activeProjectId) {
+          showToast('Vui lòng chọn hoặc thêm dự án trước.');
+          return;
+        }
+
+        try {
+          applyFileBtn.disabled = true;
+          applyFileBtn.textContent = 'Đang lưu file...';
+          const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: targetFile, content: rawText, type: 'file' })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Đã áp dụng & ghi thành công vào file "${targetFile}"!`);
+            applyFileBtn.textContent = '✔ Đã Lưu Xong';
+            loadProjectFiles(projectsState.activeProjectId);
+          } else {
+            showToast('Lỗi lưu file: ' + (data.error || 'Thất bại'));
+            applyFileBtn.textContent = '💾 Thử Lại';
+          }
+        } catch (err) {
+          showToast('Lỗi: ' + err.message);
+          applyFileBtn.textContent = '💾 Thử Lại';
+        } finally {
+          applyFileBtn.disabled = false;
+        }
+      });
+    }
+
+    // Xử lý sự kiện Chạy Terminal
+    const runTerminalBtn = toolbar.querySelector('.btn-run-terminal');
+    if (runTerminalBtn) {
+      runTerminalBtn.addEventListener('click', async () => {
+        if (!projectsState.activeProjectId) {
+          showToast('Vui lòng chọn hoặc thêm dự án trước.');
+          return;
+        }
+
+        const terminalDrawer = document.getElementById('project-terminal-drawer');
+        const outputPre = document.getElementById('terminal-output-pre');
+        const cmdInput = document.getElementById('terminal-cmd-input');
+        if (terminalDrawer) terminalDrawer.style.display = 'block';
+
+        const cmdToRun = rawText.trim();
+        if (cmdInput) cmdInput.value = cmdToRun;
+        if (outputPre) outputPre.textContent = `> ${cmdToRun}\n[Đang chạy lệnh trong thư mục dự án...]`;
+
+        try {
+          runTerminalBtn.disabled = true;
+          runTerminalBtn.textContent = 'Đang chạy...';
+          const res = await fetch(`/api/projects/${projectsState.activeProjectId}/terminal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: cmdToRun, shell: 'powershell' })
+          });
+          const data = await res.json();
+          if (outputPre) {
+            outputPre.textContent = `> ${cmdToRun}\n\n${data.stdout || ''}${data.stderr ? `\n[Lỗi]: ${data.stderr}` : ''}\n\n[Mã thoát]: ${data.exitCode} (${data.duration}ms)`;
+          }
+          showToast(data.exitCode === 0 ? 'Chạy lệnh hoàn tất thành công!' : 'Lệnh chạy xong với cảnh báo/lỗi.');
+        } catch (err) {
+          if (outputPre) outputPre.textContent = `Lỗi thực thi terminal: ${err.message}`;
+          showToast('Lỗi chạy terminal: ' + err.message);
+        } finally {
+          runTerminalBtn.disabled = false;
+          runTerminalBtn.textContent = '▶ Chạy Lại';
+        }
+      });
+    }
+
+    // Xử lý sự kiện Sao Chép
+    const copyBtn = toolbar.querySelector('.btn-copy-code');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(rawText);
+        copyBtn.textContent = '✔ Đã Chép';
+        setTimeout(() => copyBtn.textContent = '📋 Sao Chép', 2000);
+      });
+    }
+  });
+}
+
 function appendProjectMessageToFeed(msg, feedEl) {
   if (!feedEl) feedEl = document.getElementById('projects-chat-feed');
   if (!feedEl) return;
@@ -4792,6 +4929,7 @@ function appendProjectMessageToFeed(msg, feedEl) {
   `;
 
   feedEl.appendChild(msgEl);
+  decorateProjectCodeBlocks(msgEl);
 }
 
 // 11. Gửi tin nhắn / ý tưởng vào đoạn chat

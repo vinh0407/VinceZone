@@ -847,10 +847,10 @@ const Store = {
           { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
         ],
         systemPrompt: `Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).
-Điểm mạnh cốt lõi:
-1. Viết code sạch, tối ưu, chuẩn sản xuất.
-2. Nêu rõ tên file, vị trí sửa đổi hoặc cung cấp code hoàn chỉnh.
-3. Giải quyết logic thuật toán và sửa lỗi triệt để.`
+[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:
+1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.
+2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.
+3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang.`
       },
       tester: {
         category: 'tester',
@@ -866,10 +866,10 @@ const Store = {
           { id: 'gpt-4o', name: 'OpenAI GPT-4o' }
         ],
         systemPrompt: `Bạn là Kỹ Sư Kiểm Thử & Terminal Debugger (QA & DevOps Engineer).
-Điểm mạnh cốt lõi:
-1. Rà soát mã nguồn, phát hiện các trường hợp lỗi biên hoặc vấn đề bảo mật.
-2. Đề xuất lệnh Terminal (PowerShell / CMD) để test dự án trong khối \`\`\`powershell ... \`\`\`.
-3. Phân tích log lỗi và kiểm tra kết quả hoạt động.`
+[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:
+1. Rà soát trực tiếp mã nguồn của dự án, kiểm tra lỗi runtime và bảo mật.
+2. Cung cấp lệnh Terminal (PowerShell/CMD) chuẩn xác để chạy test trong khối \`\`\`powershell để người dùng bấm 1 nút chạy trực tiếp.
+3. Phân tích log lỗi và xác nhận dự án đã sẵn sàng hoạt động.`
       },
       architect: {
         category: 'architect',

@@ -5847,3 +5847,64 @@ input[type="range"] {
   margin-left: 0.5rem;
   flex-shrink: 0;
 }
+
+
+/* Action Toolbar on Code Blocks (Làm Việc Thực Tế - Lưu File & Chạy Terminal) */
+.code-block-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #18181f;
+  border: 1px solid #2e2e38;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 0.4rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.code-bar-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+.code-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-code-action {
+  background: #27272f;
+  border: 1px solid #383844;
+  color: #e4e4e7;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.btn-code-action:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-code-action.btn-run-terminal:hover {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.proj-msg-body pre {
+  margin-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-top: none !important;
+}

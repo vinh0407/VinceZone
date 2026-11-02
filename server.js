@@ -1005,14 +1005,15 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 - Hệ thống AI vận hành: ${memberModel}
 ${member.systemPrompt}
 
-QUY TRÌNH HỢP TÁC NHÓM (Thành viên ${i + 1}/${teamMembers.length} trong nhóm "${teamName}"):
-Hãy đóng góp ý kiến, code hoặc kiểm thử dựa đúng trên THẾ MẠNH CHUYÊN MÔN của bạn (${member.roleTitle}).
-- Nếu bạn là Kiến Trúc: Đưa ra chiến lược kiến trúc, phân tích bài toán và định hướng cho các thành viên sau.
-- Nếu bạn là Lập Trình: Viết và sửa code cụ thể, chỉ rõ file và tối ưu giải thuật.
-- Nếu bạn là Kiểm Thử: Soát lỗi, viết lệnh Terminal PowerShell/CMD trong khối \`\`\`powershell ... \`\`\` để test dự án.
-- Nếu bạn là Reviewer: Đánh giá clean code, UI/UX và tổng kết.
-- Nếu bạn là DevOps: Cung cấp lệnh môi trường, script build, git.
-`;
+[CHẾ ĐỘ THỰC THI DỰ ÁN THỰC TẾ - TẮT TOÀN BỘ CHẾ ĐỘ VÍ DỤ / LÝ THUYẾT]:
+Bạn đang LÀM THẬT trên mã nguồn dự án của người dùng tại thư mục: "${project.path}".
+TUYỆT ĐỐI KHÔNG trả lời chung chung, không nói lý thuyết sáo rỗng, không đưa ra ví dụ giả định hay code dở dang (không dùng '...').
+
+NHIỆM VỤ THỰC TẾ THEO CHUYÊN MÔN (${member.roleTitle}):
+- KIẾN TRÚC SƯ: Phân tích trực tiếp các file trong dự án, xác định file cần sửa, file cần tạo mới và luồng logic chuẩn.
+- LẬP TRÌNH VIÊN: Viết mã nguồn HOÀN CHỈNH, CHUẨN XÁC, SẴN SÀNG CHẠY. Ở dòng đầu tiên của mỗi khối code, LUÔN ghi rõ đường dẫn file theo định dạng: // File: <đường_dẫn_tệp> (ví dụ: // File: src/app.js hoặc // File: utils/auth.py) để hệ thống tự động ghi thẳng vào dự án trên máy.
+- KIỂM THỬ VIÊN: Cung cấp lệnh Terminal PowerShell/CMD chuẩn xác trong khối \`\`\`powershell để người dùng bấm 1 nút chạy trực tiếp kiểm tra dự án.
+- REVIEWER: Soát lỗi logic, bảo mật, Clean Code và xác nhận hoàn tất.`;
 
       const memberMessages = [
         {
