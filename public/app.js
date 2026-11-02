@@ -5199,8 +5199,26 @@ function decorateProjectCodeBlocks(containerEl) {
     const rawText = codeEl ? codeEl.innerText : pre.innerText;
 
     // Phát hiện chú thích file: // File: src/main.js hoặc # File: app.py
-    const fileMatch = rawText.match(/^(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)/im);
-    const suggestedFile = fileMatch ? fileMatch[1].replace(/\*\/$/, '').trim() : '';
+    const fileMatch = rawText.match(/^(?:\/\/|#|\/\*|--)\s*(?:File|Tệp|Đường dẫn):\s*([^\r\n]+)/im);
+    let suggestedFile = fileMatch ? fileMatch[1].replace(/\*\/$/, '').trim() : '';
+
+    // Chuẩn hóa tên file: loại bỏ đường dẫn tuyệt đối của dự án nếu có
+    if (suggestedFile) {
+      suggestedFile = suggestedFile.replace(/\\/g, '/');
+      const activeProjPath = (projectsState.activeProject?.path || '').replace(/\\/g, '/');
+      if (activeProjPath && suggestedFile.toLowerCase().startsWith(activeProjPath.toLowerCase())) {
+        suggestedFile = suggestedFile.slice(activeProjPath.length).replace(/^\/+/, '');
+      } else {
+        const projBaseName = activeProjPath.split('/').pop().toLowerCase();
+        if (projBaseName && suggestedFile.toLowerCase().startsWith(projBaseName + '/')) {
+          suggestedFile = suggestedFile.slice(projBaseName.length + 1);
+        }
+      }
+      suggestedFile = suggestedFile.replace(/^[a-zA-Z]:\/+/, '').replace(/^\/+/, '');
+      if (suggestedFile === '.' || suggestedFile === '/') {
+        suggestedFile = '';
+      }
+    }
 
     const isTerminal = /powershell|cmd|bash|sh|terminal/.test(codeEl?.className || '') ||
                        /^(npm|git|node|pip|yarn|pnpm|python|dir|ls|cd|mkdir|cat|curl|powershell)\s+/im.test(rawText.trim());
@@ -5232,7 +5250,10 @@ function decorateProjectCodeBlocks(containerEl) {
     const applyFileBtn = toolbar.querySelector('.btn-apply-file, .btn-apply-custom-file');
     if (applyFileBtn) {
       applyFileBtn.addEventListener('click', async () => {
-        let targetFile = applyFileBtn.dataset.file || prompt('Nhập tên/đường dẫn file cần lưu trong dự án (ví dụ: src/app.js):');
+        let targetFile = applyFileBtn.dataset.file;
+        if (!targetFile || targetFile === '.' || targetFile === '/' || targetFile.trim() === '') {
+          targetFile = prompt('Nhập tên/đường dẫn file cần lưu trong dự án (ví dụ: src/app.js):');
+        }
         if (!targetFile || !targetFile.trim()) return;
         targetFile = targetFile.trim();
 

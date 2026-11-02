@@ -950,10 +950,45 @@ app.post('/api/projects/:id/files', (req, res) => {
   try {
     const project = Store.getProjectById(req.params.id);
     if (!project || !project.path) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
-    const { name, type = 'file', content = '' } = req.body;
+    let { name, type = 'file', content = '' } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Vui lòng nhập tên tập tin hoặc thư mục.' });
     
-    const targetPath = path.join(project.path, name.trim());
+    let cleanName = name.trim();
+    const normalizedProjPath = path.resolve(project.path);
+
+    // 1. Nếu cleanName chứa đường dẫn tuyệt đối của dự án (ví dụ: C:\VisualStudio\SickDuck\src\file.cs)
+    if (path.isAbsolute(cleanName)) {
+      const resolvedName = path.resolve(cleanName);
+      if (resolvedName.toLowerCase().startsWith(normalizedProjPath.toLowerCase())) {
+        cleanName = path.relative(normalizedProjPath, resolvedName);
+      } else {
+        // Loại bỏ tiền tố ổ đĩa (C:\...)
+        cleanName = cleanName.replace(/^[a-zA-Z]:[\\\/]+/, '');
+      }
+    }
+
+    // 2. Nếu cleanName bắt đầu bằng tên thư mục dự án (ví dụ: SickDuck\src\...)
+    const projFolderName = path.basename(normalizedProjPath).toLowerCase();
+    const cleanNorm = cleanName.replace(/\\/g, '/').replace(/^\/+/, '');
+    if (cleanNorm.toLowerCase().startsWith(projFolderName + '/')) {
+      cleanName = cleanNorm.slice(projFolderName.length + 1);
+    } else if (cleanNorm.toLowerCase() === projFolderName) {
+      cleanName = '';
+    }
+
+    // 3. Loại bỏ các dấu gạch chéo dư thừa ở đầu
+    cleanName = cleanName.replace(/^[\\\/]+/, '').trim();
+    if (!cleanName || cleanName === '.' || cleanName === '') {
+      return res.status(400).json({ error: 'Vui lòng chỉ định tên file cụ thể bên trong dự án (ví dụ: src/app.js).' });
+    }
+
+    const targetPath = path.resolve(normalizedProjPath, cleanName);
+
+    // 4. Bảo vệ an toàn: Không cho phép path traversal (..) thoát khỏi project.path
+    if (!targetPath.toLowerCase().startsWith(normalizedProjPath.toLowerCase())) {
+      return res.status(403).json({ error: 'Đường dẫn tệp không được nằm ngoài thư mục dự án.' });
+    }
+
     if (type === 'folder') {
       if (!fs.existsSync(targetPath)) fs.mkdirSync(targetPath, { recursive: true });
     } else {
@@ -961,7 +996,9 @@ app.post('/api/projects/:id/files', (req, res) => {
       if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
       fs.writeFileSync(targetPath, content || '', 'utf8');
     }
-    res.json({ success: true, path: targetPath });
+
+    const relativePath = path.relative(normalizedProjPath, targetPath).replace(/\\/g, '/');
+    res.json({ success: true, path: targetPath, relativePath });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
