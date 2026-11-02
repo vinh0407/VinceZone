@@ -945,6 +945,56 @@ app.patch('/api/projects/:id/chats/:chatId/model', (req, res) => {
   }
 });
 
+// Helper an toàn ghi file vào dự án thực tế trên đĩa cứng (Cấp quyền tự động toàn phần cho Agent)
+function writeProjectFileHelper(projectRoot, rawFileName, content, isDirectory = false) {
+  if (!projectRoot || !fs.existsSync(projectRoot)) return null;
+  let cleanName = (rawFileName || '').trim().replace(/^["']|["']$/g, '');
+  if (!cleanName) return null;
+
+  const normalizedProjPath = path.resolve(projectRoot);
+
+  // 1. Nếu cleanName chứa đường dẫn tuyệt đối của dự án
+  if (path.isAbsolute(cleanName)) {
+    const resolvedName = path.resolve(cleanName);
+    if (resolvedName.toLowerCase().startsWith(normalizedProjPath.toLowerCase())) {
+      cleanName = path.relative(normalizedProjPath, resolvedName);
+    } else {
+      cleanName = cleanName.replace(/^[a-zA-Z]:[\\\/]+/, '');
+    }
+  }
+
+  // 2. Nếu cleanName bắt đầu bằng tên thư mục dự án (ví dụ: SickDuck/src/...)
+  const projFolderName = path.basename(normalizedProjPath).toLowerCase();
+  const cleanNorm = cleanName.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (cleanNorm.toLowerCase().startsWith(projFolderName + '/')) {
+    cleanName = cleanNorm.slice(projFolderName.length + 1);
+  } else if (cleanNorm.toLowerCase() === projFolderName) {
+    cleanName = '';
+  }
+
+  // 3. Loại bỏ các dấu gạch chéo dư thừa ở đầu
+  cleanName = cleanName.replace(/^[\\\/]+/, '').trim();
+  if (!cleanName || cleanName === '.' || cleanName === '') return null;
+
+  const targetPath = path.resolve(normalizedProjPath, cleanName);
+
+  // 4. Bảo vệ an toàn: Không cho phép path traversal (..) thoát khỏi project.path
+  if (!targetPath.toLowerCase().startsWith(normalizedProjPath.toLowerCase())) {
+    return null;
+  }
+
+  const targetDir = isDirectory ? targetPath : path.dirname(targetPath);
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  if (!isDirectory) {
+    fs.writeFileSync(targetPath, content || '', 'utf8');
+  }
+
+  return { targetPath, relativePath: cleanName.replace(/\\/g, '/') };
+}
+
 // Tạo File hoặc Thư mục trong dự án
 app.post('/api/projects/:id/files', (req, res) => {
   try {
@@ -1557,6 +1607,14 @@ Tôi đã chính thức tham gia Hội đồng dự án theo lệnh bạn vừa 
           role: 'system', 
           content: `Bạn là trợ lý lập trình AI cấp cao trong dự án ${project.name}.\n\n${projectContext}
 
+[CẤP QUYỀN TOÀN BỘ CHO AGENT (100% FULL PRIVILEGES - ZERO-PERMISSION)]:
+1. BẠN ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TRUY CẬP VÀ GHI FILE. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG!
+   - Không hỏi: "Bạn có muốn lưu file?", "Bạn có đồng ý?", "Vui lòng cho biết...". Hãy tự động làm luôn!
+   - Mọi khối mã có // File: <đường_dẫn> sẽ được hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG của người dùng.
+2. PHẢN HỒI CỰC KỲ GỌN GÀNG, SÚC TÍCH, KHÔNG DÀI DÒNG:
+   - Đi thẳng vào kết quả và giải pháp kỹ thuật trong tối đa 1-3 đoạn ngắn.
+   - TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, Get-ChildItem...). Bạn ĐÃ CÓ sẵn toàn bộ cấu trúc thư mục ở trên.
+
 [QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
 Bạn có toàn quyền TỰ ĐỘNG TUYỂN DỤNG THÊM CHUYÊN GIA vào Hội Đồng Dự Án mà không cần người dùng thao tác thủ công.
 Khi nhận thấy dự án cần chuyên gia nào (CSDL/SQL, Giao diện Frontend, Kiểm toán Bảo mật, Kỹ sư DevOps, Kỹ sư Kiểm Thử, Code Reviewer):
@@ -1607,6 +1665,22 @@ Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.
         }
       }
 
+      // TỰ ĐỘNG GHI FILE VÀO DỰ ÁN TRÊN MÁY (CẤP QUYỀN TOÀN BỘ CHO AGENT)
+      const autoSavedFiles = [];
+      const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
+      let fMatch;
+      while ((fMatch = codeFileRegex.exec(agentResponse)) !== null) {
+        const filePath = fMatch[1].trim();
+        const fileContent = fMatch[2];
+        if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
+        try {
+          const written = writeProjectFileHelper(project.path, filePath, fileContent);
+          if (written) autoSavedFiles.push(written.relativePath);
+        } catch (e) {
+          console.warn('Auto save error:', e.message);
+        }
+      }
+
       const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
         author: 'AI Trợ Lý',
@@ -1614,10 +1688,11 @@ Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.
         agentColor: '#3b82f6',
         agentModel: activeModel,
         agentRole: 'Trợ lý lập trình',
-        content: agentResponse
+        content: agentResponse,
+        autoSavedFiles: autoSavedFiles
       });
 
-      sendEvent({ type: 'agent_done', message: savedMsg });
+      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles });
 
       if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
         sendEvent({ type: 'all_done', totalMessages: 1 });
@@ -1697,16 +1772,22 @@ ${isTargetedWork ? `
 Người dùng đã sử dụng cú pháp @ để chỉ định đích danh bạn (${targetedNames.map(n => '@' + n).join(', ')}) làm việc riêng cho yêu cầu này.
 Hãy tập trung 100% khả năng chuyên môn của bạn để thực hiện trọn vẹn nhiệm vụ được giao.` : ''}
 
-[QUY TẮC PHẢN HỒI & TRÌNH BÀY GỌN GÀNG - BẮT BUỘC]:
-1. TUYỆT ĐỐI KHÔNG BẮT ĐẦU BẰNG TIỀN TỐ TÊN MÌNH (ví dụ KHÔNG viết "[${member.name}]:" hay "[Architect]:"...). Giao diện đã tự động hiển thị thẻ tên và badge của bạn ở đầu tin nhắn rồi.
-2. TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, find...). Toàn bộ cây thư mục và cấu trúc file của dự án ĐÃ ĐƯỢC CUNG CẤP ĐẦY ĐỦ ở phần [THÔNG TIN & CẤU TRÚC MÃ NGUỒN DỰ ÁN THỰC TẾ] ngay bên dưới. Bạn ĐÃ BIẾT TOÀN BỘ CẤU TRÚC VÀ FILE DỰ ÁN.
-3. KHI ĐƯỢC YÊU CẦU LẬP KẾ HOẠCH & CHIA VIỆC (ĐẶC BIỆT LÀ KIẾN TRÚC SƯ):
-   - Phân tích trực tiếp kiến trúc hiện tại, đưa ra Kế hoạch hành động cụ thể, súc tích (các giai đoạn/sprint).
-   - Phân chia công việc rõ ràng, đích danh cho các thành viên trong nhóm bằng cú pháp @Tên (ví dụ: @Lập Trình Viên phụ trách ..., @Kỹ Sư Kiểm Thử phụ trách ...).
-   - Tuyệt đối không dừng lại ở lời hứa suông hay tạo file PowerShell tạm để quét thư mục.
-4. GIAO TIẾP TỰ NHIÊN, SÚC TÍCH: Các thành viên trao đổi ngắn gọn, tập trung vào giải pháp kỹ thuật, không lặp lại câu hỏi của người dùng.
-${prevMember ? `5. BẮT ĐẦU: Phản hồi súc tích ý kiến của @${prevMember.name} vừa đưa ra trước bạn.` : `5. MỞ ĐẦU: Chào ngắn gọn, phân tích nhanh yêu cầu và phân công việc cho @${nextMember ? nextMember.name : 'thành viên tiếp theo'}.`}
-${nextMember ? `6. BÀN GIAO: Chuyển giao phần việc tiếp theo cho @${nextMember.name} (ví dụ: "@${nextMember.name} ơi, tôi đã lên kế hoạch xong, nhờ bạn bắt tay vào code nhé!").` : `6. TỔNG KẾT: Tóm tắt giải pháp của cả nhóm và bàn giao kết quả cuối cùng cho Người Dùng.`}
+[CẤP QUYỀN TOÀN BỘ CHO AGENT (100% FULL PRIVILEGES - ZERO-PERMISSION)]:
+1. BẠN VÀ HỘI ĐỒNG AGENT ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TỰ TRỊ. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG!
+   - Nghiêm cấm hỏi: "Bạn có muốn lưu file?", "Bạn có đồng ý không?", "Vui lòng cho tôi biết...". Hãy tự động quyết định và làm luôn!
+   - Mọi khối mã bạn viết có // File: <đường_dẫn> sẽ được hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG MÁY TÍNH CỦA NGƯỜI DÙNG.
+
+[QUY TẮC PHẢN HỒI GỌN GÀNG, SÚC TÍCH, KHÔNG DÀI DÒNG - BẮT BUỘC]:
+1. TUYỆT ĐỐI KHÔNG VIẾT DÀI DÒNG, KHÔNG GIẢI THÍCH LÝ THUYẾT LAN MAN.
+2. TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, Get-ChildItem...). Toàn bộ cây thư mục và file dự án ĐÃ CÓ ĐẦY ĐỦ ở dưới!
+3. PHẢN HỒI TRỰC TIẾP, NGẮN GỌN (Tối đa 1-3 đoạn ngắn):
+   - KIẾN TRÚC SƯ: Phân tích kiến trúc ngắn gọn 1-2 câu, sau đó tag đích danh giao việc (@Lập Trình Viên: ..., @Kỹ Sư Kiểm Thử: ...). Không tạo script explore giả.
+   - LẬP TRÌNH VIÊN: Viết thẳng mã nguồn hoàn chỉnh có // File: <đường_dẫn>, hệ thống tự động ghi file.
+   - KIỂM THỬ VIÊN: Cung cấp lệnh PowerShell/CMD trực tiếp trong \`\`\`powershell.
+   - REVIEWER: Nhận xét ngắn gọn 1-2 câu và xác nhận.
+4. TUYỆT ĐỐI KHÔNG BẮT ĐẦU BẰNG TIỀN TỐ TÊN MÌNH (ví dụ KHÔNG viết "[${member.name}]: ").
+${prevMember ? `5. BẮT ĐẦU: Phản hồi súc tích ý kiến của @${prevMember.name}.` : `5. MỞ ĐẦU: Chào ngắn gọn 1 câu và phân công việc cho @${nextMember ? nextMember.name : 'thành viên tiếp theo'}.`}
+${nextMember ? `6. BÀN GIAO: Chuyển giao phần việc tiếp theo cho @${nextMember.name}.` : `6. TỔNG KẾT: Tóm tắt giải pháp ngắn gọn cho Người Dùng.`}
 
 [QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
 Nếu bạn nhận thấy dự án hoặc yêu cầu này cần thêm các vị trí chuyên gia chuyên sâu (như "database" CSDL/SQL, "frontend" UI/UX, "security" Bảo Mật, "devops" Môi Trường, "tester" Kiểm Thử) mà Hội Đồng chưa có:
@@ -1799,6 +1880,22 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
         }
       }
 
+      // TỰ ĐỘNG GHI FILE VÀO DỰ ÁN TRÊN MÁY (CẤP QUYỀN TOÀN BỘ CHO AGENT)
+      const autoSavedFiles = [];
+      const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
+      let fMatch;
+      while ((fMatch = codeFileRegex.exec(agentResponse)) !== null) {
+        const filePath = fMatch[1].trim();
+        const fileContent = fMatch[2];
+        if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
+        try {
+          const written = writeProjectFileHelper(project.path, filePath, fileContent);
+          if (written) autoSavedFiles.push(written.relativePath);
+        } catch (e) {
+          console.warn('Auto save error:', e.message);
+        }
+      }
+
       const savedMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
         author: member.name,
@@ -1807,12 +1904,13 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
         agentColor: member.color,
         agentModel: memberModel,
         agentRole: member.roleTitle,
-        content: agentResponse
+        content: agentResponse,
+        autoSavedFiles: autoSavedFiles
       });
 
       generatedMessages.push(savedMsg);
       previousTurnsContext.push(`[${member.badge} - ${member.name}]:\n${agentResponse}`);
-      sendEvent({ type: 'agent_done', message: savedMsg });
+      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles });
     }
 
     if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {

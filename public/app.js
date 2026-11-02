@@ -5250,7 +5250,10 @@ function decorateProjectCodeBlocks(containerEl) {
     buttonsHtml += `<button type="button" class="btn-code-action btn-copy-code" title="Sao chép mã nguồn">📋 Copy</button>`;
 
     toolbar.innerHTML = `
-      <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
+      <div class="code-bar-left">
+        <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
+        ${suggestedFile ? `<span class="badge-auto-saved" title="Agent đã có toàn quyền và tự động ghi vào máy">⚡ Đã tự động lưu</span>` : ''}
+      </div>
       <div class="code-bar-actions">${buttonsHtml}</div>
     `;
 
@@ -5669,6 +5672,15 @@ async function sendProjectIdea() {
           }
           appendProjectMessageToFeed(msg, feedEl);
           if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+        }
+      }
+
+      // Thông báo và tự động làm mới cây thư mục nếu Agent đã tự động ghi file vào máy
+      const allAutoSaved = messages.flatMap(m => m.autoSavedFiles || []);
+      if (allAutoSaved.length > 0) {
+        showToast(`⚡ Agent đã tự động ghi ${allAutoSaved.length} file vào máy (${allAutoSaved.join(', ')})!`);
+        if (typeof loadProjectFiles === 'function' && projectsState.activeProjectId) {
+          loadProjectFiles(projectsState.activeProjectId);
         }
       }
 

@@ -1591,6 +1591,7 @@ const Store = {
       agentModel: message.agentModel || null,
       agentRole: message.agentRole || null,
       attachments: Array.isArray(message.attachments) ? message.attachments : [],
+      autoSavedFiles: Array.isArray(message.autoSavedFiles) ? message.autoSavedFiles : [],
       content: cleanContent,
       timestamp: new Date().toISOString()
     };
