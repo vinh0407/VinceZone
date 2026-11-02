@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=10.3">
+ <link rel="stylesheet" href="style.css?v=10.4">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -785,21 +785,9 @@
         </div>
 
         <div class="demo-topbar-right">
-          <!-- Source Mode & URL Bar -->
-          <div class="demo-url-bar-wrap">
-            <select id="demo-source-mode-select" class="demo-source-select" onchange="window.switchDemoSourceMode(this.value)">
-              <option value="static">File Dự Án</option>
-              <option value="devserver">Dev Server (Localhost)</option>
-              <option value="web">Trình Duyệt Web</option>
-            </select>
-            <input type="text" id="demo-url-input" class="demo-url-input" placeholder="http://localhost:5173" value="http://localhost:5173" style="display: none;" onkeydown="if(event.key==='Enter') window.reloadDemoPreview();">
-            <button type="button" id="btn-reload-demo-preview" class="demo-action-btn" onclick="window.reloadDemoPreview()" title="Làm mới khung demo">Tải Lại</button>
-            <button type="button" id="btn-open-demo-newtab" class="demo-action-btn" onclick="window.openDemoInNewTab()" title="Mở trang demo ở tab trình duyệt mới">Mở Tab</button>
-          </div>
-
-          <!-- Dev Server Runner -->
-          <button type="button" class="demo-action-btn btn-devserver-run" onclick="window.quickRunDevServer()" title="Khởi chạy Dev Server">
-            Chạy Dev Server
+          <!-- Nút Chạy Dự Án duy nhất theo yêu cầu -->
+          <button type="button" id="btn-run-project" class="demo-action-btn btn-run-project" onclick="window.runProject()" title="Khởi chạy dự án và cập nhật xem trước">
+            Chạy Dự Án
           </button>
         </div>
       </div>
@@ -2010,6 +1998,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=10.3"></script>
+ <script src="app.js?v=10.4"></script>
 </body>
 </html>

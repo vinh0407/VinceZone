@@ -11531,14 +11531,25 @@ body.is-resizing {
   border-color: #3f3f46 !important;
 }
 
-.demo-action-btn.btn-devserver-run {
-  background: #222222 !important;
-  border-color: #333333 !important;
-  color: #ffffff !important;
+.demo-action-btn.btn-devserver-run,
+.demo-action-btn.btn-run-project {
+  background: #202023 !important;
+  border: 1px solid #333338 !important;
+  color: #f4f4f5 !important;
   font-weight: 600 !important;
+  font-size: 12px !important;
+  padding: 4px 12px !important;
+  border-radius: 5px !important;
+  letter-spacing: 0.2px !important;
 }
 
-.demo-action-btn.btn-devserver-run:hover {
-  background: #2c2c2e !important;
-  border-color: #48484a !important;
+.demo-action-btn.btn-devserver-run:hover,
+.demo-action-btn.btn-run-project:hover {
+  background: #2a2a30 !important;
+  border-color: #4a4a52 !important;
+  color: #ffffff !important;
+}
+
+.demo-action-btn.btn-run-project:active {
+  transform: scale(0.98) !important;
 }

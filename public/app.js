@@ -8122,37 +8122,57 @@ window.openDemoInNewTab = function() {
   window.open(targetUrl, '_blank');
 };
 
-// Chạy nhanh Dev Server bằng Terminal
-window.quickRunDevServer = async function() {
-  if (!demoState.activeProjectId) {
+// Chạy dự án (Run Project) bằng Terminal và tự động nạp Live Demo
+window.runProject = async function() {
+  const targetId = demoState.activeProjectId || projectsState.activeProjectId;
+  if (!targetId) {
     showToast('Vui lòng chọn dự án trước.');
     return;
   }
-  const curProj = (projectsState.projects || []).find(p => p.id === demoState.activeProjectId);
-  if (!curProj) return;
+  demoState.activeProjectId = targetId;
+  const curProj = (projectsState.projects || []).find(p => p.id === targetId);
+  const projName = curProj ? curProj.name : 'Dự án';
 
-  const cmd = prompt('Nhập lệnh khởi chạy Dev Server cho dự án:', 'npm run dev');
+  const cmd = prompt(`Khởi chạy dự án "${projName}":\nNhập lệnh chạy (npm run dev, npm start, python app.py, ...):`, 'npm run dev');
   if (!cmd || !cmd.trim()) return;
 
-  showToast('🚀 Đang chạy lệnh: ' + cmd + '...');
+  const btn = document.getElementById('btn-run-project');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Đang Chạy...';
+  }
+
+  showToast('Đang gửi lệnh chạy dự án: ' + cmd.trim());
   try {
-    const res = await fetch(`/api/projects/${demoState.activeProjectId}/terminal`, {
+    const res = await fetch(`/api/projects/${targetId}/terminal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ command: cmd.trim(), shell: 'powershell' })
     });
     const data = await res.json();
-    showToast(data.exitCode === 0 ? 'Lệnh chạy thành công!' : 'Đã gửi lệnh chạy tới Terminal.');
+    showToast(data.exitCode === 0 ? 'Dự án đã chạy thành công!' : 'Đã gửi lệnh chạy tới Terminal.');
+
     demoState.sourceMode = 'devserver';
     const sourceSelect = document.getElementById('demo-source-mode-select');
     if (sourceSelect) sourceSelect.value = 'devserver';
     const urlInput = document.getElementById('demo-url-input');
     if (urlInput) urlInput.style.display = 'inline-block';
-    setTimeout(() => { window.reloadDemoPreview(); }, 1500);
+
+    setTimeout(() => {
+      if (typeof window.reloadDemoPreview === 'function') {
+        window.reloadDemoPreview();
+      }
+    }, 1500);
   } catch (err) {
     showToast('Lỗi: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Chạy Dự Án';
+    }
   }
 };
+window.quickRunDevServer = window.runProject;
 
 // Tải cây tệp dự án vào Sidebar của IDE
 window.refreshDemoFileTree = async function() {
