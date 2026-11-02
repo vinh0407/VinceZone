@@ -6689,13 +6689,32 @@ function initProjectsEventListeners() {
   const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-projects-sidebar');
 
-  const toggleProjectsSidebar = () => {
-    if (!projectsLayout) return;
-    const isCollapsed = projectsLayout.classList.toggle('sidebar-collapsed');
+  window.toggleProjectsSidebar = function() {
+    const layout = document.getElementById('antigravity-layout') || document.querySelector('.projects-layout') || document.querySelector('.antigravity-layout');
+    if (!layout) return;
+    const isCollapsed = layout.classList.toggle('sidebar-collapsed');
     localStorage.setItem('vincezone_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-    window.updateFloatingViewControls();
-    showToast(isCollapsed ? 'Đã ẩn bảng bên (Mở rộng chat)' : 'Đã hiện bảng bên');
+    
+    const toggleBtn = document.getElementById('btn-toggle-projects-sidebar');
+    if (toggleBtn) {
+      if (isCollapsed) {
+        toggleBtn.classList.add('active');
+        toggleBtn.setAttribute('title', 'Hiện thanh bên dự án (Ctrl+B)');
+      } else {
+        toggleBtn.classList.remove('active');
+        toggleBtn.setAttribute('title', 'Ẩn thanh bên dự án (Ctrl+B)');
+      }
+    }
+
+    if (typeof window.updateFloatingViewControls === 'function') {
+      window.updateFloatingViewControls();
+    }
+    if (typeof showToast === 'function') {
+      showToast(isCollapsed ? 'Đã ẩn thanh bên dự án' : 'Đã hiện thanh bên dự án');
+    }
   };
+
+  const toggleProjectsSidebar = window.toggleProjectsSidebar;
 
   if (btnCollapseSidebar) btnCollapseSidebar.onclick = toggleProjectsSidebar;
   if (btnToggleSidebar) btnToggleSidebar.onclick = toggleProjectsSidebar;
@@ -6714,8 +6733,14 @@ function initProjectsEventListeners() {
   if (btnFloatingShowTopbar) btnFloatingShowTopbar.onclick = toggleChatTopbar;
 
   // Khôi phục trạng thái từ localStorage
-  if (projectsLayout && localStorage.getItem('vincezone_sidebar_collapsed') === 'true') {
-    projectsLayout.classList.add('sidebar-collapsed');
+  const savedSidebarCollapsed = localStorage.getItem('vincezone_sidebar_collapsed') === 'true';
+  const currentLayout = document.getElementById('antigravity-layout') || document.querySelector('.projects-layout');
+  if (currentLayout && savedSidebarCollapsed) {
+    currentLayout.classList.add('sidebar-collapsed');
+    if (btnToggleSidebar) {
+      btnToggleSidebar.classList.add('active');
+      btnToggleSidebar.setAttribute('title', 'Hiện thanh bên dự án (Ctrl+B)');
+    }
   }
   if (chatTopbar && localStorage.getItem('vincezone_topbar_hidden') === 'true') {
     chatTopbar.classList.add('topbar-hidden');

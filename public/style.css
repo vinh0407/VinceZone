@@ -3954,20 +3954,26 @@ input[type="range"] {
   transition: grid-template-columns 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.projects-layout.sidebar-collapsed {
+.projects-layout.sidebar-collapsed,
+.antigravity-layout.sidebar-collapsed {
   grid-template-columns: 0px 1fr !important;
 }
 
-.projects-layout.sidebar-collapsed .projects-sidebar {
+.projects-layout.sidebar-collapsed .projects-sidebar,
+.projects-layout.sidebar-collapsed .antigravity-sidebar,
+.antigravity-layout.sidebar-collapsed .projects-sidebar,
+.antigravity-layout.sidebar-collapsed .antigravity-sidebar {
   width: 0 !important;
   min-width: 0 !important;
   max-width: 0 !important;
   padding: 0 !important;
+  margin: 0 !important;
   opacity: 0 !important;
   pointer-events: none !important;
   border-right: none !important;
   overflow: hidden !important;
   visibility: hidden !important;
+  display: none !important;
 }
 
 /* 1. Projects Sidebar */
@@ -5439,6 +5445,12 @@ input[type="range"] {
 .btn-icon-sidebar-toggle:hover {
   background: #202025;
   border-color: #3f3f46;
+  color: #ffffff;
+}
+
+.btn-icon-sidebar-toggle.active {
+  background: #27272a;
+  border-color: #52525b;
   color: #ffffff;
 }
 
@@ -9226,13 +9238,29 @@ pre code.hljs {
 
 /* 1. LEFT SIDEBAR (ANTIGRAVITY TREE) */
 .antigravity-sidebar {
-  width: 250px !important;
+  width: 250px;
   background: #121212 !important;
   border-right: 1px solid #1f1f1f !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
   flex-shrink: 0 !important;
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.antigravity-layout.sidebar-collapsed .antigravity-sidebar,
+.projects-layout.sidebar-collapsed .antigravity-sidebar {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border-right: none !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
 }
 
 .antigravity-sidebar-header {
