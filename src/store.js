@@ -2252,7 +2252,7 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
     }
 
     // 7. Frontend vs Backend:
-    const hasFrontendKeywords = /(?:frontend|giao diện|ui|ux|html|css|style|màu|nút|button|menu|header|footer|modal|trang|theme|client|màn hình|font|icon|tailwind|responsive)/i.test(contentLower);
+    const hasFrontendKeywords = /(?:frontend|giao diện|ui|ux|html|css|style|màu|tông|tông màu|đổi màu|chỉnh màu|màu đen|màu sắc|dark mode|light mode|nền|nút|button|menu|header|footer|modal|trang|theme|client|màn hình|font|icon|tailwind|responsive)/i.test(contentLower);
     const hasBackendKeywords = /(?:backend|api|server|database|csdl|sql|sqlite|postgres|mongo|prisma|auth|jwt|express|router|controller|service|crud|đăng nhập|token|python|fastapi|django|flask|main\.py)/i.test(contentLower);
 
     if (hasFrontendKeywords && !hasBackendKeywords) {

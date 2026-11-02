@@ -2248,36 +2248,108 @@ QUY TẮC BÁO CÁO CHO SẾP (BẮT BUỘC):
         return res.json({ success: true, mode: 'pm_analysis', messages: [pmMsg], createdChats: deptsRes.newlyCreated });
       }
 
-      // C. NẾU LÀ YÊU CẦU SỬA CODE / TRIỂN KHAI TÍNH NĂNG KỸ THUẬT:
-      // Bước A: Xác định Phòng ban chuyên trách phù hợp theo 20 vị trí
-      const deptInfo = Store.matchDepartmentForTask(content, projectContext);
-      
-      // Bước B: Lấy hoặc tự động tạo Đoạn chat phòng ban tương ứng
-      const { deptChat, pmAgent, specAgent } = Store.getOrCreateDepartmentChat(projectId, deptInfo);
+      // C. NẾU LÀ YÊU CẦU KỸ THUẬT / SỬA CODE / GIAO DIỆN / TÍNH NĂNG:
+      // BƯỚC 1: PM PHÂN TÍCH CHUYÊN SÂU & CHUYỂN HÓA LỜI SẾP TỪ ĐƠN GIẢN THÀNH KỸ THUẬT CHUYÊN NGHIỆP
+      const pmDispatchAnalysisSys = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
+Bạn là người đại diện duy nhất làm việc trực tiếp với Sếp (người dùng).
+Dự án hiện tại: ${project.name}
+Ngữ cảnh mã nguồn dự án thực tế:
+${projectContext}
 
-      // Bước C: TRONG ĐOẠN CHAT PHÒNG BAN: 2 AI TRÒ CHUYỆN VỚI NHAU
-      // 1. Con Quản Lý (PM) BẮT CHUYỆN và giao việc cho Dev
-      const pmDeptOrder = `Chào đồng chí @${specAgent.name} (${specAgent.roleTitle}),
+CHỈ ĐẠO CỦA SẾP:
+"${content.trim()}"
 
-Sếp vừa chỉ đạo dự án:
-👉 "${content.trim()}"
+NHIỆM VỤ CỦA PM:
+1. Xác định chính xác phòng ban (deptKey: frontend, backend, ai, qa, devops, architecture, mobile, fullstack) và chức danh chuyên viên (roleCategory) chịu trách nhiệm.
+2. CHUYỂN ĐỔI LỜI SẾP TỪ ĐƠN GIẢN THÀNH CHUYÊN NGHIỆP:
+   - Nếu Sếp chỉ đạo đơn giản (ví dụ: "chỉnh màu này thành màu đen"), PM phải phân tích rõ: đổi màu ở file nào (vd style.css), selector/class nào (body, container), chọn tông màu cụ thể (HEX #09090b hoặc #000000), và phân tích các thành phần liên quan cần chỉnh (chữ sáng màu #ffffff, nút bấm, border để đảm bảo tương phản UI WCAG).
+   - Nếu Sếp yêu cầu thêm tính năng, phân tích chi tiết các file/hàm/API cần tạo hoặc chỉnh sửa.
+3. Nếu chỉ đạo ảnh hưởng nhiều phòng ban (ví dụ vừa UI vừa Backend vừa Test), hãy phân rã thành các task riêng cho từng phòng ban tương ứng.
+4. Viết lời giao việc kỹ thuật (technicalPrompt) chi tiết, đầy đủ, chuẩn xác HOÀN TOÀN BẰNG TIẾNG VIỆT để gửi thẳng cho chuyên viên thực thi.
+5. BẮT BUỘC DÙNG 100% TIẾNG VIỆT. Bắt buộc có ít nhất 1 task trong mảng "tasks".
 
-Đề nghị đồng chí lập tức rà soát cấu trúc mã nguồn hiện tại của dự án, triển khai mã nguồn kỹ thuật hoàn chỉnh và chính xác theo đúng chuyên môn của phòng ban.
+Trả về DUY NHẤT mã JSON theo mẫu (chỉ JSON thuần):
+{
+  "analysis": "Phân tích kỹ thuật của PM bằng tiếng Việt",
+  "tasks": [
+    {
+      "deptKey": "frontend",
+      "roleCategory": "frontend_dev",
+      "technicalPrompt": "Lời chỉ đạo kỹ thuật chuyên nghiệp, chi tiết bằng tiếng Việt của PM gửi cho chuyên viên @Lập trình viên Frontend..."
+    }
+  ]
+}`;
+
+      let dispatchPlan = null;
+      try {
+        const planRaw = await callInternalAI({
+          model: 'nvidia/nemotron-3.5-lightning:free',
+          messages: [
+            { role: 'system', content: 'Bạn là PM thông minh, phân tích sâu và trả về JSON chuẩn xác 100% tiếng Việt.' },
+            { role: 'user', content: pmDispatchAnalysisSys }
+          ],
+          providerId: 'prov_kilo_gateway'
+        });
+        const match = (planRaw || '').match(/\{[\s\S]*\}/);
+        if (match) {
+          dispatchPlan = JSON.parse(match[0]);
+        }
+      } catch (e) {
+        console.warn('PM Dispatch plan parse error:', e.message);
+      }
+
+      // Fallback nếu không parse được JSON
+      if (!dispatchPlan || !Array.isArray(dispatchPlan.tasks) || dispatchPlan.tasks.length === 0) {
+        const fallbackDept = Store.matchDepartmentForTask(content, projectContext);
+        dispatchPlan = {
+          analysis: `Điều phối nhiệm vụ cho phòng ban chuyên trách ${fallbackDept.title}`,
+          tasks: [
+            {
+              deptKey: fallbackDept.key,
+              roleCategory: fallbackDept.primaryRole || 'fullstack_dev',
+              technicalPrompt: `Đề nghị đồng chí rà soát toàn bộ cấu trúc mã nguồn dự án ${project.name}, triển khai chính xác chỉ đạo của Sếp: "${content.trim()}". Viết mã nguồn hoàn chỉnh, ghi rõ // File: <đường_dẫn> ở đầu mỗi khối code để tự động lưu vào dự án.`
+            }
+          ]
+        };
+      }
+
+      // BƯỚC 2: ĐIỀU PHỐI TỪNG NHIỆM VỤ ĐẾN CÁC PHÒNG BAN CHUYÊN TRÁCH
+      const allAutoSavedFiles = [];
+      const allDevReports = [];
+      const createdDeptChats = [];
+
+      for (const task of dispatchPlan.tasks.slice(0, 3)) {
+        // Tìm phòng ban theo deptKey
+        let targetDept = (Store.getDepartmentCatalog() || []).find(d => d.key === task.deptKey);
+        if (!targetDept) {
+          targetDept = Store.matchDepartmentForTask(content, projectContext);
+        }
+
+        const { deptChat, pmAgent, specAgent } = Store.getOrCreateDepartmentChat(projectId, targetDept);
+        createdDeptChats.push(deptChat);
+
+        // PM BẮT CHUYỆN VÀ GIAO VIỆC CHUYÊN NGHIỆP TRONG ĐOẠN CHAT PHÒNG BAN
+        const pmDeptOrder = `Chào đồng chí @${specAgent.name} (${specAgent.roleTitle}),
+
+Chỉ đạo kỹ thuật từ Sếp điều phối qua PM:
+${task.technicalPrompt}
+
+Đề nghị đồng chí lập tức triển khai mã nguồn kỹ thuật hoàn chỉnh và chính xác theo đúng chuyên môn của phòng ban.
 Lưu ý: Luôn ghi rõ đường dẫn từng tệp \`// File: <đường_dẫn>\` ở đầu mỗi khối mã nguồn để hệ thống tự động ghi thẳng vào thư mục dự án.
 Sau khi hoàn thành, hãy báo cáo chi tiết kết quả cho tôi để tôi tổng hợp báo cáo lên Sếp!`;
 
-      Store.saveProjectChatMessage(projectId, deptChat.id, {
-        role: 'assistant',
-        author: 'Project Manager (PM) – Quản lý dự án',
-        agentBadge: 'PM',
-        agentColor: '#3b82f6',
-        agentRole: 'Project Manager (PM)',
-        agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
-        content: pmDeptOrder
-      });
+        Store.saveProjectChatMessage(projectId, deptChat.id, {
+          role: 'assistant',
+          author: 'Project Manager (PM) – Quản lý dự án',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+          content: pmDeptOrder
+        });
 
-      // 2. Con Nhân Viên / Dev thực thi công việc và BÁO CÁO lại cho Quản Lý (PM) bằng 1 tin nhắn
-      const devSystemPrompt = `Bạn là ${specAgent.name} (${specAgent.roleTitle}) thuộc ${deptInfo.title}.
+        // DEV THỰC THI VÀ BÁO CÁO CHO PM
+        const devSystemPrompt = `Bạn là ${specAgent.name} (${specAgent.roleTitle}) thuộc ${targetDept.title}.
 Dự án: ${project.name} (Thư mục làm việc: "${project.path}")
 Trách nhiệm chuyên môn: ${specAgent.responsibility || 'Chuyên trách nhiệm vụ kỹ thuật của phòng ban'}.
 
@@ -2291,7 +2363,7 @@ ${projectContext}
    - Sếp là người chỉ đạo dự án cho PM. Bạn báo cáo kết quả cho PM để PM báo cáo lại cho Sếp.
 3. KẾT THÚC BẰNG BÁO CÁO GỬI PM:
    - Ở cuối tin nhắn, LUÔN có phần báo cáo chính thức gửi PM:
-     "Báo cáo Quản lý dự án (PM): Tôi đã hoàn thành xong việc cập nhật mã nguồn... Kính nhờ PM tổng hợp và báo cáo lại với Sếp!"
+     "Báo cáo Quản lý dự án (PM): Tôi đã hoàn thành xong việc... Kính nhờ PM tổng hợp và báo cáo lại với Sếp!"
 
 [QUY CÁCH TRIỂN KHAI MÃ NGUỒN (100% EXECUTABLE - ZERO-PERMISSION)]:
 1. BẠN ĐÃ ĐƯỢC CẤP TOÀN BỘ QUYỀN TRUY CẬP VÀ GHI FILE. TUYỆT ĐỐI KHÔNG HỎI Ý KIẾN HAY XIN PHÉP NGƯỜI DÙNG.
@@ -2299,78 +2371,91 @@ ${projectContext}
 3. Ở DÒNG ĐẦU TIÊN CỦA MỖI KHỐI CODE, LUÔN ghi rõ đường dẫn file: // File: <đường_dẫn_tệp> để hệ thống TỰ ĐỘNG GHI THẲNG VÀO ĐĨA CỨNG MÁY TÍNH CỦA NGƯỜI DÙNG.
 4. Đi thẳng vào giải pháp kỹ thuật và mã nguồn, không viết dài dòng lý thuyết.`;
 
-      const devMessages = [
-        { role: 'system', content: devSystemPrompt },
-        { role: 'user', content: `[CHỈ ĐẠO TỪ QUẢN LÝ DỰ ÁN (PM)]: ${pmDeptOrder}` }
-      ];
+        const devMessages = [
+          { role: 'system', content: devSystemPrompt },
+          { role: 'user', content: `[CHỈ ĐẠO KỸ THUẬT TỪ QUẢN LÝ DỰ ÁN (PM)]: ${pmDeptOrder}` }
+        ];
 
-      let devRawResponse = await callInternalAI({
-        model: specAgent.model || 'kilo-auto/free',
-        messages: devMessages,
-        providerId: specAgent.providerId || 'prov_kilo_gateway'
-      });
-      let devResponse = (devRawResponse || '').trim();
+        let devRawResponse = await callInternalAI({
+          model: specAgent.model || 'kilo-auto/free',
+          messages: devMessages,
+          providerId: specAgent.providerId || 'prov_kilo_gateway'
+        });
+        let devResponse = (devRawResponse || '').trim();
 
-      if (!devResponse || devResponse.length < 20) {
-        devResponse = `Dạ chào Quản lý dự án (PM)! Tôi đã tiếp nhận chỉ đạo từ Sếp: "${content.trim()}".\n\nTôi đã tiến hành rà soát cấu trúc mã nguồn dự án ${project.name} và hoàn tất triển khai kỹ thuật theo đúng chuyên môn.\n\nBáo cáo Quản lý dự án (PM): Tôi đã hoàn thành công việc kỹ thuật. Kính nhờ PM tổng hợp và báo cáo lại cho Sếp!`;
-      }
-
-      // Tự động trích xuất và ghi file vào dự án
-      const autoSavedFiles = [];
-      const codeFileRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)```/gi;
-      let fMatch;
-      while ((fMatch = codeFileRegex.exec(devResponse)) !== null) {
-        const filePath = fMatch[1].trim();
-        const fileContent = fMatch[2];
-        if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
-        try {
-          const written = writeProjectFileHelper(project.path, filePath, fileContent);
-          if (written) autoSavedFiles.push(written.relativePath);
-        } catch (e) {
-          console.warn('Auto save error:', e.message);
+        if (!devResponse || devResponse.length < 20) {
+          devResponse = `Dạ chào Quản lý dự án (PM)! Tôi đã tiếp nhận chỉ đạo kỹ thuật: "${task.technicalPrompt.slice(0, 100)}...".\n\nTôi đã tiến hành rà soát cấu trúc mã nguồn dự án ${project.name} và hoàn tất triển khai kỹ thuật theo đúng chuyên môn.\n\nBáo cáo Quản lý dự án (PM): Tôi đã hoàn thành công việc kỹ thuật. Kính nhờ PM tổng hợp và báo cáo lại cho Sếp!`;
         }
+
+        // Tự động trích xuất và ghi file vào dự án
+        const codeFileRegex = /\`\`\`(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)([\s\S]*?)\`\`\`/gi;
+        let fMatch;
+        while ((fMatch = codeFileRegex.exec(devResponse)) !== null) {
+          const filePath = fMatch[1].trim();
+          const fileContent = fMatch[2];
+          if (/explore\.(ps1|sh|bat|cmd)|list\.(ps1|sh)|dir\.(ps1|sh)/i.test(filePath)) continue;
+          try {
+            const written = writeProjectFileHelper(project.path, filePath, fileContent);
+            if (written) allAutoSavedFiles.push(written.relativePath);
+          } catch (e) {
+            console.warn('Auto save error:', e.message);
+          }
+        }
+
+        // Lưu tin nhắn của Dev vào đoạn chat phòng ban
+        Store.saveProjectChatMessage(projectId, deptChat.id, {
+          role: 'assistant',
+          author: specAgent.name,
+          agentId: specAgent.id,
+          agentBadge: specAgent.badge,
+          agentColor: specAgent.color,
+          agentModel: specAgent.model,
+          agentRole: specAgent.roleTitle,
+          content: devResponse,
+          autoSavedFiles: allAutoSavedFiles
+        });
+
+        allDevReports.push({
+          agentName: specAgent.name,
+          roleTitle: specAgent.roleTitle,
+          deptTitle: targetDept.title,
+          report: devResponse.slice(0, 1500)
+        });
       }
 
-      // Lưu tin nhắn ĐẦY ĐỦ của Dev vào đoạn chat phòng ban
-      Store.saveProjectChatMessage(projectId, deptChat.id, {
-        role: 'assistant',
-        author: specAgent.name,
-        agentId: specAgent.id,
-        agentBadge: specAgent.badge,
-        agentColor: specAgent.color,
-        agentModel: specAgent.model,
-        agentRole: specAgent.roleTitle,
-        content: devResponse,
-        autoSavedFiles: autoSavedFiles
-      });
+      // BƯỚC 3: QUẢN LÝ (PM) ĐỌC TOÀN BỘ BÁO CÁO CỦA CÁC DEV, TỰ SUY NGHĨ VÀ TỔNG HỢP GỬI LÊN SẾP
+      const devReportsSummaryText = allDevReports.map((r, idx) => `[CHUYÊN VIÊN ${idx + 1}]: @${r.agentName} (${r.roleTitle} - ${r.deptTitle}):\n${r.report}`).join('\n\n---\n\n');
 
-      // Bước D: QUẢN LÝ (PM) ĐỌC BÁO CÁO CỦA DEV VÀ TỰ TỔNG HỢP BÁO CÁO CHO SẾP (BÁO CÁO TỔNG TRƯỚC -> TIẾN TRÌNH TỪNG PHÒNG)
       const pmSummarySys = `Bạn là Project Manager (PM) – Quản lý dự án của VinceZone.
-Bạn vừa nhận được báo cáo từ nhân viên @${specAgent.name} (${specAgent.roleTitle}) thuộc ${deptInfo.title}:
----
-${devResponse.slice(0, 1800)}
----
+Các chuyên viên AI trực thuộc các phòng ban đã triển khai xong và gửi báo cáo về cho bạn:
+${devReportsSummaryText}
+
 Chỉ đạo ban đầu của Sếp: "${content.trim()}"
-Các tệp đã tự động lưu: ${autoSavedFiles.join(', ') || 'Không có tệp tạo mới'}
+Các tệp mã nguồn đã tự động lưu: ${allAutoSavedFiles.join(', ') || 'Không có tệp tạo mới'}
 
-Nhiệm vụ của bạn là tổng hợp và báo cáo ngay cho Sếp trong đoạn chat chính:
+Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp trong đoạn chat chính:
 - Luôn gọi người dùng là "Sếp", xưng "em".
-- Tuyệt đối không dùng văn mẫu rập khuôn. Hãy tự suy nghĩ và đúc kết ngắn gọn, hiệu quả:
-  📊 **1. Báo Cáo Tổng:** 1-2 câu tóm tắt kết quả thực hiện chỉ đạo.
-  🏢 **2. Tiến Trình Từng Phòng Ban:** Nêu ngắn gọn kết quả phòng ${deptInfo.title} (@${specAgent.name}) vừa hoàn tất và các tệp mã nguồn liên quan.
-- Thêm lời mời Sếp kiểm tra hoặc bấm nút "Chạy Dự Án".`;
+- Tuyệt đối không dùng văn mẫu rập khuôn. Hãy tự suy nghĩ và đúc kết: BÁO CÁO CHI TIẾT NHƯNG NGẮN GỌN, GHI RÕ AI ĐÃ LÀM GÌ:
+  📊 **1. Báo Cáo Tổng:** 1-2 câu kết luận việc thực hiện toàn bộ chỉ đạo của Sếp.
+  🏢 **2. Chi Tiết Thực Hiện (Ai đã làm gì):**
+  - Liệt kê từng chuyên viên: **@Tên Chuyên Viên (Chức danh - Phòng ban):** Đã làm cụ thể những gì (sửa file nào, đổi màu tông gì / viết hàm gì / API gì) một cách chi tiết nhưng súc tích, ngắn gọn (1-2 dòng mỗi người).
+  - Tệp mã nguồn đã lưu tự động (nếu có): Liệt kê danh sách file.
+- Thêm lời mời Sếp kiểm tra hoặc bấm nút "Chạy Dự Án" để nghiệm thu kết quả.`;
 
+      const pmReportModel = 'nvidia/nemotron-3.5-lightning:free';
       let pmReportContent = await callInternalAI({
-        model: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+        model: pmReportModel,
         messages: [
           { role: 'system', content: pmSummarySys },
-          { role: 'user', content: `Hãy báo cáo ngắn gọn cho Sếp kết quả thực hiện: "${content.trim()}"` }
+          { role: 'user', content: `Hãy tổng hợp báo cáo chi tiết nhưng ngắn gọn cho Sếp, ghi rõ ai đã làm gì: "${content.trim()}"` }
         ],
         providerId: 'prov_kilo_gateway'
       });
 
       if (!pmReportContent || pmReportContent.trim().length < 20) {
-        pmReportContent = `Dạ báo cáo Sếp!\n\n📊 **1. Báo Cáo Tổng:** Yêu cầu: *"${content.trim()}"* đã được @${specAgent.name} thực hiện hoàn tất.\n\n🏢 **2. Tiến Trình Từng Phòng Ban:**\n- **${deptInfo.title}:** @${specAgent.name} đã cập nhật mã nguồn ${autoSavedFiles.length > 0 ? autoSavedFiles.map(f => String.fromCharCode(96) + f + String.fromCharCode(96)).join(', ') : 'thành công'}.\n- **Các phòng ban khác:** Đang túc trực sẵn sàng nhận lệnh tiếp theo của Sếp.\n\n💬 Toàn bộ trao đổi kỹ thuật nội bộ đã được lưu tại **[${deptInfo.title}]** ở thanh bên trái. Kính mời Sếp kiểm tra hoặc bấm nút **"Chạy Dự Án"** ạ!`;
+        pmReportContent = `Dạ báo cáo Sếp!\n\n📊 **1. Báo Cáo Tổng:** Yêu cầu: *"${content.trim()}"* đã được đội ngũ chuyên môn xử lý hoàn tất.\n\n🏢 **2. Chi Tiết Thực Hiện (Ai đã làm gì):**\n` +
+          allDevReports.map(r => `- **@${r.agentName} (${r.roleTitle} - ${r.deptTitle}):** Đã cập nhật mã nguồn theo đúng chuẩn kỹ thuật.`).join('\n') +
+          `\n\n💬 Toàn bộ trao đổi kỹ thuật nội bộ đã được ghi nhận trong các phòng ban tương ứng ở thanh bên trái. Kính mời Sếp kiểm tra hoặc bấm nút **"Chạy Dự Án"** ạ!`;
       }
 
       const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
@@ -2379,12 +2464,12 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo ngay cho Sếp trong đo
         agentBadge: 'PM',
         agentColor: '#3b82f6',
         agentRole: 'Project Manager (PM)',
-        agentModel: pmAgent.model || 'nvidia/nemotron-3.5-lightning:free',
+        agentModel: pmReportModel,
         content: pmReportContent.trim(),
-        autoSavedFiles: autoSavedFiles
+        autoSavedFiles: allAutoSavedFiles
       });
 
-      sendEvent({ type: 'agent_done', message: pmReportMsg, autoSavedFiles, createdChats: [deptChat] });
+      sendEvent({ type: 'agent_done', message: pmReportMsg, autoSavedFiles: allAutoSavedFiles, createdChats: createdDeptChats });
       if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
         sendEvent({ type: 'all_done', totalMessages: 1 });
         return res.end();
@@ -2394,8 +2479,8 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo ngay cho Sếp trong đo
         success: true, 
         mode: 'pm_report', 
         messages: [pmReportMsg], 
-        createdChats: [deptChat], 
-        autoSavedFiles 
+        createdChats: createdDeptChats, 
+        autoSavedFiles: allAutoSavedFiles 
       });
     }
 
