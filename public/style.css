@@ -7485,5 +7485,251 @@ input[type="range"] {
   background: #1e1e24 !important;
 }
 
+/* ---------------- FLUID & SMOOTH SAAS MOTION SYSTEM ---------------- */
+
+/* 1. Mượt hóa tin nhắn & hiệu ứng xuất hiện */
+@keyframes messageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.proj-msg {
+  animation: messageSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+
+.proj-msg.msg-user:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+}
+
+.proj-msg.msg-agent {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+
+.proj-msg.msg-agent:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+/* 2. Micro-interactions cho các nút bấm (Thoát khỏi cảm giác cứng nhắc) */
+.btn-primary,
+.btn-ghost,
+.btn-micro,
+.btn-attach-pill,
+.btn-project-send,
+.btn-studio-mode,
+.btn-studio-tab,
+.btn-quick-prompt,
+.tab-btn {
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+}
+
+.btn-primary:active,
+.btn-ghost:active,
+.btn-micro:active,
+.btn-attach-pill:active,
+.btn-project-send:active,
+.tab-btn:active {
+  transform: scale(0.96) !important;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.45);
+}
+
+.btn-attach-pill:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Nút Gửi: Hiệu ứng phóng tên lửa khi hover */
+.btn-project-send svg {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-project-send:hover svg {
+  transform: translate(2.5px, -2.5px);
+}
+
+/* Nút Tự Thêm Agent & Thêm Agent: Viền Shimmer phát sáng tinh tế */
+@keyframes shimmerBorder {
+  0% { border-color: rgba(37, 99, 235, 0.3); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  50% { border-color: rgba(96, 165, 250, 0.7); box-shadow: 0 0 12px rgba(59, 130, 246, 0.35); }
+  100% { border-color: rgba(37, 99, 235, 0.3); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+}
+
+.btn-auto-add-agents {
+  animation: shimmerBorder 3s infinite ease-in-out;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-auto-add-agents:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5) !important;
+}
+
+/* 3. Hiệu ứng Vòng Hào Quang Nhịp Thở Cho Agent Đang Phát Biểu (War-Room Live Speaker) */
+@keyframes speakerAura {
+  0% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.5);
+    border-color: rgba(96, 165, 250, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 14px 2px rgba(96, 165, 250, 0.4);
+    border-color: #60a5fa;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.5);
+    border-color: rgba(96, 165, 250, 0.8);
+  }
+}
+
+.agent-badge-chip.is-speaking {
+  animation: speakerAura 2s infinite ease-in-out;
+  background: rgba(37, 99, 235, 0.25) !important;
+}
+
+.agent-avatar-icon {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.agent-avatar-icon:hover {
+  transform: scale(1.1) rotate(4deg);
+}
+
+/* 4. Mượt Hóa Cây Tập Tin & Danh Sách Dự Án */
+.file-tree-item {
+  transition: background 0.16s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s ease;
+  cursor: pointer;
+}
+
+.file-tree-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateX(3px);
+}
+
+.active-project-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.active-project-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.proj-chat-item {
+  transition: background 0.16s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s ease;
+}
+
+.proj-chat-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(2.5px);
+}
+
+.proj-chat-item.active {
+  box-shadow: inset 2px 0 0 #3b82f6;
+}
+
+/* 5. Hiệu ứng Mở Modal & Backdrop Blur */
+.modal-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: backdropFadeIn 0.22s ease both;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  animation: modalPopSmooth 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes modalPopSmooth {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 6. Hiệu ứng Pop-in Cho Tệp Đính Kèm */
+.attachment-preview-pill {
+  animation: attachPopIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.attachment-preview-pill:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes attachPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 7. Hiệu ứng Shimmer Skeleton Cho Image Studio Khi Đang Tạo Ảnh */
+@keyframes studioShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.studio-shimmer-loading {
+  background: linear-gradient(90deg, #18181b 20%, #27272a 40%, #3f3f46 50%, #27272a 60%, #18181b 80%);
+  background-size: 200% 100%;
+  animation: studioShimmer 1.8s infinite linear;
+}
+
+/* 8. Hiệu ứng Khôi Phục Nút Nổi (Floating Controls) */
+.btn-floating-view-toggle {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: floatEntrance 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.btn-floating-view-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  border-color: #60a5fa;
+}
+
+@keyframes floatEntrance {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 9. Trợ Năng: Tự động giảm chuyển động nếu người dùng bật Reduce Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 
 

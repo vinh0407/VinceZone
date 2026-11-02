@@ -5315,12 +5315,23 @@ function showAgentTypingIndicator(authorName, badge, text) {
   if (!feedEl) return;
   hideAgentTypingIndicator();
 
+  // Highlight agent đang phát biểu trên thanh topbar
+  document.querySelectorAll('.agent-badge-chip').forEach(chip => {
+    chip.classList.remove('is-speaking');
+    if (authorName && chip.textContent.toLowerCase().includes(authorName.toLowerCase())) {
+      chip.classList.add('is-speaking');
+    }
+  });
+
   let avatarIcon = '💻';
   let badgeClass = 'badge-coder';
   if ((badge || '').includes('ARCH')) { avatarIcon = '🏛️'; badgeClass = 'badge-arch'; }
   else if ((badge || '').includes('TEST')) { avatarIcon = '🧪'; badgeClass = 'badge-tester'; }
   else if ((badge || '').includes('REVIEW')) { avatarIcon = '🧐'; badgeClass = 'badge-reviewer'; }
   else if ((badge || '').includes('DEVOPS')) { avatarIcon = '🚀'; badgeClass = 'badge-devops'; }
+  else if ((badge || '').includes('DATA') || (badge || '').includes('SQL')) { avatarIcon = '🗄️'; badgeClass = 'badge-database'; }
+  else if ((badge || '').includes('FRONT') || (badge || '').includes('UI')) { avatarIcon = '🎨'; badgeClass = 'badge-frontend'; }
+  else if ((badge || '').includes('SEC')) { avatarIcon = '🛡️'; badgeClass = 'badge-security'; }
 
   const typingEl = document.createElement('div');
   typingEl.id = 'agent-live-typing-indicator';
@@ -5330,14 +5341,14 @@ function showAgentTypingIndicator(authorName, badge, text) {
       <div class="proj-msg-author-wrap">
         <span class="agent-avatar-icon">${avatarIcon}</span>
         <span class="agent-badge ${badgeClass}">${escapeHtml(badge || 'AI')}</span>
-        <span class="proj-msg-author" style="font-size: 0.84rem;">${escapeHtml(authorName || 'Agent')} đang phản hồi...</span>
+        <span class="proj-msg-author" style="font-size: 0.84rem;">${escapeHtml(authorName || 'Agent')} đang trao đổi...</span>
       </div>
     </div>
     <div class="typing-indicator-wave">
       <span class="typing-dot dot-1"></span>
       <span class="typing-dot dot-2"></span>
       <span class="typing-dot dot-3"></span>
-      <span class="typing-status-text">${escapeHtml(text || 'Đang trao đổi và phối hợp cùng hội đồng...')}</span>
+      <span class="typing-status-text">${escapeHtml(text || 'Đang phối hợp cùng hội đồng...')}</span>
     </div>
   `;
   feedEl.appendChild(typingEl);
@@ -5347,6 +5358,9 @@ function showAgentTypingIndicator(authorName, badge, text) {
 function hideAgentTypingIndicator() {
   const el = document.getElementById('agent-live-typing-indicator');
   if (el) el.remove();
+  document.querySelectorAll('.agent-badge-chip.is-speaking').forEach(chip => {
+    chip.classList.remove('is-speaking');
+  });
 }
 
 function appendProjectMessageToFeed(msg, feedEl) {
