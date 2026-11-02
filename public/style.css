@@ -7422,4 +7422,68 @@ input[type="range"] {
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.55);
 }
 
+/* ---------------- PROJECT AI IMAGE STUDIO MODAL ---------------- */
+.btn-pill-ai-image {
+  background: rgba(168, 85, 247, 0.12) !important;
+  border-color: rgba(168, 85, 247, 0.35) !important;
+  color: #c084fc !important;
+  font-weight: 500;
+  transition: all 0.18s ease;
+}
+
+.btn-pill-ai-image:hover {
+  background: rgba(168, 85, 247, 0.22) !important;
+  border-color: rgba(168, 85, 247, 0.6) !important;
+  color: #e9d5ff !important;
+  transform: translateY(-1px);
+}
+
+.btn-studio-tab {
+  background: transparent;
+  color: #a1a1aa;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-studio-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-studio-tab.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.btn-quick-prompt {
+  background: #27272a;
+  color: #d4d4d8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-quick-prompt:hover {
+  background: #3f3f46;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.proj-img-dropzone:hover {
+  border-color: #60a5fa !important;
+  background: #1e1e24 !important;
+}
+
+
 

@@ -6615,6 +6615,220 @@ function initProjectsEventListeners() {
   });
 }
 
+// ==================== PROJECT AI IMAGE STUDIO & EDITOR ====================
+let projImageStudioState = {
+  mode: 'gen', // 'gen' | 'edit'
+  sourceImageData: null,
+  lastGeneratedResult: null
+};
+
+window.openProjectImageStudioModal = function() {
+  const modal = document.getElementById('modal-project-image-studio');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeProjectImageStudioModal = function() {
+  const modal = document.getElementById('modal-project-image-studio');
+  if (modal) modal.style.display = 'none';
+};
+
+window.setProjImageMode = function(mode) {
+  projImageStudioState.mode = mode;
+  const btnGen = document.getElementById('btn-proj-mode-gen');
+  const btnEdit = document.getElementById('btn-proj-mode-edit');
+  const editSourceWrap = document.getElementById('proj-img-edit-source-wrap');
+  const btnSubmitLabel = document.getElementById('btn-proj-img-label');
+  const promptLabel = document.getElementById('lbl-proj-img-prompt');
+
+  if (mode === 'edit') {
+    if (btnGen) btnGen.classList.remove('active');
+    if (btnEdit) btnEdit.classList.add('active');
+    if (editSourceWrap) editSourceWrap.style.display = 'block';
+    if (btnSubmitLabel) btnSubmitLabel.textContent = '✨ Bắt Đầu Chỉnh Sửa Ảnh';
+    if (promptLabel) promptLabel.textContent = '3. Mô Tả Yêu Cầu Chỉnh Sửa / Biến Đổi (Prompt):';
+  } else {
+    if (btnGen) btnGen.classList.add('active');
+    if (btnEdit) btnEdit.classList.remove('active');
+    if (editSourceWrap) editSourceWrap.style.display = 'none';
+    if (btnSubmitLabel) btnSubmitLabel.textContent = '🎨 Bắt Đầu Tạo Ảnh';
+    if (promptLabel) promptLabel.textContent = '2. Mô Tả Nội Dung Bức Ảnh (Prompt):';
+  }
+};
+
+window.setProjQuickPrompt = function(text) {
+  const promptInput = document.getElementById('proj-img-prompt-input');
+  if (promptInput) {
+    promptInput.value = text;
+    promptInput.focus();
+  }
+};
+
+window.handleProjEditSourceUpload = function(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    projImageStudioState.sourceImageData = e.target.result;
+    const previewImg = document.getElementById('proj-edit-preview-img');
+    const previewWrap = document.getElementById('proj-edit-preview-wrap');
+    const placeholder = document.getElementById('proj-edit-placeholder');
+    if (previewImg) previewImg.src = e.target.result;
+    if (previewWrap) previewWrap.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.clearProjEditSource = function() {
+  projImageStudioState.sourceImageData = null;
+  const input = document.getElementById('input-proj-edit-file');
+  if (input) input.value = '';
+  const previewWrap = document.getElementById('proj-edit-preview-wrap');
+  const placeholder = document.getElementById('proj-edit-placeholder');
+  if (previewWrap) previewWrap.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'block';
+};
+
+window.runProjectImageStudio = async function() {
+  const model = document.getElementById('proj-img-model-select')?.value || '@cf/black-forest-labs/flux-1-schnell';
+  const prompt = document.getElementById('proj-img-prompt-input')?.value?.trim();
+  const aspect = document.getElementById('proj-img-aspect-select')?.value || '1:1';
+  const style = document.getElementById('proj-img-style-select')?.value || 'natural';
+  const spinner = document.getElementById('btn-proj-img-spinner');
+  const submitBtn = document.getElementById('btn-submit-proj-image');
+  const resultWrap = document.getElementById('proj-img-result-wrap');
+  const resultImg = document.getElementById('proj-img-result-element');
+  const resultMeta = document.getElementById('proj-img-result-meta');
+  const downloadLink = document.getElementById('btn-proj-download-img');
+
+  if (!prompt && projImageStudioState.mode === 'gen') {
+    showToast('Vui lòng nhập mô tả bức ảnh bạn muốn AI tạo.');
+    return;
+  }
+
+  if (projImageStudioState.mode === 'edit' && !projImageStudioState.sourceImageData) {
+    showToast('Vui lòng chọn ảnh gốc cần chỉnh sửa.');
+    return;
+  }
+
+  let width = 1024;
+  let height = 1024;
+  if (aspect === '16:9') { width = 1280; height = 720; }
+  else if (aspect === '9:16') { width = 720; height = 1280; }
+  else if (aspect === '4:3') { width = 1024; height = 768; }
+  else if (aspect === '3:2') { width = 1080; height = 720; }
+
+  try {
+    if (spinner) spinner.style.display = 'inline-block';
+    if (submitBtn) submitBtn.disabled = true;
+
+    let res;
+    if (projImageStudioState.mode === 'edit') {
+      const strength = parseFloat(document.getElementById('proj-img-strength-slider')?.value || '0.6');
+      res = await fetch('/api/images/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceImage: projImageStudioState.sourceImageData,
+          prompt: prompt || 'high quality enhanced',
+          model,
+          style,
+          strength,
+          width,
+          height
+        })
+      });
+    } else {
+      res = await fetch('/api/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          model,
+          width,
+          height,
+          style
+        })
+      });
+    }
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Lỗi khi tạo ảnh với AI');
+    }
+
+    projImageStudioState.lastGeneratedResult = data;
+    if (resultWrap) resultWrap.style.display = 'block';
+    if (resultImg) resultImg.src = data.url;
+    if (resultMeta) resultMeta.textContent = `${data.model || model} • ${data.width || width}x${data.height || height}`;
+    if (downloadLink) {
+      downloadLink.href = data.url;
+      downloadLink.download = `ai-art-${Date.now()}.png`;
+    }
+
+    showToast(`✨ Tạo ảnh thành công bằng model ${data.model || model}!`);
+  } catch (err) {
+    showToast('Lỗi: ' + err.message);
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+
+window.attachCurrentProjImageToChat = function() {
+  const currentResult = projImageStudioState.lastGeneratedResult;
+  if (!currentResult || !currentResult.url) {
+    showToast('Chưa có ảnh nào được tạo để đính kèm.');
+    return;
+  }
+
+  projectsState.attachments.push({
+    name: `AI_Generated_${Date.now()}.png`,
+    type: 'image/png',
+    data: currentResult.url
+  });
+
+  renderProjectAttachments();
+  window.closeProjectImageStudioModal();
+  showToast('📎 Đã đính kèm ảnh vào ô chat dự án!');
+};
+
+window.saveCurrentProjImageToProject = async function() {
+  const currentResult = projImageStudioState.lastGeneratedResult;
+  if (!currentResult || !currentResult.url) {
+    showToast('Chưa có ảnh nào được tạo để lưu.');
+    return;
+  }
+  if (!projectsState.activeProjectId) {
+    showToast('Vui lòng chọn hoặc mở một dự án trước khi lưu ảnh.');
+    return;
+  }
+
+  try {
+    const filename = `ai_image_${Date.now()}.png`;
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/save-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imagePath: currentResult.url,
+        filename,
+        folder: 'assets/images'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể lưu ảnh vào thư mục dự án.');
+    }
+    showToast(`💾 Đã lưu thành công vào: ${data.relativePath}!`);
+    if (typeof loadProjectFiles === 'function') {
+      loadProjectFiles(projectsState.activeProjectId);
+    }
+  } catch (err) {
+    showToast('Lỗi khi lưu ảnh vào dự án: ' + err.message);
+  }
+};
+
 // Tự động khởi chạy Projects listeners khi app load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initProjectsEventListeners);

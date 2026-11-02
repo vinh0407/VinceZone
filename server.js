@@ -246,12 +246,14 @@ app.post('/api/playground/chat', async (req, res) => {
   }
 });
 
-// APIs chuyên dụng cho Image Studio
-app.get('/api/image/models', (req, res) => {
+// APIs chuyên dụng cho Image Studio (hỗ trợ cả /api/image và /api/images)
+const handleImageModels = (req, res) => {
   res.json({ success: true, models: imageService.IMAGE_MODELS });
-});
+};
+app.get('/api/image/models', handleImageModels);
+app.get('/api/images/models', handleImageModels);
 
-app.post('/api/image/generate', async (req, res) => {
+const handleImageGenerate = async (req, res) => {
   try {
     const { prompt, model, width, height, seed, style, enhance } = req.body;
     const result = await imageService.generateImage({
@@ -267,9 +269,11 @@ app.post('/api/image/generate', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+};
+app.post('/api/image/generate', handleImageGenerate);
+app.post('/api/images/generate', handleImageGenerate);
 
-app.post('/api/image/edit', async (req, res) => {
+const handleImageEdit = async (req, res) => {
   try {
     const { sourceImage, prompt, model, strength, width, height, style } = req.body;
     const result = await imageService.editImage({
@@ -285,7 +289,9 @@ app.post('/api/image/edit', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+};
+app.post('/api/image/edit', handleImageEdit);
+app.post('/api/images/edit', handleImageEdit);
 
 // ----------------------------------------------------
 // 3. PROVIDER MANAGEMENT APIS
@@ -961,6 +967,42 @@ app.post('/api/projects/:id/files', (req, res) => {
   }
 });
 
+// Lưu tệp hình ảnh vào thư mục dự án (từ Image Studio hoặc URL)
+app.post('/api/projects/:id/save-image', (req, res) => {
+  try {
+    const project = Store.getProjectById(req.params.id);
+    if (!project || !project.path) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
+    const { imagePath, filename, folder = 'assets/images' } = req.body;
+    if (!imagePath) return res.status(400).json({ error: 'Thiếu đường dẫn ảnh nguồn.' });
+
+    const safeFilename = (filename || `image_${Date.now()}.png`).replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const targetDir = path.join(project.path, folder);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const targetFile = path.join(targetDir, safeFilename);
+
+    if (imagePath.startsWith('/generated_images/')) {
+      const srcFile = path.join(__dirname, 'public', imagePath.replace(/^\//, ''));
+      if (fs.existsSync(srcFile)) {
+        fs.copyFileSync(srcFile, targetFile);
+      } else {
+        return res.status(404).json({ error: 'Tệp ảnh nguồn không tồn tại trên hệ thống.' });
+      }
+    } else if (imagePath.startsWith('data:image/')) {
+      const base64Data = imagePath.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(targetFile, Buffer.from(base64Data, 'base64'));
+    } else {
+      return res.status(400).json({ error: 'Định dạng ảnh nguồn không được hỗ trợ để sao chép.' });
+    }
+
+    const relativePath = path.join(folder, safeFilename).replace(/\\/g, '/');
+    res.json({ success: true, savedPath: targetFile, relativePath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 9.11 Lấy nội dung 1 đoạn chat
 app.get('/api/projects/:id/chats/:chatId', (req, res) => {
   const chat = Store.getProjectChat(req.params.id, req.params.chatId);
@@ -1259,10 +1301,17 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
           role: 'system', 
           content: `Bạn là trợ lý lập trình AI cấp cao trong dự án ${project.name}.\n\n${projectContext}
 
-[QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG]:
-Nếu dự án hoặc yêu cầu này cần các chuyên gia chuyên môn (CSDL/SQL, Giao Diện Frontend, Bảo Mật, DevOps, Kiểm Thử):
-Bạn có toàn quyền TỰ ĐỘNG TUYỂN THÊM AGENT vào Hội Đồng Dự Án (tối đa 5 Agent) bằng cú pháp:
+[QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
+Bạn có toàn quyền TỰ ĐỘNG TUYỂN DỤNG THÊM CHUYÊN GIA vào Hội Đồng Dự Án mà không cần người dùng thao tác thủ công.
+Khi nhận thấy dự án cần chuyên gia nào (CSDL/SQL, Giao diện Frontend, Kiểm toán Bảo mật, Kỹ sư DevOps, Kỹ sư Kiểm Thử, Code Reviewer):
+Hãy phát lệnh tuyển dụng ở đầu phản hồi theo cú pháp:
 [RECRUIT_AGENT: role="database|frontend|security|devops|tester|coder|reviewer", name="Tên Chuyên Gia", model="<model_id>"]
+
+[DANH SÁCH MÔ HÌNH MIỄN PHÍ TỪ 4 PROVIDER CÓ THỂ CHỌN KHI TUYỂN DỤNG]:
+- OpenRouter: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free, nvidia/nemotron-3.5-super-vl:free, nvidia/nemotron-3.5-lightning:free, google/gemma-4-26b-a4b-it:free, recursive/flint-v1.0:free, xingchen-agi/xing4.0-29b-a4b:free, liquid/lfm-2.5-2.6b:free, nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, openrouter/free
+- Cloudflare Workers AI: @cf/deepseek-ai/deepseek-r1-distill-qwen-32b, @cf/meta/llama-3.1-8b-instruct-fp8-fast, @cf/meta/llama-3.2-11b-vision-instruct, @cf/meta/llama-3.2-3b-instruct, @cf/meta/llama-3.2-1b-instruct, @cf/black-forest-labs/flux-1-schnell (vẽ ảnh), @cf/stabilityai/stable-diffusion-xl-base-1.0 (vẽ ảnh)
+- Kilo Gateway: kilo-auto/free, poolside/laguna-s-2.1:free, dots-studio/dots-3-note-preview:free, nvidia/nemotron-3-ultra-550b-a55b:free, nvidia/nemotron-3.5-lightning:free, cohere/north-mini-code:free, recursive/flint-v1.0:free
+- OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
 Hệ thống sẽ ngay lập tức kích hoạt Agent đó tham gia cùng bạn.` 
         },
         ...chat.messages.slice(-8).map(m => ({
@@ -1355,6 +1404,12 @@ ${nextMember ? `3. KẾT THÚC: Bàn giao phần việc rõ ràng cho @${nextMem
 Nếu bạn nhận thấy dự án hoặc yêu cầu này cần thêm các vị trí chuyên gia chuyên sâu (như "database" CSDL/SQL, "frontend" UI/UX, "security" Bảo Mật, "devops" Môi Trường, "tester" Kiểm Thử) mà Hội Đồng chưa có:
 Bạn có TOÀN QUYỀN TỰ ĐỘNG TUYỂN THÊM AGENT bằng cú pháp:
 [RECRUIT_AGENT: role="database|frontend|security|devops|tester|coder|reviewer", name="Tên Vị Trí Cụ Thể", model="<model_id>"]
+
+[DANH SÁCH MÔ HÌNH MIỄN PHÍ TỪ 4 PROVIDER CÓ THỂ CHỌN KHI TUYỂN DỤNG]:
+- OpenRouter: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free, nvidia/nemotron-3.5-super-vl:free, nvidia/nemotron-3.5-lightning:free, google/gemma-4-26b-a4b-it:free, recursive/flint-v1.0:free, xingchen-agi/xing4.0-29b-a4b:free, liquid/lfm-2.5-2.6b:free, nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, openrouter/free
+- Cloudflare Workers AI: @cf/deepseek-ai/deepseek-r1-distill-qwen-32b, @cf/meta/llama-3.1-8b-instruct-fp8-fast, @cf/meta/llama-3.2-11b-vision-instruct, @cf/meta/llama-3.2-3b-instruct, @cf/meta/llama-3.2-1b-instruct, @cf/black-forest-labs/flux-1-schnell (vẽ ảnh), @cf/stabilityai/stable-diffusion-xl-base-1.0 (vẽ ảnh)
+- Kilo Gateway: kilo-auto/free, poolside/laguna-s-2.1:free, dots-studio/dots-3-note-preview:free, nvidia/nemotron-3-ultra-550b-a55b:free, nvidia/nemotron-3.5-lightning:free, cohere/north-mini-code:free, recursive/flint-v1.0:free
+- OpenCode: deepseek-v4.1-flash-free, glm-5.3-flash-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, mimo-v2.6-flash-free, flint-40b-free, beam-free, big-pickle
 Hệ thống sẽ lập tức tạo Agent đó, ghim vào Hội Đồng Dự Án và Agent mới sẽ tham gia trao đổi giải quyết dự án ngay!
 
 [CHẾ ĐỘ THỰC THI DỰ ÁN THỰC TẾ]:

@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=5.7">
+ <link rel="stylesheet" href="style.css?v=5.8">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -656,6 +656,10 @@
               <button type="button" id="btn-project-attach-image" class="btn-attach-pill" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
                 <span class="pill-icon">🖼️</span>
                 <span class="pill-text">Hình ảnh</span>
+              </button>
+              <button type="button" id="btn-project-ai-image" class="btn-attach-pill btn-pill-ai-image" title="Tạo ảnh bằng AI hoặc Chỉnh sửa ảnh (Flux, SDXL, Cloudflare Workers AI...)" onclick="window.openProjectImageStudioModal()">
+                <span class="pill-icon">🎨</span>
+                <span class="pill-text">Tạo &amp; Sửa Ảnh</span>
               </button>
               <input type="file" id="project-file-input" style="display: none;" multiple>
               <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
@@ -1498,6 +1502,158 @@
     </div>
   </div>
 
+  <!-- MODAL: AI IMAGE STUDIO & CHỈNH SỬA ẢNH TRONG DỰ ÁN -->
+  <div id="modal-project-image-studio" class="modal-backdrop" style="display: none;">
+    <div class="modal-content modal-content-lg" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <div>
+          <h3 style="margin: 0; font-size: 1.15rem; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+            <span>🎨</span> AI Image Studio &amp; Chỉnh Sửa Ảnh
+          </h3>
+          <p style="margin: 0.25rem 0 0 0; font-size: 0.78rem; color: #a1a1aa;">
+            Tạo ảnh mới &amp; chỉnh sửa ảnh bằng AI (Cloudflare Flux, SDXL, Pollinations AI 100% Free)
+          </p>
+        </div>
+        <button type="button" class="btn-close" onclick="window.closeProjectImageStudioModal()">&times;</button>
+      </div>
+
+      <!-- Mode Switcher Tabs -->
+      <div class="studio-modal-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid #27272a; padding-bottom: 0.75rem;">
+        <button type="button" id="btn-proj-mode-gen" class="btn-studio-tab active" onclick="window.setProjImageMode('gen')">
+          🎨 Tạo Ảnh Mới (Text-to-Image)
+        </button>
+        <button type="button" id="btn-proj-mode-edit" class="btn-studio-tab" onclick="window.setProjImageMode('edit')">
+          ✨ Chỉnh Sửa Ảnh (Image-to-Image)
+        </button>
+      </div>
+
+      <!-- 1. Chọn AI Model -->
+      <div class="form-group" style="margin-bottom: 0.85rem;">
+        <label style="font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; display: block;">
+          1. Lựa Chọn AI Tạo &amp; Sửa Ảnh (Model):
+        </label>
+        <select id="proj-img-model-select" class="form-control" style="width: 100%; padding: 0.6rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px; font-size: 0.85rem;">
+          <optgroup label="Cloudflare Workers AI (100% Miễn Phí)">
+            <option value="@cf/black-forest-labs/flux-1-schnell" selected>⚡ [FREE] Flux.1 Schnell (Cloudflare - Siêu Nét 1024px)</option>
+            <option value="@cf/stabilityai/stable-diffusion-xl-base-1.0">🎨 [FREE] Stable Diffusion XL Base 1.0 (Cloudflare)</option>
+            <option value="@cf/bytedance/stable-diffusion-xl-lightning">🚀 [FREE] SDXL Lightning (Cloudflare - Tốc Độ Cao)</option>
+          </optgroup>
+          <optgroup label="Pollinations AI Studio Models">
+            <option value="flux">✨ Flux.1 Schnell Tiêu Chuẩn</option>
+            <option value="flux-realism">📸 Flux Realism (Nhiếp ảnh chân thực 8K UHD)</option>
+            <option value="flux-anime">🌸 Flux Anime (Manga &amp; Anime Nhật Bản)</option>
+            <option value="flux-3d">🎲 Flux 3D (Isometric &amp; Game Assets)</option>
+            <option value="turbo">⚡ SDXL Turbo (Sáng tạo linh hoạt)</option>
+            <option value="midjourney">🎭 Midjourney Style Art (Nghệ thuật đỉnh cao)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Khung tải ảnh nguồn (Chỉ hiện khi ở Mode Chỉnh Sửa Ảnh) -->
+      <div id="proj-img-edit-source-wrap" style="display: none; margin-bottom: 0.85rem;">
+        <label style="font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; display: block;">
+          2. Chọn Ảnh Gốc Cần Chỉnh Sửa:
+        </label>
+        <div class="proj-img-dropzone" onclick="document.getElementById('input-proj-edit-file').click()" style="border: 2px dashed #3f3f46; border-radius: 8px; padding: 1.25rem; text-align: center; cursor: pointer; background: #18181b; transition: all 0.2s;">
+          <input type="file" id="input-proj-edit-file" accept="image/*" style="display: none;" onchange="window.handleProjEditSourceUpload(event)">
+          <div id="proj-edit-placeholder">
+            <span style="font-size: 1.8rem; display: block; margin-bottom: 0.25rem;">📷</span>
+            <span style="font-size: 0.82rem; color: #a1a1aa;">Bấm để tải ảnh lên hoặc kéo thả tệp ảnh vào đây</span>
+          </div>
+          <div id="proj-edit-preview-wrap" style="display: none; position: relative;">
+            <img id="proj-edit-preview-img" src="" alt="Ảnh gốc" style="max-height: 160px; max-width: 100%; border-radius: 6px; object-fit: contain;">
+            <button type="button" class="btn-micro" onclick="event.stopPropagation(); window.clearProjEditSource()" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: #ef4444; border: none; border-radius: 4px; padding: 2px 6px;">✕ Xóa</button>
+          </div>
+        </div>
+        <div style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.76rem; color: #a1a1aa;">
+          <span>Mức độ biến đổi (Strength): <strong id="proj-img-strength-val" style="color: #60a5fa;">60%</strong></span>
+          <input type="range" id="proj-img-strength-slider" min="0.1" max="1" step="0.05" value="0.6" style="width: 140px;" oninput="document.getElementById('proj-img-strength-val').textContent = Math.round(this.value * 100) + '%'">
+        </div>
+      </div>
+
+      <!-- 2/3. Prompt Nhập Mô Tả -->
+      <div class="form-group" style="margin-bottom: 0.85rem;">
+        <label id="lbl-proj-img-prompt" style="font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; display: block;">
+          2. Mô Tả Nội Dung Bức Ảnh (Prompt):
+        </label>
+        <textarea id="proj-img-prompt-input" rows="3" class="form-control" placeholder="Mô tả bức ảnh bạn muốn AI tạo (Ví dụ: Một logo công nghệ tương lai phong cách Cyberpunk với chữ VinceZone, ánh sáng neon rực rỡ, độ phân giải 8K, siêu chi tiết...)" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px; font-size: 0.85rem; resize: vertical;"></textarea>
+        <!-- Gợi ý prompt nhanh -->
+        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem;">
+          <span style="font-size: 0.7rem; color: #71717a; align-self: center;">Gợi ý:</span>
+          <button type="button" class="btn-quick-prompt" onclick="window.setProjQuickPrompt('Thiết kế giao diện website SaaS hiện đại, Dark mode, bảng điều khiển Analytics sắc nét, phong cách Clean Minimalist')">🌐 Web SaaS</button>
+          <button type="button" class="btn-quick-prompt" onclick="window.setProjQuickPrompt('Logo công nghệ tương lai hiện đại, biểu tượng tối giản, dải màu neon tím xanh, nền tối')">💎 Tech Logo</button>
+          <button type="button" class="btn-quick-prompt" onclick="window.setProjQuickPrompt('Icon ứng dụng 3D Isometric, hiệu ứng kính mờ glassmorphism, ánh sáng mềm')">📦 3D Icon</button>
+          <button type="button" class="btn-quick-prompt" onclick="window.setProjQuickPrompt('Banner minh họa kiến trúc microservices và AI Agents phối hợp nhau làm việc')">🚀 Banner AI</button>
+        </div>
+      </div>
+
+      <!-- 3. Tùy Chọn Tỉ Lệ & Phong Cách -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.15rem;">
+        <div class="form-group">
+          <label style="font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; display: block;">
+            Tỉ Lệ Khung Hình:
+          </label>
+          <select id="proj-img-aspect-select" class="form-control" style="width: 100%; padding: 0.55rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px; font-size: 0.82rem;">
+            <option value="1:1" selected>1:1 Vuông (1024x1024)</option>
+            <option value="16:9">16:9 Ngang màn hình (1280x720)</option>
+            <option value="9:16">9:16 Dọc Mobile / Story (720x1280)</option>
+            <option value="4:3">4:3 Cổ điển (1024x768)</option>
+            <option value="3:2">3:2 Nhiếp ảnh (1080x720)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; display: block;">
+            Phong Cách Nghệ Thuật:
+          </label>
+          <select id="proj-img-style-select" class="form-control" style="width: 100%; padding: 0.55rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px; font-size: 0.82rem;">
+            <option value="natural" selected>Tự nhiên (Theo Prompt)</option>
+            <option value="photorealistic">📸 Nhiếp ảnh chân thực 8K UHD</option>
+            <option value="anime">🌸 Anime &amp; Manga Nhật Bản</option>
+            <option value="cyberpunk">⚡ Cyberpunk 2077 Neon</option>
+            <option value="render_3d">🎲 3D Isometric Render (Blender/UE5)</option>
+            <option value="oil_painting">🎨 Tranh Sơn Dầu Nghệ Thuật</option>
+            <option value="pixel_art">👾 Pixel Art 16-bit Retro</option>
+            <option value="sketch">✏️ Phác Thảo Chì Nghệ Thuật</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Action Button: Chạy Tạo / Sửa Ảnh -->
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-bottom: 1rem;">
+        <button type="button" class="btn-ghost" onclick="window.closeProjectImageStudioModal()">Đóng</button>
+        <button type="button" id="btn-submit-proj-image" class="btn-primary" onclick="window.runProjectImageStudio()" style="padding: 0.6rem 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 0.45rem;">
+          <span id="btn-proj-img-spinner" class="spinner" style="display: none; width: 14px; height: 14px;"></span>
+          <span id="btn-proj-img-label">🎨 Bắt Đầu Tạo Ảnh</span>
+        </button>
+      </div>
+
+      <!-- Khu Vực Hiển Thị Kết Quả Ảnh Sau Khi Tạo -->
+      <div id="proj-img-result-wrap" style="display: none; border-top: 1px solid #27272a; padding-top: 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 0.35rem;">
+            <span>✨</span> Ảnh đã được tạo thành công:
+          </span>
+          <span id="proj-img-result-meta" style="font-size: 0.75rem; color: #71717a;">1024x1024</span>
+        </div>
+        <div style="background: #09090b; border: 1px solid #27272a; border-radius: 8px; padding: 0.5rem; text-align: center; margin-bottom: 0.75rem;">
+          <img id="proj-img-result-element" src="" alt="Kết quả tạo ảnh" style="max-height: 280px; max-width: 100%; border-radius: 6px; object-fit: contain;">
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+          <button type="button" class="btn-primary" onclick="window.attachCurrentProjImageToChat()" style="background: #2563eb; font-size: 0.8rem; padding: 0.45rem 0.85rem;">
+            📎 Đính Kèm Vào Chat Dự Án
+          </button>
+          <button type="button" class="btn-primary" onclick="window.saveCurrentProjImageToProject()" style="background: #059669; font-size: 0.8rem; padding: 0.45rem 0.85rem;">
+            💾 Lưu Vào Thư Mục Dự Án
+          </button>
+          <a id="btn-proj-download-img" href="#" download="ai-image.png" target="_blank" class="btn-ghost" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; text-decoration: none; display: inline-flex; align-items: center;">
+            📥 Tải Về
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION CONTAINER -->
  <div id="toast-container" class="toast-container"></div>
 
@@ -1518,6 +1674,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=5.7"></script>
+ <script src="app.js?v=5.8"></script>
 </body>
 </html>
