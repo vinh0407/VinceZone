@@ -4559,11 +4559,32 @@ async function setupChatTopBarProviderAndModel(chat) {
     modelSelectEl.innerHTML = '';
     if (!prov) return;
 
+    const MODEL_PURPOSES = {
+      'nvidia/nemotron-3-ultra-550b-a55b:free': 'Reasoning, AI Agent',
+      'nvidia/nemotron-3.5-super-vl:free': 'Phân tích hình ảnh (Vision)',
+      'nvidia/nemotron-3.5-lightning:free': 'Chat, Automation',
+      'xingchen-agi/xing4.0-29b-a4b:free': 'Planning, Tool Calling',
+      'liquid/lfm-2.5-2.6b:free': 'Trích xuất dữ liệu',
+      'google/gemma-4-26b-a4b-it:free': 'Chat, Hình ảnh & Video',
+      'cohere/north-mini-code:free': 'Lập trình chuyên sâu',
+      'recursive/flint-v1.0:free': 'Coding Agent',
+      'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free': 'Lập luận Logic',
+      'openrouter/free': 'Auto Router Free',
+      '@cf/meta/llama-3.2-1b-instruct': 'Chat nhẹ siêu nhanh',
+      '@cf/meta/llama-3.2-3b-instruct': 'Viết nội dung',
+      '@cf/meta/llama-3.1-8b-instruct-fp8-fast': 'Chat, xử lý văn bản',
+      '@cf/meta/llama-3.2-11b-vision-instruct': 'Phân tích ảnh (Vision)',
+      '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 'Reasoning suy luận sâu',
+      '@cf/baai/bge-m3': 'Embedding tìm kiếm',
+      '@cf/baai/bge-reranker-base': 'Xếp hạng tìm kiếm',
+      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh'
+    };
+
     (prov.models || []).forEach(m => {
       const opt = document.createElement('option');
       opt.value = m;
-      const isFree = m.includes(':free') || m.includes('-free') || m.includes('free');
-      opt.textContent = `${m} ${isFree ? '[FREE]' : ''}`;
+      const purpose = MODEL_PURPOSES[m] ? ` [${MODEL_PURPOSES[m]}]` : '';
+      opt.textContent = `${m}${purpose} [FREE 100%]`;
       modelSelectEl.appendChild(opt);
     });
 
@@ -4761,11 +4782,32 @@ window.openAddAgentCouncilModal = async function() {
       return;
     }
 
+    const MODEL_PURPOSES = {
+      'nvidia/nemotron-3-ultra-550b-a55b:free': 'Reasoning, AI Agent',
+      'nvidia/nemotron-3.5-super-vl:free': 'Phân tích hình ảnh (Vision)',
+      'nvidia/nemotron-3.5-lightning:free': 'Chat, Automation',
+      'xingchen-agi/xing4.0-29b-a4b:free': 'Planning, Tool Calling',
+      'liquid/lfm-2.5-2.6b:free': 'Trích xuất dữ liệu',
+      'google/gemma-4-26b-a4b-it:free': 'Chat, Hình ảnh & Video',
+      'cohere/north-mini-code:free': 'Lập trình chuyên sâu',
+      'recursive/flint-v1.0:free': 'Coding Agent',
+      'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free': 'Lập luận Logic',
+      'openrouter/free': 'Auto Router Free',
+      '@cf/meta/llama-3.2-1b-instruct': 'Chat nhẹ siêu nhanh',
+      '@cf/meta/llama-3.2-3b-instruct': 'Viết nội dung',
+      '@cf/meta/llama-3.1-8b-instruct-fp8-fast': 'Chat, xử lý văn bản',
+      '@cf/meta/llama-3.2-11b-vision-instruct': 'Phân tích ảnh (Vision)',
+      '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 'Reasoning suy luận sâu',
+      '@cf/baai/bge-m3': 'Embedding tìm kiếm',
+      '@cf/baai/bge-reranker-base': 'Xếp hạng tìm kiếm',
+      '@cf/black-forest-labs/flux-1-schnell': 'Tạo ảnh'
+    };
+
     prov.models.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m;
-      const isFree = m.includes(':free') || m.includes('-free') || m.includes('free');
-      opt.textContent = `${m} ${isFree ? '[FREE]' : ''}`;
+      const purpose = MODEL_PURPOSES[m] ? ` [${MODEL_PURPOSES[m]}]` : '';
+      opt.textContent = `${m}${purpose} [FREE 100%]`;
       modelSelect.appendChild(opt);
     });
 

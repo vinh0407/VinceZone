@@ -93,7 +93,18 @@ const defaultData = {
       type: 'openai-compatible',
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      models: ['deepseek/deepseek-chat', 'anthropic/claude-3.7-sonnet', 'openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct', 'cohere/north-mini-code:free', 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'],
+      models: [
+        'nvidia/nemotron-3-ultra-550b-a55b:free',
+        'nvidia/nemotron-3.5-super-vl:free',
+        'nvidia/nemotron-3.5-lightning:free',
+        'xingchen-agi/xing4.0-29b-a4b:free',
+        'liquid/lfm-2.5-2.6b:free',
+        'google/gemma-4-26b-a4b-it:free',
+        'cohere/north-mini-code:free',
+        'recursive/flint-v1.0:free',
+        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        'openrouter/free'
+      ],
       enabled: true,
       createdAt: new Date().toISOString()
     },
@@ -103,7 +114,16 @@ const defaultData = {
       type: 'openai-compatible',
       baseUrl: 'https://api.cloudflare.com/client/v4/accounts/e155cf04b558472645b9444756a0deed/ai/v1',
       apiKey: process.env.CLOUDFLARE_API_TOKEN || '',
-      models: ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/meta/llama-3.2-3b-instruct'],
+      models: [
+        '@cf/meta/llama-3.2-1b-instruct',
+        '@cf/meta/llama-3.2-3b-instruct',
+        '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+        '@cf/meta/llama-3.2-11b-vision-instruct',
+        '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        '@cf/baai/bge-m3',
+        '@cf/baai/bge-reranker-base',
+        '@cf/black-forest-labs/flux-1-schnell'
+      ],
       enabled: true,
       createdAt: new Date().toISOString()
     },

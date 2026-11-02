@@ -17,6 +17,17 @@ function getAdapter(type) {
 }
 
 async function routeChatRequest({ model, messages, temperature, max_tokens, stream, res, clientIp = '127.0.0.1', userId = null, providerId = null }) {
+  // Chuẩn hóa alias cho các model free của OpenRouter
+  const MODEL_ALIASES = {
+    'x-ai/xing4.0-29b-a4b:free': 'xingchen-agi/xing4.0-29b-a4b:free',
+    'liquid/lfm2.5-2.6b:free': 'liquid/lfm-2.5-2.6b:free',
+    'recursive/flint:free': 'recursive/flint-v1.0:free',
+    'flint:free': 'recursive/flint-v1.0:free'
+  };
+  if (model && MODEL_ALIASES[model]) {
+    model = MODEL_ALIASES[model];
+  }
+
   let match = null;
   if (providerId) {
     const prov = Store.getProviderById(providerId);

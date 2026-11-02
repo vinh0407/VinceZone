@@ -135,18 +135,16 @@
       "baseUrl": "https://openrouter.ai/api/v1",
       "apiKey": "",
       "models": [
-        "deepseek/deepseek-chat",
-        "anthropic/claude-3.7-sonnet",
-        "anthropic/claude-3.5-sonnet",
-        "openai/gpt-4o",
-        "openai/gpt-4o-mini",
-        "google/gemini-2.0-flash-001",
-        "meta-llama/llama-3.3-70b-instruct",
-        "cohere/north-mini-code:free",
-        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-super-vl:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "xingchen-agi/xing4.0-29b-a4b:free",
         "liquid/lfm-2.5-2.6b:free",
-        "recursive/flint-v1.0:free"
+        "google/gemma-4-26b-a4b-it:free",
+        "cohere/north-mini-code:free",
+        "recursive/flint-v1.0:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "openrouter/free"
       ],
       "enabled": true,
       "createdAt": "2026-11-02T00:24:26.490Z"
@@ -159,10 +157,14 @@
       "apiKey": "",
       "accountId": "e155cf04b558472645b9444756a0deed",
       "models": [
-        "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-        "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+        "@cf/meta/llama-3.2-1b-instruct",
         "@cf/meta/llama-3.2-3b-instruct",
-        "@cf/meta/llama-3.2-1b-instruct"
+        "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+        "@cf/meta/llama-3.2-11b-vision-instruct",
+        "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+        "@cf/baai/bge-m3",
+        "@cf/baai/bge-reranker-base",
+        "@cf/black-forest-labs/flux-1-schnell"
       ],
       "enabled": true,
       "createdAt": "2026-11-02T00:24:26.490Z"
@@ -178,6 +180,42 @@
     }
   ],
   "logs": [
+    {
+      "id": "log_04ad00a99bc5",
+      "timestamp": "2026-11-02T00:53:51.178Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 2735,
+      "stream": false,
+      "tokens": 1498
+    },
+    {
+      "id": "log_89c5144528e8",
+      "timestamp": "2026-11-02T00:50:18.984Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "@cf/meta/llama-3.2-3b-instruct",
+      "provider": "Cloudflare Workers AI",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 451,
+      "stream": false,
+      "tokens": 212
+    },
+    {
+      "id": "log_80d1f9238cd8",
+      "timestamp": "2026-11-02T00:50:18.527Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "cohere/north-mini-code:free",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 1996,
+      "stream": false,
+      "tokens": 310
+    },
     {
       "id": "log_a8ef64acbb4e",
       "timestamp": "2026-11-02T00:48:48.577Z",
@@ -776,6 +814,26 @@
               "agentColor": "#10b981",
               "content": "[Lập Trình Viên]: Để kiểm tra hoạt động của Provider OpenRouter và Cloudflare, chúng ta cần thực hiện các bước sau:\n\n### 1. Kiểm tra OpenRouter:\nChúng ta sẽ viết một đoạn mã để kiểm tra kết nối đến OpenRouter API.\n\n```javascript\n// File: C:\\VisualStudio\\VinceZone\\utils\\checkOpenRouter.js\nconst axios = require('axios');\n\nasync function checkOpenRouter() {\n    try {\n        const response = await axios.get('https://openrouter.ai/api/v1/status');\n        console.log('OpenRouter Status:', response.data);\n    } catch (error) {\n        console.error('Error checking OpenRouter:', error.message);\n    }\n}\n\ncheckOpenRouter();\n```\n\n### 2. Kiểm tra Cloudflare:\nChúng ta sẽ kiểm tra kết nối đến Cloudflare bằng cách ping một trong các máy chủ của họ.\n\n```powershell\n# File: C:\\VisualStudio\\VinceZone\\scripts\\checkCloudflare.ps1\nTest-Connection -ComputerName \"1.1.1.1\" -Count 4\n```\n\n### 3. Chạy kiểm tra:\nBạn có thể chạy các lệnh sau trong Terminal để kiểm tra:\n\n```powershell\nnode C:\\VisualStudio\\VinceZone\\utils\\checkOpenRouter.js\n```\n\n```powershell\npowershell -File C:\\VisualStudio\\VinceZone\\scripts\\checkCloudflare.ps1\n```\n\nHãy chạy các lệnh trên và cho tôi biết kết quả để tôi có thể hỗ trợ bạn tốt hơn! 😊",
               "timestamp": "2026-11-02T00:48:48.579Z"
+            },
+            {
+              "id": "msg_c4faeb7111a6",
+              "role": "user",
+              "author": "Người Dùng (Ý Tưởng)",
+              "agentId": null,
+              "agentBadge": null,
+              "agentColor": null,
+              "content": "Viết cho tôi một hàm JavaScript tính tổng 2 số ngắn gọn nhất.",
+              "timestamp": "2026-11-02T00:53:48.439Z"
+            },
+            {
+              "id": "msg_b68039972c41",
+              "role": "assistant",
+              "author": "Lập Trình Viên",
+              "agentId": "ag_9a20cb8f",
+              "agentBadge": "CODER",
+              "agentColor": "#10b981",
+              "content": "// File: C:\\VisualStudio\\VinceZone\\utils\\add.js\nconst add = (a, b) => a + b;",
+              "timestamp": "2026-11-02T00:53:51.180Z"
             }
           ],
           "agents": [
@@ -788,16 +846,16 @@
               "color": "#10b981",
               "providerId": "prov_openrouter",
               "providerName": "OpenRouter",
-              "model": "deepseek/deepseek-chat",
+              "model": "cohere/north-mini-code:free",
               "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
             }
           ],
-          "model": "deepseek/deepseek-chat",
+          "model": "cohere/north-mini-code:free",
           "providerId": "prov_openrouter"
         }
       ],
       "createdAt": "2026-11-01T23:59:59.543Z",
-      "updatedAt": "2026-11-02T00:48:48.579Z"
+      "updatedAt": "2026-11-02T00:53:51.180Z"
     }
   ]
 }
