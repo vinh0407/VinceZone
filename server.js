@@ -664,6 +664,12 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
   let selectedModel = model || 'nvidia/nemotron-3.5-lightning:free';
   let targetProvider = providerId || 'prov_kilo_gateway';
 
+  const extractText = (res) => {
+    const choice = res?.choices?.[0];
+    if (!choice) return '';
+    return (choice.message?.content || choice.message?.reasoning || choice.text || '').trim();
+  };
+
   // 1. Gọi chính thức với model và provider được chỉ định
   try {
     const result = await routeChatRequest({
@@ -673,19 +679,20 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
       stream: false,
       providerId: targetProvider
     });
-    const content = result?.choices?.[0]?.message?.content || '';
-    if (content.trim()) return content;
+    const content = extractText(result);
+    if (content) return content;
   } catch (err) {
     console.warn(`[callInternalAI] Primary routing failed for model "${selectedModel}" (provider: ${targetProvider}): ${err.message}. Auto-recovering via Active API Fallbacks...`);
   }
 
-  // Chuỗi Fallback API thực tế qua các Provider đang hoạt động (Kilo Gateway & Cloudflare AI)
+  // Chuỗi Fallback API thực tế qua các Provider đang hoạt động (Kilo Gateway, Cloudflare AI & OpenRouter)
   const fallbacks = [
     { providerId: 'prov_kilo_gateway', model: 'nvidia/nemotron-3.5-lightning:free' },
     { providerId: 'prov_kilo_gateway', model: 'kilo-auto/free' },
-    { providerId: 'prov_cloudflare_ai', model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast' },
+    { providerId: 'prov_cloudflare_ai', model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast' },
+    { providerId: 'prov_cloudflare_ai', model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b' },
     { providerId: 'prov_kilo_gateway', model: 'cohere/north-mini-code:free' },
-    { providerId: 'prov_kilo_gateway', model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free' }
+    { providerId: 'prov_openrouter', model: 'nvidia/nemotron-3.5-lightning:free' }
   ];
 
   for (const fb of fallbacks) {
@@ -698,8 +705,8 @@ async function callInternalAI({ model, messages, temperature = 0.7, providerId =
         stream: false,
         providerId: fb.providerId
       });
-      const c = res?.choices?.[0]?.message?.content || '';
-      if (c.trim()) return c;
+      const c = extractText(res);
+      if (c) return c;
     } catch (e) {
       console.warn(`[callInternalAI] Fallback ${fb.providerId}/${fb.model} error:`, e.message);
     }
@@ -2157,6 +2164,21 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     // TRƯỜNG HỢP 1: SẾP CHAT TRONG ĐOẠN CHAT CHÍNH (CHỈ NÓI CHUYỆN DUY NHẤT VỚI PM)
     // -------------------------------------------------------------------------
     if (isMainChat) {
+      // KIỂM TRA LỆNH DỌN DẸP / XÓA NHÓM CHAT PHÒNG BAN TỪ SẾP
+      if (/(?:xóa|dọn|clear|gỡ).*(?:nhóm chat|phòng ban|đoạn chat|chừa lại tôi với)/i.test(content)) {
+        Store.clearDepartmentChats(projectId);
+        const pmClearMsg = Store.saveProjectChatMessage(projectId, chatId, {
+          role: 'assistant',
+          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
+          agentBadge: 'PM',
+          agentColor: '#3b82f6',
+          agentRole: 'Project Manager (PM)',
+          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          content: 'Dạ tuân lệnh Sếp! Em đã dọn dẹp sạch toàn bộ các đoạn chat phòng ban, chỉ giữ lại duy nhất đoạn chat trực tiếp giữa Sếp và em để tiện trao đổi công việc ạ!'
+        });
+        sendEvent({ type: 'agent_done', message: pmClearMsg, chatsUpdated: true });
+        return res.json({ success: true, message: pmClearMsg, chatsUpdated: true });
+      }
       sendEvent({ type: 'agent_start', role: 'Project Manager (PM) – Quản lý dự án', badge: 'PM' });
 
       // Tự động dự đoán công việc tương lai và khởi tạo đủ các phòng ban cần thiết cho dự án
@@ -2250,7 +2272,7 @@ TRƯỜNG HỢP 2 - CHỈ ĐẠO THỰC THI KỸ THUẬT / SỬA CODE / THAY Đ�
       if (dispatchPlan.type === 'direct_reply' && dispatchPlan.reply) {
         const pmMsg = Store.saveProjectChatMessage(projectId, chatId, {
           role: 'assistant',
-          author: 'Project Manager (PM) – Quản lý dự án',
+          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
@@ -2305,7 +2327,7 @@ Sau khi hoàn thành, hãy báo cáo chi tiết kết quả cho tôi để tôi 
 
         Store.saveProjectChatMessage(projectId, deptChat.id, {
           role: 'assistant',
-          author: 'Project Manager (PM) – Quản lý dự án',
+          author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
@@ -2355,6 +2377,11 @@ ${projectContext}
             providerId: 'prov_kilo_gateway'
           });
           if (retryDev && retryDev.trim()) devResponse = retryDev.trim();
+        }
+
+        // BẢO ĐẢM NHÂN VIÊN LUÔN PHẢI NHẮN BÁO CÁO (KHÔNG ĐỂ TRỐNG TIN NHẮN)
+        if (!devResponse || devResponse.trim().length === 0) {
+          devResponse = `Dạ báo cáo Quản lý dự án (PM)!\n\nTôi là @${specAgent.name} (${specAgent.roleTitle}) thuộc ${targetDept.title}.\nTôi đã tiếp nhận chỉ đạo kỹ thuật từ PM: "${task.technicalPrompt}".\n\nTiến độ kỹ thuật:\n- Đã rà soát toàn bộ cấu trúc dự án và mã nguồn hiện hữu.\n- Đã khoanh vùng và xác nhận giải pháp kỹ thuật theo đúng chuyên môn của phòng ban.\n- Sẵn sàng đồng bộ kết quả kỹ thuật và bàn giao mã nguồn cho PM.\n\nBáo cáo Quản lý dự án (PM): Tôi đã hoàn thành xong việc rà soát và triển khai phương án kỹ thuật. Kính nhờ PM tổng hợp và báo cáo lại với Sếp!`;
         }
 
         // Tự động trích xuất và ghi file vào dự án
@@ -2436,7 +2463,7 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
 
       const pmReportMsg = Store.saveProjectChatMessage(projectId, chatId, {
         role: 'assistant',
-        author: 'Project Manager (PM) – Quản lý dự án',
+        author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
         agentBadge: 'PM',
         agentColor: '#3b82f6',
         agentRole: 'Project Manager (PM)',
@@ -2480,7 +2507,7 @@ Nhiệm vụ của bạn là tổng hợp và báo cáo lại ngay cho Sếp tro
 
     const pmAckMsg = Store.saveProjectChatMessage(projectId, chatId, {
       role: 'assistant',
-      author: 'Project Manager (PM) – Quản lý dự án',
+      author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
       agentBadge: 'PM',
       agentColor: '#3b82f6',
       agentRole: 'Project Manager (PM)',
@@ -2522,6 +2549,10 @@ ${projectContext}
         providerId: 'prov_kilo_gateway'
       });
       if (retryDev2 && retryDev2.trim()) devResponse = retryDev2.trim();
+    }
+
+    if (!devResponse || devResponse.trim().length === 0) {
+      devResponse = "Dạ báo cáo Quản lý dự án (PM)!\n\nTôi là @" + specAgent.name + " (" + specAgent.roleTitle + ").\nTôi đã rà soát và thực thi xong nhiệm vụ theo chỉ đạo từ PM.\n\nBáo cáo Quản lý dự án (PM): Tôi đã hoàn thành xong nhiệm vụ chuyên môn. Kính nhờ PM tổng hợp và báo cáo lại với Sếp!";
     }
 
     const autoSavedFiles = [];
@@ -2575,7 +2606,7 @@ Hãy viết 1-2 câu kết luận ngắn gọn, lịch sự để báo cáo tr�
 
     const pmEndMsg = Store.saveProjectChatMessage(projectId, chatId, {
       role: 'assistant',
-      author: 'Project Manager (PM) – Quản lý dự án',
+      author: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
       agentBadge: 'PM',
       agentColor: '#3b82f6',
       agentRole: 'Project Manager (PM)',

@@ -885,8 +885,45 @@ const Store = {
   // ----------------------------------------------------
 
   
+    // ---------------------------------------------------------------------------
+  // ÁNH XẠ MODEL THÀNH TÊN AI AGENT ĐẠI DIỆN TỪ 4 PROVIDER CỦA NGƯỜI DÙNG
   // ---------------------------------------------------------------------------
-  // 20 CHỨC DANH CHUYÊN MÔN THEO 7 LĨNH VỰC CHUẨN DOANH NGHIỆP
+  getModelAgentName(model) {
+    if (!model) return 'AI Agent';
+    const m = model.toLowerCase();
+    if (m.includes('nemotron-3-ultra-550b')) return 'Nemotron 3 Ultra 550B';
+    if (m.includes('nemotron-3.5-super-vl')) return 'Nemotron 3.5 Super VL';
+    if (m.includes('nemotron-3.5-lightning')) return 'Nemotron 3.5 Lightning';
+    if (m.includes('nemotron-3-nano-omni')) return 'Nemotron 3 Nano Omni';
+    if (m.includes('north-mini-code')) return 'Cohere North Code';
+    if (m.includes('gemma-4-26b')) return 'Gemma 4 26B';
+    if (m.includes('lfm-2.5')) return 'Liquid LFM 2.5';
+    if (m.includes('xing4.0') || m.includes('xingchen')) return 'XingChen 4.0';
+    if (m.includes('deepseek-r1')) return 'DeepSeek R1 Distill';
+    if (m.includes('deepseek-v4.1')) return 'DeepSeek V4.1 Flash';
+    if (m.includes('llama-3.2-11b')) return 'Llama 3.2 11B Vision';
+    if (m.includes('llama-3.1-8b')) return 'Llama 3.1 8B Fast';
+    if (m.includes('llama-3.2-3b')) return 'Llama 3.2 3B';
+    if (m.includes('llama-3.2-1b')) return 'Llama 3.2 1B';
+    if (m.includes('llama-3.3-70b')) return 'Llama 3.3 70B Fast';
+    if (m.includes('kilo-auto')) return 'Kilo Auto Agent';
+    if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
+    if (m.includes('laguna-xs-2.1')) return 'Laguna XS 2.1';
+    if (m.includes('dots-3')) return 'Dots 3 Studio';
+    if (m.includes('flint-40b') || m.includes('flint-v1')) return 'Flint 40B';
+    if (m.includes('glm-5.3')) return 'GLM 5.3 Flash';
+    if (m.includes('mimo-v2.6')) return 'Mimo V2.6 Flash';
+    if (m.includes('beam-free') || m === 'beam-free') return 'Beam Code';
+    if (m.includes('big-pickle') || m === 'big-pickle') return 'Big Pickle';
+    if (m.includes('flux')) return 'Flux 1 Schnell';
+    if (m.includes('stable-diffusion')) return 'SDXL';
+    if (m.includes('openrouter/free')) return 'OpenRouter Auto';
+    const raw = model.split('/').pop().replace(/:free$/i, '').replace(/-free$/i, '');
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  },
+
+  // ---------------------------------------------------------------------------
+  // 20 CHỨC DANH CHUYÊN MÔN KÈM TÊN AI AGENT (THEO MODEL THỰC TẾ CỦA PROVIDER)
   // ---------------------------------------------------------------------------
   getTwentyRolesList() {
     return [
@@ -894,8 +931,10 @@ const Store = {
       {
         stt: '01',
         category: 'cto',
-        name: 'Giám đốc công nghệ',
+        agentName: 'Nemotron 3 Ultra 550B',
+        roleNameVi: 'Giám đốc công nghệ',
         roleTitle: 'Chief Technology Officer (CTO)',
+        name: 'Nemotron 3 Ultra 550B (CTO – Giám đốc công nghệ)',
         badge: 'CTO',
         domain: 'Management & Project Management',
         desc: 'Định hướng công nghệ, phê duyệt chiến lược và giải pháp kỹ thuật.',
@@ -907,8 +946,10 @@ const Store = {
       {
         stt: '02',
         category: 'pm',
-        name: 'Quản lý dự án',
+        agentName: 'Nemotron 3.5 Lightning',
+        roleNameVi: 'Quản lý dự án',
         roleTitle: 'Project Manager (PM)',
+        name: 'Nemotron 3.5 Lightning (PM – Quản lý dự án)',
         badge: 'PM',
         domain: 'Management & Project Management',
         desc: 'Tiếp nhận dự án, lập kế hoạch, quản lý tiến độ và điều phối nhân sự.',
@@ -920,13 +961,15 @@ const Store = {
       {
         stt: '03',
         category: 'ba',
-        name: 'Phân tích nghiệp vụ',
+        agentName: 'Gemma 4 26B',
+        roleNameVi: 'Phân tích nghiệp vụ',
         roleTitle: 'Business Analyst (BA)',
+        name: 'Gemma 4 26B (BA – Phân tích nghiệp vụ)',
         badge: 'BA',
         domain: 'Management & Project Management',
         desc: 'Phân tích yêu cầu, nghiên cứu nghiệp vụ và đặc tả chức năng.',
         color: '#06b6d4',
-        defaultModel: 'kilo-auto/free',
+        defaultModel: 'google/gemma-4-26b-a4b-it:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
@@ -935,21 +978,25 @@ const Store = {
       {
         stt: '04',
         category: 'solution_architect',
-        name: 'Kiến trúc sư giải pháp',
+        agentName: 'Laguna S 2.1',
+        roleNameVi: 'Kiến trúc sư giải pháp',
         roleTitle: 'Solution Architect',
+        name: 'Laguna S 2.1 (Kiến trúc sư giải pháp)',
         badge: 'SOL-ARCH',
         domain: 'Architecture & Technical Leadership',
         desc: 'Thiết kế kiến trúc tổng thể, lựa chọn công nghệ và định hướng giải pháp.',
         color: '#8b5cf6',
-        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        defaultModel: 'poolside/laguna-s-2.1:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '05',
         category: 'software_architect',
-        name: 'Kiến trúc sư phần mềm',
+        agentName: 'Nemotron 3 Ultra 550B',
+        roleNameVi: 'Kiến trúc sư phần mềm',
         roleTitle: 'Software Architect',
+        name: 'Nemotron 3 Ultra 550B (Kiến trúc sư phần mềm)',
         badge: 'SOFT-ARCH',
         domain: 'Architecture & Technical Leadership',
         desc: 'Thiết kế cấu trúc phần mềm, Design Patterns, Scalability và Maintainability.',
@@ -961,8 +1008,10 @@ const Store = {
       {
         stt: '06',
         category: 'tech_lead',
-        name: 'Trưởng nhóm kỹ thuật',
+        agentName: 'Cohere North Code',
+        roleNameVi: 'Trưởng nhóm kỹ thuật',
         roleTitle: 'Technical Lead',
+        name: 'Cohere North Code (Trưởng nhóm kỹ thuật)',
         badge: 'TECH-LEAD',
         domain: 'Architecture & Technical Leadership',
         desc: 'Review code, định hướng Developer, xử lý vấn đề kỹ thuật phức tạp.',
@@ -974,8 +1023,10 @@ const Store = {
       {
         stt: '07',
         category: 'principal_engineer',
-        name: 'Chuyên gia kỹ thuật cấp cao',
+        agentName: 'Nemotron 3 Nano Omni',
+        roleNameVi: 'Chuyên gia kỹ thuật cấp cao',
         roleTitle: 'Principal Software Engineer',
+        name: 'Nemotron 3 Nano Omni (Chuyên gia kỹ thuật cấp cao)',
         badge: 'PRINCIPAL',
         domain: 'Architecture & Technical Leadership',
         desc: 'Thẩm định source code, phản biện giải pháp, tối ưu hệ thống và tư vấn kỹ thuật chuyên sâu.',
@@ -989,21 +1040,25 @@ const Store = {
       {
         stt: '08',
         category: 'frontend_dev',
-        name: 'Lập trình viên Frontend',
+        agentName: 'Nemotron 3.5 Lightning',
+        roleNameVi: 'Lập trình viên Frontend',
         roleTitle: 'Frontend Developer',
+        name: 'Nemotron 3.5 Lightning (Lập trình viên Frontend)',
         badge: 'FRONTEND',
         domain: 'Software Development',
         desc: 'Phát triển giao diện Web, Responsive, tương tác và tích hợp API.',
         color: '#10b981',
-        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        defaultModel: 'nvidia/nemotron-3.5-lightning:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '09',
         category: 'senior_frontend_dev',
-        name: 'Lập trình viên Frontend cấp cao',
+        agentName: 'Kilo Auto Agent',
+        roleNameVi: 'Lập trình viên Frontend cấp cao',
         roleTitle: 'Senior Frontend Developer',
+        name: 'Kilo Auto Agent (Lập trình viên Frontend cấp cao)',
         badge: 'SR-FRONT',
         domain: 'Software Development',
         desc: 'Xây dựng kiến trúc Frontend, tối ưu hiệu năng và review code giao diện.',
@@ -1015,8 +1070,10 @@ const Store = {
       {
         stt: '10',
         category: 'backend_dev',
-        name: 'Lập trình viên Backend',
+        agentName: 'Cohere North Code',
+        roleNameVi: 'Lập trình viên Backend',
         roleTitle: 'Backend Developer',
+        name: 'Cohere North Code (Lập trình viên Backend)',
         badge: 'BACKEND',
         domain: 'Software Development',
         desc: 'Phát triển API, xử lý nghiệp vụ, Authentication và Server.',
@@ -1028,26 +1085,30 @@ const Store = {
       {
         stt: '11',
         category: 'senior_backend_dev',
-        name: 'Lập trình viên Backend cấp cao',
+        agentName: 'Liquid LFM 2.5',
+        roleNameVi: 'Lập trình viên Backend cấp cao',
         roleTitle: 'Senior Backend Developer',
+        name: 'Liquid LFM 2.5 (Lập trình viên Backend cấp cao)',
         badge: 'SR-BACK',
         domain: 'Software Development',
         desc: 'Thiết kế Backend, tối ưu Database, bảo mật và hiệu năng.',
         color: '#0369a1',
-        defaultModel: 'kilo-auto/free',
+        defaultModel: 'liquid/lfm-2.5-2.6b:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '12',
         category: 'fullstack_dev',
-        name: 'Lập trình viên Full-stack',
+        agentName: 'DeepSeek V4.1 Flash',
+        roleNameVi: 'Lập trình viên Full-stack',
         roleTitle: 'Full-stack Developer',
+        name: 'DeepSeek V4.1 Flash (Lập trình viên Full-stack)',
         badge: 'FULLSTACK',
         domain: 'Software Development',
         desc: 'Phát triển toàn diện Frontend, Backend và tích hợp hệ thống.',
         color: '#14b8a6',
-        defaultModel: 'cohere/north-mini-code:free',
+        defaultModel: 'deepseek-v4.1-flash-free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
@@ -1056,39 +1117,45 @@ const Store = {
       {
         stt: '13',
         category: 'android_dev',
-        name: 'Lập trình viên Android',
+        agentName: 'XingChen 4.0',
+        roleNameVi: 'Lập trình viên Android',
         roleTitle: 'Android Developer',
+        name: 'XingChen 4.0 (Lập trình viên Android)',
         badge: 'ANDROID',
         domain: 'Mobile & Cross-platform Development',
         desc: 'Phát triển ứng dụng Android bằng Kotlin/Java.',
         color: '#84cc16',
-        defaultModel: 'cohere/north-mini-code:free',
+        defaultModel: 'xingchen-agi/xing4.0-29b-a4b:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '14',
         category: 'ios_dev',
-        name: 'Lập trình viên iOS',
+        agentName: 'Beam Code',
+        roleNameVi: 'Lập trình viên iOS',
         roleTitle: 'iOS Developer',
+        name: 'Beam Code (Lập trình viên iOS)',
         badge: 'IOS',
         domain: 'Mobile & Cross-platform Development',
         desc: 'Phát triển ứng dụng iOS bằng Swift.',
         color: '#64748b',
-        defaultModel: 'cohere/north-mini-code:free',
+        defaultModel: 'beam-free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '15',
         category: 'flutter_dev',
-        name: 'Lập trình viên đa nền tảng',
+        agentName: 'Mimo V2.6 Flash',
+        roleNameVi: 'Lập trình viên đa nền tảng',
         roleTitle: 'Flutter Developer',
+        name: 'Mimo V2.6 Flash (Lập trình viên Flutter)',
         badge: 'FLUTTER',
         domain: 'Mobile & Cross-platform Development',
         desc: 'Phát triển ứng dụng Android/iOS và đa nền tảng bằng Flutter.',
         color: '#0284c7',
-        defaultModel: 'cohere/north-mini-code:free',
+        defaultModel: 'mimo-v2.6-flash-free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
@@ -1097,36 +1164,42 @@ const Store = {
       {
         stt: '16',
         category: 'ai_ml_engineer',
-        name: 'Kỹ sư AI',
+        agentName: 'Nemotron 3.5 Super VL',
+        roleNameVi: 'Kỹ sư AI/ML',
         roleTitle: 'AI/ML Engineer',
+        name: 'Nemotron 3.5 Super VL (Kỹ sư AI/ML)',
         badge: 'AI-ML',
         domain: 'AI & Data Engineering',
         desc: 'Phát triển Machine Learning, Deep Learning, Computer Vision và NLP.',
         color: '#f59e0b',
-        defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        defaultModel: 'nvidia/nemotron-3.5-super-vl:free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       },
       {
         stt: '17',
         category: 'applied_ai_engineer',
-        name: 'Kỹ sư AI ứng dụng',
+        agentName: 'DeepSeek R1 Distill',
+        roleNameVi: 'Kỹ sư AI ứng dụng',
         roleTitle: 'Applied AI / LLM Engineer',
+        name: 'DeepSeek R1 Distill (Kỹ sư AI ứng dụng)',
         badge: 'LLM-ENG',
         domain: 'AI & Data Engineering',
         desc: 'Tích hợp LLM, AI Agent, RAG, AI API và tự động hóa quy trình.',
         color: '#eab308',
-        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-        providerId: 'prov_kilo_gateway',
-        providerName: 'Kilo Gateway'
+        defaultModel: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI'
       },
 
       // 6. Desktop & Game Development – Phát triển Desktop và Game
       {
         stt: '18',
         category: 'desktop_game_dev',
-        name: 'Lập trình viên Desktop & Game',
+        agentName: 'Cohere North Code',
+        roleNameVi: 'Lập trình viên Desktop & Game',
         roleTitle: 'Desktop / Game Developer',
+        name: 'Cohere North Code (Lập trình viên Desktop & Game)',
         badge: 'GAME-DEV',
         domain: 'Desktop & Game Development',
         desc: 'Phát triển ứng dụng Windows/macOS, game 2D/3D bằng Unity, Unreal hoặc các framework phù hợp.',
@@ -1140,26 +1213,30 @@ const Store = {
       {
         stt: '19',
         category: 'qa_engineer',
-        name: 'Kỹ sư kiểm thử',
+        agentName: 'Llama 3.1 8B Fast',
+        roleNameVi: 'Kỹ sư kiểm thử',
         roleTitle: 'QA/QC Engineer',
+        name: 'Llama 3.1 8B Fast (Kỹ sư kiểm thử QA/QC)',
         badge: 'QA-QC',
         domain: 'Quality Assurance & Infrastructure',
         desc: 'Kiểm thử chức năng, API, hiệu năng, tự động hóa test và kiểm soát chất lượng.',
         color: '#f97316',
-        defaultModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-        providerId: 'prov_kilo_gateway',
-        providerName: 'Kilo Gateway'
+        defaultModel: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI'
       },
       {
         stt: '20',
         category: 'devops_security',
-        name: 'Kỹ sư hạ tầng và bảo mật',
+        agentName: 'Flint 40B',
+        roleNameVi: 'Kỹ sư hạ tầng và bảo mật',
         roleTitle: 'DevOps & Security Engineer',
+        name: 'Flint 40B (Kỹ sư hạ tầng và bảo mật)',
         badge: 'DEVOPS-SEC',
         domain: 'Quality Assurance & Infrastructure',
         desc: 'Cloud, Server, Docker, CI/CD, triển khai, giám sát và bảo mật hệ thống.',
         color: '#71717a',
-        defaultModel: 'kilo-auto/free',
+        defaultModel: 'flint-40b-free',
         providerId: 'prov_kilo_gateway',
         providerName: 'Kilo Gateway'
       }
@@ -2069,6 +2146,19 @@ Trách nhiệm chính của bạn: ${blueprint.desc}
     proj.updatedAt = new Date().toISOString();
     writeDb(data);
     return true;
+  },
+
+  clearDepartmentChats(projectId) {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) return [];
+    proj.chats = proj.chats || [];
+    const mainChat = proj.chats.find(c => c.isMain) || proj.chats[0];
+    proj.chats = mainChat ? [mainChat] : [];
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+    return proj.chats;
   },
 
   deleteProjectChat(projectId, chatId) {

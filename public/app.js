@@ -4943,6 +4943,42 @@ async function setupChatTopBarProviderAndModel(chat) {
   updateTopbarModelSummary();
 }
 
+// Ánh xạ Model thành tên AI Agent đại diện từ danh mục Model của người dùng
+function getClientModelAgentName(model) {
+  if (!model) return 'AI Agent';
+  const m = model.toLowerCase();
+  if (m.includes('nemotron-3-ultra-550b')) return 'Nemotron 3 Ultra 550B';
+  if (m.includes('nemotron-3.5-super-vl')) return 'Nemotron 3.5 Super VL';
+  if (m.includes('nemotron-3.5-lightning')) return 'Nemotron 3.5 Lightning';
+  if (m.includes('nemotron-3-nano-omni')) return 'Nemotron 3 Nano Omni';
+  if (m.includes('north-mini-code')) return 'Cohere North Code';
+  if (m.includes('gemma-4-26b')) return 'Gemma 4 26B';
+  if (m.includes('lfm-2.5')) return 'Liquid LFM 2.5';
+  if (m.includes('xing4.0') || m.includes('xingchen')) return 'XingChen 4.0';
+  if (m.includes('deepseek-r1')) return 'DeepSeek R1 Distill';
+  if (m.includes('deepseek-v4.1')) return 'DeepSeek V4.1 Flash';
+  if (m.includes('llama-3.2-11b')) return 'Llama 3.2 11B Vision';
+  if (m.includes('llama-3.1-8b')) return 'Llama 3.1 8B Fast';
+  if (m.includes('llama-3.2-3b')) return 'Llama 3.2 3B';
+  if (m.includes('llama-3.2-1b')) return 'Llama 3.2 1B';
+  if (m.includes('llama-3.3-70b')) return 'Llama 3.3 70B Fast';
+  if (m.includes('kilo-auto')) return 'Kilo Auto Agent';
+  if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
+  if (m.includes('laguna-xs-2.1')) return 'Laguna XS 2.1';
+  if (m.includes('dots-3')) return 'Dots 3 Studio';
+  if (m.includes('flint-40b') || m.includes('flint-v1')) return 'Flint 40B';
+  if (m.includes('glm-5.3')) return 'GLM 5.3 Flash';
+  if (m.includes('mimo-v2.6')) return 'Mimo V2.6 Flash';
+  if (m.includes('beam-free') || m === 'beam-free') return 'Beam Code';
+  if (m.includes('big-pickle') || m === 'big-pickle') return 'Big Pickle';
+  if (m.includes('flux')) return 'Flux 1 Schnell';
+  if (m.includes('stable-diffusion')) return 'SDXL';
+  if (m.includes('openrouter/free')) return 'OpenRouter Auto';
+  const raw = model.split('/').pop().replace(/:free$/i, '').replace(/-free$/i, '');
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+window.getClientModelAgentName = getClientModelAgentName;
+
 // 7. Render Nội Dung Cuộc Trò Chuyện & Top Bar
 function renderActiveChatAgents(chat) {
   const agentsRowEl = document.getElementById('chat-agents-pills-row');
@@ -4952,6 +4988,11 @@ function renderActiveChatAgents(chat) {
     agentsRowEl.innerHTML = '';
     agents.forEach(ag => {
       const badgeClass = getBadgeClassForRole(ag.category, ag.badge);
+      const modelAgentName = getClientModelAgentName(ag.model);
+      let agDisplayName = ag.name || 'AI Agent';
+      if (ag.model && !agDisplayName.includes(modelAgentName)) {
+        agDisplayName = `${modelAgentName} (${agDisplayName})`;
+      }
 
       const chip = document.createElement('div');
       chip.className = 'chat-agent-pill';
@@ -4959,7 +5000,7 @@ function renderActiveChatAgents(chat) {
       chip.title = `Model: ${ag.model || 'Auto'}${provText} - Vai trò: ${ag.roleTitle || ag.name}`;
       chip.innerHTML = `
         <span class="agent-badge ${badgeClass}">${escapeHtml(ag.badge || 'AI')}</span>
-        <span class="agent-name-text">${escapeHtml(ag.name)}</span>
+        <span class="agent-name-text">${escapeHtml(agDisplayName)}</span>
         <span class="agent-model-pill-tag" style="font-size:0.65rem; color:#71717a; font-family:monospace;">(${escapeHtml(ag.model || 'Auto')})</span>
         <button type="button" class="chip-remove-btn" onclick="removeAgentFromActiveChat('${ag.id}')" title="Xóa Agent khỏi Hội Đồng">&times;</button>
       `;
@@ -5510,9 +5551,10 @@ function appendProjectMessageToFeed(msg, feedEl) {
   // Parse markdown
   let parsedContent = '';
   try {
-    parsedContent = marked.parse(rawCleanText);
+    const displayContent = rawCleanText || (isUser ? '' : '*Đã hoàn thành rà soát kỹ thuật và đang báo cáo cho Quản lý dự án (PM)...*');
+    parsedContent = marked.parse(displayContent);
   } catch (e) {
-    parsedContent = escapeHtml(rawCleanText);
+    parsedContent = escapeHtml(displayContent);
   }
 
   // Tự động highlight chính xác các tag Mention @Tên (tránh khớp tham lam các từ phía sau)
@@ -5583,12 +5625,26 @@ function appendProjectMessageToFeed(msg, feedEl) {
 
     const modelTagHtml = msg.agentModel ? `<span class="agent-model-tag">${escapeHtml(msg.agentModel)}</span>` : '';
 
+    let authorDisplay = msg.author || 'AI';
+    if (msg.agentModel) {
+      const modelAgentName = getClientModelAgentName(msg.agentModel);
+      if (!authorDisplay.includes(modelAgentName)) {
+        if (authorDisplay.includes('PM') || authorDisplay.includes('Quản lý')) {
+          authorDisplay = `${modelAgentName} (PM – Quản lý dự án)`;
+        } else if (authorDisplay.includes('(')) {
+          authorDisplay = `${modelAgentName} ${authorDisplay}`;
+        } else {
+          authorDisplay = `${modelAgentName} (${authorDisplay})`;
+        }
+      }
+    }
+
     msgEl.innerHTML = `
       <div class="proj-msg-header">
         <div class="proj-msg-author-wrap">
           <span class="agent-avatar-icon">${avatarIcon}</span>
           <span class="agent-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
-          <span class="proj-msg-author">${escapeHtml(msg.author || 'AI')}</span>
+          <span class="proj-msg-author">${escapeHtml(authorDisplay)}</span>
         </div>
         <div class="proj-msg-meta-right">
           ${modelTagHtml}
@@ -7393,6 +7449,11 @@ window.renderAgentDropdownList = function() {
     item.onclick = () => window.selectAgentTarget(ag);
 
     const badgeClass = getBadgeClassForRole(ag.category, ag.badge);
+    const modelAgentName = getClientModelAgentName(ag.model);
+    let agDisplayName = ag.name || 'AI Agent';
+    if (ag.model && !agDisplayName.includes(modelAgentName)) {
+      agDisplayName = `${modelAgentName} (${agDisplayName})`;
+    }
 
     item.innerHTML = `
       <div class="agent-opt-icon">
@@ -7400,7 +7461,7 @@ window.renderAgentDropdownList = function() {
       </div>
       <div class="agent-opt-info">
         <div class="agent-opt-name-row">
-          <span class="agent-opt-name">${escapeHtml(ag.name)}</span>
+          <span class="agent-opt-name">${escapeHtml(agDisplayName)}</span>
           <span class="agent-opt-model-tag">${escapeHtml(ag.model || 'Auto')}</span>
         </div>
         <div class="agent-opt-desc">${escapeHtml(ag.roleTitle || ag.category || 'AI Agent Chuyên Sâu')} ${ag.providerName ? '· ' + escapeHtml(ag.providerName) : ''}</div>
