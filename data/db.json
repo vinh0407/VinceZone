@@ -127,6 +127,45 @@
       "enabled": true,
       "createdAt": "2026-10-30T13:11:54.620Z",
       "updatedAt": "2026-10-30T14:07:27.048Z"
+    },
+    {
+      "id": "prov_openrouter",
+      "name": "OpenRouter",
+      "type": "openai-compatible",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "",
+      "models": [
+        "deepseek/deepseek-chat",
+        "anthropic/claude-3.7-sonnet",
+        "anthropic/claude-3.5-sonnet",
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "google/gemini-2.0-flash-001",
+        "meta-llama/llama-3.3-70b-instruct",
+        "cohere/north-mini-code:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "google/gemma-4-31b-it:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "recursive/flint-v1.0:free"
+      ],
+      "enabled": true,
+      "createdAt": "2026-11-02T00:24:26.490Z"
+    },
+    {
+      "id": "prov_cloudflare_ai",
+      "name": "Cloudflare Workers AI",
+      "type": "openai-compatible",
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/e155cf04b558472645b9444756a0deed/ai/v1",
+      "apiKey": "",
+      "accountId": "e155cf04b558472645b9444756a0deed",
+      "models": [
+        "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+        "@cf/meta/llama-3.2-3b-instruct",
+        "@cf/meta/llama-3.2-1b-instruct"
+      ],
+      "enabled": true,
+      "createdAt": "2026-11-02T00:24:26.490Z"
     }
   ],
   "gatewayKeys": [
@@ -653,12 +692,25 @@
           "teamId": "team_1606a3aa",
           "createdAt": "2026-11-01T23:59:59.543Z",
           "messages": [],
-          "agents": [],
+          "agents": [
+            {
+              "id": "ag_9a20cb8f",
+              "category": "coder",
+              "roleTitle": "Lập Trình (Coder / Developer)",
+              "name": "Lập Trình Viên",
+              "badge": "CODER",
+              "color": "#10b981",
+              "providerId": "prov_openai_default",
+              "providerName": "OpenAI",
+              "model": "gpt-4o",
+              "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
+            }
+          ],
           "model": "deepseek-v4.1-flash-free"
         }
       ],
       "createdAt": "2026-11-01T23:59:59.543Z",
-      "updatedAt": "2026-11-02T00:17:46.925Z"
+      "updatedAt": "2026-11-02T00:22:59.181Z"
     }
   ]
 }

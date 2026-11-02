@@ -28,6 +28,12 @@ async function callChat({ provider, model, messages, temperature = 0.7, max_toke
     headers['x-client-version'] = '2.1.0';
   }
 
+  // OpenRouter support
+  if ((provider.baseUrl && provider.baseUrl.includes('openrouter.ai')) || (provider.name && provider.name.toLowerCase().includes('openrouter'))) {
+    headers['HTTP-Referer'] = 'http://localhost:3000';
+    headers['X-Title'] = 'VinceZone Studio';
+  }
+
   if (provider.apiKey && provider.apiKey.trim() !== '') {
     headers['Authorization'] = `Bearer ${provider.apiKey.trim()}`;
   }

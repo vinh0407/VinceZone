@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -87,6 +88,26 @@ const defaultData = {
       createdAt: new Date().toISOString()
     },
     {
+      id: 'prov_openrouter',
+      name: 'OpenRouter',
+      type: 'openai-compatible',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || '',
+      models: ['deepseek/deepseek-chat', 'anthropic/claude-3.7-sonnet', 'openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct', 'cohere/north-mini-code:free', 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'],
+      enabled: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'prov_cloudflare_ai',
+      name: 'Cloudflare Workers AI',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.cloudflare.com/client/v4/accounts/e155cf04b558472645b9444756a0deed/ai/v1',
+      apiKey: process.env.CLOUDFLARE_API_TOKEN || '',
+      models: ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/meta/llama-3.2-3b-instruct'],
+      enabled: true,
+      createdAt: new Date().toISOString()
+    },
+    {
       id: 'prov_kilo_gateway',
       name: 'Kilo Gateway',
       type: 'openai-compatible',
@@ -170,7 +191,16 @@ const Store = {
   writeDb,
 
   getProviders() {
-    return readDb().providers || [];
+    const list = readDb().providers || [];
+    list.forEach(p => {
+      if (p.id === 'prov_openrouter' && (!p.apiKey || p.apiKey === '')) {
+        p.apiKey = process.env.OPENROUTER_API_KEY || '';
+      }
+      if (p.id === 'prov_cloudflare_ai' && (!p.apiKey || p.apiKey === '')) {
+        p.apiKey = process.env.CLOUDFLARE_API_TOKEN || '';
+      }
+    });
+    return list;
   },
 
   getProviderById(id) {
