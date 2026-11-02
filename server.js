@@ -1109,6 +1109,142 @@ app.post('/api/projects/:id/chats/:chatId/clear', (req, res) => {
   res.json({ success: true });
 });
 
+// 9.13.1 Lấy toàn bộ sơ đồ cấu trúc công việc & các file đã chỉnh của từng AI Agent
+app.get('/api/projects/:id/structure', (req, res) => {
+  try {
+    const project = Store.getProjectById(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
+
+    const chats = project.chats || [];
+    const agentMap = new Map();
+    const filesModified = [];
+
+    // Duyệt qua tất cả đoạn chat và tin nhắn để tổng hợp file đã chỉnh theo từng Agent
+    chats.forEach(chat => {
+      (chat.messages || []).forEach(msg => {
+        if (msg.role === 'assistant') {
+          const author = msg.author || 'AI';
+          if (!agentMap.has(author)) {
+            agentMap.set(author, {
+              name: author,
+              badge: msg.agentBadge || 'AI',
+              color: msg.agentColor || '#3b82f6',
+              model: msg.agentModel || 'kilo-auto/free',
+              roleTitle: msg.agentRole || 'Chuyên gia AI',
+              messagesCount: 0,
+              files: []
+            });
+          }
+          const ag = agentMap.get(author);
+          ag.messagesCount++;
+
+          // 1. Files được auto-saved
+          if (Array.isArray(msg.autoSavedFiles) && msg.autoSavedFiles.length > 0) {
+            msg.autoSavedFiles.forEach(f => {
+              const cleanF = (f || '').trim().replace(/\\/g, '/');
+              if (cleanF && !ag.files.includes(cleanF)) ag.files.push(cleanF);
+              if (cleanF && !filesModified.some(x => x.file === cleanF)) {
+                filesModified.push({
+                  file: cleanF,
+                  author: author,
+                  role: msg.agentRole || 'AI',
+                  chatTitle: chat.title || 'Đoạn chat',
+                  timestamp: msg.timestamp
+                });
+              }
+            });
+          }
+
+          // 2. Scan code blocks có // File: <path>
+          const codeRegex = /```(?:[a-zA-Z0-9_-]+)?\s*\r?\n(?:(?:\/\/|#|\/\*)\s*File:\s*([^\r\n]+)\r?\n)/gi;
+          let cm;
+          while ((cm = codeRegex.exec(msg.content || '')) !== null) {
+            let rawF = cm[1].trim().replace(/^["']|["']$/g, '').replace(/\\/g, '/');
+            if (rawF && !/explore\.(ps1|sh|bat)|list\.(ps1|sh)/i.test(rawF)) {
+              if (!ag.files.includes(rawF)) ag.files.push(rawF);
+              if (!filesModified.some(x => x.file === rawF)) {
+                filesModified.push({
+                  file: rawF,
+                  author: author,
+                  role: msg.agentRole || 'AI',
+                  chatTitle: chat.title || 'Đoạn chat',
+                  timestamp: msg.timestamp
+                });
+              }
+            }
+          }
+        }
+      });
+    });
+
+    // Tổng hợp sơ đồ luồng công việc từ các nhóm chat (Workflow)
+    const workflow = chats.map((c, idx) => {
+      const activeAgents = (c.agents || []).map(a => ({
+        name: a.name,
+        badge: a.badge,
+        role: a.roleTitle,
+        color: a.color,
+        model: a.model,
+        provider: a.providerName
+      }));
+      const msgCount = (c.messages || []).length;
+      return {
+        id: c.id,
+        index: idx + 1,
+        title: c.title || `Nhóm Công Việc #${idx + 1}`,
+        agents: activeAgents,
+        messageCount: msgCount,
+        status: msgCount > 0 ? 'active' : 'pending',
+        updatedAt: c.updatedAt || project.updatedAt
+      };
+    });
+
+    // Lấy thông tin đĩa cứng thực tế của các file đã chỉnh
+    const enrichedFiles = filesModified.map(f => {
+      let sizeBytes = null;
+      let lastModified = f.timestamp;
+      let existsOnDisk = false;
+      if (project.path) {
+        try {
+          const fullP = path.resolve(project.path, f.file);
+          if (fs.existsSync(fullP)) {
+            existsOnDisk = true;
+            const st = fs.statSync(fullP);
+            sizeBytes = st.size;
+            lastModified = st.mtime.toISOString();
+          }
+        } catch (e) {}
+      }
+      return {
+        ...f,
+        sizeBytes,
+        existsOnDisk,
+        lastModified
+      };
+    });
+
+    res.json({
+      success: true,
+      project: {
+        id: project.id,
+        name: project.name,
+        path: project.path,
+        description: project.description
+      },
+      stats: {
+        totalChats: chats.length,
+        totalAgents: agentMap.size,
+        totalFilesEdited: enrichedFiles.length
+      },
+      workflow,
+      agents: Array.from(agentMap.values()),
+      files: enrichedFiles
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 9.14 Chạy lệnh Terminal trong thư mục dự án
 app.post('/api/projects/:id/terminal', async (req, res) => {
   const project = Store.getProjectById(req.params.id);
@@ -1340,6 +1476,57 @@ function removeVietnameseTones(str) {
 }
 
 // Hàm phân tích ý định thêm Agent từ văn bản người dùng gõ vào Botchat
+// Helper AI tự tạo đoạn chat mới cho từng nhóm công việc phục vụ dự án
+function handleAIChatCreation(projectId, text) {
+  const createChatRegex = /\[(?:CREATE_CHAT|SPAWN_TASK_CHAT|NEW_TASK_GROUP):\s*title="([^"]+)"(?:,\s*task="([^"]+)")?(?:,\s*agents="([^"]+)")?\]/gi;
+  const createdChats = [];
+  let match;
+  while ((match = createChatRegex.exec(text)) !== null) {
+    const rawTitle = match[1].trim();
+    const rawTask = match[2] ? match[2].trim() : '';
+    const rawAgents = match[3] ? match[3].split(',').map(s => s.trim().toLowerCase()) : ['coder', 'tester'];
+    try {
+      const newChat = Store.createProjectChat(projectId, { title: rawTitle });
+      rawAgents.forEach(cat => {
+        try {
+          Store.addAgentToChat(projectId, newChat.id, { category: cat });
+        } catch (e) {}
+      });
+      const freshChat = Store.getProjectChat(projectId, newChat.id);
+      const agentNames = (freshChat.agents || []).map(a => `@${a.name}`).join(', ');
+      Store.saveProjectChatMessage(projectId, newChat.id, {
+        role: 'assistant',
+        author: 'Điều Phối Viên AI',
+        agentBadge: 'DISPATCH',
+        agentColor: '#8b5cf6',
+        agentRole: 'Điều Phối Nhiệm Vụ',
+        content: `🎯 **Nhóm công việc được tạo tự động: ${rawTitle}**\n\n${rawTask ? `Mục tiêu: ${rawTask}\n\n` : ''}Các thành viên: ${agentNames} hãy bắt đầu phối hợp thực hiện phần việc này!`
+      });
+      createdChats.push(freshChat);
+    } catch (err) {
+      console.warn('Lỗi AI tự tạo đoạn chat:', err.message);
+    }
+  }
+  return createdChats;
+}
+
+function detectTaskChatCreationIntent(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('tạo thêm các đoạn chat') ||
+    lower.includes('tao them cac doan chat') ||
+    lower.includes('tự tạo các đoạn chat') ||
+    lower.includes('tu tao cac doan chat') ||
+    lower.includes('tạo nhóm chat') ||
+    lower.includes('tao nhom chat') ||
+    lower.includes('nhóm chat theo công việc') ||
+    lower.includes('chia dự án thành các nhóm') ||
+    lower.includes('chia việc thành các đoạn chat') ||
+    lower.includes('tách thành các nhóm chat')
+  );
+}
+
 function detectUserAgentRecruitment(text) {
   if (!text) return null;
   const lower = text.toLowerCase().trim();
@@ -1533,6 +1720,57 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
     // -------------------------------------------------------------------------
     // 0. TỰ ĐỘNG THÊM AGENT TỪ LỆNH GHI VÀO BOTCHAT CỦA NGƯỜI DÙNG
     // -------------------------------------------------------------------------
+    // Kiểm tra ý định tự tạo các nhóm chat công việc phục vụ dự án
+    const isTaskChatSplitIntent = detectTaskChatCreationIntent(content);
+    if (isTaskChatSplitIntent) {
+      const defaultTasks = [
+        { title: '🏗️ Thiết Kế CSDL & Kiến Trúc', task: 'Thiết kế ERD, schema bảng dữ liệu và migrations', agents: ['architect', 'database'] },
+        { title: '💻 Lập Trình Mã Nguồn & Core App', task: 'Viết mã nguồn chức năng chính và API xử lý', agents: ['coder', 'architect'] },
+        { title: '🎨 Giao Diện & Trải Nghiệm UI/UX', task: 'Thiết kế giao diện responsive hiện đại chuẩn SaaS', agents: ['frontend', 'coder'] },
+        { title: '🧪 Kiểm Thử & Chạy Terminal', task: 'Rà soát lỗi, viết script kiểm tra và test terminal', agents: ['tester', 'devops'] }
+      ];
+      const createdChats = [];
+      defaultTasks.forEach(t => {
+        try {
+          const nc = Store.createProjectChat(projectId, { title: t.title });
+          t.agents.forEach(cat => {
+            try { Store.addAgentToChat(projectId, nc.id, { category: cat }); } catch (e) {}
+          });
+          const fresh = Store.getProjectChat(projectId, nc.id);
+          const ags = (fresh.agents || []).map(a => `@${a.name}`).join(', ');
+          Store.saveProjectChatMessage(projectId, nc.id, {
+            role: 'assistant',
+            author: 'Điều Phối Viên AI',
+            agentBadge: 'DISPATCH',
+            agentColor: '#8b5cf6',
+            agentRole: 'Điều Phối Nhiệm Vụ',
+            content: `🎯 **Nhóm công việc được tạo tự động: ${t.title}**\n\nMục tiêu: ${t.task}\nCác thành viên: ${ags} đã sẵn sàng phối hợp làm việc!`
+          });
+          createdChats.push(fresh);
+        } catch (e) {
+          console.warn('Lỗi tạo task chat:', e.message);
+        }
+      });
+
+      const notifyMsg = Store.saveProjectChatMessage(projectId, chatId, {
+        role: 'assistant',
+        author: 'Điều Phối Viên AI',
+        agentBadge: 'COUNCIL',
+        agentColor: '#3b82f6',
+        agentRole: 'Quản Trị Dự Án',
+        content: `🎉 **Đã tự động khởi tạo thành công ${createdChats.length} nhóm chat theo từng công việc phục vụ dự án:**\n\n` +
+          createdChats.map((c, idx) => `${idx + 1}. **${c.title}** (${(c.agents || []).map(a => a.name).join(', ')})`).join('\n') +
+          `\n\nBạn có thể bấm vào từng nhóm chat ở thanh bên trái để xem các AI trực tiếp nhắn tin và phối hợp, hoặc bấm nút **"Cấu Trúc"** bên cạnh nút Terminal để xem sơ đồ toàn diện!`
+      });
+
+      if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {
+        sendEvent({ type: 'agent_done', message: notifyMsg, createdChats });
+        sendEvent({ type: 'all_done', totalMessages: 1 });
+        return res.end();
+      }
+      return res.json({ success: true, mode: 'task_chats_created', messages: [notifyMsg], createdChats });
+    }
+
     const userRecruitIntent = detectUserAgentRecruitment(content);
     const newlyRecruited = [];
 
@@ -1645,6 +1883,11 @@ Tôi đã chính thức tham gia Hội đồng dự án theo lệnh bạn vừa 
 2. PHẢN HỒI CỰC KỲ GỌN GÀNG, SÚC TÍCH, KHÔNG DÀI DÒNG:
    - Đi thẳng vào kết quả và giải pháp kỹ thuật trong tối đa 1-3 đoạn ngắn.
    - TUYỆT ĐỐI KHÔNG TẠO SCRIPT QUÉT THƯ MỤC THỪA (như explore.ps1, list.ps1, dir, Get-ChildItem...). Bạn ĐÃ CÓ sẵn toàn bộ cấu trúc thư mục ở trên.
+
+[QUYỀN TỰ ĐỘNG TẠO NHÓM CHAT MỚI THEO CÔNG VIỆC CỤ THỂ]:
+Bạn có toàn quyền tự động tạo thêm các đoạn chat mới và đặt tên theo từng công việc cụ thể phục vụ dự án bằng cú pháp:
+[CREATE_CHAT: title="Tên công việc cụ thể", task="Mô tả nhiệm vụ", agents="database,coder|frontend,reviewer|tester,devops"]
+Hệ thống sẽ lập tức tạo đoạn chat đó, nạp sẵn các Agent miễn phí từ 4 nhà cung cấp, và các Agent sẽ tự động nhắn tin phối hợp!
 
 [QUYỀN TỰ ĐỘNG TUYỂN DỤNG THÊM AGENT VÀO HỘI ĐỒNG (TỐI ĐA 5 AGENT)]:
 Bạn có toàn quyền TỰ ĐỘNG TUYỂN DỤNG THÊM CHUYÊN GIA vào Hội Đồng Dự Án mà không cần người dùng thao tác thủ công.
@@ -1939,9 +2182,12 @@ Bạn đang LÀM THẬT trên mã nguồn dự án tại thư mục: "${project.
         autoSavedFiles: autoSavedFiles
       });
 
+      // Quét lệnh AI tự tạo đoạn chat công việc mới
+      const aiCreatedChats = handleAIChatCreation(projectId, agentResponse);
+
       generatedMessages.push(savedMsg);
       previousTurnsContext.push(`[${member.badge} - ${member.name}]:\n${agentResponse}`);
-      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles });
+      sendEvent({ type: 'agent_done', message: savedMsg, autoSavedFiles, createdChats: aiCreatedChats });
     }
 
     if (res.headersSent && (isStream || req.headers.accept === 'text/event-stream')) {

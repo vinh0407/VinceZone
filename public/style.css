@@ -7879,3 +7879,293 @@ input[type="range"] {
   padding: 0.08rem 0.4rem;
   letter-spacing: 0.01em;
 }
+
+/* =============================================================================
+   SƠ ĐỒ CẤU TRÚC DỰ ÁN & GIÁM SÁT AI AGENT (CẤU TRÚC MODAL)
+   ============================================================================= */
+
+/* Nút Cấu Trúc ở bên cạnh nút Terminal */
+.btn-structure-accent {
+  background: rgba(59, 130, 246, 0.16) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.35) !important;
+  font-weight: 600 !important;
+  transition: all 0.18s ease;
+}
+
+.btn-structure-accent:hover {
+  background: rgba(59, 130, 246, 0.28) !important;
+  color: #93c5fd !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Tabs trong Modal Cấu Trúc */
+.structure-tab-btn {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.structure-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f4f5;
+}
+
+.structure-tab-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+/* Tab 1: Sơ Đồ Luồng Công Việc (Workflow Task Cards) */
+.structure-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
+}
+
+.workflow-card {
+  background: #17171e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  transition: all 0.2s ease;
+}
+
+.workflow-card:hover {
+  border-color: rgba(96, 165, 250, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.workflow-card-active {
+  border-color: #3b82f6 !important;
+  background: linear-gradient(145deg, #181b24 0%, #13141b 100%) !important;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.2);
+}
+
+.workflow-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-step-badge {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.workflow-card-title {
+  color: #f4f4f5;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.workflow-agents-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.workflow-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.workflow-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.workflow-msg-count {
+  font-size: 0.74rem;
+  color: #71717a;
+}
+
+.btn-workflow-jump {
+  background: #272730 !important;
+  color: #93c5fd !important;
+  padding: 0.2rem 0.6rem !important;
+  border-radius: 4px !important;
+  font-size: 0.72rem !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-workflow-jump:hover {
+  background: #2563eb !important;
+  color: #fff !important;
+}
+
+/* Tab 2: File Đã Chỉnh Của Từng AI Agent */
+.structure-agents-files-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.agent-files-group-card {
+  background: #15151c;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.agent-files-group-header {
+  padding: 0.75rem 1rem;
+  background: #1a1a23;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.agent-files-counter {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+}
+
+.agent-files-list {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.agent-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.65rem;
+  background: #181820;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.agent-file-item:hover {
+  background: #20202b;
+}
+
+.agent-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.agent-file-name {
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: #38bdf8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-file-size {
+  font-size: 0.72rem;
+  color: #71717a;
+}
+
+.file-status-disk {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 4px;
+  padding: 0.08rem 0.35rem;
+}
+
+.file-status-auto {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+  padding: 0.08rem 0.35rem;
+}
+
+/* Tab 3: Đội Ngũ Matrix */
+.structure-agents-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+
+.agent-matrix-card {
+  background: #17171e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.agent-matrix-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-matrix-name {
+  color: #f4f4f5;
+  font-size: 0.95rem;
+}
+
+.agent-matrix-role {
+  font-size: 0.78rem;
+  color: #a1a1aa;
+}
+
+.agent-matrix-meta {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+}
+
+.agent-matrix-meta code {
+  font-size: 0.72rem;
+  color: #93c5fd;
+  background: #121217;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}

@@ -4536,6 +4536,7 @@ function renderProjectsList() {
           <span class="project-list-path" title="${escapeHtml(p.path || '')}">${escapeHtml(p.path || 'Local')}</span>
         </div>
         <div class="active-proj-actions" onclick="event.stopPropagation()">
+          <button type="button" class="btn-micro btn-structure-accent" onclick="window.openProjectStructureModal('${p.id}')" title="Xem sơ đồ công việc & file đã chỉnh của các AI Agent">Cấu Trúc</button>
           <button type="button" class="btn-micro" onclick="window.toggleProjectTerminal()" title="Mở Terminal trong thư mục dự án">Terminal</button>
           <button type="button" class="btn-micro action-danger" onclick="deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa dự án khỏi danh sách">Xóa</button>
         </div>
@@ -5682,6 +5683,14 @@ async function sendProjectIdea() {
         if (typeof loadProjectFiles === 'function' && projectsState.activeProjectId) {
           loadProjectFiles(projectsState.activeProjectId);
         }
+      }
+
+      // Tự động cập nhật danh sách chat nếu có chat công việc mới được tạo bởi AI
+      if (data.createdChats && data.createdChats.length > 0) {
+        if (typeof loadProjectChats === 'function' && projectsState.activeProjectId) {
+          loadProjectChats(projectsState.activeProjectId);
+        }
+        showToast(`🎉 AI đã tự động tạo ${data.createdChats.length} nhóm chat công việc mới cho dự án!`);
       }
 
       // Quét và hiển thị thông báo nếu AI tự động tuyển dụng thêm Agent
@@ -7123,3 +7132,235 @@ document.addEventListener('DOMContentLoaded', () => {
   const initialTab = parseCurrentUrlRoute();
   switchTabByRoute(initialTab, false);
 });
+
+// =============================================================================
+// MODAL: SƠ ĐỒ CẤU TRÚC DỰ ÁN, CÔNG VIỆC & FILE ĐÃ CHỈNH CỦA TỪNG AI AGENT
+// =============================================================================
+let currentStructureData = null;
+let activeStructureTab = 'workflow';
+
+window.openProjectStructureModal = async function(projectId) {
+  const targetProjId = projectId || projectsState.activeProjectId;
+  if (!targetProjId) {
+    showToast('Vui lòng chọn hoặc mở một dự án trước.');
+    return;
+  }
+
+  const modal = document.getElementById('modal-project-structure');
+  const bodyEl = document.getElementById('structure-modal-body');
+  const footerEl = document.getElementById('structure-footer-stats');
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
+
+  if (bodyEl) {
+    bodyEl.innerHTML = '<div style="text-align: center; padding: 3rem; color: #71717a;">⏳ Đang tải sơ đồ cấu trúc và lịch sử chỉnh file của các AI Agent...</div>';
+  }
+
+  try {
+    const res = await fetch(`/api/projects/${targetProjId}/structure`);
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Không thể lấy dữ liệu cấu trúc.');
+    }
+    currentStructureData = data;
+
+    const subTitle = document.getElementById('modal-structure-subtitle');
+    if (subTitle && data.project) {
+      subTitle.textContent = `Dự án: ${data.project.name} • Thư mục: ${data.project.path || 'N/A'}`;
+    }
+
+    if (footerEl) {
+      footerEl.textContent = `Tổng số: ${data.stats.totalChats} Nhóm công việc • ${data.stats.totalAgents} AI Agent tham gia • ${data.stats.totalFilesEdited} File đã chỉnh/tạo`;
+    }
+
+    renderActiveStructureTab();
+  } catch (err) {
+    if (bodyEl) {
+      bodyEl.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ef4444;">⚠️ Lỗi: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+};
+
+window.closeProjectStructureModal = function() {
+  const modal = document.getElementById('modal-project-structure');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+};
+
+window.switchStructureTab = function(tabName) {
+  activeStructureTab = tabName;
+  const tabs = document.querySelectorAll('.structure-tab-btn');
+  tabs.forEach(t => {
+    if (t.dataset.tab === tabName) t.classList.add('active');
+    else t.classList.remove('active');
+  });
+  renderActiveStructureTab();
+};
+
+function renderActiveStructureTab() {
+  const bodyEl = document.getElementById('structure-modal-body');
+  if (!bodyEl || !currentStructureData) return;
+
+  if (activeStructureTab === 'workflow') {
+    renderStructureWorkflowTab(bodyEl, currentStructureData);
+  } else if (activeStructureTab === 'files') {
+    renderStructureFilesTab(bodyEl, currentStructureData);
+  } else if (activeStructureTab === 'agents') {
+    renderStructureAgentsTab(bodyEl, currentStructureData);
+  }
+}
+
+// Tab 1: Sơ Đồ Luồng Công Việc (Workflow Task Flow)
+function renderStructureWorkflowTab(container, data) {
+  const workflow = data.workflow || [];
+  if (workflow.length === 0) {
+    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #71717a;">Chưa có nhóm công việc nào. Bạn có thể yêu cầu AI tự động tạo các nhóm chat theo công việc!</div>';
+    return;
+  }
+
+  let html = `
+    <div style="margin-bottom: 1rem; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #93c5fd; display: flex; align-items: center; justify-content: space-between;">
+      <span>💡 Các nhóm chat được AI tự động phân bổ theo từng phần việc cụ thể. Bấm vào bất kỳ nhóm nào để vào xem các AI làm việc trực tiếp!</span>
+      <button type="button" class="btn-micro" onclick="window.triggerAutoTaskChatsCreation()" style="background: #2563eb; color: #fff; padding: 0.3rem 0.7rem; border-radius: 5px;">⚡ Tự Động Phân Chia Việc</button>
+    </div>
+    <div class="structure-workflow-grid">
+  `;
+
+  workflow.forEach((wf, i) => {
+    const isCurrentActive = wf.id === projectsState.activeChatId;
+    html += `
+      <div class="workflow-card ${isCurrentActive ? 'workflow-card-active' : ''}">
+        <div class="workflow-card-header">
+          <div class="workflow-step-badge">Bước ${wf.index}</div>
+          <strong class="workflow-card-title">${escapeHtml(wf.title)}</strong>
+        </div>
+        <div class="workflow-agents-row">
+          ${(wf.agents || []).map(a => `
+            <span class="workflow-agent-chip" style="border-color: ${a.color || '#3b82f6'}; color: ${a.color || '#93c5fd'};">
+              ${escapeHtml(a.badge || 'AI')} ${escapeHtml(a.name)}
+            </span>
+          `).join('')}
+        </div>
+        <div class="workflow-card-footer">
+          <span class="workflow-msg-count">💬 ${wf.messageCount} lượt trao đổi</span>
+          <button type="button" class="btn-micro btn-workflow-jump" onclick="window.jumpToChatFromStructure('${wf.id}')">
+            ${isCurrentActive ? 'Đang mở' : '👉 Vào Nhóm Này'}
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// Tab 2: File Đã Chỉnh Của Từng AI Agent
+function renderStructureFilesTab(container, data) {
+  const agents = data.agents || [];
+  const files = data.files || [];
+
+  if (files.length === 0 && agents.every(a => a.files.length === 0)) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem; color: #71717a;">
+        <span style="font-size: 2rem;">📄</span>
+        <p style="margin-top: 0.5rem;">Chưa có file nào được chỉnh sửa hoặc lưu tự động bởi Agent trong dự án này.</p>
+        <small style="color: #52525b;">Khi các AI Agent viết code có <code>// File: ...</code>, hệ thống sẽ tự động lưu và hiển thị tại đây.</small>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '<div class="structure-agents-files-accordion">';
+
+  agents.forEach(ag => {
+    const agFiles = ag.files || [];
+    if (agFiles.length === 0) return;
+
+    html += `
+      <div class="agent-files-group-card">
+        <div class="agent-files-group-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="agent-badge badge-coder" style="background: ${ag.color}22; color: ${ag.color}; border: 1px solid ${ag.color}55;">${escapeHtml(ag.badge)}</span>
+            <strong style="color: #fff; font-size: 0.95rem;">${escapeHtml(ag.name)}</strong>
+            <span style="font-size: 0.75rem; color: #a1a1aa;">(${escapeHtml(ag.roleTitle)})</span>
+          </div>
+          <span class="agent-files-counter">${agFiles.length} File đã chỉnh</span>
+        </div>
+        <div class="agent-files-list">
+          ${agFiles.map(f => {
+            const fileMeta = files.find(x => x.file === f) || {};
+            const sizeStr = fileMeta.sizeBytes ? ` • ${Math.round(fileMeta.sizeBytes / 1024 * 10) / 10} KB` : '';
+            const statusBadge = fileMeta.existsOnDisk ? '<span class="file-status-disk">✔ Đã ghi trên đĩa</span>' : '<span class="file-status-auto">⚡ Tự động tạo</span>';
+            return `
+              <div class="agent-file-item">
+                <div class="agent-file-info">
+                  <span class="agent-file-icon">📁</span>
+                  <span class="agent-file-name" title="${escapeHtml(f)}">${escapeHtml(f)}</span>
+                  <span class="agent-file-size">${sizeStr}</span>
+                </div>
+                <div class="agent-file-actions">
+                  ${statusBadge}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// Tab 3: Đội Ngũ & Nhà Cung Cấp
+function renderStructureAgentsTab(container, data) {
+  const agents = data.agents || [];
+  if (agents.length === 0) {
+    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #71717a;">Chưa có dữ liệu Agent.</div>';
+    return;
+  }
+
+  let html = '<div class="structure-agents-matrix-grid">';
+  agents.forEach(ag => {
+    html += `
+      <div class="agent-matrix-card">
+        <div class="agent-matrix-top">
+          <span class="agent-badge" style="background: ${ag.color}22; color: ${ag.color}; border: 1px solid ${ag.color}55;">${escapeHtml(ag.badge)}</span>
+          <strong class="agent-matrix-name">${escapeHtml(ag.name)}</strong>
+        </div>
+        <div class="agent-matrix-role">${escapeHtml(ag.roleTitle)}</div>
+        <div class="agent-matrix-meta">
+          <div><small style="color: #71717a;">Mô hình:</small> <code>${escapeHtml(ag.model)}</code></div>
+          <div><small style="color: #71717a;">Tin nhắn đã gửi:</small> <strong>${ag.messagesCount}</strong></div>
+          <div><small style="color: #71717a;">File đã chỉnh:</small> <strong style="color: #34d399;">${(ag.files || []).length} file</strong></div>
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+window.jumpToChatFromStructure = function(chatId) {
+  window.closeProjectStructureModal();
+  if (typeof selectProjectChat === 'function') {
+    selectProjectChat(chatId);
+  }
+};
+
+window.triggerAutoTaskChatsCreation = async function() {
+  window.closeProjectStructureModal();
+  const inputEl = document.getElementById('project-chat-input');
+  if (inputEl) {
+    inputEl.value = 'Hãy tự tạo các nhóm chat theo công việc cụ thể cho dự án và phân công các AI phối hợp';
+    if (typeof sendProjectIdea === 'function') {
+      sendProjectIdea();
+    }
+  }
+};
