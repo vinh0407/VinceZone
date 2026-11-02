@@ -78,12 +78,17 @@ function createApplicationMenu() {
         },
         { type: 'separator' },
         {
-          label: 'Tải Lại Giao Diện (Reload)',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => mainWindow && mainWindow.reload()
+          label: 'Tải Lại Giao Diện (F5 / Reload)',
+          accelerator: 'F5',
+          click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
         },
         {
-          label: 'Tải Lại Bỏ Qua Cache (Hard Reload)',
+          label: 'Tải Lại Bỏ Qua Cache (Ctrl+R / Hard Reload)',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
+        },
+        {
+          label: 'Tải Lại Toàn Bộ (Ctrl+Shift+R)',
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
         },
@@ -173,8 +178,11 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 
   // Ensure gateway is running then navigate to full application
-  ensureGatewayRunning().then((isOnline) => {
+  ensureGatewayRunning().then(async (isOnline) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        await mainWindow.webContents.session.clearCache();
+      } catch (e) {}
       if (isOnline) {
         mainWindow.loadURL(SERVER_URL);
       } else {
