@@ -179,6 +179,29 @@
   ],
   "logs": [
     {
+      "id": "log_9932120bef32",
+      "timestamp": "2026-11-02T00:37:21.277Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "deepseek/deepseek-chat",
+      "provider": "OpenRouter",
+      "clientIp": "127.0.0.1",
+      "status": 200,
+      "latency": 16393,
+      "stream": false,
+      "tokens": 1311
+    },
+    {
+      "id": "log_aae79f4af07a",
+      "timestamp": "2026-11-02T00:35:03.439Z",
+      "endpoint": "/v1/chat/completions",
+      "model": "gpt-4o",
+      "provider": "OpenAI",
+      "clientIp": "127.0.0.1",
+      "status": 500,
+      "latency": 695,
+      "error": "[OpenAI] HTTP 401: You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API from your browser and are prompted for a username and password. You can obtain an API key from https://platform.openai.com/account/api-keys."
+    },
+    {
       "id": "log_8f30723f32c4",
       "timestamp": "2026-11-01T23:27:14.266Z",
       "endpoint": "/v1/chat/completions",
@@ -691,7 +714,38 @@
           "type": "team",
           "teamId": "team_1606a3aa",
           "createdAt": "2026-11-01T23:59:59.543Z",
-          "messages": [],
+          "messages": [
+            {
+              "id": "msg_fac27e1a5d27",
+              "role": "user",
+              "author": "Người Dùng (Ý Tưởng)",
+              "agentId": null,
+              "agentBadge": null,
+              "agentColor": null,
+              "content": "Xin chào, hãy giới thiệu bản thân.",
+              "timestamp": "2026-11-02T00:35:02.739Z"
+            },
+            {
+              "id": "msg_ac37849bb620",
+              "role": "user",
+              "author": "Người Dùng (Ý Tưởng)",
+              "agentId": null,
+              "agentBadge": null,
+              "agentColor": null,
+              "content": "Xin chào, hãy giới thiệu bản thân.",
+              "timestamp": "2026-11-02T00:37:04.879Z"
+            },
+            {
+              "id": "msg_508007283948",
+              "role": "assistant",
+              "author": "Lập Trình Viên",
+              "agentId": "ag_9a20cb8f",
+              "agentBadge": "CODER",
+              "agentColor": "#10b981",
+              "content": "Xin chào! Tôi là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer) trong hệ thống VinceZone. Tôi chuyên hỗ trợ bạn trong việc viết mã nguồn hoàn chỉnh, sửa lỗi tận gốc và đảm bảo code của bạn luôn sẵn sàng để chạy trên dự án thực tế. Tôi làm việc trực tiếp trên thư mục dự án của bạn tại \"C:\\VisualStudio\\VinceZone\" và luôn đảm bảo mã nguồn được viết một cách chính xác, bảo mật và sạch sẽ.\n\nNếu bạn có bất kỳ yêu cầu nào về lập trình, chỉ cần cho tôi biết và tôi sẽ hỗ trợ bạn ngay lập tức! 😊",
+              "timestamp": "2026-11-02T00:37:21.278Z"
+            }
+          ],
           "agents": [
             {
               "id": "ag_9a20cb8f",
@@ -700,9 +754,9 @@
               "name": "Lập Trình Viên",
               "badge": "CODER",
               "color": "#10b981",
-              "providerId": "prov_openai_default",
-              "providerName": "OpenAI",
-              "model": "gpt-4o",
+              "providerId": "prov_openrouter",
+              "providerName": "OpenRouter",
+              "model": "deepseek/deepseek-chat",
               "systemPrompt": "Bạn là Kỹ Sư Lập Trình Chuyên Sâu (Senior Developer & Code Fixer).\n[CHẾ ĐỘ LÀM VIỆC THỰC TẾ - TẮT VÍ DỤ MINH HỌA]:\n1. Viết code đầy đủ, hoàn chỉnh, sẵn sàng chạy ngay trên dự án thực tế của người dùng.\n2. Luôn ghi rõ tên và đường dẫn file ở dòng đầu tiên của khối code: // File: <đường_dẫn> để hệ thống tự động ghi vào thư mục dự án.\n3. Giải quyết triệt để logic và sửa lỗi tận gốc, không viết code dở dang."
             }
           ],
@@ -710,7 +764,7 @@
         }
       ],
       "createdAt": "2026-11-01T23:59:59.543Z",
-      "updatedAt": "2026-11-02T00:22:59.181Z"
+      "updatedAt": "2026-11-02T00:37:21.278Z"
     }
   ]
 }

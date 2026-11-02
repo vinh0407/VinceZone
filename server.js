@@ -536,22 +536,55 @@ app.delete('/api/chats', (req, res) => {
 async function callInternalAI({ model, messages, temperature = 0.7, providerId = null }) {
   let selectedModel = model;
   if (!selectedModel) {
-    const providers = Store.getProviders().filter(p => p.enabled && p.apiKey);
-    if (providers.length > 0 && providers[0].models && providers[0].models.length > 0) {
-      selectedModel = providers[0].models[0];
-    } else {
-      selectedModel = 'kilo-auto/free';
-    }
+    selectedModel = 'kilo-auto/free';
   }
 
-  const result = await routeChatRequest({
-    model: selectedModel,
-    messages,
-    temperature,
-    stream: false,
-    providerId
-  });
-  return result?.choices?.[0]?.message?.content || '';
+  try {
+    const result = await routeChatRequest({
+      model: selectedModel,
+      messages,
+      temperature,
+      stream: false,
+      providerId
+    });
+    return result?.choices?.[0]?.message?.content || '';
+  } catch (err) {
+    console.warn(`[callInternalAI] Primary routing failed for model "${selectedModel}" (provider: ${providerId}): ${err.message}. Auto-recovering via OpenRouter / Kilo Gateway...`);
+    
+    // Auto fallback 1: OpenRouter
+    try {
+      const fb1 = await routeChatRequest({
+        model: 'deepseek/deepseek-chat',
+        messages,
+        temperature,
+        stream: false,
+        providerId: 'prov_openrouter'
+      });
+      if (fb1?.choices?.[0]?.message?.content) return fb1.choices[0].message.content;
+    } catch (e1) {}
+
+    // Auto fallback 2: Cloudflare Workers AI
+    try {
+      const fb2 = await routeChatRequest({
+        model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+        messages,
+        temperature,
+        stream: false,
+        providerId: 'prov_cloudflare_ai'
+      });
+      if (fb2?.choices?.[0]?.message?.content) return fb2.choices[0].message.content;
+    } catch (e2) {}
+
+    // Auto fallback 3: Kilo Gateway Free
+    const fb3 = await routeChatRequest({
+      model: 'kilo-auto/free',
+      messages,
+      temperature,
+      stream: false,
+      providerId: 'prov_kilo_gateway'
+    });
+    return fb3?.choices?.[0]?.message?.content || 'Xin lỗi, hiện tại hệ thống AI đang bận. Vui lòng thử lại sau giây lát.';
+  }
 }
 
 function runTerminalCommand(command, workingDir = process.cwd(), shell = 'powershell') {

@@ -4652,10 +4652,21 @@ window.openAddAgentCouncilModal = async function() {
   if (councilProvidersCache.length === 0) {
     provSelect.innerHTML = '<option value="kilo">Kilo Gateway (Auto FREE)</option>';
   } else {
-    councilProvidersCache.forEach(p => {
+    const sorted = [...councilProvidersCache].sort((a, b) => {
+      const aReady = a.apiKey || a.id === 'prov_kilo_gateway' || a.id === 'prov_opencode';
+      const bReady = b.apiKey || b.id === 'prov_kilo_gateway' || b.id === 'prov_opencode';
+      if (aReady && !bReady) return -1;
+      if (!aReady && bReady) return 1;
+      return 0;
+    });
+
+    sorted.forEach(p => {
+      const isReady = p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode';
       const opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = `${p.name} (${(p.models || []).length} Models)`;
+      opt.textContent = isReady
+        ? `✔ ${p.name} [Sẵn Sàng - ${(p.models || []).length} Models]`
+        : `⚠️ ${p.name} (Chưa có API Key)`;
       provSelect.appendChild(opt);
     });
   }
@@ -5070,10 +5081,21 @@ async function populateNewChatModelSelectors() {
 
   provSelect.innerHTML = '<option value="all" selected>Tất cả nhà cung cấp có sẵn</option>';
   if (councilProvidersCache && councilProvidersCache.length > 0) {
-    councilProvidersCache.forEach(p => {
+    const sorted = [...councilProvidersCache].sort((a, b) => {
+      const aReady = a.apiKey || a.id === 'prov_kilo_gateway' || a.id === 'prov_opencode';
+      const bReady = b.apiKey || b.id === 'prov_kilo_gateway' || b.id === 'prov_opencode';
+      if (aReady && !bReady) return -1;
+      if (!aReady && bReady) return 1;
+      return 0;
+    });
+
+    sorted.forEach(p => {
+      const isReady = p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode';
       const opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = `${p.name} (${(p.models || []).length} Models)`;
+      opt.textContent = isReady
+        ? `✔ ${p.name} [Sẵn Sàng - ${(p.models || []).length} Models]`
+        : `⚠️ ${p.name} (Chưa có API Key)`;
       provSelect.appendChild(opt);
     });
   }

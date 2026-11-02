@@ -20,12 +20,22 @@ async function routeChatRequest({ model, messages, temperature, max_tokens, stre
   let match = null;
   if (providerId) {
     const prov = Store.getProviderById(providerId);
-    if (prov) {
+    const isFree = prov && (prov.id === 'prov_kilo_gateway' || prov.id === 'prov_opencode' || (prov.baseUrl && prov.baseUrl.includes('kilo.ai')));
+    if (prov && (prov.apiKey || isFree)) {
       match = { provider: prov, model: model || (prov.models && prov.models[0]) };
     }
   }
   if (!match) {
     match = Store.findProviderForModel(model);
+  }
+  if (!match) {
+    // Fallback to any enabled provider with valid API key or free gateway
+    const allProviders = Store.getProviders();
+    const active = allProviders.filter(p => p.enabled && (p.apiKey || p.id === 'prov_kilo_gateway' || p.id === 'prov_opencode'));
+    if (active.length > 0) {
+      const fallback = active.find(p => p.id === 'prov_openrouter') || active.find(p => p.id === 'prov_cloudflare_ai') || active[0];
+      match = { provider: fallback, model: fallback.models?.[0] || 'kilo-auto/free' };
+    }
   }
   const startTime = Date.now();
 
