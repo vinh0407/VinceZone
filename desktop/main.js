@@ -165,12 +165,25 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     backgroundColor: '#09090b',
-    title: 'VinceZone Studio - AI Workplay & Autonomous IDE [Desktop]',
+    title: 'VinceZone',
+    frame: false,
     icon: fs.existsSync(appIcon) ? appIcon : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
+    }
+  });
+
+  mainWindow.on('maximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:state-changed', { isMaximized: true });
+    }
+  });
+
+  mainWindow.on('unmaximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:state-changed', { isMaximized: false });
     }
   });
 
@@ -432,6 +445,7 @@ ipcMain.handle('window:maximize', () => {
   else mainWindow.maximize();
 });
 ipcMain.handle('window:close', () => mainWindow && mainWindow.close());
+ipcMain.handle('window:is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
 ipcMain.handle('app:version', () => app.getVersion());
 
 // App lifecycle

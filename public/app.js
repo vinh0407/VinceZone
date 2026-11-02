@@ -9359,7 +9359,100 @@ function initInteractiveResizers() {
 
 // Khởi chạy khi tài liệu nạp xong
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initInteractiveResizers);
+  document.addEventListener('DOMContentLoaded', () => {
+    initInteractiveResizers();
+    initTitleBarWindowControls();
+  });
 } else {
   initInteractiveResizers();
+  initTitleBarWindowControls();
+}
+
+// ==================== VS CODE STYLE TITLE BAR CONTROLS ====================
+function initTitleBarWindowControls() {
+  const btnMin = document.getElementById('win-btn-minimize');
+  const btnMax = document.getElementById('win-btn-maximize');
+  const btnClose = document.getElementById('win-btn-close');
+
+  if (btnMin) {
+    btnMin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.vzDesktop && typeof window.vzDesktop.minimize === 'function') {
+        window.vzDesktop.minimize();
+      }
+    });
+  }
+
+  if (btnMax) {
+    btnMax.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (window.vzDesktop && typeof window.vzDesktop.maximize === 'function') {
+        window.vzDesktop.maximize();
+      } else {
+        // Fallback in web browser: toggle fullscreen
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.vzDesktop && typeof window.vzDesktop.close === 'function') {
+        window.vzDesktop.close();
+      }
+    });
+  }
+
+  // Menu bar dropdown click/hover logic
+  const menuItems = document.querySelectorAll('.titlebar-menu-item');
+  let isMenuOpen = false;
+
+  menuItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = item.classList.contains('open');
+      menuItems.forEach(m => m.classList.remove('open'));
+      if (!wasOpen) {
+        item.classList.add('open');
+        isMenuOpen = true;
+      } else {
+        isMenuOpen = false;
+      }
+    });
+
+    item.addEventListener('mouseenter', () => {
+      if (isMenuOpen) {
+        menuItems.forEach(m => m.classList.remove('open'));
+        item.classList.add('open');
+      }
+    });
+  });
+
+  document.addEventListener('click', () => {
+    menuItems.forEach(m => m.classList.remove('open'));
+    isMenuOpen = false;
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      menuItems.forEach(m => m.classList.remove('open'));
+      isMenuOpen = false;
+    }
+  });
+
+  // Listen to window state changes from Electron
+  if (window.vzDesktop && typeof window.vzDesktop.onWindowState === 'function') {
+    window.vzDesktop.onWindowState(({ isMaximized }) => {
+      if (btnMax) {
+        btnMax.innerHTML = isMaximized
+          ? `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="2" y="0.5" width="7.5" height="7.5" stroke="currentColor"/><path d="M0.5 2.5V9.5H7.5" stroke="currentColor"/></svg>`
+          : `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor"/></svg>`;
+      }
+    });
+  }
 }

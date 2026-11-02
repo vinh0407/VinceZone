@@ -18,6 +18,210 @@
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+  <!-- ==================== VS CODE STYLE APP TITLE BAR ==================== -->
+  <div id="app-title-bar" class="app-title-bar">
+    <!-- Left: App Icon & Menu Bar -->
+    <div class="titlebar-left">
+      <div class="titlebar-app-icon" title="VinceZone">
+        <img src="logo.png" alt="VZ" class="titlebar-logo-img">
+      </div>
+      <nav class="titlebar-menu-bar" id="titlebar-menu-bar">
+        <!-- File -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">File</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.triggerNewProjectDialog ? window.triggerNewProjectDialog() : window.switchTabByRoute('projects')">
+              <span>Dự Án Mới (New Project)...</span>
+              <kbd>Ctrl+N</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.vzDesktop ? window.vzDesktop.openFolderDialog() : window.switchTabByRoute('projects')">
+              <span>Mở Thư Mục (Open Folder)...</span>
+              <kbd>Ctrl+O</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.saveActiveIdeFile ? window.saveActiveIdeFile() : null">
+              <span>Lưu Tệp (Save File)</span>
+              <kbd>Ctrl+S</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.vzDesktop ? window.vzDesktop.close() : window.close()">
+              <span>Thoát (Exit)</span>
+              <kbd>Alt+F4</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Edit</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="document.execCommand('undo')">
+              <span>Hoàn Tác (Undo)</span>
+              <kbd>Ctrl+Z</kbd>
+            </div>
+            <div class="dropdown-item" onclick="document.execCommand('redo')">
+              <span>Làm Lại (Redo)</span>
+              <kbd>Ctrl+Y</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="document.execCommand('cut')">
+              <span>Cắt (Cut)</span>
+              <kbd>Ctrl+X</kbd>
+            </div>
+            <div class="dropdown-item" onclick="document.execCommand('copy')">
+              <span>Sao Chép (Copy)</span>
+              <kbd>Ctrl+C</kbd>
+            </div>
+            <div class="dropdown-item" onclick="document.execCommand('paste')">
+              <span>Dán (Paste)</span>
+              <kbd>Ctrl+V</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selection -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Selection</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="document.execCommand('selectAll')">
+              <span>Chọn Tất Cả (Select All)</span>
+              <kbd>Ctrl+A</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.expandSelection ? window.expandSelection() : null">
+              <span>Mở Rộng Vùng Chọn (Expand)</span>
+              <kbd>Shift+Alt+Right</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- View -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">View</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
+              <span>Dự Án &amp; Hội Đồng Agent</span>
+              <kbd>Ctrl+Shift+E</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.openIdeDirectly ? window.openIdeDirectly() : window.switchTabByRoute('ide')">
+              <span>Mở IDE Lập Trình</span>
+              <kbd>Ctrl+Shift+I</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('prompts')">
+              <span>Kho Prompt &amp; Skills</span>
+              <kbd>Ctrl+Shift+P</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('settings')">
+              <span>Cài Đặt Hệ Thống</span>
+              <kbd>Ctrl+,</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="location.reload(true)">
+              <span>Tải Lại Giao Diện (Reload)</span>
+              <kbd>F5 / Ctrl+R</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.toggleDevTools ? window.toggleDevTools() : null">
+              <span>Công Cụ DevTools</span>
+              <kbd>F12</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Go -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Go</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.openIdeDirectly ? window.openIdeDirectly() : window.switchTabByRoute('ide')">
+              <span>Đi Đến Tệp Tin (Go to File)...</span>
+              <kbd>Ctrl+P</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
+              <span>Đi Đến Dự Án Đang Mở</span>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('playground')">
+              <span>Đi Đến AI Playground</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Run -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Run</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.triggerFullAutonomousPipeline ? window.triggerFullAutonomousPipeline() : null">
+              <span>Chạy Chu Trình Agent Tự Chủ</span>
+              <kbd>F5</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.runProjectDevServer ? window.runProjectDevServer() : null">
+              <span>Khởi Chạy Máy Chủ Dự Án (Dev Server)</span>
+              <kbd>Ctrl+F5</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Terminal</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.openTerminalDrawer ? window.openTerminalDrawer() : null">
+              <span>Mở Terminal Mới (PowerShell / CMD)</span>
+              <kbd>Ctrl+`</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.clearActiveTerminal ? window.clearActiveTerminal() : null">
+              <span>Xóa Màn Hình Terminal (Clear)</span>
+              <kbd>Ctrl+K</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Help -->
+        <div class="titlebar-menu-item" tabindex="0">
+          <span class="menu-label">Help</span>
+          <div class="titlebar-dropdown">
+            <div class="dropdown-item" onclick="window.open('https://github.com/vinh0407/VinceZone', '_blank')">
+              <span>Tài Liệu Hướng Dẫn (GitHub Repo)</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.showAboutVinceZone ? window.showAboutVinceZone() : alert('VinceZone Studio - Autonomous AI Agent IDE & Unified Gateway')">
+              <span>Về VinceZone Studio</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Center: Window Title -->
+    <div class="titlebar-center">
+      <span class="titlebar-window-title" id="titlebar-window-title">VinceZone</span>
+    </div>
+
+    <!-- Right: Quick Actions & Window Controls -->
+    <div class="titlebar-right">
+      <div class="titlebar-quick-actions">
+        <button type="button" class="titlebar-icon-btn" title="Chuyển Bố Cục Trái / Phải" onclick="window.toggleSidebar && window.toggleSidebar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+        </button>
+        <button type="button" class="titlebar-icon-btn" title="Mở Bảng Điều Khiển Dưới" onclick="window.toggleDrawerMenu && window.toggleDrawerMenu()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/></svg>
+        </button>
+        <button type="button" class="titlebar-icon-btn" title="Cài Đặt (Settings)" onclick="window.switchTabByRoute('settings')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+
+      <!-- Window Controls: Minimize, Maximize, Close -->
+      <div class="titlebar-window-controls">
+        <button type="button" class="win-control-btn win-btn-minimize" id="win-btn-minimize" title="Thu nhỏ (Minimize)">
+          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="win-control-btn win-btn-maximize" id="win-btn-maximize" title="Phóng to / Khôi phục (Maximize)">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor"/></svg>
+        </button>
+        <button type="button" class="win-control-btn win-btn-close" id="win-btn-close" title="Đóng cửa sổ (Close)">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0.5 0.5L9.5 9.5M9.5 0.5L0.5 9.5" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
  <div class="app-container">
  <!-- Top Bar -->
  <header class="top-nav">
