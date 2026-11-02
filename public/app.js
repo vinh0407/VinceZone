@@ -4301,7 +4301,6 @@ async function loadProjects() {
 
     renderProjectsList();
     renderActiveProject();
-    initProjectsEventListeners();
   } catch (err) {
     console.error('Lỗi khi tải danh sách dự án:', err);
     showToast('Lỗi khi tải danh sách dự án: ' + err.message);
@@ -4935,9 +4934,6 @@ function decorateProjectCodeBlocks(containerEl) {
       buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Trong Terminal</button>`;
     }
 
-    // Nút Sao chép
-    buttonsHtml += `<button type="button" class="btn-code-action btn-copy-code" title="Sao chép mã nguồn">📋 Sao Chép</button>`;
-
     toolbar.innerHTML = `
       <span class="code-bar-title">${suggestedFile ? `📁 ${escapeHtml(suggestedFile)}` : (codeEl?.className?.replace('language-', '') || 'code')}</span>
       <div class="code-bar-actions">${buttonsHtml}</div>
@@ -5022,16 +5018,6 @@ function decorateProjectCodeBlocks(containerEl) {
           runTerminalBtn.disabled = false;
           runTerminalBtn.textContent = '▶ Chạy Lại';
         }
-      });
-    }
-
-    // Xử lý sự kiện Sao Chép
-    const copyBtn = toolbar.querySelector('.btn-copy-code');
-    if (copyBtn) {
-      copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(rawText);
-        copyBtn.textContent = '✔ Đã Chép';
-        setTimeout(() => copyBtn.textContent = '📋 Sao Chép', 2000);
       });
     }
   });
@@ -5361,7 +5347,12 @@ async function populateNewChatModelSelectors() {
   updateNewChatModels();
 }
 
+let projectsListenersInitialized = false;
+
 function initProjectsEventListeners() {
+  if (projectsListenersInitialized) return;
+  projectsListenersInitialized = true;
+
   // Gửi ý tưởng / tin nhắn
   const btnSend = document.getElementById('btn-send-project-idea');
   const chatInput = document.getElementById('project-chat-input');
@@ -5471,28 +5462,62 @@ function initProjectsEventListeners() {
     };
   }
 
-  // Dấu cộng nhỏ (+) mở Modal chọn Provider & Model thêm Agent vào Hội đồng
-  const btnAddAgent = document.getElementById('btn-add-agent-plus');
-  if (btnAddAgent) {
-    btnAddAgent.addEventListener('click', (e) => {
+  // Hỗ trợ kéo ngang chuột và cuộn con lăn chuột ngang trên thanh Agent
+  const agentsRowEl = document.getElementById('chat-agents-pills-row');
+  if (agentsRowEl) {
+    agentsRowEl.addEventListener('wheel', (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        agentsRowEl.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    agentsRowEl.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.chip-remove-btn')) return;
+      isDown = true;
+      startX = e.pageX - agentsRowEl.offsetLeft;
+      scrollLeft = agentsRowEl.scrollLeft;
+    });
+    agentsRowEl.addEventListener('mouseleave', () => { isDown = false; });
+    agentsRowEl.addEventListener('mouseup', () => { isDown = false; });
+    agentsRowEl.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
       e.preventDefault();
-      openAddAgentCouncilModal();
+      const x = e.pageX - agentsRowEl.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      agentsRowEl.scrollLeft = scrollLeft - walk;
     });
   }
 
-  // Modal: Thêm Agent vào Hội đồng (Form Submit)
+  // Dấu cộng nhỏ (+) mở Modal chọn Provider & Model thêm Agent vào Hội đồng
+  const btnAddAgent = document.getElementById('btn-add-agent-plus');
+  if (btnAddAgent) {
+    btnAddAgent.onclick = (e) => {
+      e.preventDefault();
+      openAddAgentCouncilModal();
+    };
+  }
+
+  // Modal: Thêm Agent vào Hội đồng (Form Submit - Đảm bảo chỉ thêm đúng 1 Agent duy nhất mỗi lần)
   const modalCouncil = document.getElementById('modal-add-agent-council');
   const formCouncil = document.getElementById('add-agent-council-form');
   const btnCloseCouncil = document.getElementById('btn-close-council-modal');
   const btnCancelCouncil = document.getElementById('btn-cancel-council-modal');
+  const btnSubmitCouncil = document.getElementById('btn-submit-council-agent');
 
+  let isAddingAgent = false;
   const closeCouncilModal = () => { modalCouncil?.classList.remove('active'); modalCouncil?.classList.remove('open'); };
-  if (btnCloseCouncil) btnCloseCouncil.addEventListener('click', closeCouncilModal);
-  if (btnCancelCouncil) btnCancelCouncil.addEventListener('click', closeCouncilModal);
+  if (btnCloseCouncil) btnCloseCouncil.onclick = closeCouncilModal;
+  if (btnCancelCouncil) btnCancelCouncil.onclick = closeCouncilModal;
 
   if (formCouncil) {
-    formCouncil.addEventListener('submit', async (e) => {
+    formCouncil.onsubmit = async (e) => {
       e.preventDefault();
+      if (isAddingAgent) return;
+
       const category = document.getElementById('council-role-category')?.value;
       const name = document.getElementById('council-agent-name-input')?.value.trim();
       const provSelect = document.getElementById('council-provider-select');
@@ -5507,7 +5532,20 @@ function initProjectsEventListeners() {
         return;
       }
 
+      const currentAgents = projectsState.activeChat?.agents || [];
+      if (currentAgents.length >= 5) {
+        showToast('Đoạn chat này đã có tối đa 5 Agent trong Hội Đồng.');
+        closeCouncilModal();
+        return;
+      }
+
       try {
+        isAddingAgent = true;
+        if (btnSubmitCouncil) {
+          btnSubmitCouncil.disabled = true;
+          btnSubmitCouncil.textContent = 'Đang thêm...';
+        }
+
         const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats/${projectsState.activeChatId}/agents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5527,17 +5565,32 @@ function initProjectsEventListeners() {
 
           if (projectsState.activeChat) {
             projectsState.activeChat.agents = projectsState.activeChat.agents || [];
-            projectsState.activeChat.agents.push(data.agent);
+            if (!projectsState.activeChat.agents.some(a => a.id === data.agent.id)) {
+              projectsState.activeChat.agents.push(data.agent);
+            }
           }
           renderProjectChat(projectsState.activeChat);
           renderActiveProject();
+
+          // Tự động cuộn sang phải để hiển thị ngay Agent mới thêm
+          if (agentsRowEl) {
+            setTimeout(() => {
+              agentsRowEl.scrollTo({ left: agentsRowEl.scrollWidth, behavior: 'smooth' });
+            }, 100);
+          }
         } else {
           showToast('Lỗi: ' + (data.error || 'Không thể thêm Agent'));
         }
       } catch (err) {
         showToast('Lỗi: ' + err.message);
+      } finally {
+        isAddingAgent = false;
+        if (btnSubmitCouncil) {
+          btnSubmitCouncil.disabled = false;
+          btnSubmitCouncil.textContent = 'Thêm Vào Hội Đồng';
+        }
       }
-    });
+    };
   }
 
   // Terminal Toggle
@@ -5679,18 +5732,22 @@ function initProjectsEventListeners() {
   }
 
   if (btnOpenCreateProject && modalCreateProject) {
-    btnOpenCreateProject.addEventListener('click', () => {
+    btnOpenCreateProject.onclick = () => {
       modalCreateProject.classList.add('active'); modalCreateProject.classList.add('open');
       inputProjectPath?.focus();
-    });
+    };
   }
   const closeCreateProjectModal = () => { modalCreateProject?.classList.remove('active'); modalCreateProject?.classList.remove('open'); };
-  if (btnCloseCreateProject) btnCloseCreateProject.addEventListener('click', closeCreateProjectModal);
-  if (btnCancelCreateProject) btnCancelCreateProject.addEventListener('click', closeCreateProjectModal);
+  if (btnCloseCreateProject) btnCloseCreateProject.onclick = closeCreateProjectModal;
+  if (btnCancelCreateProject) btnCancelCreateProject.onclick = closeCreateProjectModal;
 
+  const btnSubmitCreateProject = document.getElementById('btn-submit-create-project');
+  let isCreatingProject = false;
   if (formCreateProject) {
-    formCreateProject.addEventListener('submit', async (e) => {
+    formCreateProject.onsubmit = async (e) => {
       e.preventDefault();
+      if (isCreatingProject) return;
+
       const name = inputProjectName?.value.trim();
       const pathVal = inputProjectPath?.value.trim();
       const desc = document.getElementById('new-project-desc-input')?.value.trim();
@@ -5701,6 +5758,12 @@ function initProjectsEventListeners() {
       }
 
       try {
+        isCreatingProject = true;
+        if (btnSubmitCreateProject) {
+          btnSubmitCreateProject.disabled = true;
+          btnSubmitCreateProject.textContent = 'Đang thêm...';
+        }
+
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5719,21 +5782,29 @@ function initProjectsEventListeners() {
         }
       } catch (err) {
         showToast('Lỗi tạo dự án: ' + err.message);
+      } finally {
+        isCreatingProject = false;
+        if (btnSubmitCreateProject) {
+          btnSubmitCreateProject.disabled = false;
+          btnSubmitCreateProject.textContent = 'Xác Nhận & Thêm Dự Án';
+        }
       }
-    });
+    };
   }
 
-  // Modal: Thêm Đoạn Chat Mới Trong Dự Án (Chọn AI giống Playground)
+  // Modal: Thêm Đoạn Chat Mới Trong Dự Án (Chỉ tạo đúng 1 đoạn chat duy nhất mỗi lần bấm)
   const modalNewChat = document.getElementById('modal-new-project-chat');
   const btnOpenNewChat = document.getElementById('btn-open-new-chat-modal');
   const btnCloseNewChat = document.getElementById('btn-close-new-project-chat-modal');
   const btnCancelNewChat = document.getElementById('btn-cancel-new-project-chat');
+  const btnSubmitNewChat = document.getElementById('btn-submit-new-chat');
   const formNewChat = document.getElementById('new-project-chat-form');
   const newChatTitleInput = document.getElementById('new-chat-title-input');
   const newChatModelSelect = document.getElementById('new-chat-model-select');
 
+  let isCreatingChat = false;
   if (btnOpenNewChat && modalNewChat) {
-    btnOpenNewChat.addEventListener('click', () => {
+    btnOpenNewChat.onclick = () => {
       if (!projectsState.activeProjectId) {
         showToast('Vui lòng chọn hoặc thêm một dự án trước.');
         return;
@@ -5744,45 +5815,62 @@ function initProjectsEventListeners() {
         newChatTitleInput.focus();
         newChatTitleInput.select();
       }
-    });
+    };
   }
   const closeNewChatModal = () => { modalNewChat?.classList.remove('active'); modalNewChat?.classList.remove('open'); };
-  if (btnCloseNewChat) btnCloseNewChat.addEventListener('click', closeNewChatModal);
-  if (btnCancelNewChat) btnCancelNewChat.addEventListener('click', closeNewChatModal);
+  if (btnCloseNewChat) btnCloseNewChat.onclick = closeNewChatModal;
+  if (btnCancelNewChat) btnCancelNewChat.onclick = closeNewChatModal;
 
   if (formNewChat) {
-    formNewChat.addEventListener('submit', async (e) => {
+    formNewChat.onsubmit = async (e) => {
       e.preventDefault();
+      if (isCreatingChat) return;
+
       const title = newChatTitleInput?.value.trim();
       const model = newChatModelSelect?.value || 'kilo-auto/free';
 
       if (!title || !projectsState.activeProjectId) return;
 
       try {
+        isCreatingChat = true;
+        if (btnSubmitNewChat) {
+          btnSubmitNewChat.disabled = true;
+          btnSubmitNewChat.textContent = 'Đang tạo...';
+        }
+
         const res = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, model })
         });
         const data = await res.json();
-        if (data.success && data.chat) {
+        const createdChat = data.chat || (data.success ? data : null);
+        if (createdChat && createdChat.id) {
           showToast(`Đã tạo đoạn chat "${title}" với AI ${model}!`);
           closeNewChatModal();
           formNewChat.reset();
 
           if (projectsState.activeProject) {
             projectsState.activeProject.chats = projectsState.activeProject.chats || [];
-            projectsState.activeProject.chats.unshift(data.chat);
+            if (!projectsState.activeProject.chats.some(c => c.id === createdChat.id)) {
+              projectsState.activeProject.chats.unshift(createdChat);
+            }
           }
-          projectsState.activeChatId = data.chat.id;
+          projectsState.activeChatId = createdChat.id;
           renderActiveProject();
         } else {
           showToast('Lỗi: ' + (data.error || 'Không thể tạo đoạn chat'));
         }
       } catch (err) {
         showToast('Lỗi tạo chat: ' + err.message);
+      } finally {
+        isCreatingChat = false;
+        if (btnSubmitNewChat) {
+          btnSubmitNewChat.disabled = false;
+          btnSubmitNewChat.textContent = 'Tạo Đoạn Chat';
+        }
       }
-    });
+    };
   }
 
   // Xóa dự án đang mở
