@@ -1595,6 +1595,188 @@ const Store = {
     return chat.agents;
   },
 
+  // Phân tích dự án & ý tưởng để cơ cấu và bổ nhiệm các AI Agent phù hợp
+  analyzeAndSetupAgentsForChat(projectId, chatId, userIdea = '') {
+    const data = readDb();
+    data.projects = data.projects || [];
+    const proj = data.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Không tìm thấy dự án.');
+
+    const chat = (proj.chats || []).find(c => c.id === chatId);
+    if (!chat) throw new Error('Không tìm thấy đoạn chat trong dự án.');
+
+    chat.agents = chat.agents || [];
+    const catalog = this.getSpecializedCatalog();
+
+    // 1. Phân tích ngữ cảnh dự án từ các file thực tế và ý tưởng người dùng
+    const filesList = [];
+    if (proj.path && fs.existsSync(proj.path)) {
+      try {
+        const entries = fs.readdirSync(proj.path, { withFileTypes: true });
+        entries.forEach(e => {
+          if (!e.name.startsWith('.') && e.name !== 'node_modules') {
+            filesList.push(e.name);
+          }
+        });
+      } catch (err) {}
+    } else if (Array.isArray(proj.files)) {
+      proj.files.forEach(f => filesList.push(f.name || f.path || ''));
+    }
+
+    const filesStr = filesList.join(' ').toLowerCase();
+    const ideaStr = (userIdea || '').toLowerCase();
+    const combinedContext = filesStr + ' ' + ideaStr;
+
+    // Phát hiện công nghệ & đặc thù
+    const detectedStack = [];
+    const neededRoles = ['architect'];
+
+    if (combinedContext.includes('react') || combinedContext.includes('vue') || combinedContext.includes('html') || combinedContext.includes('css') || combinedContext.includes('ui') || combinedContext.includes('giao diện') || combinedContext.includes('frontend') || combinedContext.includes('tailwind') || combinedContext.includes('vite')) {
+      detectedStack.push('Frontend Web / UI');
+      neededRoles.push('frontend');
+    }
+
+    if (combinedContext.includes('node') || combinedContext.includes('express') || combinedContext.includes('api') || combinedContext.includes('server') || combinedContext.includes('backend') || combinedContext.includes('python') || combinedContext.includes('fastapi')) {
+      detectedStack.push('Backend & REST API');
+      neededRoles.push('coder');
+    } else {
+      neededRoles.push('coder');
+    }
+
+    if (combinedContext.includes('sql') || combinedContext.includes('db') || combinedContext.includes('database') || combinedContext.includes('sqlite') || combinedContext.includes('mongo') || combinedContext.includes('prisma') || combinedContext.includes('csdl') || combinedContext.includes('bảng')) {
+      detectedStack.push('Cơ sở dữ liệu & Schema');
+      neededRoles.push('database');
+    }
+
+    if (combinedContext.includes('test') || combinedContext.includes('kiểm thử') || combinedContext.includes('lỗi') || combinedContext.includes('bug') || combinedContext.includes('debug') || combinedContext.includes('terminal')) {
+      detectedStack.push('Kiểm thử & QA');
+      neededRoles.push('tester');
+    } else if (neededRoles.length < 4) {
+      neededRoles.push('tester');
+    }
+
+    if (combinedContext.includes('auth') || combinedContext.includes('bảo mật') || combinedContext.includes('token') || combinedContext.includes('jwt') || combinedContext.includes('security')) {
+      detectedStack.push('Bảo mật & Auth');
+      neededRoles.push('security');
+    } else if (combinedContext.includes('docker') || combinedContext.includes('deploy') || combinedContext.includes('devops') || combinedContext.includes('render') || combinedContext.includes('ci/cd')) {
+      detectedStack.push('DevOps & Triển khai');
+      neededRoles.push('devops');
+    }
+
+    const uniqueRoles = [...new Set(neededRoles)].slice(0, 4);
+
+    const AGENT_BLUEPRINTS = {
+      architect: {
+        category: 'architect',
+        name: 'Kiến Trúc Sư',
+        badge: 'ARCHITECT',
+        color: '#3b82f6',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter',
+        reason: 'Hoạch định kiến trúc module, luồng xử lý và phân bổ công việc'
+      },
+      coder: {
+        category: 'coder',
+        name: 'Lập Trình Viên',
+        badge: 'CODER',
+        color: '#10b981',
+        model: 'cohere/north-mini-code:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter',
+        reason: 'Hiện thực hóa mã nguồn, giải thuật và cập nhật files dự án'
+      },
+      frontend: {
+        category: 'frontend',
+        name: 'Chuyên Gia Frontend UI/UX',
+        badge: 'FRONTEND',
+        color: '#ec4899',
+        model: 'nemotron-3.5-super-vl-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode',
+        reason: 'Tối ưu hóa layout giao diện responsive, CSS và trải nghiệm người dùng'
+      },
+      database: {
+        category: 'database',
+        name: 'Kỹ Sư CSDL & SQL',
+        badge: 'DATABASE',
+        color: '#14b8a6',
+        model: 'glm-5.3-flash-free',
+        providerId: 'prov_opencode',
+        providerName: 'OpenCode',
+        reason: 'Thiết kế cấu trúc bảng dữ liệu, chuẩn hóa schema và tối ưu truy vấn'
+      },
+      tester: {
+        category: 'tester',
+        name: 'Kỹ Sư Kiểm Thử & QA',
+        badge: 'TESTER',
+        color: '#f59e0b',
+        model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+        providerId: 'prov_cloudflare_ai',
+        providerName: 'Cloudflare Workers AI',
+        reason: 'Kiểm toán code, rà soát lỗi logic và chạy Terminal kiểm thử'
+      },
+      devops: {
+        category: 'devops',
+        name: 'Kỹ Sư DevOps',
+        badge: 'DEVOPS',
+        color: '#8b5cf6',
+        model: 'recursive/flint-v1.0:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter',
+        reason: 'Cấu hình môi trường runtime, script build và đóng gói ứng dụng'
+      },
+      security: {
+        category: 'security',
+        name: 'Chuyên Gia Bảo Mật',
+        badge: 'SECURITY',
+        color: '#ef4444',
+        model: 'nvidia/nemotron-3.5-lightning:free',
+        providerId: 'prov_openrouter',
+        providerName: 'OpenRouter',
+        reason: 'Kiểm tra xác thực, bảo vệ dữ liệu và rà soát các lỗ hổng tiềm ẩn'
+      }
+    };
+
+    const addedAgents = [];
+    uniqueRoles.forEach(roleKey => {
+      const blueprint = AGENT_BLUEPRINTS[roleKey];
+      if (!blueprint) return;
+      const alreadyHas = chat.agents.some(a => a.category === roleKey);
+      if (!alreadyHas && chat.agents.length < 5) {
+        const roleConfig = catalog[roleKey] || catalog.coder;
+        const newAg = {
+          id: 'ag_' + crypto.randomBytes(4).toString('hex'),
+          category: roleKey,
+          roleTitle: roleConfig.roleTitle || blueprint.name,
+          name: blueprint.name,
+          badge: blueprint.badge,
+          color: blueprint.color,
+          model: blueprint.model,
+          providerId: blueprint.providerId,
+          providerName: blueprint.providerName,
+          systemPrompt: roleConfig.systemPrompt,
+          allocatedReason: blueprint.reason
+        };
+        chat.agents.push(newAg);
+        addedAgents.push(newAg);
+      }
+    });
+
+    proj.updatedAt = new Date().toISOString();
+    writeDb(data);
+
+    const stackDesc = detectedStack.length > 0 ? detectedStack.join(', ') : 'Cấu trúc mã nguồn chung';
+    const analysisReport = {
+      projectType: stackDesc,
+      allocatedCount: addedAgents.length,
+      agents: chat.agents,
+      newlyAdded: addedAgents
+    };
+
+    return { success: true, agents: chat.agents, analysisReport };
+  },
+
   removeAgentFromChat(projectId, chatId, agentId) {
     const data = readDb();
     data.projects = data.projects || [];

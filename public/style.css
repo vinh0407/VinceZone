@@ -10047,16 +10047,18 @@ pre code.hljs {
   color: #ffffff;
 }
 
+.btn-agent-action-analyze,
 .btn-agent-action-auto {
-  background: #1e1e24;
-  border-color: #2e2e38;
-  color: #93c5fd;
+  background: #1c1c20;
+  border-color: #2e2e34;
+  color: #e4e4e7;
 }
 
+.btn-agent-action-analyze:hover,
 .btn-agent-action-auto:hover {
-  background: #252530;
-  border-color: #3b82f6;
-  color: #bfdbfe;
+  background: #27272b;
+  border-color: #3f3f46;
+  color: #ffffff;
 }
 
 .composer-bottom-right {

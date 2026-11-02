@@ -7363,7 +7363,7 @@ window.renderAgentDropdownList = function() {
     listEl.innerHTML = `
       <div class="agent-empty-hint">
         <span>Chưa có AI Agent nào trong đoạn chat này.</span>
-        <button type="button" class="btn-quick-auto-add" onclick="window.autoSetupCouncilFromDropdown()">+ Thêm nhanh 5 Agent</button>
+        <button type="button" class="btn-quick-auto-add" onclick="window.analyzeProjectAndRecruitAgents()">Phân Tích & Tuyển Chọn Agent</button>
       </div>
     `;
     return;
@@ -7476,18 +7476,57 @@ window.openAddAgentCouncilFromDropdown = function() {
   }
 };
 
-window.autoSetupCouncilFromDropdown = async function() {
+window.analyzeProjectAndRecruitAgents = async function() {
+  const targetId = projectsState.activeProjectId;
+  const chatId = projectsState.activeChatId;
+  if (!targetId || !chatId) {
+    showToast('Vui lòng chọn hoặc mở một đoạn chat trước.');
+    return;
+  }
+
+  // Lấy ý tưởng từ ô nhập liệu nếu người dùng có nhập
+  const inputEl = document.getElementById('project-chat-input');
+  const userIdea = inputEl ? inputEl.value.trim() : '';
+
   const dropdown = document.getElementById('antigravity-agent-dropdown');
   const capsule = document.getElementById('btn-toggle-agent-menu');
   if (dropdown) dropdown.style.display = 'none';
   if (capsule) capsule.classList.remove('active');
 
-  if (typeof window.autoSetupCouncilAgents === 'function') {
-    await window.autoSetupCouncilAgents();
-    window.updateAgentCapsuleLabel();
-    window.renderAgentDropdownList();
+  showToast('🔍 Đang phân tích dự án & ý tưởng để tuyển chọn Agent phù hợp...');
+
+  try {
+    const res = await fetch(`/api/projects/${targetId}/chats/${chatId}/analyze-and-recruit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idea: userIdea })
+    });
+    const data = await res.json();
+    if (data.success && data.agents) {
+      if (projectsState.activeChat) {
+        projectsState.activeChat.agents = data.agents;
+      }
+      renderActiveChatAgents(projectsState.activeChat);
+      window.updateAgentCapsuleLabel();
+      window.renderAgentDropdownList();
+
+      const count = data.analysisReport?.allocatedCount || 0;
+      const stack = data.analysisReport?.projectType || 'Đa năng';
+      if (count > 0) {
+        showToast(`✔ Đã phân tích [${stack}] và bổ nhiệm ${count} Agent phù hợp vào dự án!`);
+      } else {
+        showToast(`✔ Dự án [${stack}] đã có đủ các vị trí Agent phù hợp!`);
+      }
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Không thể phân tích dự án.'));
+    }
+  } catch (err) {
+    showToast('Lỗi phân tích: ' + err.message);
   }
 };
+
+window.autoSetupCouncilFromDropdown = window.analyzeProjectAndRecruitAgents;
+window.autoSetupCouncilAgents = window.analyzeProjectAndRecruitAgents;
 
 // Đóng menu agent khi click ra ngoài
 document.addEventListener('click', (e) => {

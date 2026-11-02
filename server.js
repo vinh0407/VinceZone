@@ -915,6 +915,17 @@ app.post('/api/projects/:id/chats/:chatId/agents', (req, res) => {
   }
 });
 
+// Phân tích dự án hoặc ý tưởng để cơ cấu và bổ nhiệm các AI Agent phù hợp
+app.post('/api/projects/:id/chats/:chatId/analyze-and-recruit', (req, res) => {
+  try {
+    const { idea } = req.body || {};
+    const result = Store.analyzeAndSetupAgentsForChat(req.params.id, req.params.chatId, idea);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Tự động thêm trọn bộ 5 Agent chuyên sâu từ 4 Provider (OpenRouter, Cloudflare, Kilo, OpenCode)
 app.post('/api/projects/:id/chats/:chatId/auto-add-agents', (req, res) => {
   try {
