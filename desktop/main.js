@@ -12,6 +12,7 @@ const SERVER_PORT = process.env.PORT || 3000;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 
 // Helper: Check if gateway server is responding
+Menu.setApplicationMenu(null);
 async function isServerOnline() {
   try {
     const res = await fetch(`${SERVER_URL}/api/providers`);
@@ -61,101 +62,6 @@ async function ensureGatewayRunning() {
   return await waitForServer();
 }
 
-function createApplicationMenu() {
-  const template = [
-    {
-      label: 'Tệp (File)',
-      submenu: [
-        {
-          label: 'Mở Thư Mục Dự Án (Open Folder)...',
-          accelerator: 'CmdOrCtrl+O',
-          click: async () => {
-            const res = await openFolderDialog();
-            if (res && mainWindow) {
-              mainWindow.webContents.send('workspace:opened', res);
-            }
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Tải Lại Giao Diện (F5 / Reload)',
-          accelerator: 'F5',
-          click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
-        },
-        {
-          label: 'Tải Lại Bỏ Qua Cache (Ctrl+R / Hard Reload)',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
-        },
-        {
-          label: 'Tải Lại Toàn Bộ (Ctrl+Shift+R)',
-          accelerator: 'CmdOrCtrl+Shift+R',
-          click: () => mainWindow && mainWindow.webContents.reloadIgnoringCache()
-        },
-        { type: 'separator' },
-        {
-          label: 'Thoát (Exit)',
-          accelerator: 'CmdOrCtrl+Q',
-          click: () => app.quit()
-        }
-      ]
-    },
-    {
-      label: 'Chỉnh Sửa (Edit)',
-      submenu: [
-        { label: 'Hoàn tác (Undo)', role: 'undo' },
-        { label: 'Làm lại (Redo)', role: 'redo' },
-        { type: 'separator' },
-        { label: 'Cắt (Cut)', role: 'cut' },
-        { label: 'Sao chép (Copy)', role: 'copy' },
-        { label: 'Dán (Paste)', role: 'paste' },
-        { label: 'Chọn tất cả (Select All)', role: 'selectAll' }
-      ]
-    },
-    {
-      label: 'Hiển Thị (View)',
-      submenu: [
-        { label: 'Toàn Màn Hình (Toggle Fullscreen)', role: 'togglefullscreen' },
-        { type: 'separator' },
-        { label: 'Phóng to (Zoom In)', role: 'zoomIn' },
-        { label: 'Thu nhỏ (Zoom Out)', role: 'zoomOut' },
-        { label: 'Kích thước chuẩn (Reset Zoom)', role: 'resetZoom' },
-        { type: 'separator' },
-        {
-          label: 'Công Cụ Nhà Phát Triển (DevTools)',
-          accelerator: 'F12',
-          click: () => mainWindow && mainWindow.webContents.toggleDevTools()
-        }
-      ]
-    },
-    {
-      label: 'Cửa Sổ (Window)',
-      submenu: [
-        { label: 'Thu nhỏ (Minimize)', role: 'minimize' },
-        { label: 'Đóng (Close)', role: 'close' }
-      ]
-    },
-    {
-      label: 'Trợ Giúp (Help)',
-      submenu: [
-        {
-          label: 'Về VinceZone Studio [Desktop Edition]',
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'VinceZone Studio',
-              message: 'VinceZone AI Workplay & Autonomous IDE',
-              detail: 'Phiên bản Desktop v1.0.0\nTích hợp Hội đồng Agent AI chuyên biệt, Terminal PowerShell/CMD và Quản lý Đa dự án.\n\nTác giả: VinceZone Team'
-            });
-          }
-        }
-      ]
-    }
-  ];
-
-  Menu.setApplicationMenu(null);
-}
-
 function createWindow() {
   const appIcon = path.join(__dirname, 'icon.png');
   mainWindow = new BrowserWindow({
@@ -175,7 +81,9 @@ function createWindow() {
     }
   });
 
+  mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.autoHideMenuBar = true;
 
   mainWindow.on('maximize', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -188,8 +96,6 @@ function createWindow() {
       mainWindow.webContents.send('window:state-changed', { isMaximized: false });
     }
   });
-
-  createApplicationMenu();
 
   // Load splash screen first
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
