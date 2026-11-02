@@ -345,7 +345,6 @@ const tabRoutes = {
   'playground': '/Playground',
   'projects': '/Dự Án',
   'ide': '/Open-IDE',
-  'demo': '/Demo',
   'prompts': '/Kho Prompt & Skills',
   'settings': '/Cài Đặt (Settings)'
 };

@@ -36,9 +36,6 @@
         <button class="nav-btn" data-tab="ide" id="nav-btn-open-ide" onclick="window.openIdeDirectly()">
           Open IDE
         </button>
-        <button class="nav-btn" data-tab="demo" id="nav-btn-demo" onclick="window.openDemoDirectly()">
-          Demo
-        </button>
         <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
           Kho Prompt & Skills
         </button>
@@ -596,11 +593,7 @@
           </div>
           <div class="drawer-menu-row" onclick="window.openIdeDirectly()">
             <span class="row-icon">💻</span>
-            <span class="row-label">Open IDE</span>
-          </div>
-          <div class="drawer-menu-row" onclick="window.openDemoDirectly()">
-            <span class="row-icon">🚀</span>
-            <span class="row-label">Live Demo Web & App</span>
+            <span class="row-label">Open IDE & Demo</span>
           </div>
           <div class="drawer-menu-row" onclick="window.switchTabByRoute('prompts')">
             <span class="row-icon">🧩</span>
@@ -1963,6 +1956,9 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
         <button class="mobile-nav-btn active" data-tab="projects">
           <span>Dự Án</span>
         </button>
+        <button class="mobile-nav-btn" data-tab="ide" onclick="window.openIdeDirectly()">
+          <span>Open IDE</span>
+        </button>
         <button class="mobile-nav-btn" data-tab="prompts">
           <span>Kho Prompt</span>
         </button>
@@ -1972,6 +1968,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=8.5"></script>
+ <script src="app.js?v=9.1"></script>
 </body>
 </html>
