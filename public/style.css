@@ -8838,22 +8838,82 @@ input[type="range"] {
 .demo-preview-pane {
   display: flex;
   flex-direction: column;
-  background: #08080a;
+  background: #0d0d10;
   overflow: hidden;
-  align-items: center;
-  justify-content: center;
   position: relative;
-  padding: 1rem;
+  padding: 0;
+  height: 100%;
+}
+
+/* Header thanh điều hướng tab trong ô Demo (Demo | AI Chat) */
+.demo-pane-header {
+  height: 35px;
+  min-height: 35px;
+  background: #141416;
+  border-bottom: 1px solid #222226;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  user-select: none;
+}
+
+.demo-pane-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.demo-pane-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #8c8c94;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.demo-pane-tab:hover {
+  background: #202024;
+  color: #f4f4f5;
+}
+
+.demo-pane-tab.active {
+  background: #25252a;
+  border-color: #38383e;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.demo-pane-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.demo-pane-url-preview {
+  font-family: monospace;
+  font-size: 11px;
+  color: #71717a;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .demo-preview-container {
   width: 100%;
   height: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   position: relative;
+  padding: 0.75rem;
 }
 
 /* 1. KHUNG TRÌNH DUYỆT (BROWSER MOCKUP FRAME) */

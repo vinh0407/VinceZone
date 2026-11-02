@@ -7535,6 +7535,32 @@ window.switchDemoActiveProject = async function(projectId) {
   await window.initDemoWorkspace(projectId);
 };
 
+// Đổi tab trong ô bên phải: Demo (mặc định) | AI Chat
+window.switchRightPaneTab = function(tab) {
+  const btnDemo = document.getElementById('btn-pane-tab-demo');
+  const btnAi = document.getElementById('btn-pane-tab-ai');
+  const demoContainer = document.getElementById('demo-preview-container');
+  const aiPanel = document.getElementById('ide-ai-panel');
+  const headerActions = document.getElementById('demo-pane-header-actions');
+
+  if (tab === 'demo') {
+    if (btnDemo) btnDemo.classList.add('active');
+    if (btnAi) btnAi.classList.remove('active');
+    if (demoContainer) demoContainer.style.display = 'flex';
+    if (aiPanel) aiPanel.style.display = 'none';
+    if (headerActions) headerActions.style.display = 'flex';
+  } else {
+    if (btnDemo) btnDemo.classList.remove('active');
+    if (btnAi) btnAi.classList.add('active');
+    if (demoContainer) demoContainer.style.display = 'none';
+    if (aiPanel) {
+      aiPanel.style.display = 'flex';
+      if (typeof window.syncIdeAiFeed === 'function') window.syncIdeAiFeed();
+    }
+    if (headerActions) headerActions.style.display = 'none';
+  }
+};
+
 // Đổi chế độ hiển thị: Song song (Split) | Chỉ Demo | Chỉ Code
 window.switchDemoViewMode = function(mode) {
   demoState.viewMode = mode;
@@ -7683,6 +7709,10 @@ window.reloadDemoPreview = function() {
 
   if (addrText) {
     addrText.textContent = displayUrl;
+  }
+  const paneUrlPreview = document.getElementById('demo-pane-url-preview');
+  if (paneUrlPreview) {
+    paneUrlPreview.textContent = displayUrl;
   }
 
   if (demoState.showPhoneMockup) {
