@@ -7544,6 +7544,23 @@ window.switchDemoViewMode = function(mode) {
   if (mainBody) {
     mainBody.className = `demo-main-body mode-${mode}`;
   }
+  const codePane = document.getElementById('demo-code-pane');
+  const previewPane = document.getElementById('demo-preview-pane');
+  if (codePane && previewPane) {
+    if (mode === 'split') {
+      const savedPercent = localStorage.getItem('vz_code_split_percent');
+      const p = parseFloat(savedPercent) || 48;
+      codePane.style.width = p + '%';
+      codePane.style.flex = 'none';
+      previewPane.style.width = (100 - p) + '%';
+      previewPane.style.flex = 'none';
+    } else {
+      codePane.style.width = '';
+      codePane.style.flex = '';
+      previewPane.style.width = '';
+      previewPane.style.flex = '';
+    }
+  }
   document.querySelectorAll('.demo-mode-pill').forEach(btn => {
     if (btn.dataset.mode === mode) btn.classList.add('active');
     else btn.classList.remove('active');
@@ -8596,3 +8613,169 @@ window.renderDemoHierarchicalTree = function(items, container, depth = 0) {
     }
   });
 };
+
+
+// =============================================================================
+// INTERACTIVE RESIZABLE SPLITTERS INITIALIZER
+// =============================================================================
+
+function initInteractiveResizers() {
+  // 1. Resizer giữa Cây tập tin dự án (Sidebar) và Khung soạn thảo (Editor)
+  const resizerSidebar = document.getElementById('resizer-file-tree');
+  const sidebarEl = document.querySelector('.ide-file-tree-sidebar');
+
+  if (resizerSidebar && sidebarEl) {
+    // Khôi phục độ rộng đã lưu
+    const savedSidebarW = localStorage.getItem('vz_ide_sidebar_w');
+    if (savedSidebarW) {
+      sidebarEl.style.width = savedSidebarW + 'px';
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    const onMouseDown = (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startWidth = sidebarEl.getBoundingClientRect().width;
+      resizerSidebar.classList.add('dragging');
+      document.body.classList.add('is-resizing');
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      let newW = Math.max(140, Math.min(550, startWidth + deltaX));
+      sidebarEl.style.width = newW + 'px';
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      resizerSidebar.classList.remove('dragging');
+      document.body.classList.remove('is-resizing');
+      localStorage.setItem('vz_ide_sidebar_w', sidebarEl.getBoundingClientRect().width);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    resizerSidebar.addEventListener('mousedown', onMouseDown);
+  }
+
+  // 2. Resizer giữa Code Inspector và Live Demo
+  const resizerCodeDemo = document.getElementById('resizer-code-demo');
+  const codePane = document.getElementById('demo-code-pane');
+  const previewPane = document.getElementById('demo-preview-pane');
+  const mainBody = document.getElementById('demo-main-body');
+
+  if (resizerCodeDemo && codePane && previewPane && mainBody) {
+    // Khôi phục tỉ lệ phần trăm đã lưu (mặc định 48% / 52%)
+    const savedPercent = localStorage.getItem('vz_code_split_percent');
+    if (savedPercent && demoState.viewMode === 'split') {
+      const p = parseFloat(savedPercent);
+      if (!isNaN(p) && p > 15 && p < 85) {
+        codePane.style.width = p + '%';
+        codePane.style.flex = 'none';
+        previewPane.style.width = (100 - p) + '%';
+        previewPane.style.flex = 'none';
+      }
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startCodeW = 0;
+    let totalW = 0;
+
+    const onMouseDown = (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startCodeW = codePane.getBoundingClientRect().width;
+      totalW = mainBody.getBoundingClientRect().width;
+      resizerCodeDemo.classList.add('dragging');
+      document.body.classList.add('is-resizing');
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      let newCodeW = Math.max(200, Math.min(totalW - 250, startCodeW + deltaX));
+      let percent = (newCodeW / totalW) * 100;
+      percent = Math.max(18, Math.min(82, percent));
+
+      codePane.style.width = percent + '%';
+      codePane.style.flex = 'none';
+      previewPane.style.width = (100 - percent) + '%';
+      previewPane.style.flex = 'none';
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      resizerCodeDemo.classList.remove('dragging');
+      document.body.classList.remove('is-resizing');
+      const finalW = codePane.getBoundingClientRect().width;
+      const p = (finalW / mainBody.getBoundingClientRect().width) * 100;
+      localStorage.setItem('vz_code_split_percent', p.toFixed(2));
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    resizerCodeDemo.addEventListener('mousedown', onMouseDown);
+  }
+
+  // 3. Resizer giữa Khung Code và Bảng AI Assistant (Right)
+  const resizerAi = document.getElementById('resizer-ide-ai');
+  const aiPanel = document.getElementById('ide-ai-panel');
+
+  if (resizerAi && aiPanel) {
+    const savedAiW = localStorage.getItem('vz_ide_ai_w');
+    if (savedAiW) {
+      aiPanel.style.width = savedAiW + 'px';
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startAiW = 0;
+
+    const onMouseDown = (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startAiW = aiPanel.getBoundingClientRect().width;
+      resizerAi.classList.add('dragging');
+      document.body.classList.add('is-resizing');
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      let newW = Math.max(200, Math.min(600, startAiW - deltaX));
+      aiPanel.style.width = newW + 'px';
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      resizerAi.classList.remove('dragging');
+      document.body.classList.remove('is-resizing');
+      localStorage.setItem('vz_ide_ai_w', aiPanel.getBoundingClientRect().width);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    resizerAi.addEventListener('mousedown', onMouseDown);
+  }
+}
+
+// Khởi chạy khi tài liệu nạp xong
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initInteractiveResizers);
+} else {
+  initInteractiveResizers();
+}

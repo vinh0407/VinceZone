@@ -10358,3 +10358,96 @@ pre code.hljs {
 .footer-chip:hover {
   color: #999999;
 }
+
+
+/* =============================================================================
+   RESIZABLE SPLITTERS & DRAGGABLE DIVIDERS (Code vs Demo vs File Tree)
+============================================================================= */
+
+.ide-resizer-sidebar,
+.demo-split-resizer,
+.ide-resizer-ai {
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none;
+}
+
+/* Sidebar Resizer (File Tree & Editor) */
+.ide-resizer-sidebar {
+  width: 5px;
+  background: #1c1c1c;
+  cursor: col-resize;
+  border-left: 1px solid #222222;
+  transition: background 0.15s ease;
+}
+
+.ide-resizer-sidebar:hover,
+.ide-resizer-sidebar.dragging {
+  background: #007acc !important;
+}
+
+/* Code & Live Demo Resizer */
+.demo-split-resizer {
+  width: 6px;
+  background: #18181b;
+  cursor: col-resize;
+  border-left: 1px solid #27272a;
+  border-right: 1px solid #27272a;
+  transition: all 0.15s ease;
+}
+
+.demo-split-resizer:hover,
+.demo-split-resizer.dragging {
+  background: #007acc !important;
+  border-color: #007acc !important;
+  box-shadow: 0 0 8px rgba(0, 122, 204, 0.5);
+}
+
+/* Subtle centered dot-handle on Code-Demo resizer */
+.demo-split-resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 24px;
+  border-radius: 2px;
+  background: #52525b;
+}
+
+.demo-split-resizer:hover::after,
+.demo-split-resizer.dragging::after {
+  background: #ffffff;
+}
+
+/* AI Panel Resizer */
+.ide-resizer-ai {
+  width: 5px;
+  background: #1c1c1c;
+  cursor: col-resize;
+  border-right: 1px solid #222222;
+  transition: background 0.15s ease;
+}
+
+.ide-resizer-ai:hover,
+.ide-resizer-ai.dragging {
+  background: #007acc !important;
+}
+
+/* Hide split resizer when in full code or full preview mode */
+.demo-main-body.mode-code #resizer-code-demo,
+.demo-main-body.mode-preview #resizer-code-demo {
+  display: none !important;
+}
+
+/* When dragging, disable iframe pointer events so mouse doesn't get captured */
+body.is-resizing iframe {
+  pointer-events: none !important;
+}
+body.is-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
