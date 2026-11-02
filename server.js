@@ -2593,7 +2593,7 @@ ${projectContext}
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
-          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          agentModel: 'kilo-auto/free',
           content: pmAnswer.trim()
         });
 
@@ -2636,7 +2636,7 @@ Trả về DUY NHẤT định dạng JSON:
       let dispatchPlan = null;
       try {
         const planRaw = await callInternalAI({
-          model: 'nvidia/nemotron-3.5-lightning:free',
+          model: 'kilo-auto/free',
           messages: [
             { role: 'system', content: 'Bạn là PM thông minh, phân tích sâu và trả về JSON chuẩn xác 100% tiếng Việt.' },
             { role: 'user', content: pmUnifiedPrompt }
@@ -2673,7 +2673,7 @@ Trả về DUY NHẤT định dạng JSON:
           agentBadge: 'PM',
           agentColor: '#3b82f6',
           agentRole: 'Project Manager (PM)',
-          agentModel: 'nvidia/nemotron-3.5-lightning:free',
+          agentModel: 'kilo-auto/free',
           content: dispatchPlan.reply.trim()
         });
 
