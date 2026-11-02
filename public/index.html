@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=6.4">
+ <link rel="stylesheet" href="style.css?v=7.0">
  <!-- Markdown & Code Highlight Support -->
  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -418,7 +418,7 @@
 
 <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
   <section id="tab-projects" class="tab-pane active">
-  <div class="projects-layout">
+  <div class="projects-layout" id="projects-ide-layout">
     <!-- 1. Left Sidebar: Quản lý Dự Án, Cây Tập Tin & Cây Đoạn Chat -->
     <aside class="projects-sidebar">
       <!-- Nút Thêm Dự Án trên đầu & Nút Thu Gọn Sidebar -->
@@ -483,8 +483,91 @@
       </div>
     </aside>
 
-    <!-- 2. Main Workspace: Chat Canvas -->
-    <main class="projects-main">
+    <!-- 2. CENTER PANEL: Multi-Tab Code Editor & Integrated Terminal (Visual Studio / Cursor / OpenCode Style) -->
+    <section class="ide-editor-container" id="ide-editor-container">
+      <!-- Editor Tabs Bar -->
+      <div class="ide-tabs-bar" id="ide-tabs-bar">
+        <div class="ide-tabs-scroll" id="ide-tabs-scroll">
+          <!-- Dynamically populated open tabs: [📄 server.js ×] -->
+        </div>
+        <div class="ide-tabs-actions">
+          <button type="button" id="btn-save-current-file" class="btn-ide-action" onclick="window.saveActiveEditorFile()" title="Lưu tệp hiện tại (Ctrl+S)">
+            <span>💾 Lưu</span>
+          </button>
+          <button type="button" id="btn-copy-current-code" class="btn-ide-action" onclick="window.copyActiveEditorCode()" title="Sao chép toàn bộ mã nguồn">
+            <span>📋 Copy</span>
+          </button>
+          <button type="button" id="btn-toggle-docked-terminal" class="btn-ide-action" onclick="window.toggleDockedTerminal()" title="Bật / Tắt Terminal (Ctrl+\)">
+            <span>📟 Terminal</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Editor Viewport -->
+      <div class="ide-editor-viewport" id="ide-editor-viewport">
+        <!-- Placeholder / Welcome Screen (When no file is open) -->
+        <div class="ide-editor-placeholder" id="ide-editor-placeholder">
+          <div class="ide-welcome-card">
+            <div class="ide-brand-logo">VZ</div>
+            <h3 class="ide-welcome-title">VinceZone Autonomous AI IDE</h3>
+            <p class="ide-welcome-sub">Mở tệp từ cột Explorer bên trái hoặc yêu cầu Hội đồng AI ở cột bên phải để tự động phân tích &amp; sửa code.</p>
+            <div class="ide-shortcut-cheatsheet">
+              <div class="shortcut-item"><kbd>Ctrl</kbd> + <kbd>S</kbd> <span>Lưu tệp hiện tại</span></div>
+              <div class="shortcut-item"><kbd>Ctrl</kbd> + <kbd>B</kbd> <span>Ẩn / Hiện Explorer</span></div>
+              <div class="shortcut-item"><kbd>Ctrl</kbd> + <kbd>\</kbd> <span>Bật / Tắt Terminal</span></div>
+              <div class="shortcut-item"><kbd>@Agent</kbd> <span>Giao việc đích danh</span></div>
+            </div>
+            <div class="ide-welcome-actions">
+              <button type="button" class="btn-primary btn-small" onclick="document.getElementById('btn-tree-new-file')?.click()">+ Tạo Tệp Mới</button>
+              <button type="button" class="btn-secondary btn-small" onclick="window.toggleDockedTerminal(true)">Mở Terminal Dock</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Code Editor View (When file is open) -->
+        <div class="ide-active-editor" id="ide-active-editor" style="display: none;">
+          <div class="ide-editor-subbar">
+            <div class="ide-subbar-left">
+              <span id="ide-active-file-icon" class="ide-subbar-icon">📄</span>
+              <span id="ide-active-filepath" class="ide-active-filepath">src/app.js</span>
+            </div>
+            <div class="ide-subbar-meta">
+              <span id="ide-file-stats" class="ide-file-stats">0 dòng</span>
+              <span id="ide-file-dirty-status" class="ide-dirty-badge" style="display: none;">Chưa lưu ●</span>
+            </div>
+          </div>
+          <div class="ide-code-box">
+            <div class="ide-line-numbers" id="ide-line-numbers">1</div>
+            <textarea id="ide-code-textarea" class="ide-code-textarea" spellcheck="false" placeholder="Nội dung mã nguồn..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Docked Terminal (Visual Studio / Cursor / OpenCode Bottom Dock) -->
+      <div class="ide-terminal-dock" id="ide-terminal-dock" style="display: none;">
+        <div class="terminal-dock-header">
+          <div class="terminal-dock-tabs">
+            <button type="button" class="term-dock-tab active" data-shell="powershell" onclick="window.switchDockTerminalShell('powershell')">PowerShell</button>
+            <button type="button" class="term-dock-tab" data-shell="cmd" onclick="window.switchDockTerminalShell('cmd')">CMD</button>
+          </div>
+          <div class="terminal-dock-actions">
+            <button type="button" id="btn-dock-clear-term" class="btn-micro" onclick="window.clearDockTerminal()" title="Xóa màn hình terminal">Xóa Log</button>
+            <button type="button" id="btn-close-dock-term" class="btn-micro" onclick="window.toggleDockedTerminal(false)" title="Đóng terminal (Ctrl+\)">&times;</button>
+          </div>
+        </div>
+        <div class="terminal-dock-body">
+          <pre id="terminal-dock-output" class="terminal-dock-output">VinceZone Terminal Dock ready. Nhập lệnh bên dưới hoặc yêu cầu AI Agent thực thi.</pre>
+          <div class="terminal-dock-input-row">
+            <span class="term-prompt-symbol">&gt;</span>
+            <input type="text" id="terminal-dock-input" class="terminal-dock-input" placeholder="Nhập lệnh PowerShell/CMD (vd: git status, dir, npm test)..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.runDockTerminalCommand();}">
+            <button type="button" id="btn-dock-run-cmd" class="btn-primary btn-micro" onclick="window.runDockTerminalCommand()">Chạy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. RIGHT PANEL: AI Council & Cursor-style Agent Chat Canvas -->
+    <main class="projects-main ide-ai-panel" id="ide-ai-panel">
       <!-- Chat Canvas Top Bar: Tiêu đề chat & Góc phải có DẤU CỘNG NHỎ (+) THÊM AGENT (TỐI ĐA 5 AGENT) -->
       <div class="project-chat-topbar" id="project-chat-topbar" style="display: none;">
         <div class="chat-topbar-left">
@@ -527,8 +610,21 @@
           </div>
         </div>
 
-        <!-- GÓC PHẢI: AGENT BAR, THÊM AGENT (TỐI ĐA 5) & NÚT ẨN THANH BAR NGANG -->
+        <!-- GÓC PHẢI: AGENT BAR, VIEW MODE SWITCHER & THÊM AGENT (TỐI ĐA 5) -->
         <div class="chat-topbar-right">
+          <!-- View Mode Switcher (Visual Studio / Cursor / OpenCode Layout Mode) -->
+          <div class="ide-view-mode-pills" id="ide-view-mode-pills">
+            <button type="button" class="ide-view-pill active" data-view="split" onclick="window.setIdeViewMode('split')" title="Chế độ IDE chia đôi (Editor + AI Chat)">
+              <span>🖥️ IDE</span>
+            </button>
+            <button type="button" class="ide-view-pill" data-view="code-only" onclick="window.setIdeViewMode('code-only')" title="Toàn màn hình Code Editor">
+              <span>📝 Code</span>
+            </button>
+            <button type="button" class="ide-view-pill" data-view="chat-only" onclick="window.setIdeViewMode('chat-only')" title="Toàn màn hình AI Chat">
+              <span>💬 Chat</span>
+            </button>
+          </div>
+
           <div class="chat-agents-pills-row" id="chat-agents-pills-row">
             <!-- Chips of active agents in this chat -->
           </div>
@@ -697,6 +793,20 @@
       </div>
     </main>
   </div>
+
+  <!-- 4. BOTTOM STATUS BAR (Visual Studio / Cursor Style) -->
+  <footer class="ide-status-bar" id="ide-status-bar">
+    <div class="status-bar-left">
+      <span class="status-item" title="Vị trí con trỏ trong mã nguồn"><span id="sb-cursor-pos">Ln 1, Col 1</span></span>
+      <span class="status-item" title="Bảng mã ký tự"><span id="sb-encoding">UTF-8</span></span>
+      <span class="status-item" title="Ngôn ngữ lập trình"><span id="sb-language">Plain Text</span></span>
+    </div>
+    <div class="status-bar-right">
+      <span class="status-item" id="sb-gateway" title="Trạng thái VinceZone Gateway"><span class="sb-dot active"></span> Gateway :3000</span>
+      <span class="status-item" id="sb-agents-count" title="Hội đồng AI đang trực"><span style="color: #60a5fa;">👥</span> 5 Agents Ready</span>
+      <span class="status-item" id="sb-active-project-name" title="Dự án đang mở">Dự án: Đang chọn</span>
+    </div>
+  </footer>
   </section>
 
   <!-- ==================== TAB 3: PROMPT HUB (KHO PROMPT) ==================== -->
@@ -1664,6 +1774,6 @@
       </nav>
  </div>
 
- <script src="app.js?v=6.4"></script>
+ <script src="app.js?v=7.0"></script>
 </body>
 </html>

@@ -4559,6 +4559,10 @@ function renderProjectsList() {
 }
 
 window.toggleProjectTerminal = function() {
+  if (typeof window.toggleDockedTerminal === 'function') {
+    window.toggleDockedTerminal();
+    return;
+  }
   const termDrawer = document.getElementById('project-terminal-drawer');
   if (termDrawer) {
     const isHidden = termDrawer.style.display === 'none' || !termDrawer.style.display;
@@ -4620,6 +4624,8 @@ function renderActiveProject() {
     pathEl.textContent = p.path;
     pathEl.title = p.path;
   }
+  const sbProj = document.getElementById('sb-active-project-name');
+  if (sbProj) sbProj.textContent = 'Dự án: ' + p.name;
 
   // Tải danh sách tập tin của dự án
   loadProjectFiles(p.id);
@@ -4691,11 +4697,15 @@ async function loadProjectFiles(projectId) {
     files.forEach(f => {
       const row = document.createElement('div');
       row.className = `tree-item ${f.isDirectory ? 'is-dir' : 'is-file'}`;
-      const icon = f.isDirectory ? '📁' : '📄';
+      const icon = f.isDirectory ? '📁' : getFileIcon(f.name);
       row.innerHTML = `
         <span class="tree-icon">${icon}</span>
         <span class="tree-name" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
       `;
+      if (!f.isDirectory) {
+        row.style.cursor = 'pointer';
+        row.onclick = () => window.openFileInEditor(f.path, f.name);
+      }
       container.appendChild(row);
     });
   } catch (err) {
@@ -5241,6 +5251,11 @@ function decorateProjectCodeBlocks(containerEl) {
       buttonsHtml += `<button type="button" class="btn-code-action btn-apply-custom-file" title="Ghi code này vào một file trong dự án">💾 Lưu Vào File Dự Án</button>`;
     }
 
+    // Nút Mở trong Editor (Open in Editor - Cursor Style)
+    if (!isTerminal) {
+      buttonsHtml += `<button type="button" class="btn-code-action btn-open-in-editor" title="Mở đoạn mã này trong Code Editor ở giữa">📝 Mở Trong Editor</button>`;
+    }
+
     // Nút Chạy lệnh Terminal thực tế
     if (isTerminal) {
       buttonsHtml += `<button type="button" class="btn-code-action btn-run-terminal" title="Chạy lệnh này trực tiếp trong Terminal của dự án">▶ Chạy Trong Terminal</button>`;
@@ -5332,6 +5347,21 @@ function decorateProjectCodeBlocks(containerEl) {
         } finally {
           runTerminalBtn.disabled = false;
           runTerminalBtn.textContent = '▶ Chạy Lại';
+        }
+      });
+    }
+
+    // Xử lý sự kiện Mở trong Code Editor
+    const openInEditorBtn = toolbar.querySelector('.btn-open-in-editor');
+    if (openInEditorBtn) {
+      openInEditorBtn.addEventListener('click', () => {
+        const filePath = suggestedFile || (codeEl?.className?.includes('html') ? 'index.html' : codeEl?.className?.includes('css') ? 'style.css' : 'app.js');
+        const fileName = filePath.split('/').pop();
+        if (typeof window.openFileInEditor === 'function') {
+          window.openFileInEditor(filePath, fileName, rawText);
+          if (typeof window.setIdeViewMode === 'function') {
+            window.setIdeViewMode('split');
+          }
         }
       });
     }
@@ -7085,3 +7115,422 @@ document.addEventListener('DOMContentLoaded', () => {
   const initialTab = parseCurrentUrlRoute();
   switchTabByRoute(initialTab, false);
 });
+
+
+// =========================================================================
+// 12. IDE ENGINE (VISUAL STUDIO / CURSOR / OPENCODE INTEGRATION)
+// =========================================================================
+
+const ideState = {
+  openTabs: [], // [{ path, name, content, originalContent, isDirty, language }]
+  activeTabPath: null,
+  viewMode: 'split', // 'split' | 'code-only' | 'chat-only'
+  isTerminalDockOpen: false,
+  activeShell: 'powershell'
+};
+
+function getLanguageFromFilename(filename) {
+  if (!filename) return 'Plain Text';
+  const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+  const langMap = {
+    js: 'JavaScript',
+    mjs: 'JavaScript',
+    cjs: 'JavaScript',
+    ts: 'TypeScript',
+    tsx: 'TypeScript JSX',
+    jsx: 'JavaScript JSX',
+    html: 'HTML',
+    htm: 'HTML',
+    css: 'CSS',
+    scss: 'SCSS',
+    less: 'LESS',
+    json: 'JSON',
+    py: 'Python',
+    sql: 'SQL',
+    md: 'Markdown',
+    markdown: 'Markdown',
+    sh: 'Shell',
+    bash: 'Bash',
+    ps1: 'PowerShell',
+    yml: 'YAML',
+    yaml: 'YAML',
+    xml: 'XML',
+    svg: 'SVG XML',
+    env: 'Configuration',
+    cs: 'C#',
+    cpp: 'C++',
+    c: 'C',
+    go: 'Go',
+    rs: 'Rust',
+    java: 'Java',
+    php: 'PHP'
+  };
+  return langMap[ext] || (filename.startsWith('.') ? 'Configuration' : 'Plain Text');
+}
+
+function getFileIcon(filename) {
+  if (!filename) return '📄';
+  const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+  if (['js', 'mjs', 'cjs'].includes(ext)) return '🟨';
+  if (['ts', 'tsx'].includes(ext)) return '🟦';
+  if (['html', 'htm'].includes(ext)) return '🌐';
+  if (['css', 'scss', 'less'].includes(ext)) return '🎨';
+  if (['json'].includes(ext)) return '⚙️';
+  if (['py'].includes(ext)) return '🐍';
+  if (['sql'].includes(ext)) return '🗄️';
+  if (['md', 'markdown'].includes(ext)) return '📝';
+  if (['env', 'env.local', 'env.example'].includes(filename.toLowerCase())) return '🔒';
+  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp'].includes(ext)) return '🖼️';
+  return '📄';
+}
+
+function renderEditorTabs() {
+  const container = document.getElementById('ide-tabs-scroll');
+  if (!container) return;
+  container.innerHTML = '';
+
+  ideState.openTabs.forEach(tab => {
+    const isActive = tab.path === ideState.activeTabPath;
+    const tabEl = document.createElement('div');
+    tabEl.className = `ide-tab ${isActive ? 'active' : ''}`;
+    tabEl.title = tab.path;
+    tabEl.onclick = () => window.setActiveEditorTab(tab.path);
+
+    const icon = getFileIcon(tab.name);
+    tabEl.innerHTML = `
+      <span class="tab-icon">${icon}</span>
+      <span class="tab-name">${escapeHtml(tab.name)}</span>
+      ${tab.isDirty ? '<span class="tab-dirty-dot" title="Chưa lưu"></span>' : ''}
+      <span class="tab-close" onclick="window.closeEditorTab('${escapeHtml(tab.path)}', event)" title="Đóng tab">&times;</span>
+    `;
+    container.appendChild(tabEl);
+  });
+}
+
+window.openFileInEditor = async function(filePath, fileName, optionalContent = null) {
+  if (!projectsState.activeProjectId) {
+    showToast('Vui lòng chọn hoặc thêm một dự án trước.');
+    return;
+  }
+  const cleanPath = filePath.replace(/\\/g, '/');
+  const name = fileName || cleanPath.split('/').pop();
+
+  const existingTab = ideState.openTabs.find(t => t.path === cleanPath);
+  if (existingTab) {
+    if (optionalContent !== null && optionalContent !== undefined) {
+      existingTab.content = optionalContent;
+      existingTab.isDirty = true;
+    }
+    window.setActiveEditorTab(cleanPath);
+    return;
+  }
+
+  let content = optionalContent !== null ? optionalContent : '';
+  if (optionalContent === null) {
+    try {
+      const res = await fetch(`/api/projects/${projectsState.activeProjectId}/read-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: cleanPath })
+      });
+      const data = await res.json();
+      if (data.success) {
+        content = data.content || '';
+      } else {
+        showToast('Không thể đọc file: ' + (data.error || 'Thất bại'));
+        return;
+      }
+    } catch (err) {
+      showToast('Lỗi đọc file: ' + err.message);
+      return;
+    }
+  }
+
+  const newTab = {
+    path: cleanPath,
+    name: name,
+    content: content,
+    originalContent: content,
+    isDirty: optionalContent !== null,
+    language: getLanguageFromFilename(name)
+  };
+
+  ideState.openTabs.push(newTab);
+  window.setActiveEditorTab(cleanPath);
+};
+
+window.setActiveEditorTab = function(filePath) {
+  ideState.activeTabPath = filePath;
+  renderEditorTabs();
+
+  const tab = ideState.openTabs.find(t => t.path === filePath);
+  const placeholder = document.getElementById('ide-editor-placeholder');
+  const activeEditor = document.getElementById('ide-active-editor');
+  const textarea = document.getElementById('ide-code-textarea');
+  const filepathEl = document.getElementById('ide-active-filepath');
+  const iconEl = document.getElementById('ide-active-file-icon');
+  const dirtyBadge = document.getElementById('ide-file-dirty-status');
+  const sbLang = document.getElementById('sb-language');
+
+  if (!tab) {
+    if (placeholder) placeholder.style.display = 'flex';
+    if (activeEditor) activeEditor.style.display = 'none';
+    if (sbLang) sbLang.textContent = 'Plain Text';
+    return;
+  }
+
+  if (placeholder) placeholder.style.display = 'none';
+  if (activeEditor) activeEditor.style.display = 'flex';
+
+  if (filepathEl) filepathEl.textContent = tab.path;
+  if (iconEl) iconEl.textContent = getFileIcon(tab.name);
+  if (dirtyBadge) dirtyBadge.style.display = tab.isDirty ? 'inline-block' : 'none';
+  if (sbLang) sbLang.textContent = tab.language;
+
+  if (textarea) {
+    textarea.value = tab.content;
+    updateEditorLineNumbers(tab.content);
+    updateCursorPosition();
+  }
+};
+
+window.closeEditorTab = function(filePath, event) {
+  if (event) event.stopPropagation();
+  const idx = ideState.openTabs.findIndex(t => t.path === filePath);
+  if (idx === -1) return;
+
+  const tab = ideState.openTabs[idx];
+  if (tab.isDirty) {
+    if (!confirm(`Tệp "${tab.name}" có thay đổi chưa lưu. Bạn có chắc muốn đóng không?`)) {
+      return;
+    }
+  }
+
+  ideState.openTabs.splice(idx, 1);
+  if (ideState.activeTabPath === filePath) {
+    const nextTab = ideState.openTabs[idx] || ideState.openTabs[idx - 1] || null;
+    window.setActiveEditorTab(nextTab ? nextTab.path : null);
+  } else {
+    renderEditorTabs();
+  }
+};
+
+window.saveActiveEditorFile = async function() {
+  if (!ideState.activeTabPath || !projectsState.activeProjectId) {
+    showToast('Chưa có tệp nào đang mở để lưu.');
+    return;
+  }
+  const tab = ideState.openTabs.find(t => t.path === ideState.activeTabPath);
+  if (!tab) return;
+
+  const textarea = document.getElementById('ide-code-textarea');
+  if (textarea) tab.content = textarea.value;
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: tab.path,
+        type: 'file',
+        content: tab.content
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      tab.isDirty = false;
+      tab.originalContent = tab.content;
+      renderEditorTabs();
+      const dirtyBadge = document.getElementById('ide-file-dirty-status');
+      if (dirtyBadge) dirtyBadge.style.display = 'none';
+      showToast(`💾 Đã lưu tệp: ${tab.path}`);
+      loadProjectFiles(projectsState.activeProjectId);
+    } else {
+      showToast('Lỗi khi lưu file: ' + (data.error || 'Thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi khi lưu file: ' + err.message);
+  }
+};
+
+window.copyActiveEditorCode = async function() {
+  const textarea = document.getElementById('ide-code-textarea');
+  if (!textarea || !textarea.value) {
+    showToast('Tệp hiện tại không có mã nguồn để sao chép.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(textarea.value);
+    showToast('📋 Đã sao chép toàn bộ mã nguồn vào clipboard!');
+  } catch (err) {
+    showToast('Không thể sao chép: ' + err.message);
+  }
+};
+
+window.toggleDockedTerminal = function(forceOpen = null) {
+  const dock = document.getElementById('ide-terminal-dock');
+  if (!dock) return;
+  const isHidden = dock.style.display === 'none' || !dock.style.display;
+  const shouldOpen = forceOpen !== null ? forceOpen : isHidden;
+  dock.style.display = shouldOpen ? 'flex' : 'none';
+  ideState.isTerminalDockOpen = shouldOpen;
+  if (shouldOpen) {
+    setTimeout(() => document.getElementById('terminal-dock-input')?.focus(), 50);
+  }
+};
+
+window.switchDockTerminalShell = function(shell) {
+  ideState.activeShell = shell;
+  document.querySelectorAll('.term-dock-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.shell === shell);
+  });
+};
+
+window.clearDockTerminal = function() {
+  const out = document.getElementById('terminal-dock-output');
+  if (out) out.textContent = 'Màn hình terminal đã được làm sạch.\n';
+};
+
+window.runDockTerminalCommand = async function() {
+  const input = document.getElementById('terminal-dock-input');
+  const out = document.getElementById('terminal-dock-output');
+  const runBtn = document.getElementById('btn-dock-run-cmd');
+  if (!input || !input.value.trim() || !projectsState.activeProjectId) return;
+
+  const cmd = input.value.trim();
+  input.value = '';
+  if (out) {
+    out.textContent += `\n> ${cmd}\nĐang thực thi...\n`;
+    out.scrollTop = out.scrollHeight;
+  }
+  if (runBtn) { runBtn.disabled = true; runBtn.textContent = '...'; }
+
+  try {
+    const res = await fetch(`/api/projects/${projectsState.activeProjectId}/terminal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd, shell: ideState.activeShell || 'powershell' })
+    });
+    const data = await res.json();
+    if (out) {
+      if (data.stdout) out.textContent += data.stdout + '\n';
+      if (data.stderr) out.textContent += `[Error]: ${data.stderr}\n`;
+      out.textContent += `[Exit Code: ${data.exitCode} (${data.durationMs}ms)]\n`;
+      out.scrollTop = out.scrollHeight;
+    }
+  } catch (err) {
+    if (out) out.textContent += `[Lỗi mạng]: ${err.message}\n`;
+  } finally {
+    if (runBtn) { runBtn.disabled = false; runBtn.textContent = 'Chạy'; }
+  }
+};
+
+window.setIdeViewMode = function(mode) {
+  ideState.viewMode = mode;
+  const layout = document.getElementById('projects-ide-layout');
+  if (!layout) return;
+
+  layout.classList.remove('view-code-only', 'view-chat-only');
+  if (mode === 'code-only') layout.classList.add('view-code-only');
+  else if (mode === 'chat-only') layout.classList.add('view-chat-only');
+
+  document.querySelectorAll('.ide-view-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.view === mode);
+  });
+};
+
+function updateEditorLineNumbers(content) {
+  const lineNumbersEl = document.getElementById('ide-line-numbers');
+  const fileStatsEl = document.getElementById('ide-file-stats');
+  if (!lineNumbersEl) return;
+
+  const lines = (content || '').split('\n');
+  const lineCount = lines.length;
+  if (fileStatsEl) fileStatsEl.textContent = `${lineCount} dòng`;
+
+  let nums = '';
+  for (let i = 1; i <= lineCount; i++) {
+    nums += i + '\n';
+  }
+  lineNumbersEl.textContent = nums;
+}
+
+function updateCursorPosition() {
+  const textarea = document.getElementById('ide-code-textarea');
+  const cursorPosEl = document.getElementById('sb-cursor-pos');
+  if (!textarea || !cursorPosEl) return;
+
+  const text = textarea.value.substr(0, textarea.selectionStart);
+  const lines = text.split('\n');
+  const currentLine = lines.length;
+  const currentCol = lines[lines.length - 1].length + 1;
+  cursorPosEl.textContent = `Ln ${currentLine}, Col ${currentCol}`;
+}
+
+function initIdeEventListeners() {
+  const textarea = document.getElementById('ide-code-textarea');
+  const lineNumbers = document.getElementById('ide-line-numbers');
+
+  if (textarea) {
+    textarea.addEventListener('scroll', () => {
+      if (lineNumbers) lineNumbers.scrollTop = textarea.scrollTop;
+    });
+
+    textarea.addEventListener('input', () => {
+      updateEditorLineNumbers(textarea.value);
+      updateCursorPosition();
+      if (ideState.activeTabPath) {
+        const tab = ideState.openTabs.find(t => t.path === ideState.activeTabPath);
+        if (tab) {
+          tab.content = textarea.value;
+          const dirty = tab.content !== tab.originalContent;
+          if (tab.isDirty !== dirty) {
+            tab.isDirty = dirty;
+            renderEditorTabs();
+            const dirtyBadge = document.getElementById('ide-file-dirty-status');
+            if (dirtyBadge) dirtyBadge.style.display = dirty ? 'inline-block' : 'none';
+          }
+        }
+      }
+    });
+
+    textarea.addEventListener('click', updateCursorPosition);
+    textarea.addEventListener('keyup', updateCursorPosition);
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 2;
+        textarea.dispatchEvent(new Event('input'));
+      } else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        window.saveActiveEditorFile();
+      }
+    });
+  }
+
+  // Global phím tắt IDE
+  window.addEventListener('keydown', (e) => {
+    // Ctrl + S (khi focus ngoài textarea)
+    if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+      if (ideState.activeTabPath) {
+        e.preventDefault();
+        window.saveActiveEditorFile();
+      }
+    }
+    // Ctrl + \ để toggle docked terminal
+    if (e.key === '\\' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      window.toggleDockedTerminal();
+    }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initIdeEventListeners);
+} else {
+  initIdeEventListeners();
+}
