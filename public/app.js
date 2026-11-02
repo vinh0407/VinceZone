@@ -8059,9 +8059,9 @@ window.renderAntigravityProjectsTree = function() {
           <div class="conv-item-left">
             <span class="conv-title">${escapeHtml(c.title)}</span>
           </div>
-          <div style="display: flex; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 2px;">
             <span class="conv-time">${timeStr}</span>
-            ${isChatActive ? '<span class="conv-active-dots">⠿</span>' : ''}
+            <button type="button" class="btn-conv-delete" onclick="event.stopPropagation(); window.deleteAntigravityItem(event, '${p.id}', '${c.id}', '${escapeHtml(c.title)}', '${escapeHtml(p.name)}')" title="Xóa đoạn chat này">✕</button>
           </div>
         </div>
       `;
@@ -8078,12 +8078,17 @@ window.renderAntigravityProjectsTree = function() {
              title="${escapeHtml(p.name)} (${escapeHtml(p.path || 'Local')})">
           <span class="folder-icon">📁</span>
           <span class="project-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${escapeHtml(p.name)}</span>
-          <button type="button" class="btn-add-chat-proj" onclick="event.stopPropagation(); window.createNewAntigravityChat('${p.id}')" title="Thêm đoạn chat mới vào dự án ${escapeHtml(p.name)}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
+          <div style="display: flex; align-items: center; gap: 2px;">
+            <button type="button" class="btn-add-chat-proj" onclick="event.stopPropagation(); window.createNewAntigravityChat('${p.id}')" title="Thêm đoạn chat mới vào dự án ${escapeHtml(p.name)}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <button type="button" class="btn-del-proj" onclick="event.stopPropagation(); window.deleteProjectItem(event, '${p.id}', '${escapeHtml(p.name)}')" title="Xóa toàn bộ dự án ${escapeHtml(p.name)}">
+              ✕
+            </button>
+          </div>
         </div>
         <div class="antigravity-conversations-list">
           ${chatsHtml}
@@ -8389,4 +8394,35 @@ window.openFilesDrawerModal = function() {
   setTimeout(() => {
     window.switchStructureTab('files');
   }, 300);
+};
+
+
+// Xóa đoạn chat trong Antigravity tree (nút ✕ bên cạnh giờ)
+window.deleteAntigravityItem = async function(event, projectId, chatId, chatTitle, projName) {
+  if (event) event.stopPropagation();
+  if (!confirm(`Bạn có chắc chắn muốn xóa đoạn chat "${chatTitle || 'này'}" không?`)) return;
+
+  try {
+    const res = await fetch(`/api/projects/${projectId}/chats/${chatId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      const proj = (projectsState.projects || []).find(p => p.id === projectId);
+      if (proj) {
+        proj.chats = (proj.chats || []).filter(c => c.id !== chatId);
+        if (projectsState.activeChatId === chatId) {
+          projectsState.activeChatId = proj.chats.length > 0 ? proj.chats[0].id : null;
+        }
+      }
+      showToast(`Đã xóa đoạn chat "${chatTitle}".`);
+      window.renderAntigravityProjectsTree();
+      renderActiveProject();
+      if (typeof window.refreshAntigravityOverviewDrawer === 'function') {
+        window.refreshAntigravityOverviewDrawer();
+      }
+    } else {
+      showToast('Lỗi khi xóa: ' + (data.error || 'Thao tác thất bại'));
+    }
+  } catch (err) {
+    showToast('Lỗi: ' + err.message);
+  }
 };

@@ -9265,10 +9265,61 @@ pre code.hljs {
   margin-left: 6px;
 }
 
-.conv-active-dots {
-  color: #888888;
-  font-size: 0.8rem;
+.btn-conv-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   margin-left: 6px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  transition: all 0.15s ease;
+  opacity: 0.75;
+}
+
+.btn-conv-delete:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  opacity: 1 !important;
+  transform: scale(1.15);
+}
+
+.antigravity-conv-item:hover .btn-conv-delete {
+  opacity: 1;
+  color: #d4d4d8;
+}
+
+.antigravity-project-row .btn-del-proj {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #71717a;
+  cursor: pointer;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.antigravity-project-row .btn-del-proj:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.15);
 }
 
 /* 2. MAIN CHAT WORKSPACE */
