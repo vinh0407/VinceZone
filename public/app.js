@@ -4962,6 +4962,14 @@ function renderActiveChatAgents(chat) {
       addAgentBtn.classList.remove('disabled');
     }
   }
+
+  // Cập nhật nhãn capsule AI Agent & Teamwork trên thanh composer
+  if (typeof window.updateAgentCapsuleLabel === 'function') {
+    window.updateAgentCapsuleLabel();
+  }
+  if (typeof window.renderAgentDropdownList === 'function') {
+    window.renderAgentDropdownList();
+  }
 }
 window.renderActiveChatAgents = renderActiveChatAgents;
 
@@ -7308,15 +7316,203 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// =============================================================================
+// AI AGENT & TEAMWORK SELECTOR (Thêm & lựa chọn AI Agent làm việc nhóm / chat cùng)
+// =============================================================================
+window.currentSelectedAgent = null;
+
+window.toggleAgentMenu = function(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const dropdown = document.getElementById('antigravity-agent-dropdown');
+  const capsule = document.getElementById('btn-toggle-agent-menu');
+  if (!dropdown) return;
+
+  const isVisible = dropdown.style.display === 'block';
+  if (isVisible) {
+    dropdown.style.display = 'none';
+    if (capsule) capsule.classList.remove('active');
+  } else {
+    window.renderAgentDropdownList();
+    dropdown.style.display = 'block';
+    if (capsule) capsule.classList.add('active');
+  }
+};
+
+window.renderAgentDropdownList = function() {
+  const listEl = document.getElementById('agent-dropdown-active-list');
+  const teamCountEl = document.getElementById('agent-opt-team-count');
+  const chat = projectsState.activeChat;
+  const agents = (chat && chat.agents) ? chat.agents : [];
+
+  if (teamCountEl) {
+    teamCountEl.textContent = `${agents.length} AI`;
+  }
+
+  // Update checkmark for Teamwork vs specific agent
+  const checkAll = document.getElementById('agent-check-all');
+  const optTeamwork = document.getElementById('agent-opt-teamwork');
+  const isTeam = !window.currentSelectedAgent || window.currentSelectedAgent === 'all';
+  if (checkAll) checkAll.style.display = isTeam ? 'flex' : 'none';
+  if (optTeamwork) optTeamwork.classList.toggle('active', isTeam);
+
+  if (!listEl) return;
+  if (agents.length === 0) {
+    listEl.innerHTML = `
+      <div class="agent-empty-hint">
+        <span>Chưa có AI Agent nào trong đoạn chat này.</span>
+        <button type="button" class="btn-quick-auto-add" onclick="window.autoSetupCouncilFromDropdown()">+ Thêm nhanh 5 Agent</button>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  agents.forEach(ag => {
+    const isSelected = window.currentSelectedAgent && (window.currentSelectedAgent.id === ag.id || window.currentSelectedAgent === ag.id);
+    const item = document.createElement('div');
+    item.className = 'agent-option-item' + (isSelected ? ' active' : '');
+    item.onclick = () => window.selectAgentTarget(ag);
+
+    let badgeClass = 'badge-coder';
+    const b = (ag.badge || '').toUpperCase();
+    const cat = (ag.category || '').toLowerCase();
+    if (b.includes('ARCH') || cat === 'architect') badgeClass = 'badge-arch';
+    else if (b.includes('TEST') || cat === 'tester') badgeClass = 'badge-tester';
+    else if (b.includes('REVIEW') || cat === 'reviewer') badgeClass = 'badge-reviewer';
+    else if (b.includes('DEVOPS') || cat === 'devops') badgeClass = 'badge-devops';
+    else if (b.includes('DATA') || cat === 'database') badgeClass = 'badge-database';
+    else if (b.includes('FRONT') || cat === 'frontend') badgeClass = 'badge-frontend';
+    else if (b.includes('SEC') || cat === 'security') badgeClass = 'badge-security';
+
+    item.innerHTML = `
+      <div class="agent-opt-icon">
+        <span class="agent-badge ${badgeClass}">${escapeHtml(ag.badge || 'AI')}</span>
+      </div>
+      <div class="agent-opt-info">
+        <div class="agent-opt-name-row">
+          <span class="agent-opt-name">${escapeHtml(ag.name)}</span>
+          <span class="agent-opt-model-tag">${escapeHtml(ag.model || 'Auto')}</span>
+        </div>
+        <div class="agent-opt-desc">${escapeHtml(ag.roleTitle || ag.category || 'AI Agent Chuyên Sâu')} ${ag.providerName ? '· ' + escapeHtml(ag.providerName) : ''}</div>
+      </div>
+      <div class="agent-opt-check" style="display: ${isSelected ? 'flex' : 'none'};">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+};
+
+window.updateAgentCapsuleLabel = function() {
+  const labelEl = document.getElementById('antigravity-active-model-label');
+  const iconEl = document.getElementById('agent-capsule-icon');
+  if (!labelEl) return;
+
+  const chat = projectsState.activeChat;
+  const agents = (chat && chat.agents) ? chat.agents : [];
+
+  if (window.currentSelectedAgent && window.currentSelectedAgent !== 'all') {
+    const ag = typeof window.currentSelectedAgent === 'object' ? window.currentSelectedAgent : agents.find(a => a.id === window.currentSelectedAgent);
+    if (ag) {
+      labelEl.textContent = `${ag.name} (${ag.model || 'AI'})`;
+      labelEl.title = `Chat trực tiếp cùng ${ag.name} - Model: ${ag.model || 'Auto'}`;
+      if (iconEl) {
+        iconEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
+      }
+      return;
+    }
+  }
+
+  // Chế độ nhóm
+  if (agents.length > 0) {
+    labelEl.textContent = `👥 Làm Việc Nhóm (${agents.length} AI)`;
+    labelEl.title = `Làm việc nhóm cùng toàn bộ ${agents.length} AI Agent`;
+  } else {
+    labelEl.textContent = `+ Thêm / Chọn AI Agent`;
+    labelEl.title = `Thêm hoặc lựa chọn AI Agent để làm việc nhóm hoặc chat cùng`;
+  }
+  if (iconEl) {
+    iconEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+  }
+};
+
+window.selectAgentTarget = function(agent) {
+  if (!agent || agent === 'all') {
+    window.currentSelectedAgent = null;
+    showToast('👥 Đã chọn: Làm việc nhóm cùng cả Hội Đồng AI');
+  } else {
+    window.currentSelectedAgent = agent;
+    const input = document.getElementById('project-chat-input');
+    if (input) {
+      const mention = `@${agent.name} `;
+      if (!input.value.startsWith('@')) {
+        input.value = mention + input.value.trim();
+      }
+      input.focus();
+    }
+    showToast(`🎯 Đã chọn chat cùng: ${agent.name}`);
+  }
+
+  window.updateAgentCapsuleLabel();
+  window.renderAgentDropdownList();
+
+  const dropdown = document.getElementById('antigravity-agent-dropdown');
+  const capsule = document.getElementById('btn-toggle-agent-menu');
+  if (dropdown) dropdown.style.display = 'none';
+  if (capsule) capsule.classList.remove('active');
+};
+
+window.openAddAgentCouncilFromDropdown = function() {
+  const dropdown = document.getElementById('antigravity-agent-dropdown');
+  const capsule = document.getElementById('btn-toggle-agent-menu');
+  if (dropdown) dropdown.style.display = 'none';
+  if (capsule) capsule.classList.remove('active');
+
+  if (typeof window.openAddAgentCouncilModal === 'function') {
+    window.openAddAgentCouncilModal();
+  }
+};
+
+window.autoSetupCouncilFromDropdown = async function() {
+  const dropdown = document.getElementById('antigravity-agent-dropdown');
+  const capsule = document.getElementById('btn-toggle-agent-menu');
+  if (dropdown) dropdown.style.display = 'none';
+  if (capsule) capsule.classList.remove('active');
+
+  if (typeof window.autoSetupCouncilAgents === 'function') {
+    await window.autoSetupCouncilAgents();
+    window.updateAgentCapsuleLabel();
+    window.renderAgentDropdownList();
+  }
+};
+
+// Đóng menu agent khi click ra ngoài
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('antigravity-agent-wrapper');
+  const dropdown = document.getElementById('antigravity-agent-dropdown');
+  const capsule = document.getElementById('btn-toggle-agent-menu');
+  if (dropdown && dropdown.style.display === 'block') {
+    if (wrapper && !wrapper.contains(e.target)) {
+      dropdown.style.display = 'none';
+      if (capsule) capsule.classList.remove('active');
+    }
+  }
+});
+
 // Tự động khởi chạy Projects listeners khi app load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initProjectsEventListeners();
     if (typeof window.initTurboExecutionMode === 'function') window.initTurboExecutionMode();
+    if (typeof window.updateAgentCapsuleLabel === 'function') window.updateAgentCapsuleLabel();
   });
 } else {
   initProjectsEventListeners();
   if (typeof window.initTurboExecutionMode === 'function') window.initTurboExecutionMode();
+  if (typeof window.updateAgentCapsuleLabel === 'function') window.updateAgentCapsuleLabel();
 }
 
 
@@ -8420,11 +8616,9 @@ window.updateAntigravityTopBreadcrumbs = function() {
   if (projEl) projEl.textContent = curProj ? curProj.name : 'Dự Án';
   if (chatEl) chatEl.textContent = curChat ? curChat.title : (curProj ? 'Hội đồng lập trình' : 'Chưa chọn');
 
-  // Cập nhật nhãn model trên thanh composer
-  const modelSelect = document.getElementById('chat-active-model-select');
-  const modelLabel = document.getElementById('antigravity-active-model-label');
-  if (modelSelect && modelLabel && modelSelect.value) {
-    modelLabel.textContent = modelSelect.options[modelSelect.selectedIndex]?.text?.replace(/\[[^\]]+\]/g, '')?.trim() || modelSelect.value;
+  // Cập nhật nhãn capsule AI Agent & Teamwork trên thanh composer
+  if (typeof window.updateAgentCapsuleLabel === 'function') {
+    window.updateAgentCapsuleLabel();
   }
 };
 

@@ -7,7 +7,7 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="theme-color" content="#09090b">
  <title>VinceZone AI Workplay & Gateway</title>
- <link rel="stylesheet" href="style.css?v=10.2">
+ <link rel="stylesheet" href="style.css?v=10.3">
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -539,15 +539,75 @@
               <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
               <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
 
-              <!-- Model Selector Pill (Image 4) -->
-              <div class="antigravity-model-capsule" onclick="window.triggerModelSelectClick()" title="Chọn mô hình AI">
-                <span class="model-capsule-name" id="antigravity-active-model-label">Gemini 3.8 Flash Medium</span>
-                <span class="model-capsule-arrow">▾</span>
-                <!-- Hidden native select for compatibility -->
-                <select id="chat-active-model-select" class="antigravity-hidden-model-select" onchange="window.onAntigravityModelChange(this)">
-                  <!-- Dynamically populated -->
-                </select>
+              <!-- AI Agent & Teamwork Selector Capsule (Thêm & lựa chọn AI Agent) -->
+              <div class="antigravity-agent-wrapper" id="antigravity-agent-wrapper">
+                <button type="button" class="antigravity-model-capsule antigravity-agent-capsule" id="btn-toggle-agent-menu" onclick="window.toggleAgentMenu(event)" title="Thêm hoặc lựa chọn AI Agent để làm việc nhóm hoặc chat cùng">
+                  <span class="agent-capsule-icon" id="agent-capsule-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                  </span>
+                  <span class="model-capsule-name" id="antigravity-active-model-label">Làm Việc Nhóm (Teamwork)</span>
+                  <span class="model-capsule-arrow" id="agent-capsule-arrow">▾</span>
+                </button>
+
+                <!-- Hidden native selects for background compatibility -->
+                <select id="chat-active-model-select" class="antigravity-hidden-model-select" onchange="window.onAntigravityModelChange(this)" style="display: none;"></select>
                 <select id="chat-active-provider-select" style="display: none;"></select>
+
+                <!-- AI Agent & Teamwork Dropdown Menu -->
+                <div class="antigravity-agent-dropdown" id="antigravity-agent-dropdown" style="display: none;">
+                  <div class="agent-dropdown-header">
+                    <div class="agent-dropdown-title">LỰA CHỌN AI AGENT & LÀM VIỆC NHÓM</div>
+                    <div class="agent-dropdown-sub">Chỉ định AI trả lời trực tiếp hoặc phối hợp làm việc nhóm</div>
+                  </div>
+
+                  <!-- 1. Cả Hội Đồng AI (Teamwork) -->
+                  <div class="agent-option-item active" id="agent-opt-teamwork" onclick="window.selectAgentTarget('all')">
+                    <div class="agent-opt-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                    </div>
+                    <div class="agent-opt-info">
+                      <div class="agent-opt-name-row">
+                        <span class="agent-opt-name">👥 Cả Hội Đồng AI (Làm Việc Nhóm)</span>
+                        <span class="agent-opt-badge badge-team" id="agent-opt-team-count">0 AI</span>
+                      </div>
+                      <div class="agent-opt-desc">Tất cả các Agent cùng thảo luận, chia việc và hoàn thành dự án</div>
+                    </div>
+                    <div class="agent-opt-check" id="agent-check-all">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </div>
+
+                  <div class="agent-dropdown-divider"></div>
+
+                  <!-- 2. Danh Sách AI Agent Hiện Có Để Chat Cùng -->
+                  <div class="agent-dropdown-section-title">AI AGENT TRONG ĐOẠN CHAT (CHỌN ĐỂ CHAT CÙNG)</div>
+                  <div class="agent-dropdown-list" id="agent-dropdown-active-list">
+                    <!-- Populated dynamically via renderAgentDropdownList() -->
+                  </div>
+
+                  <div class="agent-dropdown-divider"></div>
+
+                  <!-- 3. Thêm & Tự Động Thiết Lập Agent Mới -->
+                  <div class="agent-dropdown-actions">
+                    <button type="button" class="btn-agent-action" onclick="window.openAddAgentCouncilFromDropdown()">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span>Thêm AI Agent Mới Vào Nhóm</span>
+                    </button>
+                    <button type="button" class="btn-agent-action btn-agent-action-auto" onclick="window.autoSetupCouncilFromDropdown()">
+                      <span>⚡ Tự Động Thêm Đội Ngũ 5 AI Agent (Fullstack Team)</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1950,6 +2010,6 @@ PS C:\VisualStudio\VinceZone&gt; Ready.</pre>
       </nav>
  </div>
 
- <script src="app.js?v=10.2"></script>
+ <script src="app.js?v=10.3"></script>
 </body>
 </html>
