@@ -1341,6 +1341,85 @@ function detectUserAgentRecruitment(text) {
   return null;
 }
 
+// Trích xuất cấu trúc thư mục, tệp tin và Tech Stack thực tế của dự án trên máy tính
+function getProjectLiveContext(project) {
+  let filesText = '(Thư mục dự án hiện chưa có tệp tin nào hoặc mới được khởi tạo)';
+  let techStackText = 'Chưa xác định cụ thể';
+  let configDetails = '';
+
+  if (project.path && fs.existsSync(project.path)) {
+    try {
+      // 1. Quét cây thư mục và tập tin thực tế trên máy
+      const scannedFiles = [];
+      const scanDir = (dirPath, relPath = '', depth = 0) => {
+        if (depth > 3 || scannedFiles.length > 80) return;
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        const ignore = ['node_modules', '.git', '.next', 'dist', 'dist-desktop', 'build', '.gemini', '.cache', 'coverage', 'package-lock.json', '.vscode', '.idea'];
+        for (const ent of entries) {
+          if (ignore.includes(ent.name)) continue;
+          const itemRel = relPath ? `${relPath}/${ent.name}` : ent.name;
+          const itemFull = path.join(dirPath, ent.name);
+          if (ent.isDirectory()) {
+            scannedFiles.push(`📁 ${itemRel}/`);
+            scanDir(itemFull, itemRel, depth + 1);
+          } else {
+            scannedFiles.push(`📄 ${itemRel}`);
+          }
+        }
+      };
+      scanDir(project.path);
+      if (scannedFiles.length > 0) {
+        filesText = scannedFiles.join('\n');
+      }
+
+      // 2. Tự động bóc tách Tech Stack từ package.json, requirements.txt, Dockerfile...
+      const pkgPath = path.join(project.path, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const deps = Object.keys(pkg.dependencies || {});
+          const devDeps = Object.keys(pkg.devDependencies || {});
+          techStackText = `Node.js / JavaScript (Libraries: ${deps.slice(0, 15).join(', ') || 'Thuần'}; DevTools: ${devDeps.slice(0, 10).join(', ') || 'N/A'})`;
+          if (pkg.scripts) {
+            configDetails += `\n- Lệnh chạy (Scripts): ${Object.entries(pkg.scripts).map(([k, v]) => `${k}: "${v}"`).join(' | ')}`;
+          }
+        } catch (e) {}
+      } else {
+        const reqPath = path.join(project.path, 'requirements.txt');
+        if (fs.existsSync(reqPath)) {
+          try {
+            const reqContent = fs.readFileSync(reqPath, 'utf8');
+            const lines = reqContent.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+            techStackText = `Python (Libraries: ${lines.slice(0, 15).join(', ')})`;
+          } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi quét file dự án cho context:', err.message);
+    }
+  }
+
+  return `
+[CẤP QUYỀN TRUY CẬP HỆ THỐNG FILE CỤC BỘ (LOCAL FILESYSTEM ACCESS)]:
+- BẠN ĐÃ ĐƯỢC HỆ THỐNG VINCEZONE STUDIO CẤP TOÀN QUYỀN 100% TRUY CẬP VÀO HỆ THỐNG FILE CỦA DỰ ÁN NÀY.
+- BẠN KHÔNG PHẢI LÀ CLOUD AI BỊ CÔ LẬP. BẠN LÀ MỘT AUTONOMOUS AGENT TÍCH HỢP TRONG IDE CÓ QUYỀN ĐỌC/SỬA FILE VÀ CHẠY TERMINAL TRÊN MÁY NGƯỜI DÙNG.
+- TUYỆT ĐỐI KHÔNG BAO GIỜ NÓI HOẶC TỪ CHỐI BẰNG CÂU: "với tư cách là AI, tôi không có quyền truy cập trực tiếp vào hệ thống file cục bộ" HOẶC YÊU CẦU NGƯỜI DÙNG PHẢI COPY FILE HAY CẤU TRÚC THỦ CÔNG.
+- HỆ THỐNG ĐÃ TỰ ĐỘNG ĐỌC VÀ TRÍCH XUẤT CÂY TẬP TIN VÀ TECH STACK DƯỚI ĐÂY CHO BẠN:
+
+[THÔNG TIN DỰ ÁN TRÊN MÁY TÍNH]:
+- Tên Dự Án: ${project.name}
+- Thư mục làm việc: ${project.path}
+- Mục tiêu dự án: ${project.description || 'Không có mô tả'}
+
+[STACK CÔNG NGHỆ & MÔI TRƯỜNG DỰ ÁN]:
+${techStackText}${configDetails}
+
+[DANH SÁCH TOÀN BỘ CÁC TẬP TIN & THƯ MỤC THỰC TẾ TRONG DỰ ÁN]:
+${filesText}
+
+Hãy dựa trực tiếp vào danh sách file và stack công nghệ ở trên để lập tức phân tích kiến trúc, phân chia công việc, hoạch định nhân sự và viết mã nguồn giải quyết trọn vẹn yêu cầu của người dùng!`;
+}
+
 // 9.17 Gửi tin nhắn và điều phối Nhóm Agent (Tối đa 5 thành viên được chọn)
 app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
   const { id: projectId, chatId } = req.params;
@@ -1405,12 +1484,8 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       chat = Store.getProjectChat(projectId, chatId);
     }
 
-    const projectContext = `
-[THÔNG TIN DỰ ÁN TRÊN MÁY TÍNH]
-- Tên Dự Án: ${project.name}
-- Thư mục làm việc: ${project.path}
-- Mục tiêu dự án: ${project.description || 'Không có mô tả'}
-`;
+    // Tự động trích xuất toàn bộ cây file, tech stack và quyền truy cập local filesystem
+    const projectContext = getProjectLiveContext(project);
 
     // -------------------------------------------------------------------------
     // KIỂM TRA CHẾ ĐỘ: NHIỀU AGENT (TỐI ĐA 5) HAY CHAT ĐƠN

@@ -165,6 +165,8 @@ class AgentEngine {
 ${workspaceInfo}
 
 BẠN CÓ ĐẦY ĐỦ QUYỀN HẠN TỰ DO ĐỂ TRỰC TIẾP SỬA CODE, TẠO FILE VÀ CHẠY TERMINAL TRÊN MÁY TÍNH CỦA NGƯỜI DÙNG:
+- BẠN ĐÃ ĐƯỢC CẤP TOÀN QUYỀN TRUY CẬP VÀO HỆ THỐNG FILE DỰ ÁN TRÊN MÁY TÍNH NÀY.
+- TUYỆT ĐỐI KHÔNG BAO GIỜ NÓI: "với tư cách là AI, tôi không có quyền truy cập trực tiếp vào hệ thống file cục bộ" hay yêu cầu người dùng phải copy file thủ công. Bạn có sẵn các tools để đọc và ghi file trực tiếp:
 1. Đọc nội dung file để hiểu cấu trúc và tìm lỗi (read_file).
 2. Tạo hoặc ghi đè file (write_file).
 3. Sửa từng đoạn code chính xác trong file (edit_file).
