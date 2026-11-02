@@ -652,11 +652,12 @@
           "type": "team",
           "teamId": "team_1606a3aa",
           "createdAt": "2026-11-01T23:59:59.543Z",
-          "messages": []
+          "messages": [],
+          "agents": []
         }
       ],
       "createdAt": "2026-11-01T23:59:59.543Z",
-      "updatedAt": "2026-11-01T23:59:59.543Z"
+      "updatedAt": "2026-11-02T00:13:12.362Z"
     }
   ]
 }

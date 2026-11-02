@@ -4710,7 +4710,7 @@ window.openAddAgentCouncilModal = async function() {
   if (nameInput && !nameInput.value) nameInput.value = 'Lập Trình Viên';
   updateCouncilModels();
 
-  modal.classList.add('open');
+  modal.classList.add('active'); modal.classList.add('open');
 };
 
 // 9. Xóa Agent khỏi đoạn chat
@@ -4914,6 +4914,72 @@ window.removeProjectAttachment = function(idx) {
 };
 
 // 13. Khởi tạo tất cả Event Listeners cho Projects System
+
+// Hàm nạp danh sách Provider & Model vào Modal tạo chat mới (giống Playground)
+async function populateNewChatModelSelectors() {
+  const provSelect = document.getElementById('new-chat-provider-select');
+  const modelSelect = document.getElementById('new-chat-model-select');
+  if (!provSelect || !modelSelect) return;
+
+  if (!councilProvidersCache || councilProvidersCache.length === 0) {
+    try {
+      const res = await fetch('/api/providers');
+      councilProvidersCache = await res.json();
+    } catch (e) {
+      councilProvidersCache = [];
+    }
+  }
+
+  provSelect.innerHTML = '<option value="all" selected>Tất cả nhà cung cấp có sẵn</option>';
+  if (councilProvidersCache && councilProvidersCache.length > 0) {
+    councilProvidersCache.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${(p.models || []).length} Models)`;
+      provSelect.appendChild(opt);
+    });
+  }
+
+  const updateNewChatModels = () => {
+    const selProvId = provSelect.value;
+    modelSelect.innerHTML = '';
+
+    let modelsToDisplay = [];
+    if (selProvId === 'all') {
+      councilProvidersCache.forEach(p => {
+        (p.models || []).forEach(m => {
+          if (!modelsToDisplay.some(x => x.model === m)) {
+            modelsToDisplay.push({ model: m, providerName: p.name });
+          }
+        });
+      });
+    } else {
+      const prov = councilProvidersCache.find(p => p.id === selProvId);
+      if (prov) {
+        (prov.models || []).forEach(m => {
+          modelsToDisplay.push({ model: m, providerName: prov.name });
+        });
+      }
+    }
+
+    if (modelsToDisplay.length === 0) {
+      modelSelect.innerHTML = '<option value="kilo-auto/free">kilo-auto/free [FREE]</option>';
+      return;
+    }
+
+    modelsToDisplay.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.model;
+      const isFree = item.model.includes(':free') || item.model.includes('-free') || item.model.includes('free');
+      opt.textContent = `${item.model} [${item.providerName}]${isFree ? ' [FREE]' : ''}`;
+      modelSelect.appendChild(opt);
+    });
+  };
+
+  provSelect.onchange = updateNewChatModels;
+  updateNewChatModels();
+}
+
 function initProjectsEventListeners() {
   // Gửi ý tưởng / tin nhắn
   const btnSend = document.getElementById('btn-send-project-idea');
@@ -4977,6 +5043,25 @@ function initProjectsEventListeners() {
     });
   }
 
+    // Đính kèm Thư mục
+  const btnAttachFolder = document.getElementById('btn-project-attach-folder');
+  const folderInput = document.getElementById('project-folder-input');
+  if (btnAttachFolder && folderInput) {
+    btnAttachFolder.addEventListener('click', () => folderInput.click());
+    folderInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      const folderName = files[0]?.webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Folder';
+      projectsState.attachments.push({
+        name: `📁 ${folderName} (${files.length} tệp)`,
+        type: 'folder',
+        data: 'folder:' + folderName,
+        fileCount: files.length
+      });
+      renderProjectAttachments();
+      folderInput.value = '';
+    });
+  }
+
   // Đính kèm Ảnh
   const btnAttachImage = document.getElementById('btn-project-attach-image');
   const imageInput = document.getElementById('project-image-input');
@@ -5015,7 +5100,7 @@ function initProjectsEventListeners() {
   const btnCloseCouncil = document.getElementById('btn-close-council-modal');
   const btnCancelCouncil = document.getElementById('btn-cancel-council-modal');
 
-  const closeCouncilModal = () => modalCouncil?.classList.remove('open');
+  const closeCouncilModal = () => { modalCouncil?.classList.remove('active'); modalCouncil?.classList.remove('open'); };
   if (btnCloseCouncil) btnCloseCouncil.addEventListener('click', closeCouncilModal);
   if (btnCancelCouncil) btnCancelCouncil.addEventListener('click', closeCouncilModal);
 
@@ -5209,11 +5294,11 @@ function initProjectsEventListeners() {
 
   if (btnOpenCreateProject && modalCreateProject) {
     btnOpenCreateProject.addEventListener('click', () => {
-      modalCreateProject.classList.add('open');
+      modalCreateProject.classList.add('active'); modalCreateProject.classList.add('open');
       inputProjectPath?.focus();
     });
   }
-  const closeCreateProjectModal = () => modalCreateProject?.classList.remove('open');
+  const closeCreateProjectModal = () => { modalCreateProject?.classList.remove('active'); modalCreateProject?.classList.remove('open'); };
   if (btnCloseCreateProject) btnCloseCreateProject.addEventListener('click', closeCreateProjectModal);
   if (btnCancelCreateProject) btnCancelCreateProject.addEventListener('click', closeCreateProjectModal);
 
@@ -5267,7 +5352,7 @@ function initProjectsEventListeners() {
         showToast('Vui lòng chọn hoặc thêm một dự án trước.');
         return;
       }
-      modalNewChat.classList.add('open');
+      modalNewChat.classList.add('active'); modalNewChat.classList.add('open'); populateNewChatModelSelectors();
       if (newChatTitleInput) {
         newChatTitleInput.value = `Đoạn chat ${(projectsState.activeProject?.chats || []).length + 1}`;
         newChatTitleInput.focus();
@@ -5275,7 +5360,7 @@ function initProjectsEventListeners() {
       }
     });
   }
-  const closeNewChatModal = () => modalNewChat?.classList.remove('open');
+  const closeNewChatModal = () => { modalNewChat?.classList.remove('active'); modalNewChat?.classList.remove('open'); };
   if (btnCloseNewChat) btnCloseNewChat.addEventListener('click', closeNewChatModal);
   if (btnCancelNewChat) btnCancelNewChat.addEventListener('click', closeNewChatModal);
 

@@ -938,12 +938,14 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       ? chat.agents.slice(0, 5)
       : null;
 
-    if (!teamMembers && (chat.type === 'team' || chat.teamId)) {
-      const targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
-      if (targetTeam && targetTeam.members && targetTeam.members.length > 0) {
+    let targetTeam = null;
+    if (chat.type === 'team' || chat.teamId) {
+      targetTeam = (project.teams || []).find(t => t.id === chat.teamId) || (project.teams || [])[0];
+      if (!teamMembers && targetTeam && targetTeam.members && targetTeam.members.length > 0) {
         teamMembers = targetTeam.members.slice(0, 5);
       }
     }
+    const teamName = targetTeam ? targetTeam.name : (chat.title || 'Hội đồng Agent');
 
     // A. NẾU LÀ CHAT ĐƠN (CHƯA THÊM AGENT NÀO)
     if (!teamMembers || teamMembers.length === 0) {
@@ -1003,7 +1005,7 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
 - Hệ thống AI vận hành: ${memberModel}
 ${member.systemPrompt}
 
-QUY TRÌNH HỢP TÁC NHÓM (Thành viên ${i + 1}/${teamMembers.length} trong nhóm "${targetTeam.name}"):
+QUY TRÌNH HỢP TÁC NHÓM (Thành viên ${i + 1}/${teamMembers.length} trong nhóm "${teamName}"):
 Hãy đóng góp ý kiến, code hoặc kiểm thử dựa đúng trên THẾ MẠNH CHUYÊN MÔN của bạn (${member.roleTitle}).
 - Nếu bạn là Kiến Trúc: Đưa ra chiến lược kiến trúc, phân tích bài toán và định hướng cho các thành viên sau.
 - Nếu bạn là Lập Trình: Viết và sửa code cụ thể, chỉ rõ file và tối ưu giải thuật.
@@ -1059,7 +1061,7 @@ Hãy đóng góp ý kiến, code hoặc kiểm thử dựa đúng trên THẾ M�
       return res.end();
     }
 
-    return res.json({ success: true, mode: 'team', teamName: targetTeam.name, messages: generatedMessages });
+    return res.json({ success: true, mode: 'team', teamName, messages: generatedMessages });
 
   } catch (err) {
     console.error('Error in project chat flow:', err);

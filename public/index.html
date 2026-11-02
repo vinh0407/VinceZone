@@ -439,50 +439,7 @@
         </div>
       </div>
 
-      <!-- Popover Menu khi bấm dấu cộng nhỏ (+) thêm Agent -->
-      <div id="agent-role-popover" class="agent-role-popover" style="display: none;">
-        <div class="popover-header">
-          <span>Thêm Agent Vào Đoạn Chat (Tối đa 5)</span>
-          <button type="button" id="btn-close-agent-popover" class="btn-micro">&times;</button>
-        </div>
-        <div class="popover-roles-list">
-          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('coder')">
-            <span class="agent-badge badge-coder">CODER</span>
-            <div class="role-item-info">
-              <strong>Lập Trình Viên</strong>
-              <small>Viết mã nguồn, sửa file, fix bugs (Cohere / Qwen)</small>
-            </div>
-          </button>
-          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('tester')">
-            <span class="agent-badge badge-tester">TESTER</span>
-            <div class="role-item-info">
-              <strong>Kiểm Thử Viên</strong>
-              <small>Chạy PowerShell/CMD, test kết quả (Nemotron Logic)</small>
-            </div>
-          </button>
-          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('architect')">
-            <span class="agent-badge badge-arch">ARCHITECT</span>
-            <div class="role-item-info">
-              <strong>Kiến Trúc Sư</strong>
-              <small>Hoạch định hệ thống, phân chia nhiệm vụ (Kilo Auto)</small>
-            </div>
-          </button>
-          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('reviewer')">
-            <span class="agent-badge badge-reviewer">REVIEWER</span>
-            <div class="role-item-info">
-              <strong>Chuyên Gia Review</strong>
-              <small>Soát chuẩn Clean Code, bảo mật, UI/UX (Gemini Flash)</small>
-            </div>
-          </button>
-          <button type="button" class="role-pick-item" onclick="addAgentToActiveChat('devops')">
-            <span class="agent-badge badge-arch">DEVOPS</span>
-            <div class="role-item-info">
-              <strong>DevOps & Triển Khai</strong>
-              <small>Cấu hình dependencies, scripts build & run (DeepSeek Flash)</small>
-            </div>
-          </button>
-        </div>
-      </div>
+      
 
       <!-- Embedded Terminal Drawer -->
       <div class="project-terminal-drawer" id="project-terminal-drawer" style="display: none;">
@@ -530,10 +487,14 @@
             <button type="button" id="btn-project-attach-file" class="btn-attach-icon" title="Đính kèm tệp / tài liệu (Code, Text, PDF...)">
               📎
             </button>
+            <button type="button" id="btn-project-attach-folder" class="btn-attach-icon" title="Đính kèm toàn bộ thư mục">
+              📁
+            </button>
             <button type="button" id="btn-project-attach-image" class="btn-attach-icon" title="Đính kèm hình ảnh (PNG, JPG, WebP...)">
               🖼️
             </button>
             <input type="file" id="project-file-input" style="display: none;" multiple>
+            <input type="file" id="project-folder-input" style="display: none;" webkitdirectory directory multiple>
             <input type="file" id="project-image-input" style="display: none;" accept="image/*" multiple>
           </div>
 
@@ -1244,22 +1205,16 @@
         </div>
 
         <div class="form-group">
-          <label>Chọn AI Cho Đoạn Chat (Giống Playground):</label>
+          <label>Nhà Cung Cấp AI (Provider):</label>
+          <select id="new-chat-provider-select" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
+            <option value="all" selected>Tất cả nhà cung cấp có sẵn</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Mô Hình AI Cho Đoạn Chat (Model):</label>
           <select id="new-chat-model-select" class="form-control" style="width: 100%; padding: 0.65rem; background: #18181b; color: #fff; border: 1px solid #27272a; border-radius: 6px;">
-            <optgroup label="Miễn Phí (FREE)">
-              <option value="kilo-auto/free" selected>kilo-auto/free [Kilo Gateway Auto FREE]</option>
-              <option value="beam-free">beam-free [OpenCode FREE]</option>
-              <option value="deepseek-v4.1-flash-free">deepseek-v4.1-flash-free [DeepSeek FREE]</option>
-              <option value="cohere/north-mini-code:free">cohere/north-mini-code:free [Code FREE]</option>
-              <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nemotron-3-nano-omni [Reasoning/Logic FREE]</option>
-              <option value="gemini-1.5-flash-free">gemini-1.5-flash-free [Google FREE]</option>
-            </optgroup>
-            <optgroup label="Mô Hình Tiêu Chuẩn & Cao Cấp">
-              <option value="gpt-4o">gpt-4o (OpenAI)</option>
-              <option value="gpt-4o-mini">gpt-4o-mini (OpenAI)</option>
-              <option value="claude-3-7-sonnet">claude-3-7-sonnet (Anthropic)</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
-            </optgroup>
+            <option value="kilo-auto/free" selected>kilo-auto/free [Kilo Gateway Auto FREE]</option>
           </select>
           <small class="field-hint">Sau khi tạo, bạn có thể bấm dấu cộng (+) nhỏ ở góc phải khung chat để thêm tối đa 5 Agent cùng làm việc.</small>
         </div>
