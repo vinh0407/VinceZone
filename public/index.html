@@ -432,20 +432,20 @@
  </div>
  </div>
 
- <nav class="nav-tabs">
-        <button class="nav-btn" data-tab="playground">
-          Playground
+ <nav class="nav-tabs" id="main-nav-tabs">
+        <button class="nav-btn active" data-tab="playground" id="nav-btn-playground">
+          Playground (Chat & Tạo Ảnh)
         </button>
-        <button class="nav-btn active" data-tab="projects" id="nav-btn-projects">
+        <button class="nav-btn desktop-only-tab" data-tab="projects" id="nav-btn-projects" style="display: none;">
           Dự Án
         </button>
-        <button class="nav-btn" data-tab="ide" id="nav-btn-open-ide" onclick="window.openIdeDirectly()">
+        <button class="nav-btn desktop-only-tab" data-tab="ide" id="nav-btn-open-ide" style="display: none;" onclick="window.openIdeDirectly()">
           Open IDE
         </button>
         <button class="nav-btn" data-tab="prompts" id="nav-btn-prompts">
           Kho Prompt & Skills
         </button>
-        <button class="nav-btn" data-tab="settings">
+        <button class="nav-btn" data-tab="settings" id="nav-btn-settings">
           Cài Đặt (Settings)
         </button>
       </nav>
@@ -475,7 +475,7 @@
  <main class="main-body">
 
  <!-- ==================== TAB 1: PLAYGROUND ==================== -->
- <section id="tab-playground" class="tab-pane">
+ <section id="tab-playground" class="tab-pane active">
  <div class="playground-layout">
  <!-- 1. Left Sidebar: Chat History Sessions (Bộ nhớ lịch sử chat) -->
  <aside class="chat-history-sidebar" id="chat-history-sidebar">
@@ -486,9 +486,24 @@
 
  <div class="history-header">
  <button id="btn-new-chat" class="btn-new-chat">
- 
- Đoạn chat mới
+ <span>+ Đoạn chat mới</span>
  </button>
+ </div>
+
+ <!-- ChatGPT-style Mobile Navigation Tabs inside Sidebar Drawer -->
+ <div class="chatgpt-drawer-nav">
+   <button type="button" class="drawer-nav-item active" onclick="window.switchTabByRoute('playground'); const d = document.getElementById('chat-history-sidebar'); if(d) d.classList.remove('open');">
+     <span class="drawer-nav-icon">💬</span>
+     <span class="drawer-nav-label">Playground (Chat AI)</span>
+   </button>
+   <button type="button" class="drawer-nav-item" onclick="window.switchTabByRoute('prompts'); const d = document.getElementById('chat-history-sidebar'); if(d) d.classList.remove('open');">
+     <span class="drawer-nav-icon">📑</span>
+     <span class="drawer-nav-label">Kho Prompt & Skills</span>
+   </button>
+   <button type="button" class="drawer-nav-item" onclick="window.switchTabByRoute('settings'); const d = document.getElementById('chat-history-sidebar'); if(d) d.classList.remove('open');">
+     <span class="drawer-nav-icon">⚙️</span>
+     <span class="drawer-nav-label">Cài Đặt & API Key</span>
+   </button>
  </div>
 
  <div class="history-list-title">
@@ -515,27 +530,66 @@
 
  <!-- 2. Middle Panel: Chat Conversation Canvas -->
  <div class="playground-chat-panel">
- <!-- Mobile Chat Header Bar (Hiện trên màn hình điện thoại) -->
- <div class="mobile-chat-header">
- <button type="button" id="btn-open-history-drawer" class="mobile-icon-btn" title="Mở danh sách lịch sử chat">
- <span>Lịch sử</span>
- </button>
+  <!-- Mobile Chat Header Bar (Hiện trên màn hình điện thoại - Phong cách ChatGPT) -->
+  <div class="mobile-chat-header chatgpt-mobile-bar">
+    <button type="button" id="btn-open-history-drawer" class="mobile-icon-btn chatgpt-menu-btn" title="Lịch sử chat">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
 
- <div class="mobile-active-model-pill" id="mobile-model-pill" title="Chạm để đổi Provider hoặc Model AI">
- <span class="mobile-model-dot"></span>
- <span id="mobile-model-name-label">Chọn Model AI</span>
- </div>
+    <div class="mobile-active-model-pill" id="mobile-model-pill" title="Chạm để đổi Provider hoặc Model AI">
+      <span class="mobile-model-dot"></span>
+      <span id="mobile-model-name-label">Kilo Auto Free ⚡</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
 
- <button type="button" id="btn-mobile-new-chat" class="mobile-icon-btn" title="Tạo cuộc hội thoại mới">
- <span>+ Chat</span>
- </button>
+    <button type="button" id="btn-mobile-new-chat" class="mobile-icon-btn chatgpt-new-btn" title="Tạo cuộc trò chuyện mới">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
 
- <button type="button" id="btn-open-model-drawer" class="mobile-icon-btn" title="Cài đặt Model & Tham số">
- <span>Model</span>
- </button>
- </div>
+    <button type="button" id="btn-open-model-drawer" class="mobile-icon-btn chatgpt-settings-btn" title="Cài đặt Model & Tham số">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
 
             <div id="chat-messages" class="chat-messages">
+              <!-- ChatGPT-style Welcome Hero Screen -->
+              <div class="chatgpt-welcome-hero" id="chatgpt-welcome-hero">
+                <div class="chatgpt-avatar-large">
+                  <img src="logo.png" alt="VinceZone AI" class="chatgpt-logo-img">
+                </div>
+                <h2 class="chatgpt-welcome-heading">VinceZone AI</h2>
+                <p class="chatgpt-welcome-desc">Trợ lý trí tuệ nhân tạo miễn phí với <strong>kilo-auto/free</strong>. Hãy chọn một câu hỏi gợi ý hoặc bắt đầu cuộc trò chuyện!</p>
+                <div class="chatgpt-suggestions-grid">
+                  <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Viết một ứng dụng Web TodoList hoàn chỉnh bằng HTML, CSS và JavaScript có lưu LocalStorage.')">
+                    <span class="sugg-icon">💻</span>
+                    <div class="sugg-text">
+                      <strong>Lập trình Web</strong>
+                      <span>Tạo app TodoList với HTML/JS</span>
+                    </div>
+                  </div>
+                  <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Tạo một bức ảnh Cyberpunk thành phố đêm rực rỡ ánh sáng neon, độ phân giải 8K, siêu chi tiết.')">
+                    <span class="sugg-icon">🎨</span>
+                    <div class="sugg-text">
+                      <strong>Tạo & Vẽ Ảnh</strong>
+                      <span>Ảnh Cyberpunk Neon 8K</span>
+                    </div>
+                  </div>
+                  <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Giải thích khái niệm RAG (Retrieval-Augmented Generation) và AI Agents một cách dễ hiểu nhất.')">
+                    <span class="sugg-icon">🧠</span>
+                    <div class="sugg-text">
+                      <strong>Giải thích công nghệ</strong>
+                      <span>Cơ chế RAG & AI Agents</span>
+                    </div>
+                  </div>
+                  <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Soạn thảo một email báo cáo tiến độ công việc tuần chuyên nghiệp gửi cho khách hàng.')">
+                    <span class="sugg-icon">✍️</span>
+                    <div class="sugg-text">
+                      <strong>Soạn thảo văn bản</strong>
+                      <span>Email báo cáo tiến độ tuần</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
  <!-- Input Box & Attachments -->
@@ -666,17 +720,17 @@
  <input type="file" id="input-file-document" accept=".txt,.md,.pdf,.json,.csv,.js,.jsx,.ts,.tsx,.py,.html,.css,.sql,.yaml,.yml,.xml,.sh,.bat,.c,.cpp,.h,.java,.go,.rs,.php" multiple style="display: none;">
  <input type="file" id="input-file-folder" webkitdirectory directory multiple style="display: none;">
 
- <!-- Textarea and send row -->
- <div class="chat-input-row">
- <textarea id="chat-input" rows="1" placeholder="Nhập tin nhắn hoặc câu hỏi... (Kéo thả ảnh/tệp/thư mục vào đây, hoặc dán ảnh Ctrl+V)"></textarea>
- <div class="chat-actions">
+ <!-- Textarea and send row (ChatGPT Style) -->
+ <div class="chat-input-row chatgpt-input-row">
+ <textarea id="chat-input" rows="1" placeholder="Nhắn tin cho VinceZone AI..."></textarea>
+ <div class="chat-actions chatgpt-actions">
  <span id="chat-status-indicator" class="chat-status"></span>
- <button type="submit" id="btn-send" class="btn-send">
- 
- Gửi
+ <button type="submit" id="btn-send" class="btn-send chatgpt-send-btn" title="Gửi tin nhắn">
+   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
  </button>
  </div>
  </div>
+ <div class="chatgpt-input-disclaimer">VinceZone AI có thể mắc lỗi. Hãy kiểm tra lại thông tin quan trọng.</div>
  </form>
  </div>
  </div>
@@ -829,7 +883,7 @@
  </section>
 
 <!-- ==================== TAB 2: DỰ ÁN & MULTI-AGENT TEAMWORK ==================== -->
-  <section id="tab-projects" class="tab-pane active">
+  <section id="tab-projects" class="tab-pane">
   <div class="projects-layout antigravity-layout" id="antigravity-layout">
     <!-- 1. Left Sidebar: Antigravity Unified Tree (Image 1) -->
     <aside class="antigravity-sidebar" id="antigravity-sidebar">

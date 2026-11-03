@@ -358,10 +358,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupChatHistoryEvents();
   setupMobileModelSheetEvents();
 
-  // Desktop Edition Integration
+  // Desktop Edition Integration: Ẩn hoàn toàn header-right (Badge, Gateway, Đăng nhập) theo yêu cầu
   if (window.vzDesktop) {
+    document.body.classList.add('desktop-app');
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) headerRight.style.display = 'none';
     const desktopBadge = document.getElementById('desktop-app-badge');
-    if (desktopBadge) desktopBadge.style.display = 'inline-flex';
+    if (desktopBadge) desktopBadge.style.display = 'none';
     document.title = 'VinceZone';
   }
 
@@ -412,11 +415,22 @@ function parseCurrentUrlRoute() {
     return 'playground';
   }
 
+  // Trên bản Web, mặc định luôn là Playground; chỉ Desktop mới mặc định Projects
+  if (typeof window !== 'undefined' && !window.vzDesktop) {
+    return 'playground';
+  }
   return 'projects';
 }
 
 window.switchTabByRoute = function(targetTab, updateHistory = true) {
   if (!targetTab) return;
+
+  // Trên bản Web, bảo vệ chỉ hỗ trợ Playground, Kho Prompt và Cài Đặt
+  if (typeof window !== 'undefined' && !window.vzDesktop) {
+    if (targetTab === 'projects' || targetTab === 'ide' || targetTab === 'demo') {
+      targetTab = 'playground';
+    }
+  }
 
   const allNavButtons = document.querySelectorAll('.nav-btn, .mobile-nav-btn');
   allNavButtons.forEach(b => {
@@ -1061,9 +1075,11 @@ function setupPlaygroundEvents() {
 }
 
 function appendMessage(role, text, attachments = []) {
-  // Hide welcome banner if exists
+  // Hide welcome banner or hero if exists
   const banner = chatMessages.querySelector('.welcome-banner');
   if (banner) banner.remove();
+  const hero = document.getElementById('chatgpt-welcome-hero');
+  if (hero) hero.style.display = 'none';
 
   const row = document.createElement('div');
   row.className = `chat-row ${role}`;
@@ -3219,9 +3235,58 @@ function startNewChat() {
   state.chatHistory = [];
   if (activeSessionTitle) activeSessionTitle.textContent = 'Đoạn hội thoại mới';
 
-  chatMessages.innerHTML = '';
+  chatMessages.innerHTML = `
+    <div class="chatgpt-welcome-hero" id="chatgpt-welcome-hero">
+      <div class="chatgpt-avatar-large">
+        <img src="logo.png" alt="VinceZone AI" class="chatgpt-logo-img">
+      </div>
+      <h2 class="chatgpt-welcome-heading">VinceZone AI</h2>
+      <p class="chatgpt-welcome-desc">Trợ lý trí tuệ nhân tạo miễn phí với <strong>kilo-auto/free</strong>. Hãy chọn một câu hỏi gợi ý hoặc bắt đầu cuộc trò chuyện!</p>
+      <div class="chatgpt-suggestions-grid">
+        <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Viết một ứng dụng Web TodoList hoàn chỉnh bằng HTML, CSS và JavaScript có lưu LocalStorage.')">
+          <span class="sugg-icon">💻</span>
+          <div class="sugg-text">
+            <strong>Lập trình Web</strong>
+            <span>Tạo app TodoList với HTML/JS</span>
+          </div>
+        </div>
+        <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Tạo một bức ảnh Cyberpunk thành phố đêm rực rỡ ánh sáng neon, độ phân giải 8K, siêu chi tiết.')">
+          <span class="sugg-icon">🎨</span>
+          <div class="sugg-text">
+            <strong>Tạo & Vẽ Ảnh</strong>
+            <span>Ảnh Cyberpunk Neon 8K</span>
+          </div>
+        </div>
+        <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Giải thích khái niệm RAG (Retrieval-Augmented Generation) và AI Agents một cách dễ hiểu nhất.')">
+          <span class="sugg-icon">🧠</span>
+          <div class="sugg-text">
+            <strong>Giải thích công nghệ</strong>
+            <span>Cơ chế RAG & AI Agents</span>
+          </div>
+        </div>
+        <div class="chatgpt-suggestion-card" onclick="window.useSamplePrompt('Soạn thảo một email báo cáo tiến độ công việc tuần chuyên nghiệp gửi cho khách hàng.')">
+          <span class="sugg-icon">✍️</span>
+          <div class="sugg-text">
+            <strong>Soạn thảo văn bản</strong>
+            <span>Email báo cáo tiến độ tuần</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
   renderChatHistoryList();
 }
+
+window.useSamplePrompt = function(promptText) {
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.value = promptText;
+    input.focus();
+    if (typeof input.dispatchEvent === 'function') {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+};
 
 window.deleteChatSession = async (e, id) => {
   if (e) e.stopPropagation();
@@ -5874,6 +5939,16 @@ async function sendProjectIdea() {
         if (typeof loadProjects === 'function') {
           await loadProjects();
         }
+        if (projectsState.activeProjectId) {
+          try {
+            const refChatRes = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`);
+            const refChatData = await refChatRes.json();
+            if (refChatData && refChatData.chats) {
+              projectsState.chats = refChatData.chats;
+              if (projectsState.activeProject) projectsState.activeProject.chats = refChatData.chats;
+            }
+          } catch (e) {}
+        }
         if (typeof renderActiveProject === 'function') {
           renderActiveProject();
         }
@@ -5883,7 +5958,7 @@ async function sendProjectIdea() {
         if (data.chatsCleared) {
           showToast('🧹 Đã xóa sạch các nhóm chat, chỉ giữ lại đoạn chat giữa Sếp và PM!');
         } else if (data.createdChats && data.createdChats.length > 0) {
-          showToast(`🎉 Đã khởi tạo đoạn chat: ${data.createdChats.map(c => c.title).join(', ')}!`);
+          showToast(`🎉 PM đã lập ${data.createdChats.length} nhóm chat phòng ban và phân bổ vị trí thành công!`);
         }
       }
 

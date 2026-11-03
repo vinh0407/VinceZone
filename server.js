@@ -2304,10 +2304,10 @@ app.post('/api/projects/:id/chats/:chatId/message', async (req, res) => {
       const qLower = qTrim.toLowerCase();
 
       // =========================================================================
-      // LỆNH TOÀN QUYỀN ĐIỀU HÀNH DỰ ÁN TỪ SẾP (AUTONOMOUS MULTI-AGENT LIFECYCLE)
-      // "tôi cấp quyền toàn bộ cho cậu hãy tự phân tích và giao việc cho cấp dưới"
+      // LỆNH ĐIỀU HÀNH & PHÂN BỔ DỰ ÁN TỪ SẾP (AUTONOMOUS MULTI-AGENT LIFECYCLE)
+      // Tự động phân tích toàn diện, tạo nhóm chat phòng ban và phân bổ vị trí
       // =========================================================================
-      const isAutonomousDelegation = /(?:cấp quyền toàn bộ|tôi cấp quyền|tự phân tích và giao việc|tự phân tích và chia việc|toàn quyền quyết định|tự điều phối|tự giao việc|tự phân tích.*giao việc)/i.test(qLower);
+      const isAutonomousDelegation = /(?:cấp quyền|toàn quyền|tự phân tích|phân tích dự án|phân tích mã nguồn|phân tích toàn diện|phân bổ vị trí|phân bổ công việc|phân bổ.*vị trí|bổ nhiệm|chia việc|giao việc|tạo nhóm chat|tự tạo nhóm|tạo.*nhóm chat riêng|lập nhóm|phòng ban|điều hành|triển khai dự án|tự điều phối|phân công)/i.test(qLower);
 
       if (isAutonomousDelegation) {
         sendEvent({ type: 'agent_start', role: 'Kilo Auto Free (PM – Quản lý dự án)', badge: 'PM' });

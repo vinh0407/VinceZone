@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">VinceZone</string>
+    <string name="app_subtitle">AI Coding &amp; Assistant Gateway</string>
+    <string name="default_model">kilo-auto/free</string>
+    <string name="input_placeholder">Nhập tin nhắn cho AI...</string>
+    <string name="welcome_title">VinceZone AI</string>
+    <string name="welcome_desc">Trợ lý trí tuệ nhân tạo miễn phí với kilo-auto/free. Chọn câu hỏi mẫu hoặc bắt đầu chat!</string>
+    <string name="sample_prompt_1">Viết một ứng dụng Web TodoList hoàn chỉnh bằng HTML, CSS và JavaScript có lưu LocalStorage.</string>
+    <string name="sample_prompt_2">Tạo một bức ảnh Cyberpunk thành phố đêm rực rỡ ánh sáng neon, độ phân giải 8K, siêu chi tiết.</string>
+    <string name="sample_prompt_3">Giải thích khái niệm RAG và AI Agents một cách dễ hiểu nhất.</string>
+    <string name="sample_prompt_4">Soạn thảo một email báo cáo tiến độ công việc tuần chuyên nghiệp gửi khách hàng.</string>
+    <string name="disclaimer">VinceZone AI có thể mắc lỗi. Hãy kiểm tra lại thông tin quan trọng.</string>
+    <string name="nav_new_chat">Đoạn chat mới</string>
+    <string name="nav_history">Lịch sử trò chuyện</string>
+    <string name="nav_settings">Cài đặt kết nối</string>
+    <string name="settings_title">Cài Đặt</string>
+    <string name="server_url_label">Địa chỉ VinceZone Gateway</string>
+    <string name="default_server_url">http://10.0.2.2:3000</string>
+    <string name="custom_api_key_label">Custom Kilo / OpenAI API Key (Tùy chọn)</string>
+    <string name="save_settings">Lưu Cài Đặt</string>
+</resources>

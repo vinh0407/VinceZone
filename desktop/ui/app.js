@@ -358,10 +358,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupChatHistoryEvents();
   setupMobileModelSheetEvents();
 
-  // Desktop Edition Integration
+  // Desktop Edition Integration: Ẩn hoàn toàn header-right (Badge, Gateway, Đăng nhập) theo yêu cầu
   if (window.vzDesktop) {
+    document.body.classList.add('desktop-app');
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) headerRight.style.display = 'none';
     const desktopBadge = document.getElementById('desktop-app-badge');
-    if (desktopBadge) desktopBadge.style.display = 'inline-flex';
+    if (desktopBadge) desktopBadge.style.display = 'none';
     document.title = 'VinceZone';
   }
 
@@ -5874,6 +5877,16 @@ async function sendProjectIdea() {
         if (typeof loadProjects === 'function') {
           await loadProjects();
         }
+        if (projectsState.activeProjectId) {
+          try {
+            const refChatRes = await fetch(`/api/projects/${projectsState.activeProjectId}/chats`);
+            const refChatData = await refChatRes.json();
+            if (refChatData && refChatData.chats) {
+              projectsState.chats = refChatData.chats;
+              if (projectsState.activeProject) projectsState.activeProject.chats = refChatData.chats;
+            }
+          } catch (e) {}
+        }
         if (typeof renderActiveProject === 'function') {
           renderActiveProject();
         }
@@ -5883,7 +5896,7 @@ async function sendProjectIdea() {
         if (data.chatsCleared) {
           showToast('🧹 Đã xóa sạch các nhóm chat, chỉ giữ lại đoạn chat giữa Sếp và PM!');
         } else if (data.createdChats && data.createdChats.length > 0) {
-          showToast(`🎉 Đã khởi tạo đoạn chat: ${data.createdChats.map(c => c.title).join(', ')}!`);
+          showToast(`🎉 PM đã lập ${data.createdChats.length} nhóm chat phòng ban và phân bổ vị trí thành công!`);
         }
       }
 

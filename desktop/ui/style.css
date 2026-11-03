@@ -12477,3 +12477,10 @@ body.is-resizing {
   border-radius: 3px;
   font-size: 10px;
 }
+
+/* Tự động ẩn hoàn toàn header-right (Desktop badge, Gateway status, Đăng nhập) trên Desktop */
+body.desktop-app .header-right,
+.desktop-app .header-right,
+.header-right {
+  display: none !important;
+}
