@@ -4,6 +4,14 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const AgentEngine = require('./agent-engine');
 
+// Prevent unexpected process error dialogs
+process.on('uncaughtException', (err) => {
+  console.error('[VinceZone Desktop] UncaughtException in main process:', err.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[VinceZone Desktop] UnhandledRejection in main process:', reason);
+});
+
 let mainWindow = null;
 let currentWorkspace = null;
 let activeAgent = null;
@@ -27,12 +35,12 @@ async function waitForServer(timeoutMs = 15000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isServerOnline()) return true;
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 250));
   }
   return false;
 }
 
-// Auto-check and optionally start internal VinceZone gateway server
+// Auto-check and optionally start internal VinceZone gateway server in-process
 async function ensureGatewayRunning() {
   const alreadyRunning = await isServerOnline();
   if (alreadyRunning) {
@@ -41,22 +49,24 @@ async function ensureGatewayRunning() {
   }
 
   console.log('[VinceZone Desktop] Starting embedded VinceZone server in-process...');
-  try {
-    const serverScript = path.join(__dirname, '..', 'server.js');
-    if (fs.existsSync(serverScript)) {
-      require(serverScript);
-    }
-  } catch (err) {
-    console.warn('[VinceZone Desktop] In-process server require notice:', err.message);
+  const candidates = [
+    path.join(__dirname, '..', 'server.js'),
+    path.join(app.getAppPath(), 'server.js'),
+    path.resolve('server.js')
+  ];
+
+  let loaded = false;
+  for (const sPath of candidates) {
     try {
-      const serverScript = path.join(__dirname, '..', 'server.js');
-      embeddedServerProcess = spawn('node', [serverScript], {
-        cwd: path.join(__dirname, '..'),
-        stdio: 'pipe',
-        windowsHide: true,
-        env: { ...process.env, PORT: SERVER_PORT }
-      });
-    } catch (e2) {}
+      if (fs.existsSync(sPath)) {
+        require(sPath);
+        console.log(`[VinceZone Desktop] Embedded server loaded from: ${sPath}`);
+        loaded = true;
+        break;
+      }
+    } catch (err) {
+      console.warn(`[VinceZone Desktop] Server load notice from ${sPath}:`, err.message);
+    }
   }
 
   return await waitForServer();

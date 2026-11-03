@@ -4540,10 +4540,25 @@ const projectsState = {
 };
 
 // 1. Tải danh sách dự án
-async function loadProjects() {
+async function loadProjects(retries = 3) {
   try {
     const res = await fetch('/api/projects');
-    const data = await res.json();
+    if (!res.ok) {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 600));
+        return loadProjects(retries - 1);
+      }
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 600));
+        return loadProjects(retries - 1);
+      }
+      return;
+    }
+    const data = JSON.parse(text);
     projectsState.projects = data.projects || [];
 
     // Tự động chọn dự án đầu tiên nếu chưa chọn hoặc ID không còn tồn tại
@@ -4559,8 +4574,11 @@ async function loadProjects() {
     renderProjectsList();
     renderActiveProject();
   } catch (err) {
-    console.error('Lỗi khi tải danh sách dự án:', err);
-    showToast('Lỗi khi tải danh sách dự án: ' + err.message);
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 600));
+      return loadProjects(retries - 1);
+    }
+    console.warn('Notice loading projects:', err.message);
   }
 }
 
