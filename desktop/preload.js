@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('vzDesktop', {
 
   // Gateway status check
   getGatewayStatus: () => ipcRenderer.invoke('gateway:status'),
+  getServerUrl: () => ipcRenderer.invoke('server:get-url'),
+  getServerPort: () => ipcRenderer.invoke('server:get-port'),
 
   // Window Controls & Info
   minimize: () => ipcRenderer.invoke('window:minimize'),

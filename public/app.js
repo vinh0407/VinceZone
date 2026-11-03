@@ -1,13 +1,19 @@
 
-// Ensure API fetch calls resolve to localhost:3000 even if opened directly via file://
-if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
-  const _origFetch = window.fetch;
-  window.fetch = function(url, options) {
-    if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/v1'))) {
-      url = 'http://localhost:3000' + url;
-    }
-    return _origFetch(url, options);
-  };
+// Ensure API fetch calls resolve to VinceZone Gateway port even if opened directly via file://
+if (typeof window !== 'undefined') {
+  let desktopApiBase = 'http://localhost:3300';
+  if (window.vzDesktop && typeof window.vzDesktop.getServerUrl === 'function') {
+    window.vzDesktop.getServerUrl().then(u => { if (u) desktopApiBase = u; }).catch(() => {});
+  }
+  if (window.location.protocol === 'file:') {
+    const _origFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/v1'))) {
+        url = desktopApiBase + url;
+      }
+      return _origFetch(url, options);
+    };
+  }
 }
 
 function getBadgeClassForRole(cat, badge) {
@@ -6672,7 +6678,13 @@ function initProjectsEventListeners() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, path: pathVal, description: desc })
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error(text || `Server phản hồi mã HTTP ${res.status}`);
+        }
         if (data.success && data.project) {
           showToast(`Đã thêm dự án "${name}" thành công!`);
           closeCreateProjectModal();

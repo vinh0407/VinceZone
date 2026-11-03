@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
 const { spawn } = require('child_process');
 const AgentEngine = require('./agent-engine');
 
@@ -16,52 +17,92 @@ let mainWindow = null;
 let currentWorkspace = null;
 let activeAgent = null;
 let embeddedServerProcess = null;
-const SERVER_PORT = process.env.PORT || 3000;
-const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+let SERVER_PORT = 3300;
+let SERVER_URL = `http://localhost:${SERVER_PORT}`;
 
-// Helper: Check if gateway server is responding
+// Helper: Check if server on url is actually VinceZone Gateway
 Menu.setApplicationMenu(null);
-async function isServerOnline() {
+async function isVinceZoneOnline(url) {
   try {
-    const res = await fetch(`${SERVER_URL}/api/providers`);
-    return res.ok;
-  } catch (e) {
-    return false;
-  }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(`${url}/api/vz-ping`, { signal: timer.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      return data && data.app === 'vincezone';
+    }
+  } catch (e) {}
+  return false;
 }
 
-// Helper: Wait for server to become online with retries
-async function waitForServer(timeoutMs = 15000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (await isServerOnline()) return true;
-    await new Promise(r => setTimeout(r, 250));
+// Helper: Check if a local TCP port is free to bind
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once('error', () => resolve(false))
+      .once('listening', () => tester.once('close', () => resolve(true)).close())
+      .listen(port, '127.0.0.1');
+  });
+}
+
+// Find existing VinceZone instance or a free port that doesn't conflict with other apps (e.g. Next.js on 3000)
+async function resolveAvailableServer() {
+  const candidatePorts = [3300, 3000, 3001, 3002, 3301, 3302, 3303];
+  
+  // 1. Check if VinceZone is already running on any of these ports
+  for (const p of candidatePorts) {
+    if (await isVinceZoneOnline(`http://localhost:${p}`)) {
+      SERVER_PORT = p;
+      SERVER_URL = `http://localhost:${p}`;
+      process.env.PORT = String(p);
+      console.log(`[VinceZone Desktop] Connected to existing VinceZone server on ${SERVER_URL}`);
+      return true;
+    }
   }
+
+  // 2. Select a port that is NOT occupied by other apps (e.g. Next.js on 3000)
+  for (const p of candidatePorts) {
+    if (await isPortAvailable(p)) {
+      SERVER_PORT = p;
+      SERVER_URL = `http://localhost:${p}`;
+      process.env.PORT = String(p);
+      console.log(`[VinceZone Desktop] Selected available port: ${p}`);
+      return false;
+    }
+  }
+
+  // 3. Dynamic OS fallback port
+  const dynamicPort = await new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(0, '127.0.0.1', () => {
+      const p = srv.address().port;
+      srv.close(() => resolve(p));
+    });
+  });
+  SERVER_PORT = dynamicPort;
+  SERVER_URL = `http://localhost:${dynamicPort}`;
+  process.env.PORT = String(dynamicPort);
   return false;
 }
 
 // Auto-check and optionally start internal VinceZone gateway server in-process
 async function ensureGatewayRunning() {
-  const alreadyRunning = await isServerOnline();
-  if (alreadyRunning) {
-    console.log(`[VinceZone Desktop] Server already active on ${SERVER_URL}`);
-    return true;
-  }
+  const isAlreadyRunning = await resolveAvailableServer();
+  if (isAlreadyRunning) return true;
 
-  console.log('[VinceZone Desktop] Starting embedded VinceZone server in-process...');
+  console.log(`[VinceZone Desktop] Starting embedded VinceZone server on ${SERVER_URL}...`);
   const candidates = [
     path.join(__dirname, '..', 'server.js'),
     path.join(app.getAppPath(), 'server.js'),
     path.resolve('server.js')
   ];
 
-  let loaded = false;
   for (const sPath of candidates) {
     try {
       if (fs.existsSync(sPath)) {
         require(sPath);
         console.log(`[VinceZone Desktop] Embedded server loaded from: ${sPath}`);
-        loaded = true;
         break;
       }
     } catch (err) {
@@ -69,7 +110,12 @@ async function ensureGatewayRunning() {
     }
   }
 
-  return await waitForServer();
+  const start = Date.now();
+  while (Date.now() - start < 15000) {
+    if (await isVinceZoneOnline(SERVER_URL)) return true;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return false;
 }
 
 function createWindow() {
@@ -365,6 +411,8 @@ ipcMain.handle('window:maximize', () => {
 ipcMain.handle('window:close', () => mainWindow && mainWindow.close());
 ipcMain.handle('window:is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.handle('server:get-url', () => SERVER_URL);
+ipcMain.handle('server:get-port', () => SERVER_PORT);
 
 // App lifecycle
 app.whenReady().then(async () => {

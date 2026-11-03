@@ -22,6 +22,12 @@ Auth.ensureDefaultAdmin();
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Ping / Health check to identify VinceZone Gateway
+app.get('/api/vz-ping', (req, res) => {
+  res.json({ app: 'vincezone', version: '1.0.0', status: 'ok', port: PORT });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper to extract session user
@@ -3200,10 +3206,18 @@ app.use((req, res, next) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+const serverInstance = app.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(` VinceZone AI Workplay & Gateway running on:`);
   console.log(`   -> UI Playground:  http://localhost:${PORT}`);
   console.log(`   -> Gateway API:    http://localhost:${PORT}/v1/chat/completions`);
   console.log(`====================================================`);
+});
+
+serverInstance.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`[VinceZone] Port ${PORT} already in use, please check other running instances.`);
+  } else {
+    console.error('[VinceZone Server Error]:', err);
+  }
 });
