@@ -8654,19 +8654,24 @@ window.openFileInIde = async function(filePath) {
           ? `${projectsState.activeProject.path}/${filePath}`.replace(/\\/g, '/')
           : filePath;
         const res = await window.vzDesktop.readFile(fullPath);
-        if (res && res.success) {
-          content = res.content || '';
+        if (typeof res === 'string') {
+          content = res;
+        } else if (res && res.success) {
+          content = res.content !== undefined ? res.content : '';
+        } else if (res && typeof res.content === 'string') {
+          content = res.content;
         } else {
-          content = res.error || '';
+          content = (res && res.error) ? `// ${res.error}` : '';
         }
       } else {
-        const res = await fetch(`/api/projects/${demoState.activeProjectId}/read-file`, {
+        const projId = demoState.activeProjectId || projectsState.activeProjectId;
+        const res = await fetch(`/api/projects/${projId}/read-file`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: filePath })
         });
         const data = await res.json();
-        content = data.content || '';
+        content = data.content !== undefined ? data.content : '';
       }
       demoState.fileContentCache.set(filePath, content);
       tab.content = content;

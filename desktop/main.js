@@ -277,11 +277,16 @@ ipcMain.handle('workspace:read-tree', async (event, dirPath) => {
 
 // File Operations
 ipcMain.handle('file:read', async (event, filePath) => {
-  const full = path.isAbsolute(filePath) ? filePath : path.resolve(currentWorkspace || process.cwd(), filePath);
-  if (!fs.existsSync(full)) {
-    throw new Error(`File không tồn tại: ${filePath}`);
+  try {
+    const full = path.isAbsolute(filePath) ? filePath : path.resolve(currentWorkspace || process.cwd(), filePath);
+    if (!fs.existsSync(full)) {
+      return { success: false, error: `File không tồn tại: ${filePath}` };
+    }
+    const content = fs.readFileSync(full, 'utf8');
+    return { success: true, content, fullPath: full };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
-  return fs.readFileSync(full, 'utf8');
 });
 
 ipcMain.handle('file:save', async (event, filePath, content) => {
