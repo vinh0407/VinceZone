@@ -2025,7 +2025,7 @@ function getProjectLiveContext(project, userQuery = '') {
           } else {
             scannedFiles.push(`📄 ${itemRel}`);
             const ext = path.extname(ent.name).toLowerCase();
-            if (['.css', '.scss', '.tsx', '.ts', '.jsx', '.js', '.json', '.html', '.py'].includes(ext)) {
+            if (['.css', '.scss', '.tsx', '.ts', '.jsx', '.js', '.json', '.html', '.py', '.md', '.txt', '.yaml', '.yml', '.toml', '.sql', '.vue', '.svelte', '.php', '.java', '.cs', '.go', '.rs'].includes(ext)) {
               candidateFiles.push({ rel: itemRel, full: itemFull, ext });
             }
           }
@@ -2061,27 +2061,43 @@ function getProjectLiveContext(project, userQuery = '') {
 
       // 3. ĐỌC NỘI DUNG MÃ NGUỒN CÁC TỆP TIN QUAN TRỌNG ĐỂ AI PHÂN TÍCH CHÍNH XÁC
       const qLower = (userQuery || '').toLowerCase();
+      const isAnalysisQuery = /(?:phân tích|toàn diện|dự án|đánh giá|review|tìm hiểu|làm gì|kiến trúc|tổng quan|chức năng|nghiệp vụ|dùng để|mục đích|nội dung)/i.test(qLower);
+
       const scored = candidateFiles.map(c => {
-        let score = 0;
+        let score = 10;
         const rLower = c.rel.toLowerCase();
+
+        // Tài liệu tổng quan & README
+        if (rLower.includes('readme') || rLower.endsWith('.md')) score += 160;
+
+        // Thiết kế Design System, Canvas, Component Specs
+        if (rLower.includes('design-system') || rLower.includes('canvas') || rLower.endsWith('.dc.html')) score += 140;
+
+        // Cấu hình dự án & manifest
+        if (rLower === 'package.json' || rLower.endsWith('composer.json') || rLower.endsWith('cargo.toml') || rLower.endsWith('requirements.txt')) score += 110;
+
+        // Styling & UI
         if (qLower.includes('màu') || qLower.includes('color') || qLower.includes('đen') || qLower.includes('giao diện') || qLower.includes('ui') || qLower.includes('theme') || qLower.includes('sửa')) {
           if (c.ext === '.css' || c.ext === '.scss') score += 100;
           if (rLower.includes('style') || rLower.includes('theme')) score += 80;
           if (rLower.includes('layout') || rLower.includes('page') || rLower.includes('app')) score += 40;
         }
+
         if (rLower.endsWith('styles.css') || rLower.endsWith('globals.css') || rLower.endsWith('style.css')) score += 70;
-        if (rLower.endsWith('layout.tsx') || rLower.endsWith('layout.jsx') || rLower.endsWith('app.tsx')) score += 50;
-        if (rLower.endsWith('page.tsx') || rLower.endsWith('page.jsx') || rLower.endsWith('index.html')) score += 30;
-        if (rLower === 'package.json') score += 20;
+        if (rLower.endsWith('layout.tsx') || rLower.endsWith('layout.jsx') || rLower.endsWith('app.tsx') || rLower.endsWith('main.jsx') || rLower.endsWith('main.tsx')) score += 60;
+        if (rLower.endsWith('page.tsx') || rLower.endsWith('page.jsx') || rLower.endsWith('index.html') || rLower.endsWith('app.js') || rLower.endsWith('server.js') || rLower.endsWith('main.py')) score += 50;
+
         return { ...c, score };
       }).sort((a, b) => b.score - a.score);
 
       let totalChars = 0;
+      const maxChars = isAnalysisQuery ? 70000 : 35000;
       for (const item of scored) {
-        if (totalChars > 35000 || item.score <= 0) break;
+        if (totalChars > maxChars) break;
         try {
           let code = fs.readFileSync(item.full, 'utf8');
-          if (code.length > 8000) code = code.slice(0, 8000) + '\n... [Nội dung tệp dài đã được lược bớt] ...';
+          const maxSnippet = isAnalysisQuery ? 12000 : 8000;
+          if (code.length > maxSnippet) code = code.slice(0, maxSnippet) + '\n... [Nội dung tệp dài đã được lược bớt] ...';
           fileSnippets.push(`--- TỆP TIN: ${item.rel} ---\n${code}\n--- HẾT TỆP TIN: ${item.rel} ---`);
           totalChars += code.length;
         } catch (e) {}
@@ -2590,19 +2606,42 @@ Em đã tự động biên soạn và cập nhật tệp **\`README.md\`** chi t
       if (isDefiniteQuestion) {
         sendEvent({ type: 'agent_start', role: 'Kilo Auto Free (PM – Quản lý dự án)', badge: 'PM' });
 
-        const compactProjInfo = projectContext.slice(0, 4500);
+        const isAnalysisQuery = /(?:phân tích|toàn diện|dự án|đánh giá|review|tìm hiểu|làm gì|kiến trúc|tổng quan|chức năng|nghiệp vụ|dùng để|mục đích|nội dung)/i.test(qLower);
+        const maxInfoChars = isAnalysisQuery ? 45000 : 8000;
+        const compactProjInfo = projectContext.slice(0, maxInfoChars);
+
+        let analysisInstruction = '';
+        if (isAnalysisQuery) {
+          analysisInstruction = `
+[CHỈ ĐẠO ĐẶC BIỆT TỪ SẾP KHI YÊU CẦU PHÂN TÍCH DỰ ÁN]:
+Sếp yêu cầu bạn: "phân tích toàn diện và đọc toàn bộ nội dung, dùng để làm gì...".
+BẠN TUYỆT ĐỐI KHÔNG ĐƯỢC TRẢ LỜI NGẮN GỌN QUA LOA HAY CHỈ LIỆT KÊ TÊN THƯ MỤC!
+Bạn phải đọc sâu vào toàn bộ nội dung mã nguồn, các tệp HTML/Canvas, Design System, JSON, Config, Markdown được cấp trong phần [NỘI DUNG MÃ NGUỒN CÁC TỆP TIN THỰC TẾ TRONG DỰ ÁN] ở trên để trình bày một bản phân tích toàn diện, chuyên sâu, chuyên nghiệp với cấu trúc chuẩn:
+
+1. 🎯 **Mục Đích & Ứng Dụng Thực Tế (Dự án này dùng để làm gì):**
+   - Đọc kỹ nội dung bên trong các file thiết kế, canvas HTML, README, hoặc mã nguồn để giải thích chính xác dự án này giải quyết bài toán gì, sản phẩm hướng tới đối tượng người dùng nào, tính năng phục vụ mục đích gì trong thực tế.
+2. 🏗️ **Kiến Trúc & Chi Tiết Các Màn Hình / Components / Module Tính Năng:**
+   - Phân tích chi tiết từng màn hình cụ thể (đã xem từ mã HTML/canvas/component): tên màn hình, vai trò, giao diện hiển thị gì.
+   - Các components tái sử dụng (Buttons, Badges, Cards, Modals, Terminal...), tokens màu sắc, phong cách thiết kế.
+3. ⚙️ **Hiện Trạng Kỹ Thuật & Tài Nguyên Đã Có:**
+   - Đánh giá thẳng thắn những gì đã hoàn thành (ví dụ: đã có thiết kế canvas HTML hoàn chỉnh, mockup chi tiết), và những gì đang thiếu (ví dụ: cần scaffold code ứng dụng React/Next.js/Electron, API backend, logic kết nối).
+4. 🚀 **Đề Xuất Lộ Trình Triển Khai Kỹ Thuật Chi Tiết Cho Sếp (Next Steps):**
+   - Đưa ra kế hoạch thực thi từng bước rõ ràng (Step-by-step) để Sếp chỉ đạo các phòng ban triển khai tiếp theo.`;
+        }
+
         const pmDirectSys = `Bạn là Kilo Auto Free (PM – Quản lý dự án của VinceZone).
 Bạn là người đại diện DUY NHẤT của toàn bộ đội ngũ 20 thành viên làm việc trực tiếp với Sếp (người dùng).
 Dự án hiện tại: "${project.name}" (Thư mục làm việc: "${project.path}")
-Thông tin dự án:
+Thông tin và mã nguồn dự án thực tế:
 ${compactProjInfo}
 
 [QUY TẮC BẮT BUỘC TỪ SẾP]:
 1. Sếp vừa hỏi hoặc trao đổi với bạn: "${qTrim}"
 2. ĐÂY LÀ CÂU HỎI / TRAO ĐỔI -> BẠN (PM) PHẢI TRỰC TIẾP TRẢ LỜI ĐÚNG TRỌNG TÂM CÂU HỎI CỦA SẾP NGAY TẠI ĐÂY!
 3. TUYỆT ĐỐI KHÔNG GỬI LỆNH CHO NHÂN VIÊN, KHÔNG BÁO CÁO GIẢ LẬP ĐÃ GIAO VIỆC CHO DEV!
-4. Cách xưng hô: Luôn gọi người dùng là "Sếp", xưng "em" (Ví dụ: Nếu Sếp hỏi "gọi tôi là gì" -> trả lời: "Dạ em gọi anh/chị là Sếp ạ! Sếp là người lãnh đạo cao nhất của dự án và toàn bộ đội ngũ chúng em.").
-5. Trả lời ngắn gọn, thông minh, lịch sự, đi thẳng vào câu hỏi của Sếp.`;
+4. Cách xưng hô: Luôn gọi người dùng là "Sếp", xưng "em".
+5. ${isAnalysisQuery ? 'Phân tích TOÀN DIỆN, ĐỌC SÂU NỘI DUNG TỪNG FILE ĐỂ NÊU RÕ DỰ ÁN DÙNG ĐỂ LÀM GÌ, không trả lời qua loa.' : 'Trả lời ngắn gọn, thông minh, lịch sự, đi thẳng vào câu hỏi của Sếp.'}
+${analysisInstruction}`;
 
         // Lấy lịch sử 6 tin nhắn gần nhất để PM hiểu mạch chuyện
         const recentHistory = (chat.messages || []).slice(-7, -1).map(m => ({
