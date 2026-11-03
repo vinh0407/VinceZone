@@ -168,13 +168,33 @@ body {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  min-width: 230px;
+  min-width: 260px;
+  max-height: calc(100vh - 50px);
+  overflow-y: auto;
   background: #18181c;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
   padding: 4px 0;
   z-index: 99999;
+}
+
+.titlebar-dropdown::-webkit-scrollbar {
+  width: 5px;
+}
+.titlebar-dropdown::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+.titlebar-dropdown .dropdown-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+  padding: 6px 12px 3px;
+  font-weight: 700;
+  user-select: none;
 }
 
 .titlebar-menu-item.open .titlebar-dropdown {

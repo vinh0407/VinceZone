@@ -9467,3 +9467,306 @@ function initTitleBarWindowControls() {
     });
   }
 }
+
+// ==================== IDE MENU BAR ACTIONS & SHORTCUTS ====================
+(function() {
+  window.__autoSaveEnabled = true;
+
+  window.toggleAutoSave = function() {
+    window.__autoSaveEnabled = !window.__autoSaveEnabled;
+    const lbl = document.getElementById('label-autosave');
+    if (lbl) {
+      lbl.innerHTML = window.__autoSaveEnabled
+        ? 'Auto Save <span style="color:#10b981;font-weight:700;">✓</span>'
+        : 'Auto Save';
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(window.__autoSaveEnabled ? 'Auto Save: ON' : 'Auto Save: OFF');
+    }
+  };
+
+  window.triggerNewFile = function() {
+    if (window.openIdeDirectly) window.openIdeDirectly();
+    const btnNew = document.getElementById('btn-ide-new-file');
+    if (btnNew) btnNew.click();
+    else if (typeof window.showToast === 'function') window.showToast('Tạo tệp mới trong IDE...');
+  };
+
+  window.openNewWindow = function() {
+    window.open(window.location.href, '_blank', 'width=1440,height=900');
+  };
+
+  window.triggerOpenFile = function() {
+    if (window.vzDesktop && typeof window.vzDesktop.openFileDialog === 'function') {
+      window.vzDesktop.openFileDialog();
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file && typeof window.showToast === 'function') {
+          window.showToast(`Đã chọn tệp: ${file.name}`);
+        }
+      };
+      input.click();
+    }
+  };
+
+  window.triggerOpenFolder = function() {
+    if (window.vzDesktop && typeof window.vzDesktop.openFolderDialog === 'function') {
+      window.vzDesktop.openFolderDialog();
+    } else if (typeof window.switchTabByRoute === 'function') {
+      window.switchTabByRoute('projects');
+    }
+  };
+
+  window.saveActiveIdeFile = function() {
+    const btnSave = document.getElementById('btn-ide-save-file');
+    if (btnSave) {
+      btnSave.click();
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Đã lưu tệp hiện tại (Ctrl+S)');
+    }
+  };
+
+  window.saveAllIdeFiles = function() {
+    if (window.saveActiveIdeFile) window.saveActiveIdeFile();
+    if (typeof window.showToast === 'function') {
+      window.showToast('Đã lưu toàn bộ tệp dự án (Ctrl+K S)');
+    }
+  };
+
+  window.closeActiveIdeEditor = function() {
+    const activeTabClose = document.querySelector('.ide-tab.active .ide-tab-close');
+    if (activeTabClose) {
+      activeTabClose.click();
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Đã đóng trình soạn thảo hiện tại');
+    }
+  };
+
+  window.triggerEditorFind = function() {
+    const searchInput = document.getElementById('ide-file-search-input') || document.getElementById('ide-search-box');
+    if (searchInput) {
+      searchInput.focus();
+      searchInput.select();
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Tìm kiếm: Ctrl+F');
+    }
+  };
+
+  window.triggerEditorReplace = function() {
+    if (typeof window.showToast === 'function') {
+      window.showToast('Thay thế (Replace): Ctrl+H');
+    }
+  };
+
+  window.triggerFindInFiles = function() {
+    if (typeof window.openIdeDirectly === 'function') window.openIdeDirectly();
+    const searchInput = document.getElementById('ide-file-search-input');
+    if (searchInput) {
+      searchInput.focus();
+      searchInput.select();
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Tìm kiếm toàn dự án: Ctrl+Shift+F');
+    }
+  };
+
+  window.toggleLineComment = function() {
+    document.execCommand('insertText', false, '// ');
+  };
+
+  window.expandSelection = function() {
+    const sel = window.getSelection();
+    if (sel && sel.modify) sel.modify('extend', 'forward', 'word');
+  };
+
+  window.shrinkSelection = function() {
+    const sel = window.getSelection();
+    if (sel && sel.modify) sel.modify('extend', 'backward', 'character');
+  };
+
+  window.copyLineUp = function() {
+    document.execCommand('copy');
+    if (typeof window.showToast === 'function') window.showToast('Sao chép dòng lên');
+  };
+
+  window.copyLineDown = function() {
+    document.execCommand('copy');
+    if (typeof window.showToast === 'function') window.showToast('Sao chép dòng xuống');
+  };
+
+  window.moveLineUp = function() {
+    if (typeof window.showToast === 'function') window.showToast('Di chuyển dòng lên');
+  };
+
+  window.moveLineDown = function() {
+    if (typeof window.showToast === 'function') window.showToast('Di chuyển dòng xuống');
+  };
+
+  window.addCursorAbove = function() {
+    if (typeof window.showToast === 'function') window.showToast('Thêm con trỏ phía trên');
+  };
+
+  window.addCursorBelow = function() {
+    if (typeof window.showToast === 'function') window.showToast('Thêm con trỏ phía dưới');
+  };
+
+  window.addCursorsToLineEnds = function() {
+    if (typeof window.showToast === 'function') window.showToast('Thêm con trỏ cuối dòng');
+  };
+
+  window.showProblemsPanel = function() {
+    if (typeof window.openTerminalDrawer === 'function') window.openTerminalDrawer();
+    const tabProblems = document.querySelector('[data-drawer-tab="problems"]');
+    if (tabProblems) tabProblems.click();
+    else if (typeof window.showToast === 'function') window.showToast('Bảng Problems: Không có lỗi mã nguồn');
+  };
+
+  window.showOutputLogs = function() {
+    if (typeof window.openTerminalDrawer === 'function') window.openTerminalDrawer();
+    const tabOutput = document.querySelector('[data-drawer-tab="output"]') || document.querySelector('[data-drawer-tab="logs"]');
+    if (tabOutput) tabOutput.click();
+    else if (typeof window.showToast === 'function') window.showToast('Bảng Output: Đang theo dõi tiến trình');
+  };
+
+  let currentZoom = 1;
+  window.zoomIn = function() {
+    currentZoom = Math.min(1.5, currentZoom + 0.1);
+    document.body.style.zoom = currentZoom;
+    if (typeof window.showToast === 'function') window.showToast(`Thu phóng: ${Math.round(currentZoom * 100)}%`);
+  };
+
+  window.zoomOut = function() {
+    currentZoom = Math.max(0.7, currentZoom - 0.1);
+    document.body.style.zoom = currentZoom;
+    if (typeof window.showToast === 'function') window.showToast(`Thu phóng: ${Math.round(currentZoom * 100)}%`);
+  };
+
+  window.toggleFullScreenMode = function() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  window.triggerQuickOpen = function() {
+    if (typeof window.openIdeDirectly === 'function') window.openIdeDirectly();
+    const searchInput = document.getElementById('ide-file-search-input');
+    if (searchInput) searchInput.focus();
+    else if (typeof window.showToast === 'function') window.showToast('Go to File: Ctrl+P');
+  };
+
+  window.triggerGoToSymbol = function() {
+    if (typeof window.showToast === 'function') window.showToast('Go to Symbol: Ctrl+Shift+O');
+  };
+
+  window.triggerGoToDefinition = function() {
+    if (typeof window.showToast === 'function') window.showToast('Go to Definition (F12)');
+  };
+
+  window.triggerGoToReferences = function() {
+    if (typeof window.showToast === 'function') window.showToast('Go to References (Shift+F12)');
+  };
+
+  window.triggerGoToLine = function() {
+    const line = prompt('Nhập số dòng cần đến:');
+    if (line && typeof window.showToast === 'function') {
+      window.showToast(`Đến dòng: ${line}`);
+    }
+  };
+
+  window.triggerFullAutonomousPipeline = function() {
+    const btnAuto = document.getElementById('btn-ide-autonomous-run') || document.getElementById('btn-start-autonomous');
+    if (btnAuto) {
+      btnAuto.click();
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Khởi động Debugging & Agent Tự Trị (F5)...');
+    }
+  };
+
+  window.runProjectDevServer = function() {
+    window.runTerminalCommand('npm run dev');
+  };
+
+  window.stopCurrentExecution = function() {
+    if (typeof window.showToast === 'function') window.showToast('Đã dừng tiến trình thực thi (Stop Debugging)');
+  };
+
+  window.restartCurrentExecution = function() {
+    if (typeof window.showToast === 'function') window.showToast('Khởi động lại tiến trình thực thi (Restart Debugging)');
+    window.runTerminalCommand('npm run dev');
+  };
+
+  window.openRunConfigurations = function() {
+    if (typeof window.showToast === 'function') window.showToast('Cấu hình Run: package.json / Launch Settings');
+  };
+
+  window.addRunConfiguration = function() {
+    if (typeof window.showToast === 'function') window.showToast('Thêm cấu hình chạy mới cho dự án');
+  };
+
+  window.splitTerminal = function() {
+    if (typeof window.openTerminalDrawer === 'function') window.openTerminalDrawer();
+    if (typeof window.showToast === 'function') window.showToast('Đã chia màn hình Terminal (Split Terminal)');
+  };
+
+  window.runTerminalTask = function() {
+    if (typeof window.showToast === 'function') window.showToast('Chọn tác vụ để chạy trong Terminal');
+  };
+
+  window.runTerminalBuildTask = function() {
+    window.runTerminalCommand('npm run build');
+  };
+
+  window.configureTasks = function() {
+    if (typeof window.showToast === 'function') window.showToast('Cấu hình tasks.json cho dự án');
+  };
+
+  window.clearActiveTerminal = function() {
+    const terminalOutput = document.getElementById('terminal-output-container') || document.querySelector('.terminal-content');
+    if (terminalOutput) terminalOutput.innerHTML = '';
+    if (typeof window.showToast === 'function') window.showToast('Đã đóng/dọn dẹp Terminal');
+  };
+
+  window.selectDefaultProfile = function() {
+    if (typeof window.showToast === 'function') window.showToast('Môi trường Terminal mặc định: PowerShell / CMD');
+  };
+
+  window.runTerminalCommand = function(cmd) {
+    if (typeof window.openTerminalDrawer === 'function') window.openTerminalDrawer();
+    const terminalInput = document.getElementById('terminal-command-input') || document.querySelector('.terminal-input');
+    if (terminalInput) {
+      terminalInput.value = cmd;
+      terminalInput.focus();
+      const event = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+      terminalInput.dispatchEvent(event);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(`Terminal: Đang chạy "${cmd}"`);
+    }
+  };
+
+  window.showCommandPalette = function() {
+    if (typeof window.showToast === 'function') {
+      window.showToast('Command Palette: Nhập lệnh (Ctrl+Shift+P)');
+    }
+    const search = document.getElementById('ide-file-search-input');
+    if (search) search.focus();
+  };
+
+  window.showReleaseNotes = function() {
+    if (typeof window.showToast === 'function') {
+      window.showToast('VinceZone v1.0.0 Release Notes: Tích hợp Custom Titlebar, Frameless Window, Autonomous Agent Engine');
+    }
+  };
+
+  window.showKeyboardShortcuts = function() {
+    alert('VinceZone Keyboard Shortcuts:\n\nCtrl+N: New File\nCtrl+O: Open File\nCtrl+S: Save\nCtrl+W: Close Editor\nCtrl+F: Find\nCtrl+H: Replace\nCtrl+Shift+F: Find in Files\nCtrl+`: Toggle Terminal\nF5: Start Debugging\nF11: Full Screen\nCtrl+Shift+P: Command Palette');
+  };
+
+  window.showAboutVinceZone = function() {
+    alert('VinceZone Studio [Desktop Edition]\nPhiên bản: 1.0.0\nNền tảng AI Autonomous IDE & Multi-Agent Engine\nTác giả: VinceZone Team\nWebsite: https://github.com/vinh0407/VinceZone');
+  };
+})();

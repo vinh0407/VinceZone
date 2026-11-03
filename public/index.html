@@ -26,162 +26,352 @@
         <img src="logo.png" alt="VZ" class="titlebar-logo-img">
       </div>
       <nav class="titlebar-menu-bar" id="titlebar-menu-bar">
-        <!-- File -->
+        <!-- 1. File -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">File</span>
           <div class="titlebar-dropdown">
-            <div class="dropdown-item" onclick="window.triggerNewProjectDialog ? window.triggerNewProjectDialog() : window.switchTabByRoute('projects')">
-              <span>Dự Án Mới (New Project)...</span>
+            <div class="dropdown-header">File Management</div>
+            <div class="dropdown-item" onclick="window.triggerNewFile ? window.triggerNewFile() : window.openIdeDirectly()">
+              <span>New File</span>
               <kbd>Ctrl+N</kbd>
             </div>
-            <div class="dropdown-item" onclick="window.vzDesktop ? window.vzDesktop.openFolderDialog() : window.switchTabByRoute('projects')">
-              <span>Mở Thư Mục (Open Folder)...</span>
-              <kbd>Ctrl+O</kbd>
-            </div>
-            <div class="dropdown-item" onclick="window.saveActiveIdeFile ? window.saveActiveIdeFile() : null">
-              <span>Lưu Tệp (Save File)</span>
-              <kbd>Ctrl+S</kbd>
+            <div class="dropdown-item" onclick="window.openNewWindow ? window.openNewWindow() : window.open(window.location.href, '_blank')">
+              <span>New Window</span>
+              <kbd>Ctrl+Shift+N</kbd>
             </div>
             <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.triggerOpenFile ? window.triggerOpenFile() : (window.vzDesktop ? window.vzDesktop.openFileDialog() : null)">
+              <span>Open File...</span>
+              <kbd>Ctrl+O</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.triggerOpenFolder ? window.triggerOpenFolder() : (window.vzDesktop ? window.vzDesktop.openFolderDialog() : window.switchTabByRoute('projects'))">
+              <span>Open Folder...</span>
+              <kbd>Ctrl+K Ctrl+O</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
+              <span>Open Workspace...</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.saveActiveIdeFile ? window.saveActiveIdeFile() : null">
+              <span>Save</span>
+              <kbd>Ctrl+S</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.saveAllIdeFiles ? window.saveAllIdeFiles() : (window.saveActiveIdeFile && window.saveActiveIdeFile())">
+              <span>Save All</span>
+              <kbd>Ctrl+K S</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.toggleAutoSave ? window.toggleAutoSave() : null">
+              <span id="label-autosave">Auto Save <span style="color:#10b981;font-weight:700;">✓</span></span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.closeActiveIdeEditor ? window.closeActiveIdeEditor() : null">
+              <span>Close Editor</span>
+              <kbd>Ctrl+W</kbd>
+            </div>
             <div class="dropdown-item" onclick="window.vzDesktop ? window.vzDesktop.close() : window.close()">
-              <span>Thoát (Exit)</span>
+              <span>Exit</span>
               <kbd>Alt+F4</kbd>
             </div>
           </div>
         </div>
 
-        <!-- Edit -->
+        <!-- 2. Edit -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Edit</span>
           <div class="titlebar-dropdown">
+            <div class="dropdown-header">Editing</div>
             <div class="dropdown-item" onclick="document.execCommand('undo')">
-              <span>Hoàn Tác (Undo)</span>
+              <span>Undo</span>
               <kbd>Ctrl+Z</kbd>
             </div>
             <div class="dropdown-item" onclick="document.execCommand('redo')">
-              <span>Làm Lại (Redo)</span>
+              <span>Redo</span>
               <kbd>Ctrl+Y</kbd>
             </div>
             <div class="dropdown-divider"></div>
             <div class="dropdown-item" onclick="document.execCommand('cut')">
-              <span>Cắt (Cut)</span>
+              <span>Cut</span>
               <kbd>Ctrl+X</kbd>
             </div>
             <div class="dropdown-item" onclick="document.execCommand('copy')">
-              <span>Sao Chép (Copy)</span>
+              <span>Copy</span>
               <kbd>Ctrl+C</kbd>
             </div>
             <div class="dropdown-item" onclick="document.execCommand('paste')">
-              <span>Dán (Paste)</span>
+              <span>Paste</span>
               <kbd>Ctrl+V</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.triggerEditorFind ? window.triggerEditorFind() : null">
+              <span>Find</span>
+              <kbd>Ctrl+F</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.triggerEditorReplace ? window.triggerEditorReplace() : null">
+              <span>Replace</span>
+              <kbd>Ctrl+H</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.triggerFindInFiles ? window.triggerFindInFiles() : null">
+              <span>Find in Files</span>
+              <kbd>Ctrl+Shift+F</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.toggleLineComment ? window.toggleLineComment() : null">
+              <span>Toggle Line Comment</span>
+              <kbd>Ctrl+/</kbd>
             </div>
           </div>
         </div>
 
-        <!-- Selection -->
+        <!-- 3. Selection -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Selection</span>
           <div class="titlebar-dropdown">
+            <div class="dropdown-header">Code Selection</div>
             <div class="dropdown-item" onclick="document.execCommand('selectAll')">
-              <span>Chọn Tất Cả (Select All)</span>
+              <span>Select All</span>
               <kbd>Ctrl+A</kbd>
             </div>
             <div class="dropdown-item" onclick="window.expandSelection ? window.expandSelection() : null">
-              <span>Mở Rộng Vùng Chọn (Expand)</span>
+              <span>Expand Selection</span>
               <kbd>Shift+Alt+Right</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.shrinkSelection ? window.shrinkSelection() : null">
+              <span>Shrink Selection</span>
+              <kbd>Shift+Alt+Left</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.copyLineUp ? window.copyLineUp() : null">
+              <span>Copy Line Up</span>
+              <kbd>Shift+Alt+Up</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.copyLineDown ? window.copyLineDown() : null">
+              <span>Copy Line Down</span>
+              <kbd>Shift+Alt+Down</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.moveLineUp ? window.moveLineUp() : null">
+              <span>Move Line Up</span>
+              <kbd>Alt+Up</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.moveLineDown ? window.moveLineDown() : null">
+              <span>Move Line Down</span>
+              <kbd>Alt+Down</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.addCursorAbove ? window.addCursorAbove() : null">
+              <span>Add Cursor Above</span>
+              <kbd>Ctrl+Alt+Up</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.addCursorBelow ? window.addCursorBelow() : null">
+              <span>Add Cursor Below</span>
+              <kbd>Ctrl+Alt+Down</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.addCursorsToLineEnds ? window.addCursorsToLineEnds() : null">
+              <span>Add Cursors to Line Ends</span>
+              <kbd>Shift+Alt+I</kbd>
             </div>
           </div>
         </div>
 
-        <!-- View -->
+        <!-- 4. View -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">View</span>
           <div class="titlebar-dropdown">
-            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
-              <span>Dự Án &amp; Hội Đồng Agent</span>
+            <div class="dropdown-header">Interface</div>
+            <div class="dropdown-item" onclick="window.openIdeDirectly ? window.openIdeDirectly() : window.switchTabByRoute('ide')">
+              <span>Explorer</span>
               <kbd>Ctrl+Shift+E</kbd>
             </div>
-            <div class="dropdown-item" onclick="window.openIdeDirectly ? window.openIdeDirectly() : window.switchTabByRoute('ide')">
-              <span>Mở IDE Lập Trình</span>
-              <kbd>Ctrl+Shift+I</kbd>
+            <div class="dropdown-item" onclick="window.triggerFindInFiles ? window.triggerFindInFiles() : null">
+              <span>Search</span>
+              <kbd>Ctrl+Shift+F</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
+              <span>Source Control</span>
+              <kbd>Ctrl+Shift+G</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('ide')">
+              <span>Run and Debug</span>
+              <kbd>Ctrl+Shift+D</kbd>
             </div>
             <div class="dropdown-item" onclick="window.switchTabByRoute('prompts')">
-              <span>Kho Prompt &amp; Skills</span>
-              <kbd>Ctrl+Shift+P</kbd>
-            </div>
-            <div class="dropdown-item" onclick="window.switchTabByRoute('settings')">
-              <span>Cài Đặt Hệ Thống</span>
-              <kbd>Ctrl+,</kbd>
+              <span>Extensions</span>
+              <kbd>Ctrl+Shift+X</kbd>
             </div>
             <div class="dropdown-divider"></div>
-            <div class="dropdown-item" onclick="location.reload(true)">
-              <span>Tải Lại Giao Diện (Reload)</span>
-              <kbd>F5 / Ctrl+R</kbd>
+            <div class="dropdown-item" onclick="window.showProblemsPanel ? window.showProblemsPanel() : null">
+              <span>Problems</span>
+              <kbd>Ctrl+Shift+M</kbd>
             </div>
-            <div class="dropdown-item" onclick="window.toggleDevTools ? window.toggleDevTools() : null">
-              <span>Công Cụ DevTools</span>
-              <kbd>F12</kbd>
+            <div class="dropdown-item" onclick="window.showOutputLogs ? window.showOutputLogs() : null">
+              <span>Output</span>
+              <kbd>Ctrl+K Ctrl+H</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.openTerminalDrawer ? window.openTerminalDrawer() : null">
+              <span>Terminal</span>
+              <kbd>Ctrl+`</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.toggleSidebar && window.toggleSidebar()">
+              <span>Appearance: Toggle Primary Side Bar</span>
+              <kbd>Ctrl+B</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.toggleFullScreenMode ? window.toggleFullScreenMode() : null">
+              <span>Appearance: Toggle Full Screen</span>
+              <kbd>F11</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.zoomIn ? window.zoomIn() : null">
+              <span>Zoom In</span>
+              <kbd>Ctrl+=</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.zoomOut ? window.zoomOut() : null">
+              <span>Zoom Out</span>
+              <kbd>Ctrl+-</kbd>
             </div>
           </div>
         </div>
 
-        <!-- Go -->
+        <!-- 5. Go -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Go</span>
           <div class="titlebar-dropdown">
-            <div class="dropdown-item" onclick="window.openIdeDirectly ? window.openIdeDirectly() : window.switchTabByRoute('ide')">
-              <span>Đi Đến Tệp Tin (Go to File)...</span>
+            <div class="dropdown-header">Navigation</div>
+            <div class="dropdown-item" onclick="window.history.back()">
+              <span>Back</span>
+              <kbd>Alt+Left</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.history.forward()">
+              <span>Forward</span>
+              <kbd>Alt+Right</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.triggerQuickOpen ? window.triggerQuickOpen() : (window.openIdeDirectly && window.openIdeDirectly())">
+              <span>Go to File...</span>
               <kbd>Ctrl+P</kbd>
             </div>
-            <div class="dropdown-item" onclick="window.switchTabByRoute('projects')">
-              <span>Đi Đến Dự Án Đang Mở</span>
+            <div class="dropdown-item" onclick="window.triggerGoToSymbol ? window.triggerGoToSymbol() : null">
+              <span>Go to Symbol...</span>
+              <kbd>Ctrl+Shift+O</kbd>
             </div>
-            <div class="dropdown-item" onclick="window.switchTabByRoute('playground')">
-              <span>Đi Đến AI Playground</span>
+            <div class="dropdown-item" onclick="window.triggerGoToDefinition ? window.triggerGoToDefinition() : null">
+              <span>Go to Definition</span>
+              <kbd>F12</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.triggerGoToReferences ? window.triggerGoToReferences() : null">
+              <span>Go to References</span>
+              <kbd>Shift+F12</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.triggerGoToLine ? window.triggerGoToLine() : null">
+              <span>Go to Line...</span>
+              <kbd>Ctrl+G</kbd>
             </div>
           </div>
         </div>
 
-        <!-- Run -->
+        <!-- 6. Run -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Run</span>
           <div class="titlebar-dropdown">
+            <div class="dropdown-header">Execution &amp; Debugging</div>
             <div class="dropdown-item" onclick="window.triggerFullAutonomousPipeline ? window.triggerFullAutonomousPipeline() : null">
-              <span>Chạy Chu Trình Agent Tự Chủ</span>
+              <span>Start Debugging</span>
               <kbd>F5</kbd>
             </div>
             <div class="dropdown-item" onclick="window.runProjectDevServer ? window.runProjectDevServer() : null">
-              <span>Khởi Chạy Máy Chủ Dự Án (Dev Server)</span>
+              <span>Run Without Debugging</span>
               <kbd>Ctrl+F5</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.stopCurrentExecution ? window.stopCurrentExecution() : null">
+              <span>Stop Debugging</span>
+              <kbd>Shift+F5</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.restartCurrentExecution ? window.restartCurrentExecution() : null">
+              <span>Restart Debugging</span>
+              <kbd>Ctrl+Shift+F5</kbd>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="window.openRunConfigurations ? window.openRunConfigurations() : null">
+              <span>Open Configurations</span>
+            </div>
+            <div class="dropdown-item" onclick="window.addRunConfiguration ? window.addRunConfiguration() : null">
+              <span>Add Configuration...</span>
             </div>
           </div>
         </div>
 
-        <!-- Terminal -->
+        <!-- 7. Terminal -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Terminal</span>
           <div class="titlebar-dropdown">
+            <div class="dropdown-header">Command Line</div>
             <div class="dropdown-item" onclick="window.openTerminalDrawer ? window.openTerminalDrawer() : null">
-              <span>Mở Terminal Mới (PowerShell / CMD)</span>
-              <kbd>Ctrl+`</kbd>
+              <span>New Terminal</span>
+              <kbd>Ctrl+Shift+`</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.splitTerminal ? window.splitTerminal() : null">
+              <span>Split Terminal</span>
+              <kbd>Ctrl+Shift+5</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalTask ? window.runTerminalTask() : null">
+              <span>Run Task...</span>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalBuildTask ? window.runTerminalBuildTask() : null">
+              <span>Run Build Task...</span>
+              <kbd>Ctrl+Shift+B</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.configureTasks ? window.configureTasks() : null">
+              <span>Configure Tasks...</span>
             </div>
             <div class="dropdown-item" onclick="window.clearActiveTerminal ? window.clearActiveTerminal() : null">
-              <span>Xóa Màn Hình Terminal (Clear)</span>
-              <kbd>Ctrl+K</kbd>
+              <span>Kill Terminal</span>
+            </div>
+            <div class="dropdown-item" onclick="window.selectDefaultProfile ? window.selectDefaultProfile() : null">
+              <span>Select Default Profile</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-header">Quick Tasks</div>
+            <div class="dropdown-item" onclick="window.runTerminalCommand ? window.runTerminalCommand('npm install') : null">
+              <span>npm install</span>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalCommand ? window.runTerminalCommand('npm run dev') : null">
+              <span>npm run dev</span>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalCommand ? window.runTerminalCommand('git commit -m &quot;update&quot;') : null">
+              <span>git commit</span>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalCommand ? window.runTerminalCommand('docker compose up') : null">
+              <span>docker compose up</span>
+            </div>
+            <div class="dropdown-item" onclick="window.runTerminalCommand ? window.runTerminalCommand('python main.py') : null">
+              <span>python main.py</span>
             </div>
           </div>
         </div>
 
-        <!-- Help -->
+        <!-- 8. Help -->
         <div class="titlebar-menu-item" tabindex="0">
           <span class="menu-label">Help</span>
           <div class="titlebar-dropdown">
-            <div class="dropdown-item" onclick="window.open('https://github.com/vinh0407/VinceZone', '_blank')">
-              <span>Tài Liệu Hướng Dẫn (GitHub Repo)</span>
+            <div class="dropdown-header">Documentation &amp; Support</div>
+            <div class="dropdown-item" onclick="window.switchTabByRoute('playground')">
+              <span>Welcome</span>
+            </div>
+            <div class="dropdown-item" onclick="window.showCommandPalette ? window.showCommandPalette() : null">
+              <span>Show All Commands</span>
+              <kbd>Ctrl+Shift+P</kbd>
+            </div>
+            <div class="dropdown-item" onclick="window.open('https://github.com/vinh0407/VinceZone#readme', '_blank')">
+              <span>Documentation</span>
+            </div>
+            <div class="dropdown-item" onclick="window.showReleaseNotes ? window.showReleaseNotes() : null">
+              <span>Release Notes</span>
+            </div>
+            <div class="dropdown-item" onclick="window.showKeyboardShortcuts ? window.showKeyboardShortcuts() : null">
+              <span>Keyboard Shortcuts</span>
+              <kbd>Ctrl+K Ctrl+S</kbd>
             </div>
             <div class="dropdown-divider"></div>
-            <div class="dropdown-item" onclick="window.showAboutVinceZone ? window.showAboutVinceZone() : alert('VinceZone Studio - Autonomous AI Agent IDE & Unified Gateway')">
-              <span>Về VinceZone Studio</span>
+            <div class="dropdown-item" onclick="window.showAboutVinceZone ? window.showAboutVinceZone() : null">
+              <span>About VinceZone</span>
             </div>
           </div>
         </div>
@@ -190,19 +380,25 @@
 
     <!-- Center: Window Title -->
     <div class="titlebar-center">
-      <span class="titlebar-window-title" id="titlebar-window-title">VinceZone</span>
+      <span class="titlebar-window-title" id="titlebar-window-title">VinceZone - Antigravity IDE</span>
     </div>
 
     <!-- Right: Quick Actions & Window Controls -->
     <div class="titlebar-right">
       <div class="titlebar-quick-actions">
-        <button type="button" class="titlebar-icon-btn" title="Chuyển Bố Cục Trái / Phải" onclick="window.toggleSidebar && window.toggleSidebar()">
+        <button type="button" class="titlebar-icon-btn" title="Toggle Primary Side Bar (Ctrl+B)" onclick="window.toggleSidebar && window.toggleSidebar()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
         </button>
-        <button type="button" class="titlebar-icon-btn" title="Mở Bảng Điều Khiển Dưới" onclick="window.toggleDrawerMenu && window.toggleDrawerMenu()">
+        <button type="button" class="titlebar-icon-btn" title="Toggle Panel (Ctrl+`)" onclick="window.openTerminalDrawer && window.openTerminalDrawer()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/></svg>
         </button>
-        <button type="button" class="titlebar-icon-btn" title="Cài Đặt (Settings)" onclick="window.switchTabByRoute('settings')">
+        <button type="button" class="titlebar-icon-btn" title="Toggle Secondary Side Bar" onclick="window.toggleSidebar && window.toggleSidebar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></svg>
+        </button>
+        <button type="button" class="titlebar-icon-btn" title="Command Palette (Ctrl+Shift+P)" onclick="window.showCommandPalette ? window.showCommandPalette() : null">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button type="button" class="titlebar-icon-btn" title="Settings (Cài Đặt)" onclick="window.switchTabByRoute('settings')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
       </div>
