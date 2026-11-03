@@ -492,6 +492,13 @@ body {
   display: block;
 }
 
+#tab-projects,
+#tab-playground,
+#tab-ide {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
 /* ---------------- PLAYGROUND LAYOUT ---------------- */
 .playground-layout {
   display: flex;
@@ -4192,7 +4199,8 @@ input[type="range"] {
 .projects-layout {
   display: grid;
   grid-template-columns: 340px 1fr;
-  height: calc(100vh - 65px);
+  height: 100% !important;
+  max-height: 100% !important;
   overflow: hidden;
   background: var(--bg-main, #09090b);
   transition: grid-template-columns 0.22s cubic-bezier(0.16, 1, 0.3, 1);
@@ -8754,7 +8762,8 @@ input[type="range"] {
 .demo-workspace-layout {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 58px);
+  height: 100% !important;
+  max-height: 100% !important;
   background: #09090b;
   overflow: hidden;
 }
@@ -9545,7 +9554,8 @@ pre code.hljs {
 /* Nền và Layout chính */
 .antigravity-layout {
   display: flex !important;
-  height: calc(100vh - 58px) !important;
+  height: 100% !important;
+  max-height: 100% !important;
   background: #141414 !important;
   overflow: hidden !important;
   position: relative !important;
