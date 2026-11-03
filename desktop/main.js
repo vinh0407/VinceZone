@@ -153,6 +153,16 @@ function createWindow() {
     }
   });
 
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.warn(`[VinceZone Desktop] Failed loading ${validatedURL}: ${errorDescription}. Falling back to local UI...`);
+    const fallbackPath = path.join(__dirname, 'ui', 'index.html');
+    if (fs.existsSync(fallbackPath)) {
+      mainWindow.loadFile(fallbackPath);
+    } else {
+      mainWindow.loadFile(path.join(__dirname, '..', 'public', 'index.html'));
+    }
+  });
+
   // Load splash screen first
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 

@@ -14,12 +14,11 @@
    <!-- Code Syntax Highlighting (VS Code / Cursor theme) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <!-- Markdown & Code Highlight Support (Loaded first to attach global window.marked) -->
+  <script src="vendor/marked.min.js"></script>
   <!-- Monaco Editor (VS Code / Cursor Engine) -->
   <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
-  <!-- Markdown & Code Highlight Support (Local bundle with CDN fallback) -->
-  <script src="vendor/marked.min.js"></script>
-  <script>if (typeof marked === 'undefined') { document.write('<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\\/script>'); }</script>
 </head>
 <body>
   <!-- ==================== VS CODE STYLE APP TITLE BAR ==================== -->

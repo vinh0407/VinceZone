@@ -14,7 +14,7 @@ const { routeChatRequest, testProviderConnection } = require('./src/router');
 const imageService = require('./src/imageService');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3300;
 
 // Ensure default user exists
 Auth.ensureDefaultAdmin();
@@ -28,7 +28,43 @@ app.get('/api/vz-ping', (req, res) => {
   res.json({ app: 'vincezone', version: '1.0.0', status: 'ok', port: PORT });
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// ASAR-compatible static file server for Electron packaging & web
+const publicDir = path.join(__dirname, 'public');
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const reqPath = req.path || '/';
+  if (reqPath.startsWith('/api') || reqPath.startsWith('/v1')) return next();
+
+  const relFile = reqPath === '/' ? 'index.html' : reqPath.replace(/^\//, '');
+  const targetPath = path.resolve(publicDir, relFile);
+
+  if (targetPath.startsWith(publicDir) && fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+    const ext = path.extname(targetPath).toLowerCase();
+    const mimeTypes = {
+      '.html': 'text/html; charset=utf-8',
+      '.js': 'application/javascript; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2',
+      '.ttf': 'font/ttf'
+    };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    try {
+      return res.end(fs.readFileSync(targetPath));
+    } catch (err) {
+      return next();
+    }
+  }
+  next();
+});
+app.use(express.static(publicDir));
 
 // Helper to extract session user
 function getSessionUser(req) {
