@@ -8443,6 +8443,138 @@ window.filterDemoFiles = function(query) {
   renderDemoFileTreeList(filtered);
 };
 
+// =============================================================================
+// VINCEZONE CURSOR / ANTIGRAVITY IDE / VISUAL STUDIO ENGINE CORE
+// =============================================================================
+
+let monacoEditorInstance = null;
+let currentMonacoModel = null;
+let terminalHistory = [];
+let terminalHistoryIndex = -1;
+let pendingComposerDiff = null;
+let ideCreateItemType = 'file';
+let paletteItems = [];
+let paletteSelectedIndex = 0;
+let paletteMode = 'commands';
+
+function getMonacoLanguageByExt(filePath) {
+  if (!filePath) return 'plaintext';
+  const ext = (filePath.split('.').pop() || '').toLowerCase();
+  const map = {
+    'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript', 'jsx': 'javascript',
+    'ts': 'typescript', 'tsx': 'typescript',
+    'html': 'html', 'htm': 'html', 'vue': 'html', 'svelte': 'html',
+    'css': 'css', 'scss': 'scss', 'less': 'less',
+    'json': 'json', 'jsonc': 'json',
+    'py': 'python', 'pyw': 'python',
+    'cs': 'csharp',
+    'cpp': 'cpp', 'c': 'c', 'h': 'cpp', 'hpp': 'cpp',
+    'md': 'markdown', 'markdown': 'markdown',
+    'yaml': 'yaml', 'yml': 'yaml',
+    'sql': 'sql',
+    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell', 'ps1': 'powershell',
+    'bat': 'bat', 'cmd': 'bat',
+    'xml': 'xml', 'svg': 'xml',
+    'dockerfile': 'dockerfile',
+    'env': 'properties'
+  };
+  return map[ext] || 'plaintext';
+}
+
+function ensureMonacoEditor(callback) {
+  if (window.monaco && monacoEditorInstance) {
+    if (callback) callback(monacoEditorInstance);
+    return;
+  }
+
+  const mountEl = document.getElementById('monaco-editor-mount');
+  if (!mountEl) {
+    if (callback) callback(null);
+    return;
+  }
+
+  const initInstance = () => {
+    try {
+      if (!monacoEditorInstance && window.monaco) {
+        monacoEditorInstance = monaco.editor.create(mountEl, {
+          value: '// VinceZone Antigravity IDE • Ready\n// Select a file in Explorer or press Ctrl+P',
+          language: 'javascript',
+          theme: 'vs-dark',
+          fontSize: 13.5,
+          fontFamily: "'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace",
+          fontLigatures: true,
+          minimap: { enabled: true, side: 'right' },
+          automaticLayout: true,
+          scrollBeyondLastLine: false,
+          smoothScrolling: true,
+          cursorBlinking: 'smooth',
+          cursorSmoothCaretAnimation: 'on',
+          renderLineHighlight: 'all',
+          tabSize: 2,
+          wordWrap: 'on',
+          bracketPairColorization: { enabled: true }
+        });
+
+        // Keybindings in Monaco
+        monacoEditorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+          window.saveCurrentIdeFile();
+        });
+
+        monacoEditorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+          window.openCursorComposer();
+        });
+
+        monacoEditorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => {
+          window.openQuickFilePalette();
+        });
+
+        monacoEditorInstance.onDidChangeCursorPosition((e) => {
+          const statusCursor = document.getElementById('ide-status-cursor');
+          if (statusCursor) {
+            statusCursor.textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+          }
+        });
+
+        window.addEventListener('resize', () => {
+          if (monacoEditorInstance) monacoEditorInstance.layout();
+        });
+      }
+
+      if (callback) callback(monacoEditorInstance);
+    } catch (err) {
+      console.warn('Monaco editor initialization failed:', err);
+      if (callback) callback(null);
+    }
+  };
+
+  if (window.monaco) {
+    initInstance();
+  } else if (typeof window.require !== 'undefined' && window.require.config) {
+    try {
+      window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+      window.require(['vs/editor/editor.main'], () => {
+        initInstance();
+      });
+    } catch (e) {
+      initInstance();
+    }
+  } else {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js';
+    script.onload = () => {
+      window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+      window.require(['vs/editor/editor.main'], () => {
+        initInstance();
+      });
+    };
+    script.onerror = () => {
+      console.warn('Could not load Monaco Editor from CDN');
+      if (callback) callback(null);
+    };
+    document.head.appendChild(script);
+  }
+}
+
 // Mở một tệp trong Code Inspector (IDE Theme)
 window.openFileInIde = async function(filePath) {
   if (!filePath || !demoState.activeProjectId) return;
@@ -8450,13 +8582,18 @@ window.openFileInIde = async function(filePath) {
 
   // Highlight trong cây tệp
   document.querySelectorAll('.ide-tree-node').forEach(node => {
-    if (node.title === filePath) node.classList.add('active');
+    if (node.title === filePath || node.getAttribute('data-path') === filePath) node.classList.add('active');
     else node.classList.remove('active');
   });
 
   // Cập nhật Breadcrumbs
   const breadcrumbFile = document.getElementById('ide-breadcrumb-file');
   if (breadcrumbFile) breadcrumbFile.textContent = filePath;
+  const breadcrumbProj = document.getElementById('ide-breadcrumb-proj');
+  if (breadcrumbProj) {
+    const parts = filePath.split('/');
+    breadcrumbProj.textContent = parts.length > 1 ? parts.slice(0, -1).join('/') : (demoState.activeProjectName || 'workspace');
+  }
 
   // Quản lý Tab tệp
   let tab = demoState.openTabs.find(t => t.path === filePath);
@@ -8465,23 +8602,36 @@ window.openFileInIde = async function(filePath) {
       path: filePath,
       name: filePath.split('/').pop(),
       content: '',
-      lang: getLanguageByExt(filePath)
+      lang: getMonacoLanguageByExt(filePath),
+      dirty: false
     };
     demoState.openTabs.push(tab);
   }
   renderIdeTabs();
 
-  // Đọc nội dung tệp (từ cache hoặc API)
+  // Đọc nội dung tệp (từ cache, Desktop native IPC hoặc API)
   let content = demoState.fileContentCache.get(filePath);
   if (content === undefined) {
     try {
-      const res = await fetch(`/api/projects/${demoState.activeProjectId}/read-file`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath })
-      });
-      const data = await res.json();
-      content = data.content || '';
+      if (window.vzDesktop && typeof window.vzDesktop.readFile === 'function') {
+        const fullPath = (projectsState.activeProject && projectsState.activeProject.path) 
+          ? `${projectsState.activeProject.path}/${filePath}`.replace(/\\/g, '/')
+          : filePath;
+        const res = await window.vzDesktop.readFile(fullPath);
+        if (res && res.success) {
+          content = res.content || '';
+        } else {
+          content = res.error || '';
+        }
+      } else {
+        const res = await fetch(`/api/projects/${demoState.activeProjectId}/read-file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: filePath })
+        });
+        const data = await res.json();
+        content = data.content || '';
+      }
       demoState.fileContentCache.set(filePath, content);
       tab.content = content;
     } catch (err) {
@@ -8489,7 +8639,39 @@ window.openFileInIde = async function(filePath) {
     }
   }
 
-  renderCodeToEditor(content, tab.lang);
+  // Load into Monaco Editor (VS Code engine)
+  ensureMonacoEditor((editor) => {
+    if (editor && window.monaco) {
+      const monacoLang = getMonacoLanguageByExt(filePath);
+      const uri = monaco.Uri.parse(`file:///${filePath}`);
+      let model = monaco.editor.getModel(uri);
+      if (!model) {
+        model = monaco.editor.createModel(content, monacoLang, uri);
+      } else {
+        if (model.getValue() !== content && !tab.dirty) {
+          model.setValue(content);
+        }
+      }
+
+      editor.setModel(model);
+      currentMonacoModel = model;
+
+      // Track dirty content change
+      model.onDidChangeContent(() => {
+        if (!tab.dirty) {
+          tab.dirty = true;
+          renderIdeTabs();
+        }
+        demoState.fileContentCache.set(filePath, model.getValue());
+      });
+
+      // Update Status Bar
+      const statusLang = document.getElementById('ide-status-lang');
+      if (statusLang) statusLang.textContent = `{ } ${monacoLang.toUpperCase()}`;
+    } else {
+      renderCodeToEditor(content, tab.lang);
+    }
+  });
 };
 
 function renderIdeTabs() {
@@ -8499,10 +8681,12 @@ function renderIdeTabs() {
   tabsBar.innerHTML = demoState.openTabs.map(t => {
     const isActive = t.path === demoState.activeFilePath;
     const icon = getFileIcon(t.path);
+    const dirtyDot = t.dirty ? '<span class="dirty-indicator" title="Chưa lưu (Ctrl+S)">●</span>' : '';
     return `
       <div class="ide-tab ${isActive ? 'active' : ''}" onclick="window.openFileInIde('${escapeHtml(t.path)}')">
         <span>${icon}</span>
         <span>${escapeHtml(t.name)}</span>
+        ${dirtyDot}
         <span class="ide-tab-close" onclick="window.closeIdeTab(event, '${escapeHtml(t.path)}')">&times;</span>
       </div>
     `;
@@ -8517,7 +8701,11 @@ window.closeIdeTab = function(event, filePath) {
       window.openFileInIde(demoState.openTabs[demoState.openTabs.length - 1].path);
     } else {
       demoState.activeFilePath = null;
-      renderCodeToEditor('// Chưa chọn tệp tin nào', 'plaintext');
+      if (monacoEditorInstance) {
+        monacoEditorInstance.setValue('// Chưa chọn tệp tin nào');
+      } else {
+        renderCodeToEditor('// Chưa chọn tệp tin nào', 'plaintext');
+      }
       const breadcrumbFile = document.getElementById('ide-breadcrumb-file');
       if (breadcrumbFile) breadcrumbFile.textContent = 'Chưa chọn tệp';
     }
@@ -8534,7 +8722,6 @@ function renderCodeToEditor(rawContent, lang) {
 
   if (!codeBlock) return;
 
-  // Tô màu cú pháp bằng Highlight.js chuẩn Cursor / VS Code
   let highlightedHtml = '';
   if (window.hljs) {
     try {
@@ -8553,14 +8740,12 @@ function renderCodeToEditor(rawContent, lang) {
   codeBlock.className = `language-${lang} hljs`;
   codeBlock.innerHTML = highlightedHtml;
 
-  // Tạo đánh số dòng (Gutter)
   const lines = rawContent.split(/\r?\n/);
   if (gutter) {
     gutter.innerHTML = lines.map((_, i) => `<span class="ide-line-num">${i + 1}</span>`).join('');
   }
 
-  // Cập nhật Status Bar
-  if (statusLang) statusLang.textContent = lang.toUpperCase();
+  if (statusLang) statusLang.textContent = (lang || 'PLAINTEXT').toUpperCase();
   if (statusLines) statusLines.textContent = `${lines.length} dòng`;
   if (statusSize) {
     const bytes = new Blob([rawContent]).size;
@@ -8571,7 +8756,12 @@ function renderCodeToEditor(rawContent, lang) {
 // Copy toàn bộ mã nguồn tệp hiện tại
 window.copyCurrentIdeCode = async function() {
   if (!demoState.activeFilePath) return;
-  const content = demoState.fileContentCache.get(demoState.activeFilePath) || '';
+  let content = '';
+  if (monacoEditorInstance) {
+    content = monacoEditorInstance.getValue();
+  } else {
+    content = demoState.fileContentCache.get(demoState.activeFilePath) || '';
+  }
   try {
     await navigator.clipboard.writeText(content);
     showToast('✔ Đã sao chép mã nguồn vào Clipboard!');
@@ -8580,27 +8770,604 @@ window.copyCurrentIdeCode = async function() {
   }
 };
 
-// Lưu thay đổi tệp hiện tại
+// Lưu thay đổi tệp hiện tại (Ctrl+S)
 window.saveCurrentIdeFile = async function() {
   if (!demoState.activeFilePath || !demoState.activeProjectId) return;
-  const content = demoState.fileContentCache.get(demoState.activeFilePath) || '';
+  const filePath = demoState.activeFilePath;
+  let content = '';
+
+  if (monacoEditorInstance && monacoEditorInstance.getModel()) {
+    content = monacoEditorInstance.getValue();
+  } else {
+    content = demoState.fileContentCache.get(filePath) || '';
+  }
+
+  demoState.fileContentCache.set(filePath, content);
+  const tab = demoState.openTabs.find(t => t.path === filePath);
+
   try {
+    if (window.vzDesktop && typeof window.vzDesktop.saveFile === 'function') {
+      const fullPath = (projectsState.activeProject && projectsState.activeProject.path)
+        ? `${projectsState.activeProject.path}/${filePath}`.replace(/\\/g, '/')
+        : filePath;
+      const res = await window.vzDesktop.saveFile(fullPath, content);
+      if (res && res.success) {
+        if (tab) tab.dirty = false;
+        renderIdeTabs();
+        showToast(`✔ Đã lưu tệp "${filePath}" vào đĩa thành công!`);
+        window.reloadDemoPreview();
+        return;
+      }
+    }
+
     const res = await fetch(`/api/projects/${demoState.activeProjectId}/files`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: demoState.activeFilePath, content, type: 'file' })
+      body: JSON.stringify({ name: filePath, content, type: 'file' })
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`✔ Đã lưu tệp "${demoState.activeFilePath}" thành công!`);
+      if (tab) tab.dirty = false;
+      renderIdeTabs();
+      showToast(`✔ Đã lưu tệp "${filePath}" thành công!`);
       window.reloadDemoPreview();
     } else {
-      showToast('Lỗi lưu: ' + data.error);
+      showToast('Lỗi lưu: ' + (data.error || 'Thất bại'));
     }
   } catch (err) {
     showToast('Lỗi lưu file: ' + err.message);
   }
 };
+
+// ==================== CURSOR INLINE AI COMPOSER (Ctrl+K) ====================
+window.openCursorComposer = function() {
+  const overlay = document.getElementById('cursor-composer-overlay');
+  const badge = document.getElementById('composer-file-badge');
+  const input = document.getElementById('cursor-composer-input');
+  if (!overlay || !input) return;
+
+  let lineInfo = 'Toàn bộ file';
+  if (monacoEditorInstance) {
+    const sel = monacoEditorInstance.getSelection();
+    if (sel && !sel.isEmpty()) {
+      lineInfo = `Dòng ${sel.startLineNumber}-${sel.endLineNumber}`;
+    } else if (demoState.activeFilePath) {
+      lineInfo = demoState.activeFilePath.split('/').pop();
+    }
+  }
+  if (badge) badge.textContent = lineInfo;
+
+  overlay.style.display = 'block';
+  input.focus();
+  input.select();
+};
+
+window.closeCursorComposer = function() {
+  const overlay = document.getElementById('cursor-composer-overlay');
+  if (overlay) overlay.style.display = 'none';
+  const diffBar = document.getElementById('cursor-composer-diff-bar');
+  if (diffBar) diffBar.style.display = 'none';
+  pendingComposerDiff = null;
+  if (monacoEditorInstance) monacoEditorInstance.focus();
+};
+
+window.insertComposerPrompt = function(promptText) {
+  const input = document.getElementById('cursor-composer-input');
+  if (input) {
+    input.value = promptText;
+    input.focus();
+  }
+};
+
+window.handleComposerKeyDown = function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    window.submitCursorComposer();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    window.closeCursorComposer();
+  }
+};
+
+window.submitCursorComposer = async function() {
+  const input = document.getElementById('cursor-composer-input');
+  const diffBar = document.getElementById('cursor-composer-diff-bar');
+  const statusText = document.getElementById('diff-status-text');
+  if (!input || !input.value.trim()) return;
+
+  const userPrompt = input.value.trim();
+  let codeContext = '';
+  let range = null;
+
+  if (monacoEditorInstance) {
+    const sel = monacoEditorInstance.getSelection();
+    if (sel && !sel.isEmpty()) {
+      codeContext = monacoEditorInstance.getModel().getValueInRange(sel);
+      range = sel;
+    } else {
+      codeContext = monacoEditorInstance.getValue();
+      range = monacoEditorInstance.getModel().getFullModelRange();
+    }
+  }
+
+  if (diffBar) {
+    diffBar.style.display = 'flex';
+    if (statusText) statusText.innerHTML = '<span class="diff-status-spinner"></span> Đang sinh code bằng Cursor AI Agent...';
+  }
+
+  try {
+    const activeFile = demoState.activeFilePath || 'code.js';
+    const systemPrompt = `Bạn là Cursor / Antigravity AI Code Composer. Nhiệm vụ của bạn là chỉnh sửa hoặc viết mã nguồn chính xác theo yêu cầu người dùng.
+Quy tắc:
+1. Chỉ trả về mã nguồn mới đã chỉnh sửa, nằm trong khối \`\`\`lang ... \`\`\`.
+2. Không giải thích dông dài, không chào hỏi.`;
+
+    const fullMessage = `Tệp hiện tại: ${activeFile}
+Đoạn mã hiện tại:
+\`\`\`
+${codeContext.slice(0, 8000)}
+\`\`\`
+
+Yêu cầu chỉnh sửa:
+${userPrompt}`;
+
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: fullMessage,
+        systemInstruction: systemPrompt,
+        chatHistory: []
+      })
+    });
+
+    const data = await res.json();
+    const rawReply = data.response || data.reply || '';
+
+    const codeMatch = rawReply.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+    const replacementCode = codeMatch ? codeMatch[1].trim() : rawReply.trim();
+
+    pendingComposerDiff = {
+      range,
+      replacementCode,
+      originalCode: codeContext
+    };
+
+    if (statusText) {
+      statusText.innerHTML = `✔ AI đã tạo ${replacementCode.split('\n').length} dòng code mới. Nhấn [Chấp nhận] hoặc Ctrl+Enter để áp dụng.`;
+    }
+  } catch (err) {
+    if (statusText) statusText.textContent = `Lỗi: ${err.message}`;
+  }
+};
+
+window.acceptCursorComposerDiff = function() {
+  if (!pendingComposerDiff || !monacoEditorInstance) {
+    window.closeCursorComposer();
+    return;
+  }
+
+  const { range, replacementCode } = pendingComposerDiff;
+  if (range && replacementCode) {
+    monacoEditorInstance.executeEdits('cursor-composer', [{
+      range: range,
+      text: replacementCode,
+      forceMoveMarkers: true
+    }]);
+
+    const tab = demoState.openTabs.find(t => t.path === demoState.activeFilePath);
+    if (tab) {
+      tab.dirty = true;
+      renderIdeTabs();
+    }
+    showToast('✔ Đã áp dụng thay đổi mã nguồn từ Cursor AI!');
+  }
+
+  window.closeCursorComposer();
+};
+
+window.rejectCursorComposerDiff = function() {
+  window.closeCursorComposer();
+};
+
+// ==================== INTERACTIVE TERMINAL ENGINE ====================
+window.handleTerminalInputKeyDown = function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    window.submitTerminalCommand();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (terminalHistory.length > 0) {
+      if (terminalHistoryIndex === -1) terminalHistoryIndex = terminalHistory.length - 1;
+      else if (terminalHistoryIndex > 0) terminalHistoryIndex--;
+      e.target.value = terminalHistory[terminalHistoryIndex] || '';
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (terminalHistory.length > 0 && terminalHistoryIndex !== -1) {
+      if (terminalHistoryIndex < terminalHistory.length - 1) {
+        terminalHistoryIndex++;
+        e.target.value = terminalHistory[terminalHistoryIndex];
+      } else {
+        terminalHistoryIndex = -1;
+        e.target.value = '';
+      }
+    }
+  }
+};
+
+window.runTerminalCommandQuick = function(cmd) {
+  const input = document.getElementById('terminal-input');
+  if (input) input.value = cmd;
+  window.submitTerminalCommand(cmd);
+};
+
+window.clearInteractiveTerminal = function() {
+  const log = document.getElementById('term-history-log');
+  if (log) log.innerHTML = '';
+  const input = document.getElementById('terminal-input');
+  if (input) input.value = '';
+};
+
+window.submitTerminalCommand = async function(overrideCmd) {
+  const input = document.getElementById('terminal-input');
+  const log = document.getElementById('term-history-log');
+  const scrollContainer = document.getElementById('terminal-output-scroll');
+  const shellSelect = document.getElementById('terminal-shell-selector');
+  const shell = shellSelect ? shellSelect.value : 'powershell';
+
+  const cmd = (overrideCmd || (input ? input.value : '')).trim();
+  if (!cmd || !log) return;
+
+  if (input) input.value = '';
+  terminalHistory.push(cmd);
+  terminalHistoryIndex = -1;
+
+  if (cmd.toLowerCase() === 'cls' || cmd.toLowerCase() === 'clear') {
+    window.clearInteractiveTerminal();
+    return;
+  }
+
+  const cmdRow = document.createElement('div');
+  cmdRow.className = 'term-log-cmd';
+  cmdRow.innerHTML = `<span class="cmd-prefix">PS &gt;</span> <span class="cmd-text">${escapeHtml(cmd)}</span>`;
+  log.appendChild(cmdRow);
+
+  if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+
+  const loadingRow = document.createElement('div');
+  loadingRow.className = 'term-log-meta';
+  loadingRow.textContent = 'Running command...';
+  log.appendChild(loadingRow);
+
+  try {
+    let result = null;
+    const projectPath = (projectsState.activeProject && projectsState.activeProject.path) || '';
+
+    if (window.vzDesktop && typeof window.vzDesktop.runCommand === 'function') {
+      result = await window.vzDesktop.runCommand(cmd, shell);
+    } else {
+      const res = await fetch('/api/terminal/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command: cmd,
+          cwd: projectPath,
+          shell,
+          projectId: demoState.activeProjectId
+        })
+      });
+      result = await res.json();
+    }
+
+    loadingRow.remove();
+
+    if (result.stdout) {
+      const outRow = document.createElement('div');
+      outRow.className = 'term-log-stdout';
+      outRow.textContent = result.stdout;
+      log.appendChild(outRow);
+    }
+
+    if (result.stderr) {
+      const errRow = document.createElement('div');
+      errRow.className = 'term-log-stderr';
+      errRow.textContent = result.stderr;
+      log.appendChild(errRow);
+    }
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'term-log-meta';
+    const duration = result.durationMs || result.duration || 0;
+    metaRow.textContent = `[Process exited with code ${result.exitCode !== undefined ? result.exitCode : 0} in ${duration}ms]`;
+    log.appendChild(metaRow);
+  } catch (err) {
+    loadingRow.className = 'term-log-stderr';
+    loadingRow.textContent = `Error: ${err.message}`;
+  }
+
+  if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+};
+
+// ==================== EXPLORER FILE OPERATIONS ====================
+window.promptCreateNewFile = function() {
+  ideCreateItemType = 'file';
+  const modal = document.getElementById('modal-ide-create-item');
+  const title = document.getElementById('ide-create-item-title');
+  const label = document.getElementById('ide-create-item-label');
+  const pathInput = document.getElementById('ide-create-item-path');
+  if (title) title.textContent = 'Tạo Tệp Tin Mới (+ File)';
+  if (label) label.textContent = 'Đường dẫn tệp tin (tính từ thư mục gốc):';
+  if (pathInput) pathInput.placeholder = 'Ví dụ: src/utils/helpers.js hoặc Button.jsx';
+  if (modal) modal.style.display = 'flex';
+  if (pathInput) { pathInput.value = ''; pathInput.focus(); }
+};
+
+window.promptCreateNewFolder = function() {
+  ideCreateItemType = 'folder';
+  const modal = document.getElementById('modal-ide-create-item');
+  const title = document.getElementById('ide-create-item-title');
+  const label = document.getElementById('ide-create-item-label');
+  const pathInput = document.getElementById('ide-create-item-path');
+  if (title) title.textContent = 'Tạo Thư Mục Mới (+ Folder)';
+  if (label) label.textContent = 'Đường dẫn thư mục:';
+  if (pathInput) pathInput.placeholder = 'Ví dụ: src/components hoặc docs';
+  if (modal) modal.style.display = 'flex';
+  if (pathInput) { pathInput.value = ''; pathInput.focus(); }
+};
+
+window.closeIdeCreateModal = function() {
+  const modal = document.getElementById('modal-ide-create-item');
+  if (modal) modal.style.display = 'none';
+};
+
+window.handleIdeCreateItemSubmit = async function(e) {
+  e.preventDefault();
+  const input = document.getElementById('ide-create-item-path');
+  if (!input || !input.value.trim() || !demoState.activeProjectId) return;
+
+  const relativePath = input.value.trim();
+  window.closeIdeCreateModal();
+
+  try {
+    if (window.vzDesktop && typeof window.vzDesktop.createFile === 'function') {
+      const full = (projectsState.activeProject && projectsState.activeProject.path)
+        ? `${projectsState.activeProject.path}/${relativePath}`.replace(/\\/g, '/')
+        : relativePath;
+      await window.vzDesktop.createFile(full, ideCreateItemType === 'folder');
+    } else {
+      await fetch(`/api/projects/${demoState.activeProjectId}/files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: relativePath,
+          type: ideCreateItemType,
+          content: ''
+        })
+      });
+    }
+
+    showToast(`✔ Đã tạo ${ideCreateItemType === 'folder' ? 'thư mục' : 'tệp tin'}: ${relativePath}`);
+    await window.refreshDemoFileTree();
+
+    if (ideCreateItemType === 'file') {
+      window.openFileInIde(relativePath);
+    }
+  } catch (err) {
+    showToast('Lỗi tạo tệp: ' + err.message);
+  }
+};
+
+window.collapseAllExplorerFolders = function() {
+  document.querySelectorAll('.ide-tree-folder.open').forEach(f => f.classList.remove('open'));
+};
+
+window.deleteIdeFile = async function(filePath) {
+  if (!filePath || !demoState.activeProjectId) return;
+  if (!confirm(`Bạn có chắc chắn muốn xóa "${filePath}" không?`)) return;
+
+  try {
+    if (window.vzDesktop && typeof window.vzDesktop.deleteItem === 'function') {
+      const full = (projectsState.activeProject && projectsState.activeProject.path)
+        ? `${projectsState.activeProject.path}/${filePath}`.replace(/\\/g, '/')
+        : filePath;
+      await window.vzDesktop.deleteItem(full);
+    } else {
+      await fetch(`/api/projects/${demoState.activeProjectId}/delete-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: filePath })
+      });
+    }
+
+    showToast(`✔ Đã xóa "${filePath}" thành công.`);
+    window.closeIdeTab(new Event('click'), filePath);
+    await window.refreshDemoFileTree();
+  } catch (err) {
+    showToast('Lỗi xóa: ' + err.message);
+  }
+};
+
+// ==================== QUICK OPEN & COMMAND PALETTE (Ctrl+P / Ctrl+Shift+P) ====================
+window.openQuickFilePalette = function() {
+  paletteMode = 'files';
+  const modal = document.getElementById('quick-palette-modal');
+  const badge = document.getElementById('quick-palette-mode-badge');
+  const input = document.getElementById('quick-palette-input');
+  if (badge) badge.textContent = 'Go to File';
+  if (input) {
+    input.placeholder = 'Search file by name... (e.g. app.js, index.html)';
+    input.value = '';
+  }
+  if (modal) modal.style.display = 'flex';
+  buildPaletteItems();
+  renderPaletteResults();
+  if (input) input.focus();
+};
+
+window.openCommandPalette = function() {
+  paletteMode = 'commands';
+  const modal = document.getElementById('quick-palette-modal');
+  const badge = document.getElementById('quick-palette-mode-badge');
+  const input = document.getElementById('quick-palette-input');
+  if (badge) badge.textContent = 'Commands';
+  if (input) {
+    input.placeholder = 'Type a command... (e.g. Save, Terminal, Cursor AI)';
+    input.value = '';
+  }
+  if (modal) modal.style.display = 'flex';
+  buildPaletteItems();
+  renderPaletteResults();
+  if (input) input.focus();
+};
+
+window.closeQuickPalette = function() {
+  const modal = document.getElementById('quick-palette-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.handlePaletteBackdropClick = function(e) {
+  window.closeQuickPalette();
+};
+
+function buildPaletteItems() {
+  if (paletteMode === 'files') {
+    const files = demoState.allFiles || [];
+    paletteItems = files.map(f => ({
+      title: f.path.split('/').pop(),
+      desc: f.path,
+      icon: '📄',
+      action: () => {
+        window.openFileInIde(f.path);
+        window.closeQuickPalette();
+      }
+    }));
+  } else {
+    paletteItems = [
+      { title: 'Cursor: AI Edit Code (Composer)', desc: 'Chỉnh sửa hoặc viết code bằng AI', shortcut: 'Ctrl+K', icon: '✨', action: () => { window.closeQuickPalette(); window.openCursorComposer(); } },
+      { title: 'File: Save Current File', desc: 'Lưu tệp đang mở vào đĩa', shortcut: 'Ctrl+S', icon: '💾', action: () => { window.closeQuickPalette(); window.saveCurrentIdeFile(); } },
+      { title: 'File: New File', desc: 'Tạo tệp mới trong dự án', shortcut: 'Ctrl+N', icon: '📄', action: () => { window.closeQuickPalette(); window.promptCreateNewFile(); } },
+      { title: 'File: New Folder', desc: 'Tạo thư mục mới trong dự án', shortcut: '', icon: '📁', action: () => { window.closeQuickPalette(); window.promptCreateNewFolder(); } },
+      { title: 'Terminal: Focus Interactive Terminal', desc: 'Mở cửa sổ dòng lệnh PowerShell/CMD', shortcut: 'Ctrl+`', icon: '💻', action: () => { window.closeQuickPalette(); window.switchIdeBottomTab('terminal'); document.getElementById('terminal-input')?.focus(); } },
+      { title: 'Terminal: Clear Terminal Output', desc: 'Xóa sạch nhật ký dòng lệnh (cls)', shortcut: '', icon: '🗑', action: () => { window.closeQuickPalette(); window.clearInteractiveTerminal(); } },
+      { title: 'View: Toggle Live Device Preview', desc: 'Ẩn hoặc hiện ô Demo xem trước', shortcut: '', icon: '📱', action: () => { window.closeQuickPalette(); window.toggleDemoPane(); } },
+      { title: 'View: Set Device to iPhone', desc: 'Chuyển khung xem trước sang iPhone', shortcut: '', icon: '📱', action: () => { window.closeQuickPalette(); window.setDemoViewport('mobile'); } },
+      { title: 'View: Set Device to Desktop', desc: 'Chuyển khung xem trước sang Desktop', shortcut: '', icon: '🖥️', action: () => { window.closeQuickPalette(); window.setDemoViewport('desktop'); } },
+      { title: 'Run: Chạy Dự Án & Tải Lại Demo', desc: 'Thực thi build/dev và reload preview', shortcut: '', icon: '▶', action: () => { window.closeQuickPalette(); window.runProject(); } },
+      { title: 'Git: View Git Status', desc: 'Kiểm tra trạng thái các thay đổi git', shortcut: '', icon: '⑂', action: () => { window.closeQuickPalette(); window.runTerminalCommandQuick('git status'); } }
+    ];
+  }
+  paletteSelectedIndex = 0;
+}
+
+function renderPaletteResults(filteredItems) {
+  const list = document.getElementById('quick-palette-results');
+  if (!list) return;
+
+  const items = filteredItems || paletteItems;
+  if (items.length === 0) {
+    list.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: #71717a;">Không tìm thấy mục nào khớp.</div>';
+    return;
+  }
+
+  list.innerHTML = items.map((it, idx) => `
+    <div class="quick-palette-item ${idx === paletteSelectedIndex ? 'selected' : ''}" onclick="window.triggerPaletteItemByIndex(${idx})">
+      <div class="quick-palette-item-left">
+        <span>${it.icon || ''}</span>
+        <span class="quick-palette-item-title">${escapeHtml(it.title)}</span>
+        ${it.desc ? `<span class="quick-palette-item-desc">${escapeHtml(it.desc)}</span>` : ''}
+      </div>
+      ${it.shortcut ? `<span class="quick-palette-item-shortcut"><kbd>${escapeHtml(it.shortcut)}</kbd></span>` : ''}
+    </div>
+  `).join('');
+}
+
+window.handlePaletteInput = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    renderPaletteResults(paletteItems);
+    return;
+  }
+  const filtered = paletteItems.filter(it => 
+    it.title.toLowerCase().includes(q) || (it.desc && it.desc.toLowerCase().includes(q))
+  );
+  paletteSelectedIndex = 0;
+  renderPaletteResults(filtered);
+};
+
+window.handlePaletteKeyDown = function(e) {
+  const list = document.getElementById('quick-palette-results');
+  const items = list ? list.querySelectorAll('.quick-palette-item') : [];
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (items.length > 0) {
+      paletteSelectedIndex = (paletteSelectedIndex + 1) % items.length;
+      updatePaletteSelection(items);
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (items.length > 0) {
+      paletteSelectedIndex = (paletteSelectedIndex - 1 + items.length) % items.length;
+      updatePaletteSelection(items);
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    window.triggerPaletteItemByIndex(paletteSelectedIndex);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    window.closeQuickPalette();
+  }
+};
+
+function updatePaletteSelection(items) {
+  items.forEach((it, idx) => {
+    if (idx === paletteSelectedIndex) {
+      it.classList.add('selected');
+      it.scrollIntoView({ block: 'nearest' });
+    } else {
+      it.classList.remove('selected');
+    }
+  });
+}
+
+window.triggerPaletteItemByIndex = function(idx) {
+  const query = document.getElementById('quick-palette-input')?.value.toLowerCase().trim();
+  const activeList = query ? paletteItems.filter(it => it.title.toLowerCase().includes(query) || (it.desc && it.desc.toLowerCase().includes(query))) : paletteItems;
+  if (activeList[idx] && typeof activeList[idx].action === 'function') {
+    activeList[idx].action();
+  }
+};
+
+// Global Shortcut Handlers: Ctrl+P, Ctrl+Shift+P, Ctrl+S, Ctrl+K
+document.addEventListener('keydown', (e) => {
+  // Ctrl+P / Cmd+P: Quick Open File
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    window.openQuickFilePalette();
+    return;
+  }
+  // Ctrl+Shift+P / Cmd+Shift+P: Command Palette
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    window.openCommandPalette();
+    return;
+  }
+  // Ctrl+S / Cmd+S: Save File
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    window.saveCurrentIdeFile();
+    return;
+  }
+  // Ctrl+K: Open Cursor Composer
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+    const tabDemo = document.getElementById('tab-demo');
+    if (tabDemo && tabDemo.classList.contains('active')) {
+      e.preventDefault();
+      window.openCursorComposer();
+      return;
+    }
+  }
+});
 
 
 // =============================================================================
@@ -9749,11 +10516,12 @@ function initTitleBarWindowControls() {
   };
 
   window.showCommandPalette = function() {
-    if (typeof window.showToast === 'function') {
-      window.showToast('Command Palette: Nhập lệnh (Ctrl+Shift+P)');
+    if (typeof window.openCommandPalette === 'function') {
+      window.openCommandPalette();
+    } else {
+      const search = document.getElementById('ide-file-search-input');
+      if (search) search.focus();
     }
-    const search = document.getElementById('ide-file-search-input');
-    if (search) search.focus();
   };
 
   window.showReleaseNotes = function() {

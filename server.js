@@ -782,6 +782,32 @@ function runTerminalCommand(command, workingDir = process.cwd(), shell = 'powers
   });
 }
 
+// Chạy lệnh Terminal trực tiếp từ IDE
+app.post('/api/terminal/run', async (req, res) => {
+  try {
+    const { command, cwd, shell = 'powershell', projectId } = req.body;
+    if (!command || !command.trim()) {
+      return res.status(400).json({ error: 'Thiếu câu lệnh thực thi.' });
+    }
+
+    let workingDir = cwd;
+    if (!workingDir && projectId) {
+      const proj = Store.getProjectById(projectId);
+      if (proj && proj.path && fs.existsSync(proj.path)) {
+        workingDir = proj.path;
+      }
+    }
+    if (!workingDir || !fs.existsSync(workingDir)) {
+      workingDir = process.cwd();
+    }
+
+    const result = await runTerminalCommand(command, workingDir, shell);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 9.1 Lấy danh sách dự án
 app.get('/api/projects', (req, res) => {
   const user = getSessionUser(req);
@@ -1057,6 +1083,38 @@ app.post('/api/projects/:id/files', (req, res) => {
 
     const relativePath = path.relative(normalizedProjPath, targetPath).replace(/\\/g, '/');
     res.json({ success: true, path: targetPath, relativePath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Xóa File hoặc Thư mục trong dự án
+app.post('/api/projects/:id/delete-file', (req, res) => {
+  try {
+    const project = Store.getProjectById(req.params.id);
+    if (!project || !project.path) return res.status(404).json({ error: 'Không tìm thấy dự án.' });
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Vui lòng cung cấp đường dẫn tệp cần xóa.' });
+
+    const normalizedProjPath = path.resolve(project.path);
+    const cleanName = name.replace(/^[\\\/]+/, '').trim();
+    const targetPath = path.resolve(normalizedProjPath, cleanName);
+
+    if (!targetPath.toLowerCase().startsWith(normalizedProjPath.toLowerCase())) {
+      return res.status(403).json({ error: 'Không được xóa tệp bên ngoài thư mục dự án.' });
+    }
+
+    if (fs.existsSync(targetPath)) {
+      const stat = fs.statSync(targetPath);
+      if (stat.isDirectory()) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(targetPath);
+      }
+      return res.json({ success: true, message: `Đã xóa "${cleanName}" thành công.` });
+    } else {
+      return res.status(404).json({ error: 'Tệp hoặc thư mục không tồn tại.' });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
