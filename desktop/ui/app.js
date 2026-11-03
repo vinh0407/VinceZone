@@ -5584,12 +5584,18 @@ function appendProjectMessageToFeed(msg, feedEl) {
   const rawCleanText = (msg.content || '').replace(/^(?:\[[^\]\r\n]+\]:\s*)+/g, '').trim();
 
   // Parse markdown
+  const displayContent = rawCleanText || (isUser ? '' : '*Đã hoàn thành rà soát kỹ thuật và đang báo cáo cho Quản lý dự án (PM)...*');
   let parsedContent = '';
   try {
-    const displayContent = rawCleanText || (isUser ? '' : '*Đã hoàn thành rà soát kỹ thuật và đang báo cáo cho Quản lý dự án (PM)...*');
-    parsedContent = marked.parse(displayContent);
+    if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+      parsedContent = marked.parse(displayContent);
+    } else if (typeof marked === 'function') {
+      parsedContent = marked(displayContent);
+    } else {
+      parsedContent = escapeHtml(displayContent).replace(/\n/g, '<br>');
+    }
   } catch (e) {
-    parsedContent = escapeHtml(displayContent);
+    parsedContent = escapeHtml(displayContent).replace(/\n/g, '<br>');
   }
 
   // Tự động highlight chính xác các tag Mention @Tên (tránh khớp tham lam các từ phía sau)
