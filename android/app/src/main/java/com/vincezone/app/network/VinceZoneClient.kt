@@ -1,83 +1,130 @@
 package com.vincezone.app.network
 
-import com.vincezone.app.model.ChatMessage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
+import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.vincezone.app.utils.PreferencesManager
+import okhttp3.*
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-class VinceZoneClient(private val baseUrl: String, private val apiKey: String = "") {
+class VinceZoneClient(private val prefs: PreferencesManager) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val builder = original.newBuilder()
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+            if (prefs.apiKey.isNotBlank()) {
+                builder.header("Authorization", "Bearer ${prefs.apiKey}")
+            }
+            chain.proceed(builder.build())
+        }
         .build()
 
-    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val gson = Gson()
+    private val baseUrl = prefs.serverUrl
+    private val model = prefs.selectedModel
 
     suspend fun sendMessage(
-        model: String,
-        messages: List<ChatMessage>
-    ): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val rootUrl = baseUrl.trimEnd('/')
-            val endpoint = "$rootUrl/api/playground/chat"
+        messages: List<ChatMessage>,
+        temperature: Float = prefs.temperature,
+        maxTokens: Int = prefs.maxTokens,
+        systemPrompt: String = prefs.systemPrompt,
+        onStream: (String) -> Unit
+    ): Result<String> {
+        val url = "$baseUrl/v1/chat/completions"
 
-            val jsonArray = JSONArray()
-            for (msg in messages) {
-                val obj = JSONObject()
-                obj.put("role", msg.role)
-                obj.put("content", msg.content)
-                jsonArray.put(obj)
+        val messagesJson = JsonObject().apply {
+            addProperty("model", model)
+            add("messages", gson.toJsonTree(messages))
+            addProperty("temperature", temperature)
+            addProperty("max_tokens", maxTokens)
+            addProperty("stream", true)
+            if (prefs.systemPrompt.isNotBlank()) {
+                addProperty("system_prompt", prefs.systemPrompt)
             }
+        }
 
-            val payload = JSONObject().apply {
-                put("model", model.ifBlank { "kilo-auto/free" })
-                put("messages", jsonArray)
-                put("message", messages.lastOrNull()?.content ?: "")
-                put("mode", "chat")
-                put("temperature", 0.7)
-            }
+        val requestBody = RequestBody.create(
+            MediaType.get("application/json; charset=utf-8"),
+            gson.toJson(messagesJson)
+        )
 
-            val requestBuilder = Request.Builder()
-                .url(endpoint)
-                .post(payload.toString().toRequestBody(jsonMediaType))
+        val request = Request.Builder()
+            .url("$baseUrl/v1/chat/completions")
+            .post(RequestBody.create(MediaType.get("application/json; charset=utf-8"), gson.toJson(messagesJson)))
+            .build()
 
-            if (apiKey.isNotBlank()) {
-                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
-            }
-
-            val response = client.newCall(requestBuilder.build()).execute()
-            val body = response.body?.string().orEmpty()
-
+        return try {
+            val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("HTTP ${response.code}: $body"))
+                val errorBody = response.body?.string() ?: "Unknown error"
+                return Result.failure(IOException("HTTP ${response.code}: $errorBody"))
             }
 
-            val jsonRes = JSONObject(body)
-            val reply = when {
-                jsonRes.has("reply") -> jsonRes.getString("reply")
-                jsonRes.has("choices") -> {
-                    val choices = jsonRes.getJSONArray("choices")
-                    if (choices.length() > 0) {
-                        choices.getJSONObject(0).getJSONObject("message").getString("content")
-                    } else {
-                        "Không nhận được nội dung từ AI."
+            val responseBody = response.body ?: return Result.failure(IOException("Empty response"))
+            val source = response.body?.source() ?: return Result.failure(IOException("No source"))
+
+            var fullResponse = ""
+            while (!source.exhausted()) {
+                val line = source.readUtf8Line() ?: break
+                if (line.startsWith("data: ")) {
+                    val data = line.substring(6)
+                    if (data == "[DONE]") break
+                    try {
+                        val json = com.google.gson.JsonParser.parseString(data).asJsonObject
+                        val delta = json.getAsJsonObject("choices")?.getAsJsonArray(0)?.getAsJsonObject("delta")
+                        val content = delta?.get("content")?.asString ?: continue
+                        if (content.isNotBlank()) {
+                            fullResponse += content
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VinceZoneClient", "Parse error: ${e.message}")
                     }
                 }
-                jsonRes.has("error") -> jsonRes.getString("error")
-                else -> body
             }
-
-            Result.success(reply)
+            Result.success(fullResponse)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    suspend fun sendMessageSimple(
+        userMessage: String,
+        systemPrompt: String = prefs.systemPrompt
+    ): Result<String> {
+        val messages = listOf(
+            ChatMessage("system", prefs.systemPrompt),
+            ChatMessage("user", userMessage)
+        )
+        return sendMessage(messages, onStream = { })
+    }
+
+    suspend fun testConnection(): Result<Boolean> {
+        val request = Request.Builder()
+            .url("$baseUrl/v1/models")
+            .get()
+            .build()
+
+        return try {
+            val response = client.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    data class ChatMessage(
+        val role: String,
+        val content: String
+    )
+
+    fun updateModel(newModel: String) {
+        // Model is read from prefs each time
     }
 }

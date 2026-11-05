@@ -1,190 +1,200 @@
 package com.vincezone.app
 
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.GravityCompat
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.vincezone.app.adapter.ChatAdapter
-import com.vincezone.app.adapter.HistoryAdapter
-import com.vincezone.app.model.ChatMessage
-import com.vincezone.app.model.ChatSession
+import com.vincezone.app.data.ChatEntity
+import com.vincezone.app.databinding.ActivityMainBinding
 import com.vincezone.app.network.VinceZoneClient
+import com.vincezone.app.utils.PreferencesManager
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var drawerLayout: DrawerLayout
-    private lateinit var rvChat: RecyclerView
-    private lateinit var rvDrawerHistory: RecyclerView
-    private lateinit var welcomeHeroView: View
-    private lateinit var etMessage: EditText
-    private lateinit var btnSend: ImageButton
-    private lateinit var progressBar: ProgressBar
-    private lateinit var tvModelName: TextView
-
+    private lateinit var binding: ActivityMainBinding
     private lateinit var chatAdapter: ChatAdapter
-    private lateinit var historyAdapter: HistoryAdapter
-    private val historyList = mutableListOf<ChatSession>()
-
-    private var currentModel = "kilo-auto/free"
-    private var currentSessionId: String = UUID.randomUUID().toString()
+    private lateinit var vinceZoneClient: VinceZoneClient
+    private lateinit var prefs: PreferencesManager
+    private var currentSessionId = "default_session"
+    private var isStreaming = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        initViews()
-        setupRecyclerViews()
-        setupEvents()
+        prefs = VinceZoneApplication.getInstance().preferencesManager
+        vinceZoneClient = VinceZoneApplication.getInstance().vinceZoneClient
+
+        setupUI()
+        loadChatHistory()
+        setupListeners()
     }
 
-    private fun initViews() {
-        drawerLayout = findViewById(R.id.drawerLayout)
-        rvChat = findViewById(R.id.rvChat)
-        rvDrawerHistory = findViewById(R.id.rvDrawerHistory)
-        welcomeHeroView = findViewById(R.id.welcomeHeroView)
-        etMessage = findViewById(R.id.etMessage)
-        btnSend = findViewById(R.id.btnSend)
-        progressBar = findViewById(R.id.progressBar)
-        tvModelName = findViewById(R.id.tvModelName)
-
-        tvModelName.text = currentModel
-    }
-
-    private fun setupRecyclerViews() {
+    private fun setupUI() {
+        // RecyclerView setup
         chatAdapter = ChatAdapter()
-        rvChat.layoutManager = LinearLayoutManager(this).apply {
-            stackFromEnd = true
-        }
-        rvChat.adapter = chatAdapter
+        binding.recyclerView.layoutManager = LinearLayoutManager(this)
+        binding.recyclerView.adapter = chatAdapter
 
-        historyAdapter = HistoryAdapter(historyList) { session ->
-            drawerLayout.closeDrawer(GravityCompat.START)
-            Toast.makeText(this, "Đã chọn: ${session.title}", Toast.LENGTH_SHORT).show()
-        }
-        rvDrawerHistory.layoutManager = LinearLayoutManager(this)
-        rvDrawerHistory.adapter = historyAdapter
+        // Set default model
+        binding.modelText.text = prefs.selectedModel
     }
 
-    private fun setupEvents() {
-        findViewById<ImageButton>(R.id.btnMenu).setOnClickListener {
-            drawerLayout.openDrawer(GravityCompat.START)
+    private fun setupListeners() {
+        binding.btnSend.setOnClickListener { sendMessage() }
+        binding.chatInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
+                sendMessage()
+                true
+            } else false
         }
 
-        findViewById<ImageButton>(R.id.btnNewChat).setOnClickListener {
-            startNewChat()
+        binding.btnMenu.setOnClickListener { showSidebar() }
+        binding.btnNewChat.setOnClickListener { startNewChat() }
+        binding.btnSettings.setOnClickListener { openSettings() }
+        binding.btnAttach.setOnClickListener { showAttachMenu() }
+    }
+
+    private fun loadChatHistory() {
+        lifecycleScope.launch {
+            val dao = VinceZoneApplication.getInstance().chatDao
+            val messages = dao.getMessagesForSessionSync(currentSessionId)
+            chatAdapter.submitList(messages.map { it.toMessage() })
+            binding.recyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+        }
+    }
+
+    private fun sendMessage() {
+        val text = binding.chatInput.text.toString().trim()
+        if (text.isBlank() || isStreaming) return
+
+        // Add user message
+        val userMessage = ChatEntity(
+            sessionId = currentSessionId,
+            role = "user",
+            content = text,
+            model = prefs.selectedModel
+        )
+        chatAdapter.addMessage(userMessage.toMessage())
+        binding.chatInput.text.clear()
+        binding.recyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+
+        // Save user message
+        lifecycleScope.launch {
+            VinceZoneApplication.getInstance().chatDao.insert(userMessage)
         }
 
-        findViewById<View>(R.id.drawerNewChat).setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            startNewChat()
-        }
+        // Show typing indicator
+        addTypingIndicator()
 
-        findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
-            openSettings()
-        }
+        isStreaming = true
+        binding.btnSend.isEnabled = false
 
-        findViewById<View>(R.id.drawerSettings).setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            openSettings()
-        }
-
-        btnSend.setOnClickListener {
-            val text = etMessage.text.toString().trim()
-            if (text.isNotBlank()) {
-                sendMessage(text)
+        // Send to API
+        lifecycleScope.launch {
+            val messages = chatAdapter.currentList.map { it.toChatMessage() }
+            vinceZoneClient.sendMessage(
+                messages = messages,
+                temperature = prefs.temperature,
+                maxTokens = prefs.maxTokens,
+                systemPrompt = prefs.systemPrompt,
+                onStream = { chunk ->
+                    runOnUiThread { updateStreamingMessage(chunk) }
+                }
+            ).onSuccess { fullResponse ->
+                runOnUiThread {
+                    removeTypingIndicator()
+                    addAssistantMessage(fullResponse)
+                    isStreaming = false
+                    binding.btnSend.isEnabled = true
+                }
+            }.onFailure { e ->
+                runOnUiThread {
+                    removeTypingIndicator()
+                    showError("Error: ${e.message}")
+                    isStreaming = false
+                    binding.btnSend.isEnabled = true
+                }
             }
         }
+    }
 
-        // Quick Suggestion Chips
-        findViewById<View>(R.id.cardPrompt1).setOnClickListener {
-            val prompt = getString(R.string.sample_prompt_1)
-            sendMessage(prompt)
-        }
+    private fun addAssistantMessage(content: String) {
+        val message = ChatEntity(
+            sessionId = currentSessionId,
+            role = "assistant",
+            content = content,
+            model = prefs.selectedModel
+        )
+        chatAdapter.addMessage(message.toMessage())
+        binding.recyclerView.scrollToPosition(chatAdapter.itemCount - 1)
 
-        findViewById<View>(R.id.cardPrompt2).setOnClickListener {
-            val prompt = getString(R.string.sample_prompt_2)
-            sendMessage(prompt)
-        }
-
-        findViewById<View>(R.id.cardPrompt3).setOnClickListener {
-            val prompt = getString(R.string.sample_prompt_3)
-            sendMessage(prompt)
+        // Save to database
+        lifecycleScope.launch {
+            VinceZoneApplication.getInstance().chatDao.insert(
+                ChatEntity(
+                    sessionId = currentSessionId,
+                    role = "assistant",
+                    content = content,
+                    model = prefs.selectedModel
+                )
+            )
         }
     }
 
-    private fun openSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java))
+    private var streamingMessageId: Long = -1
+
+    private fun addTypingIndicator() {
+        val typingMessage = ChatEntity(
+            id = -1,
+            sessionId = currentSessionId,
+            role = "assistant",
+            content = "...",
+            model = prefs.selectedModel
+        )
+        chatAdapter.addMessage(typingMessage.toMessage())
+        streamingMessageId = -1
+        binding.recyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+    }
+
+    private fun removeTypingIndicator() {
+        chatAdapter.removeLastIfTyping()
+    }
+
+    private fun updateStreamingMessage(chunk: String) {
+        chatAdapter.updateLastMessage(chunk)
+        binding.recyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+    }
+
+    private fun showError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showSidebar() {
+        Toast.makeText(this, "Sidebar - Coming soon", Toast.LENGTH_SHORT).show()
     }
 
     private fun startNewChat() {
+        currentSessionId = "session_${System.currentTimeMillis()}"
         chatAdapter.clearMessages()
-        welcomeHeroView.visibility = View.VISIBLE
-        rvChat.visibility = View.GONE
-        currentSessionId = UUID.randomUUID().toString()
+        binding.recyclerView.scrollToPosition(0)
+        Toast.makeText(this, "New chat started", Toast.LENGTH_SHORT).show()
     }
 
-    private fun sendMessage(content: String) {
-        val prefs = getSharedPreferences("vincezone_prefs", Context.MODE_PRIVATE)
-        val serverUrl = prefs.getString("server_url", "http://10.0.2.2:3000") ?: "http://10.0.2.2:3000"
-        val customApiKey = prefs.getString("custom_api_key", "") ?: ""
-
-        val userMessage = ChatMessage(role = "user", content = content)
-        chatAdapter.addMessage(userMessage)
-
-        if (chatAdapter.itemCount == 1) {
-            val title = if (content.length > 30) content.take(30) + "..." else content
-            historyList.add(0, ChatSession(id = currentSessionId, title = title))
-            historyAdapter.setSessions(historyList)
-        }
-
-        welcomeHeroView.visibility = View.GONE
-        rvChat.visibility = View.VISIBLE
-        etMessage.text.clear()
-        rvChat.smoothScrollToPosition(chatAdapter.itemCount - 1)
-
-        setLoading(true)
-
-        val client = VinceZoneClient(baseUrl = serverUrl, apiKey = customApiKey)
-
-        lifecycleScope.launch {
-            val result = client.sendMessage(
-                model = currentModel,
-                messages = chatAdapter.getMessages()
-            )
-
-            setLoading(false)
-
-            result.onSuccess { reply ->
-                val assistantMessage = ChatMessage(role = "assistant", content = reply)
-                chatAdapter.addMessage(assistantMessage)
-                rvChat.smoothScrollToPosition(chatAdapter.itemCount - 1)
-            }.onFailure { err ->
-                val errorMessage = ChatMessage(
-                    role = "assistant",
-                    content = "⚠️ Lỗi kết nối: ${err.message}\n\nHãy kiểm tra lại địa chỉ Gateway trong Cài Đặt (mặc định cho máy ảo: http://10.0.2.2:3000, cho điện thoại thật: http://IP_MAY_TINH:3000)."
-                )
-                chatAdapter.addMessage(errorMessage)
-                rvChat.smoothScrollToPosition(chatAdapter.itemCount - 1)
-            }
-        }
+    private fun openSettings() {
+        Toast.makeText(this, "Settings - Coming soon", Toast.LENGTH_SHORT).show()
     }
 
-    private fun setLoading(isLoading: Boolean) {
-        progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-        btnSend.isEnabled = !isLoading
-        btnSend.alpha = if (isLoading) 0.5f else 1.0f
+    private fun showAttachMenu() {
+        Toast.makeText(this, "Attach - Coming soon", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
     }
 }

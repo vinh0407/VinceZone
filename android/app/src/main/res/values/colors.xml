@@ -1,19 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_black">#09090B</color>
-    <color name="bg_surface">#18181B</color>
-    <color name="bg_card">#141416</color>
-    <color name="bg_bubble_user">#27272A</color>
-    <color name="bg_bubble_assistant">#18181B</color>
-    <color name="border_subtle">#27272A</color>
-    <color name="border_hover">#3F3F46</color>
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#A1A1AA</color>
-    <color name="text_muted">#71717A</color>
-    <color name="accent_pill">#27272A</color>
-    <color name="btn_send_bg">#FFFFFF</color>
-    <color name="btn_send_tint">#09090B</color>
-    <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
-    <color name="green_dot">#22C55E</color>
+    <!-- VinceZone Colors - Black, White, Gray with Purple Accent -->
+    <color name="black">#09090B</color>
+    <color name="surface">#18181B</surface>
+    <color name="surface_variant">#27272A</surface_variant>
+    <color name="surface_container">#1E1E1E</surface_container>
+
+    <color name="white">#FAFAFA</white>
+    <color name="gray_100">#F4F4F5</gray_100>
+    <color name="gray_200">#E4E4E7</gray_200>
+    <color name="gray_300">#D4D4D8</gray_300>
+    <color name="gray_400">#A1A1AA</gray_400>
+    <color name="gray_500">#71717A</gray_500>
+    <color name="gray_600">#52525B</gray_600>
+    <color name="gray_700">#3F3F46</gray_700>
+    <color name="gray_800">#27272A</gray_800>
+    <color name="gray_900">#18181B</gray_900>
+
+    <color name="purple_400">#8B5CF6</purple_400>
+    <color name="purple_500">#8B5CF6</purple_500>
+    <color name="purple_600">#7C3AED</purple_600>
+
+    <color name="green_400">#10B981</green_400>
+    <color name="green_500">#10B981</green_500>
+    <color name="green_600">#059669</green_600>
+
+    <color name="red_500">#DC2626</red_500>
+    <color name="red_600">#B91C1C</red_600>
+
+    <color name="blue_500">#3B82F6</blue_500>
+
+    <color name="transparent">#00000000</color>
+
+    <!-- Status colors -->
+    <color name="status_online">#10B981</color>
+    <color name="status_offline">#71717A</status_offline>
+    <color name="status_busy">#DC2626</status_busy>
 </resources>
