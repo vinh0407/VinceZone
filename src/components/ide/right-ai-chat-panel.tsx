@@ -21,6 +21,7 @@ import {
   buildSlashCommands,
   extractActiveSlashQuery,
   SlashCommandPopover,
+  type SkillComboItem,
   type SkillIndexItem,
 } from './slash-command-popover'
 
@@ -31,6 +32,7 @@ export function RightAiChatPanel({
   files,
   activeFilePath,
   skills,
+  combos = [],
   mcpServers,
   plugins,
   width = 320,
@@ -52,6 +54,7 @@ export function RightAiChatPanel({
   files: WorkspaceFile[]
   activeFilePath?: string
   skills: SkillIndexItem[]
+  combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   width?: number
@@ -81,8 +84,10 @@ export function RightAiChatPanel({
   const slashQuery = extractActiveSlashQuery(draft)
   const slashItems = useMemo(
     () =>
-      slashQuery !== null ? buildSlashCommands(skills, mcpServers, plugins, slashQuery) : [],
-    [mcpServers, plugins, skills, slashQuery],
+      slashQuery !== null
+        ? buildSlashCommands(skills, mcpServers, plugins, slashQuery, combos)
+        : [],
+    [combos, mcpServers, plugins, skills, slashQuery],
   )
 
   useEffect(() => {
@@ -326,6 +331,7 @@ export function RightAiChatPanel({
             <SlashCommandPopover
               query={slashQuery}
               skills={skills}
+              combos={combos}
               mcpServers={mcpServers}
               plugins={plugins}
               selectedIndex={Math.min(slashIndex, Math.max(0, slashItems.length - 1))}

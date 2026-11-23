@@ -46,7 +46,7 @@ import { CommandPaletteModal, type PaletteAction } from './modals/command-palett
 import { DiffReviewModal } from './modals/diff-review-modal'
 import { ProviderSettingsModal } from './modals/provider-settings-modal'
 import { RightAiChatPanel } from './right-ai-chat-panel'
-import type { SkillIndexItem } from './slash-command-popover'
+import type { SkillComboItem, SkillIndexItem } from './slash-command-popover'
 import { StatusBar, type EditorDiagnostic } from './status-bar'
 import { WebPreview } from './web-preview'
 import {
@@ -156,6 +156,7 @@ export function IDEWorkspace() {
   const [providers, setProviders] = useState<ProviderConfig[]>([defaultProvider])
   const [savedProvider, setSavedProvider] = useState<ProviderConfig>(defaultProvider)
   const [availableSkills, setAvailableSkills] = useState<SkillIndexItem[]>([])
+  const [availableCombos, setAvailableCombos] = useState<SkillComboItem[]>([])
   const [isDesktop, setIsDesktop] = useState(false)
 
   // Group 1 + 2 Coding Experience & Multi-Agent Bridge state
@@ -413,11 +414,81 @@ export function IDEWorkspace() {
     // Load actual workspace files from disk via localhost API, preserving restored session on boot
     void loadLocalDirectory(undefined, restoredAgents)
 
-    // Preload discovered skills from C:\Users\ADMIN\.agents\skills for `/` slash commands
+    // Preload discovered skills + Saving Skill Combos for `/` slash commands
     void fetch('/api/extensions', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { skills?: SkillIndexItem[] } | null) => {
+      .then((data: { skills?: SkillIndexItem[]; combos?: SkillComboItem[] } | null) => {
         if (data?.skills?.length) setAvailableSkills(data.skills)
+        if (data?.combos?.length) setAvailableCombos(data.combos)
+      })
+      .catch(() => {})
+
+    // Auto-discover local OmniRoute (with live model combos), OpenCode, and Saving providers (memory-only keys)
+    void fetch('/api/providers/discover', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { ok?: boolean; providers?: ProviderConfig[] } | null) => {
+        if (!data?.ok || !data.providers?.length) return
+        const foundList = data.providers
+        setProviders((current) => {
+          const filtered = current.filter((p) => !p.baseUrl.includes('api.omnirouter.ai'))
+          const merged = [...filtered]
+          for (const found of foundList) {
+            const idx = merged.findIndex(
+              (p) =>
+                p.id === found.id ||
+                p.baseUrl.replace(/\/$/, '').toLowerCase() ===
+                  found.baseUrl.replace(/\/$/, '').toLowerCase(),
+            )
+            if (idx >= 0) {
+              merged[idx] = {
+                ...merged[idx],
+                name: found.name,
+                baseUrl: found.baseUrl,
+                models: found.models || merged[idx].models,
+                model: found.model || merged[idx].model,
+                apiKey: found.apiKey || merged[idx].apiKey,
+              }
+            } else {
+              merged.push(found)
+            }
+          }
+          return merged
+        })
+        const omni = foundList.find((p) => p.id === 'omnirouter') ?? foundList[0]
+        if (omni) {
+          setSavedProvider((current) => {
+            const isLegacyBroken =
+              !current.apiKey ||
+              current.baseUrl.includes('api.omnirouter.ai') ||
+              current.id === 'omnirouter'
+            return isLegacyBroken ? omni : current
+          })
+          // Migrate legacy placeholder models on restored agents to live OmniRoute combo models
+          setAgents((current) =>
+            current.map((agent) => {
+              const isLegacyModel =
+                !agent.model ||
+                agent.model === 'openai/gpt-4.1' ||
+                agent.model === 'anthropic/claude-sonnet-4' ||
+                agent.model === 'google/gemini-2.5-pro'
+              if (!isLegacyModel) return agent
+              const rid = agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)
+              const comboForRole =
+                rid === 'pm' || rid === 'arch'
+                  ? 'lead-architect'
+                  : rid === 'fe' || rid === 'uiux'
+                    ? 'frontend-ui-ux'
+                    : rid === 'be' || rid === 'db'
+                      ? 'backend-core'
+                      : rid === 'qa' || rid === 'perf'
+                        ? 'qa-test-debugger'
+                        : rid === 'sec' || rid === 'devops'
+                          ? 'secops-reviewer'
+                          : 'super-coder'
+              return { ...agent, providerId: omni.id, model: comboForRole }
+            }),
+          )
+        }
       })
       .catch(() => {})
 
@@ -1867,6 +1938,7 @@ export function IDEWorkspace() {
                   files={files}
                   activeFilePath={activeFile?.path}
                   skills={availableSkills}
+                  combos={availableCombos}
                   mcpServers={appSettings.mcpServers}
                   plugins={appSettings.plugins}
                   width={rightChatWidth}
@@ -1896,6 +1968,7 @@ export function IDEWorkspace() {
             proposedPatches={proposedPatches}
             pendingApproval={pendingApproval}
             skills={availableSkills}
+            combos={availableCombos}
             mcpServers={appSettings.mcpServers}
             plugins={appSettings.plugins}
             onCreate={() => {

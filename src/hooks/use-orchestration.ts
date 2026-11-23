@@ -234,6 +234,28 @@ export function useOrchestration({
       const badges: string[] = []
 
       for (const token of uniqueTokens) {
+        if (token.startsWith('combo:')) {
+          const comboSlug = token.slice(6)
+          try {
+            const res = await fetch(`/api/extensions?combo=${encodeURIComponent(comboSlug)}`, {
+              cache: 'no-store',
+            })
+            if (res.ok) {
+              const data = (await res.json()) as {
+                ok?: boolean
+                combo?: { id: string; name: string; promptCompact: string; savedPercent?: number }
+              }
+              if (data.ok && data.combo) {
+                badges.push(`Combo: ${data.combo.name}`)
+                sections.push(data.combo.promptCompact)
+              }
+            }
+          } catch {
+            // ignore
+          }
+          continue
+        }
+
         if (token.startsWith('mcp:')) {
           const slug = token.slice(4)
           const mcp = appSettings.mcpServers.find(
@@ -299,8 +321,11 @@ export function useOrchestration({
 
   const resolveProviderForAgent = useCallback(
     (agent: Agent) => {
+      const isLocalUrl = (url?: string) => Boolean(url && /localhost|127\.0\.0\.1|\[::1\]/i.test(url))
       const matched = agent.providerId
-        ? providers.find((item) => item.id === agent.providerId && item.apiKey)
+        ? providers.find(
+            (item) => item.id === agent.providerId && (item.apiKey || isLocalUrl(item.baseUrl)),
+          )
         : undefined
       return matched ?? savedProvider
     },
@@ -900,13 +925,18 @@ export function useOrchestration({
         text.length < 18 &&
         /^(hi|hello|hey|yo|chào|xin chào|alo|test|ping|ok|thanks|cảm ơn)[\s!.?]*$/i.test(text)
 
+      const isLocalLoopbackProvider = /localhost|127\.0\.0\.1|\[::1\]/i.test(
+        activeProvider.baseUrl || '',
+      )
+      const providerReady = Boolean(activeProvider.apiKey || isLocalLoopbackProvider)
+
       if (
         !options?.forceDirectChat &&
         !delegated &&
         !isShortGreeting &&
         agentsRef.current.length > 1 &&
         autonomousAgentIds.includes(agent.id) &&
-        activeProvider.apiKey
+        providerReady
       ) {
         setDrafts((current) => ({ ...current, [agent.id]: '' }))
         setPendingApproval(null)
@@ -937,7 +967,7 @@ export function useOrchestration({
         ],
       }))
 
-      if (!activeProvider.apiKey) {
+      if (!providerReady) {
         updateAgent(agent.id, (current) => ({
           ...current,
           status: 'idle',
@@ -946,7 +976,7 @@ export function useOrchestration({
               ? {
                   ...message,
                   id: uid(),
-                  text: `Provider is not connected. Open Settings → Providers to add a session-only API key for ${activeProvider.name}.`,
+                  text: `Provider is not connected. Open Settings → Providers and click "Auto-Sync Local Providers" (OmniRoute / OpenCode / Saving) or enter an API key for ${activeProvider.name}.`,
                 }
               : message,
           ),

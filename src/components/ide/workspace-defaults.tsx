@@ -8,6 +8,7 @@ import {
   FileText,
   Terminal,
 } from 'lucide-react'
+import { ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type {
   Agent,
   AppSettings,
@@ -98,89 +99,36 @@ export const defaultMemoryNotes: MemoryNote[] = [
 ]
 
 export function createSeedAgents(): Agent[] {
-  return [
-    {
-      id: 'pm',
-      name: 'PM Orchestrator',
-      role: 'Central Task Registry, decomposition & QA coordination',
-      roleId: 'pm',
-      soul: 'Decisive, structured, zero duplicate work, enforces verifiable handoffs.',
-      mission:
-        'Break complex goals into non-overlapping tasks with clear owners, dependencies, and acceptance criteria.',
-      memory: 'Always verify FE↔BE API contracts before dispatching UI integration tasks.',
-      providerId: 'omnirouter',
-      model: 'openai/gpt-4.1',
-      accent: '#f5f5f5',
-      status: 'idle',
-      messages: [
-        {
-          id: 'pm-1',
-          role: 'assistant',
-          text: 'VinceZone PM ready. Send an objective and I will decompose tasks, type prompts to specialists, and coordinate code handoffs.',
-        },
-      ],
-    },
-    {
-      id: 'arch',
-      name: 'Software Architect',
-      role: 'System architecture, API contracts & docs',
-      roleId: 'arch',
-      soul: 'Minimalist, modular, protects long-term architectural clarity.',
-      mission: 'Define system boundaries, data schemas, and clean interfaces across modules.',
-      memory: 'Keep core logic pure in src/lib/ with unit test coverage.',
-      providerId: 'omnirouter',
-      model: 'anthropic/claude-sonnet-4',
-      accent: '#d4d4d4',
-      status: 'idle',
-      messages: [
-        {
-          id: 'arch-1',
-          role: 'assistant',
-          text: '@ARCH territory: docs/, AGENTS.md, architecture specifications & module boundaries.',
-        },
-      ],
-    },
-    {
-      id: 'fe',
-      name: 'Frontend Engineer',
-      role: 'VS Code UI, React components & styles',
-      roleId: 'fe',
-      soul: 'Detail-oriented, accessible, monochrome precision without visual clutter.',
-      mission: 'Build responsive UI components consuming verified backend API contracts.',
-      memory: 'Follow black/gray monochrome IDE chrome with colored file icons.',
-      providerId: 'omnirouter',
-      model: 'anthropic/claude-sonnet-4',
-      accent: '#b8b8b8',
-      status: 'idle',
-      messages: [
-        {
-          id: 'fe-1',
-          role: 'assistant',
-          text: '@FE territory: src/components/, hooks/, styles. Consumes @BE API Contracts without modifying server routes.',
-        },
-      ],
-    },
-    {
-      id: 'be',
-      name: 'Backend Engineer',
-      role: 'API endpoints, security & server runtime',
-      roleId: 'be',
-      soul: 'Security-first, defensive validation, zero SSRF or traversal leaks.',
-      mission: 'Design and implement resilient API endpoints, local desktop guards, and data persistence.',
-      memory: 'Restrict local desktop APIs to loopback and validate all upstream URLs via DNS.',
-      providerId: 'omnirouter',
-      model: 'google/gemini-2.5-pro',
-      accent: '#a3a3a3',
-      status: 'idle',
-      messages: [
-        {
-          id: 'be-1',
-          role: 'assistant',
-          text: '@BE territory: src/app/**/api/, src/lib/, electron/. Primary Owner of API Contracts.',
-        },
-      ],
-    },
+  const seeds: Array<{ id: 'pm' | 'arch' | 'fe' | 'be' | 'qa'; name: string }> = [
+    { id: 'pm', name: 'PM Orchestrator' },
+    { id: 'arch', name: 'Software Architect' },
+    { id: 'fe', name: 'Frontend Engineer' },
+    { id: 'be', name: 'Backend Engineer' },
+    { id: 'qa', name: 'QA Verification Engineer' },
   ]
+  return seeds.map(({ id, name }) => {
+    const meta = ROLE_TERRITORIES[id]
+    return {
+      id,
+      name,
+      role: meta.summary,
+      roleId: id,
+      soul: meta.defaultSoul,
+      mission: meta.defaultMission,
+      memory: meta.defaultMemory,
+      providerId: 'omnirouter',
+      model: meta.recommendedModel,
+      accent: meta.accent,
+      status: 'idle',
+      messages: [
+        {
+          id: `${id}-1`,
+          role: 'assistant',
+          text: `@${meta.code} (${meta.title}) ready · Combo: ${meta.recommendedModel} · Skills: ${meta.defaultSkills.map((s) => `/${s}`).join(' ')}`,
+        },
+      ],
+    }
+  })
 }
 
 export const seedAgents: Agent[] = createSeedAgents()
@@ -261,9 +209,10 @@ export const defaultAppSettings: AppSettings = {
 
 export const defaultProvider: ProviderConfig = {
   id: 'omnirouter',
-  name: 'OmniRouter',
-  baseUrl: 'https://api.omnirouter.ai/v1',
+  name: 'OmniRoute AI Gateway',
+  baseUrl: 'http://localhost:20128/v1',
   apiKey: '',
-  model: 'openai/gpt-4.1',
-  models: 'openai/gpt-4.1, anthropic/claude-sonnet-4, google/gemini-2.5-pro',
+  model: 'super-coder',
+  models:
+    'super-coder, lead-architect, backend-core, frontend-ui-ux, qa-test-debugger, secops-reviewer, ultimate-free-stack, free-forever, always-on, free-stack, live-audio-transcription, fast-whisper-live, free-transcription',
 }

@@ -108,7 +108,15 @@ export function isPrivateHost(hostname: string): boolean {
   return false
 }
 
-export function parseProviderEndpoint(baseUrl: string): URL {
+export function isExplicitLoopbackHost(hostname: string): boolean {
+  const host = normalizeHost(hostname)
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+export function parseProviderEndpoint(
+  baseUrl: string,
+  options?: { allowLocalLoopback?: boolean },
+): URL {
   let url: URL
   try {
     url = new URL(baseUrl)
@@ -116,8 +124,18 @@ export function parseProviderEndpoint(baseUrl: string): URL {
     throw new Error('Invalid provider URL.')
   }
 
-  if (url.protocol !== 'https:' || url.username || url.password || isPrivateHost(url.hostname)) {
-    throw new Error('Endpoint must be a public HTTPS URL.')
+  const isAllowedLoopback =
+    Boolean(options?.allowLocalLoopback) &&
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    !url.username &&
+    !url.password &&
+    isExplicitLoopbackHost(url.hostname)
+
+  if (
+    !isAllowedLoopback &&
+    (url.protocol !== 'https:' || url.username || url.password || isPrivateHost(url.hostname))
+  ) {
+    throw new Error('Endpoint must be a public HTTPS URL (or local loopback gateway).')
   }
 
   if (!url.pathname.endsWith('/chat/completions')) {
@@ -130,9 +148,14 @@ export function parseProviderEndpoint(baseUrl: string): URL {
 export async function resolveSafeProviderEndpoint(
   baseUrl: string,
   dnsLookup: DnsLookupFn = defaultLookup,
+  options?: { allowLocalLoopback?: boolean },
 ): Promise<URL> {
-  const url = parseProviderEndpoint(baseUrl)
+  const url = parseProviderEndpoint(baseUrl, options)
   const host = normalizeHost(url.hostname)
+
+  if (options?.allowLocalLoopback && isExplicitLoopbackHost(host)) {
+    return url
+  }
 
   if (isIP(host) !== 0) {
     if (isPrivateIpAddress(host)) {

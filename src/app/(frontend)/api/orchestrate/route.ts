@@ -1,4 +1,5 @@
 import { hashText } from '@/lib/file-tree'
+import { isLoopbackRequest } from '@/lib/local-guard'
 import {
   extractProposedPatches,
   parsePlan,
@@ -56,8 +57,8 @@ async function complete(
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
+      ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
     },
     body: JSON.stringify({ model, messages, stream: false, temperature: 0.2 }),
     cache: 'no-store',
@@ -127,9 +128,9 @@ export async function POST(request: Request) {
   const coordinator =
     coordinatorCandidates.find((agent) => agent.id === coordinatorId) ?? coordinatorCandidates[0]
 
+  const isLocalReq = isLoopbackRequest(request)
   if (
-    !provider?.apiKey ||
-    !provider.baseUrl ||
+    !provider?.baseUrl ||
     !provider.model ||
     !coordinator ||
     !instruction?.trim()
@@ -142,10 +143,23 @@ export async function POST(request: Request) {
 
   let endpoint: URL
   try {
-    endpoint = await resolveSafeProviderEndpoint(provider.baseUrl)
+    endpoint = await resolveSafeProviderEndpoint(provider.baseUrl, undefined, {
+      allowLocalLoopback: isLocalReq,
+    })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Invalid provider URL.' },
+      { status: 400 },
+    )
+  }
+
+  const isLoopbackTarget =
+    endpoint.hostname === 'localhost' ||
+    endpoint.hostname === '127.0.0.1' ||
+    endpoint.hostname === '::1'
+  if (!provider.apiKey && !isLoopbackTarget) {
+    return Response.json(
+      { error: 'API key is required for remote HTTPS providers.' },
       { status: 400 },
     )
   }

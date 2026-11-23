@@ -54,16 +54,19 @@ export async function POST(request: Request) {
   }
 
   const { apiKey, baseUrl, model, messages, enableTools, workspaceRoot } = body
-  if (!apiKey || !baseUrl || !model || !Array.isArray(messages) || messages.length === 0) {
+  const isLocalReq = isLoopbackRequest(request)
+  if (!baseUrl || !model || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
-      { error: 'Provider, model, API key, and messages are required.' },
+      { error: 'Provider URL, model, and messages are required.' },
       { status: 400 },
     )
   }
 
   let endpoint: URL
   try {
-    endpoint = await resolveSafeProviderEndpoint(baseUrl)
+    endpoint = await resolveSafeProviderEndpoint(baseUrl, undefined, {
+      allowLocalLoopback: isLocalReq,
+    })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Invalid provider URL.' },
@@ -71,7 +74,23 @@ export async function POST(request: Request) {
     )
   }
 
-  const canUseLocalTools = Boolean(enableTools && isLoopbackRequest(request))
+  const isLoopbackTarget =
+    endpoint.hostname === 'localhost' ||
+    endpoint.hostname === '127.0.0.1' ||
+    endpoint.hostname === '::1'
+  if (!apiKey && !isLoopbackTarget) {
+    return Response.json(
+      { error: 'API key is required for remote HTTPS providers.' },
+      { status: 400 },
+    )
+  }
+
+  const authHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+  }
+
+  const canUseLocalTools = Boolean(enableTools && isLocalReq)
   const resolvedRoot =
     workspaceRoot?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
 
@@ -87,10 +106,7 @@ export async function POST(request: Request) {
           for (let round = 0; round < 6; round++) {
             const upstream = await fetch(endpoint, {
               method: 'POST',
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-              },
+              headers: authHeaders,
               body: JSON.stringify({
                 model,
                 messages: conversation,
@@ -108,10 +124,7 @@ export async function POST(request: Request) {
             if (!upstream.ok && round === 0) {
               const fallback = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  'Content-Type': 'application/json',
-                },
+                headers: authHeaders,
                 body: JSON.stringify({
                   model,
                   messages: messages.slice(-26),
@@ -298,10 +311,7 @@ export async function POST(request: Request) {
   try {
     const upstream = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         model,
         messages: messages.slice(-30),

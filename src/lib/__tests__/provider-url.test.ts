@@ -67,4 +67,25 @@ describe('provider-url SSRF protection', () => {
     ])
     expect(ok.hostname).toBe('api.omnirouter.ai')
   })
+
+  it('allows explicit local loopback gateways like OmniRoute when allowLocalLoopback is enabled while still blocking LAN/metadata', async () => {
+    const localOmni = await resolveSafeProviderEndpoint(
+      'http://localhost:20128/v1',
+      undefined,
+      { allowLocalLoopback: true },
+    )
+    expect(localOmni.toString()).toBe('http://localhost:20128/v1/chat/completions')
+
+    await expect(
+      resolveSafeProviderEndpoint('http://169.254.169.254/latest/meta-data', undefined, {
+        allowLocalLoopback: true,
+      }),
+    ).rejects.toThrow()
+
+    await expect(
+      resolveSafeProviderEndpoint('http://10.0.0.5:8000/v1', undefined, {
+        allowLocalLoopback: true,
+      }),
+    ).rejects.toThrow()
+  })
 })

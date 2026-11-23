@@ -18,6 +18,8 @@ type RolePresetItem = {
   position: string
   receivesFrom: string[]
   handsOffTo: string[]
+  recommendedModel: string
+  defaultSkills: string[]
   role: string
   soul: string
   mission: string
@@ -33,6 +35,8 @@ const ROLE_PRESETS: RolePresetItem[] = [
     position: item.position,
     receivesFrom: item.receivesFrom,
     handsOffTo: item.handsOffTo,
+    recommendedModel: item.recommendedModel,
+    defaultSkills: item.defaultSkills,
     role: item.summary,
     soul: item.defaultSoul,
     mission: item.defaultMission,
@@ -46,6 +50,8 @@ const ROLE_PRESETS: RolePresetItem[] = [
     position: CUSTOM_ROLE_META.position,
     receivesFrom: CUSTOM_ROLE_META.receivesFrom,
     handsOffTo: CUSTOM_ROLE_META.handsOffTo,
+    recommendedModel: CUSTOM_ROLE_META.recommendedModel,
+    defaultSkills: CUSTOM_ROLE_META.defaultSkills,
     role: 'Custom specialist coding agent',
     soul: CUSTOM_ROLE_META.defaultSoul,
     mission: CUSTOM_ROLE_META.defaultMission,
@@ -123,6 +129,9 @@ export function AgentCreatorModal({
     setSoul(preset.soul)
     setMission(preset.mission)
     setMemory(preset.memory)
+    if (availableModels.includes(preset.recommendedModel)) {
+      setModel(preset.recommendedModel)
+    }
     if (!initialAgent) {
       setName(preset.title)
     }

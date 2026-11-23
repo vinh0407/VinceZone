@@ -1,21 +1,38 @@
 'use client'
 
-import { Plug, Puzzle, Sparkles } from 'lucide-react'
+import { Layers, Plug, Puzzle, Sparkles } from 'lucide-react'
 import { useMemo } from 'react'
 import type { McpServerConfig, PluginConfig } from './agent-types'
 
 export type SkillIndexItem = {
   id: string
   slug: string
+  command?: string
   name: string
   description: string
   source: string
+  directory?: string
   path?: string
+}
+
+export type SkillComboItem = {
+  id: string
+  command: string
+  name: string
+  group: string
+  badge: string
+  description: string
+  coreSkills: string[]
+  skills: string[]
+  rules: string[]
+  savedPercent: number
+  promptCompact: string
+  custom?: boolean
 }
 
 export type SlashCommandItem = {
   id: string
-  kind: 'skill' | 'mcp' | 'plugin'
+  kind: 'combo' | 'skill' | 'mcp' | 'plugin'
   command: string
   label: string
   description: string
@@ -31,7 +48,7 @@ export function slugifyCommand(name: string): string {
 
 /**
  * Returns the active `/query` token if the user is currently typing a slash command
- * at the end of the draft (e.g. "/", "/play", "fix bug /mcp:craft").
+ * at the end of the draft (e.g. "/", "/play", "/combo:token", "fix bug /mcp:craft").
  */
 export function extractActiveSlashQuery(draft: string): string | null {
   const match = draft.match(/(?:^|\s)\/([a-z0-9:._-]*)$/i)
@@ -50,8 +67,18 @@ export function buildSlashCommands(
   mcpServers: McpServerConfig[],
   plugins: PluginConfig[],
   query: string,
+  combos: SkillComboItem[] = [],
 ): SlashCommandItem[] {
   const q = query.trim().toLowerCase()
+
+  const comboItems: SlashCommandItem[] = combos.map((c) => ({
+    id: `combo-${c.id}`,
+    kind: 'combo',
+    command: c.command || `/combo:${c.id}`,
+    label: c.name,
+    description: `${c.coreSkills.slice(0, 5).map((s) => `/${s}`).join(' · ')} — ${c.description}`,
+    badge: `COMBO -${c.savedPercent}%`,
+  }))
 
   const mcpItems: SlashCommandItem[] = mcpServers
     .filter((m) => m.enabled)
@@ -84,17 +111,32 @@ export function buildSlashCommands(
   const skillItems: SlashCommandItem[] = skills.map((s) => ({
     id: `skill-${s.id}`,
     kind: 'skill',
-    command: `/${s.slug}`,
+    command: s.command || `/${s.slug}`,
     label: s.name,
-    description: s.description,
+    description: s.directory ? `${s.description} · ${s.directory}` : s.description,
     badge: 'SKILL',
   }))
 
-  const all = [...mcpItems, ...pluginItems, ...skillItems]
+  const all = [...comboItems, ...mcpItems, ...pluginItems, ...skillItems]
 
   if (!q) {
-    // Show active MCPs + Plugins first, then top popular/alphabetical skills
-    return [...mcpItems, ...pluginItems, ...skillItems.slice(0, 14)].slice(0, 22)
+    return [...comboItems.slice(0, 6), ...mcpItems, ...pluginItems, ...skillItems.slice(0, 10)].slice(
+      0,
+      24,
+    )
+  }
+
+  if (q === 'combo' || q.startsWith('combo:')) {
+    const sub = q.replace(/^combo:?/, '')
+    return comboItems
+      .filter(
+        (item) =>
+          !sub ||
+          item.command.toLowerCase().includes(sub) ||
+          item.label.toLowerCase().includes(sub) ||
+          item.description.toLowerCase().includes(sub),
+      )
+      .slice(0, 20)
   }
 
   if (q === 'mcp' || q.startsWith('mcp:')) {
@@ -129,12 +171,13 @@ export function buildSlashCommands(
       const bExact = b.command.slice(1).startsWith(q) ? 0 : 1
       return aExact - bExact
     })
-    .slice(0, 20)
+    .slice(0, 22)
 }
 
 export function SlashCommandPopover({
   query,
   skills,
+  combos = [],
   mcpServers,
   plugins,
   selectedIndex,
@@ -143,6 +186,7 @@ export function SlashCommandPopover({
 }: {
   query: string
   skills: SkillIndexItem[]
+  combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   selectedIndex: number
@@ -150,28 +194,34 @@ export function SlashCommandPopover({
   onHoverIndex: (index: number) => void
 }) {
   const items = useMemo(
-    () => buildSlashCommands(skills, mcpServers, plugins, query),
-    [skills, mcpServers, plugins, query],
+    () => buildSlashCommands(skills, mcpServers, plugins, query, combos),
+    [skills, mcpServers, plugins, query, combos],
   )
 
   return (
     <div className="max-h-56 overflow-y-auto border-b border-[#2b2b2b] bg-[#161616] p-1">
       <div className="flex items-center justify-between px-2 py-1 text-[9px] uppercase tracking-wider text-[#858585]">
         <span>
-          Slash Commands · {skills.length} skills · {mcpServers.filter((m) => m.enabled).length}{' '}
-          MCP · {plugins.filter((p) => p.enabled).length} Plugins
+          / Antigravity Skills · {combos.length} Combos · {skills.length} Skills ·{' '}
+          {mcpServers.filter((m) => m.enabled).length} MCP
         </span>
         <span className="font-mono text-[#6e6e6e]">↑↓ Enter / Tab</span>
       </div>
       {items.length === 0 ? (
         <p className="px-2 py-3 text-center text-[10px] text-[#737373]">
-          No matching skill, MCP, or plugin for &ldquo;/{query}&rdquo;
+          No matching combo, skill, MCP, or plugin for &ldquo;/{query}&rdquo;
         </p>
       ) : (
         items.map((item, idx) => {
           const active = idx === selectedIndex
           const Icon =
-            item.kind === 'mcp' ? Plug : item.kind === 'plugin' ? Puzzle : Sparkles
+            item.kind === 'combo'
+              ? Layers
+              : item.kind === 'mcp'
+                ? Plug
+                : item.kind === 'plugin'
+                  ? Puzzle
+                  : Sparkles
           return (
             <button
               key={item.id}
@@ -193,11 +243,13 @@ export function SlashCommandPopover({
                   </span>
                   <span
                     className={`shrink-0 rounded px-1 py-0.5 font-mono text-[8px] ${
-                      item.kind === 'mcp'
-                        ? 'bg-[#333333] text-white'
-                        : item.kind === 'plugin'
-                          ? 'bg-[#2a2a2a] text-[#e5e5e5]'
-                          : 'bg-[#1f1f1f] text-[#a3a3a3]'
+                      item.kind === 'combo'
+                        ? 'bg-[#e5e5e5] font-semibold text-[#111111]'
+                        : item.kind === 'mcp'
+                          ? 'bg-[#333333] text-white'
+                          : item.kind === 'plugin'
+                            ? 'bg-[#2a2a2a] text-[#e5e5e5]'
+                            : 'bg-[#1f1f1f] text-[#a3a3a3]'
                     }`}
                   >
                     {item.badge}

@@ -5,7 +5,10 @@ import {
   Bot,
   Brain,
   Check,
+  Copy,
+  FolderOpen,
   GitBranch,
+  Layers,
   LogOut,
   Plug,
   Plus,
@@ -15,6 +18,7 @@ import {
   Shield,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   TerminalSquare,
   Trash2,
   TriangleAlert,
@@ -37,6 +41,7 @@ type SettingsTab =
   | 'providers'
   | 'usage'
   | 'github'
+  | 'skills'
   | 'cli'
   | 'mcp'
   | 'extensions'
@@ -64,10 +69,35 @@ type GitHubStatus = {
 
 type DiscoveredSkill = {
   id: string
+  slug?: string
+  command?: string
   name: string
   description: string
   source: string
+  directory?: string
   path: string
+}
+
+type DiscoveredSkillCombo = {
+  id: string
+  command: string
+  name: string
+  group: string
+  badge: string
+  description: string
+  coreSkills: string[]
+  skills: string[]
+  rules: string[]
+  savedPercent: number
+  promptCompact: string
+  custom?: boolean
+}
+
+type DiscoveredOmniCombo = {
+  id: string
+  name: string
+  strategy: string
+  models: string[]
 }
 
 export function ProviderSettingsModal({
@@ -119,11 +149,25 @@ export function ProviderSettingsModal({
   const [ghToken, setGhToken] = useState('')
   const [ghMessage, setGhMessage] = useState('')
 
-  // Skills (.agent) state
+  // Skills (.agent) + Saving Skill Combos state
   const [skills, setSkills] = useState<DiscoveredSkill[]>([])
+  const [skillCombos, setSkillCombos] = useState<DiscoveredSkillCombo[]>([])
+  const [comboSource, setComboSource] = useState('')
   const [skillDirs, setSkillDirs] = useState<string[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillSearch, setSkillSearch] = useState('')
+  const [skillsSubTab, setSkillsSubTab] = useState<'combos' | 'skills'>('skills')
+  const [copiedCmd, setCopiedCmd] = useState('')
+  const [newComboName, setNewComboName] = useState('')
+  const [newComboSkills, setNewComboSkills] = useState('caveman-compress, headroom, ponytail')
+  const [newComboDesc, setNewComboDesc] = useState('')
+  const [comboSaving, setComboSaving] = useState(false)
+
+  // OmniRoute / OpenCode / Saving Provider Discovery state
+  const [discoverLoading, setDiscoverLoading] = useState(false)
+  const [discoverStatus, setDiscoverStatus] = useState('')
+  const [omniCombos, setOmniCombos] = useState<DiscoveredOmniCombo[]>([])
+  const [omniOnline, setOmniOnline] = useState<boolean | null>(null)
 
   // MCP add form + live tool tester
   const [mcpName, setMcpName] = useState('')
@@ -192,9 +236,10 @@ export function ProviderSettingsModal({
     { id: 'providers', label: 'Providers & Models', icon: Zap },
     { id: 'usage', label: 'Usage & Cost', icon: Activity },
     { id: 'github', label: 'GitHub Auth', icon: GitBranch },
+    { id: 'skills', label: 'Skills & Combos', icon: Sparkles },
     { id: 'cli', label: 'CLI Tools', icon: TerminalSquare },
     { id: 'mcp', label: 'MCP Servers', icon: Plug },
-    { id: 'extensions', label: 'Plugins & .agent', icon: Puzzle },
+    { id: 'extensions', label: 'Plugins', icon: Puzzle },
     { id: 'memory', label: 'Memory', icon: Brain },
     { id: 'agents', label: 'Multi-Agent', icon: Bot },
     { id: 'permissions', label: 'Permissions', icon: Shield },
@@ -246,20 +291,143 @@ export function ProviderSettingsModal({
       if (!response.ok) return
       const data = (await response.json()) as {
         skills: DiscoveredSkill[]
+        combos?: DiscoveredSkillCombo[]
+        comboSource?: string
         scannedDirs: string[]
       }
       setSkills(data.skills ?? [])
+      setSkillCombos(data.combos ?? [])
+      setComboSource(data.comboSource ?? '')
       setSkillDirs(data.scannedDirs ?? [])
     } finally {
       setSkillsLoading(false)
     }
   }, [rootPath])
 
+  const syncLocalProviders = useCallback(async () => {
+    setDiscoverLoading(true)
+    setDiscoverStatus('')
+    try {
+      const res = await fetch('/api/providers/discover', { cache: 'no-store' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as {
+        ok?: boolean
+        omnirouteOnline?: boolean
+        combos?: DiscoveredOmniCombo[]
+        providers?: Array<ProviderConfig & { source?: string }>
+      }
+      setOmniOnline(Boolean(data.omnirouteOnline))
+      setOmniCombos(data.combos ?? [])
+      if (data.providers?.length) {
+        setProviders((current) => {
+          const merged = [...current]
+          for (const found of data.providers!) {
+            const idx = merged.findIndex(
+              (p) =>
+                p.id === found.id ||
+                p.baseUrl.replace(/\/$/, '').toLowerCase() ===
+                  found.baseUrl.replace(/\/$/, '').toLowerCase(),
+            )
+            if (idx >= 0) {
+              merged[idx] = {
+                ...merged[idx],
+                name: found.name,
+                baseUrl: found.baseUrl,
+                models: found.models || merged[idx].models,
+                model: found.model || merged[idx].model,
+                apiKey: found.apiKey || merged[idx].apiKey,
+              }
+            } else {
+              merged.push({
+                id: found.id,
+                name: found.name,
+                baseUrl: found.baseUrl,
+                apiKey: found.apiKey,
+                model: found.model,
+                models: found.models,
+              })
+            }
+          }
+          return merged
+        })
+        const omni = data.providers.find((p) => p.id === 'omnirouter') ?? data.providers[0]
+        if (omni) {
+          setProvider({
+            id: omni.id,
+            name: omni.name,
+            baseUrl: omni.baseUrl,
+            apiKey: omni.apiKey,
+            model: omni.model,
+            models: omni.models,
+          })
+        }
+        setDiscoverStatus(
+          `Synced ${data.providers.length} provider(s) & ${data.combos?.length ?? 0} OmniRoute combo(s) from OmniRoute / OpenCode / Saving.`,
+        )
+      } else {
+        setDiscoverStatus('No local providers found in OmniRoute / OpenCode / Saving.')
+      }
+    } catch (err) {
+      setDiscoverStatus(err instanceof Error ? err.message : 'Auto-sync failed.')
+    } finally {
+      setDiscoverLoading(false)
+    }
+  }, [])
+
+  const createCustomCombo = async () => {
+    const core = newComboSkills
+      .split(',')
+      .map((s) => s.trim().replace(/^\//, ''))
+      .filter(Boolean)
+    if (!newComboName.trim() || core.length === 0) return
+    setComboSaving(true)
+    try {
+      const res = await fetch('/api/extensions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save-combo',
+          root: rootPath,
+          combo: {
+            name: newComboName.trim(),
+            description: newComboDesc.trim(),
+            coreSkills: core,
+          },
+        }),
+      })
+      if (res.ok) {
+        setNewComboName('')
+        setNewComboDesc('')
+        await loadExtensions()
+      }
+    } finally {
+      setComboSaving(false)
+    }
+  }
+
   useEffect(() => {
     if (tab === 'cli' && !cliRequested) void detectCliTools()
     if (tab === 'github' && !ghStatus && !ghLoading) void loadGitHubStatus()
-    if (tab === 'extensions' && skills.length === 0 && !skillsLoading) void loadExtensions()
-  }, [tab, cliRequested, detectCliTools, ghStatus, ghLoading, loadGitHubStatus, skills.length, skillsLoading, loadExtensions])
+    if ((tab === 'skills' || tab === 'extensions') && skills.length === 0 && !skillsLoading) {
+      void loadExtensions()
+    }
+    if (tab === 'providers' && omniOnline === null && !discoverLoading) {
+      void syncLocalProviders()
+    }
+  }, [
+    tab,
+    cliRequested,
+    detectCliTools,
+    ghStatus,
+    ghLoading,
+    loadGitHubStatus,
+    skills.length,
+    skillsLoading,
+    loadExtensions,
+    omniOnline,
+    discoverLoading,
+    syncLocalProviders,
+  ])
 
   const handleGitHubTokenLogin = async () => {
     if (!ghToken.trim()) return
@@ -348,16 +516,37 @@ export function ProviderSettingsModal({
 
   const filteredSkills = useMemo(() => {
     const q = skillSearch.trim().toLowerCase()
-    if (!q) return skills.slice(0, 60)
+    if (!q) return skills.slice(0, 80)
     return skills
       .filter(
         (item) =>
           item.name.toLowerCase().includes(q) ||
+          (item.slug || '').toLowerCase().includes(q) ||
           item.description.toLowerCase().includes(q) ||
+          (item.directory || '').toLowerCase().includes(q) ||
           item.source.toLowerCase().includes(q),
       )
-      .slice(0, 60)
+      .slice(0, 80)
   }, [skills, skillSearch])
+
+  const filteredCombos = useMemo(() => {
+    const q = skillSearch.trim().toLowerCase()
+    if (!q) return skillCombos
+    return skillCombos.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        c.group.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q) ||
+        c.coreSkills.some((s) => s.toLowerCase().includes(q)),
+    )
+  }, [skillCombos, skillSearch])
+
+  const copyCommand = (cmd: string) => {
+    void navigator.clipboard?.writeText(cmd)
+    setCopiedCmd(cmd)
+    window.setTimeout(() => setCopiedCmd(''), 1500)
+  }
 
   const toggleSkill = (skillId: string) => {
     const exists = settings.enabledSkillIds.includes(skillId)
@@ -509,9 +698,65 @@ export function ProviderSettingsModal({
 
             {tab === 'providers' && (
               <SettingsSection
-                title="AI Providers & Model Catalogs"
-                description="Add OpenAI-compatible gateways or local models. Agents pick a provider first, then choose from its models."
+                title="AI Providers & Model Combos"
+                description="Auto-sync local OmniRoute combos, OpenCode & Saving providers, or configure custom OpenAI-compatible endpoints."
               >
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#2c2c2c] bg-[#181818] p-2.5">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-white">
+                      OmniRoute · OpenCode · Saving Sync
+                    </p>
+                    <p className="text-[9px] text-[#858585]">
+                      {discoverStatus ||
+                        (omniOnline
+                          ? `OmniRoute online (localhost:20128) · ${omniCombos.length} live model combos detected`
+                          : 'Click Auto-Sync to import local OmniRoute combos, OpenCode & Saving providers.')}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={discoverLoading}
+                    onClick={() => void syncLocalProviders()}
+                    className="flex shrink-0 items-center gap-1.5 rounded bg-[#e5e5e5] px-2.5 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-40"
+                  >
+                    <RefreshCw size={11} className={discoverLoading ? 'animate-spin' : ''} />
+                    Auto-Sync Local Providers
+                  </button>
+                </div>
+
+                {omniCombos.length > 0 && (
+                  <div className="rounded-lg border border-[#2c2c2c] bg-[#161616] p-2.5">
+                    <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#a3a3a3]">
+                      Live OmniRoute Model Combos ({omniCombos.length}) — click to select
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {omniCombos.map((combo) => (
+                        <button
+                          key={combo.id}
+                          type="button"
+                          onClick={() =>
+                            updateCurrentProvider({
+                              ...provider,
+                              model: combo.name,
+                              models: provider.models.includes(combo.name)
+                                ? provider.models
+                                : `${combo.name}, ${provider.models}`,
+                            })
+                          }
+                          title={`${combo.strategy}: ${combo.models.join(' → ')}`}
+                          className={`rounded border px-2 py-0.5 font-mono text-[9px] transition ${
+                            provider.model === combo.name
+                              ? 'border-[#e5e5e5] bg-[#e5e5e5] font-semibold text-[#111111]'
+                              : 'border-[#333333] bg-[#1d1d1d] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
+                          }`}
+                        >
+                          {combo.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {providers.map((item) => (
                     <button
@@ -838,6 +1083,284 @@ export function ProviderSettingsModal({
                             <span className="rounded border border-[#333333] px-1.5 py-0.5 text-[9px] text-[#9d9d9d]">
                               {isPrivate ? 'Private' : 'Public'}
                             </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </SettingsSection>
+            )}
+
+            {tab === 'skills' && (
+              <SettingsSection
+                title="Local Skills (.agent/skills) & Skill Combos"
+                description="Inspect all skills installed on this machine with their folder paths and /slash commands, plus token-saving Skill Combos from Saving."
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex rounded-md border border-[#333333] bg-[#161616] p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setSkillsSubTab('skills')}
+                      className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-medium transition ${
+                        skillsSubTab === 'skills'
+                          ? 'bg-[#e5e5e5] text-[#111111]'
+                          : 'text-[#a3a3a3] hover:text-white'
+                      }`}
+                    >
+                      <Sparkles size={11} />
+                      Machine Skills ({skills.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSkillsSubTab('combos')}
+                      className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[10px] font-medium transition ${
+                        skillsSubTab === 'combos'
+                          ? 'bg-[#e5e5e5] text-[#111111]'
+                          : 'text-[#a3a3a3] hover:text-white'
+                      }`}
+                    >
+                      <Layers size={11} />
+                      Skill Combos ({skillCombos.length})
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadExtensions()}
+                    className="flex items-center gap-1 rounded border border-[#3a3a3a] px-2.5 py-1 text-[10px] text-[#d4d4d4] hover:bg-[#242424]"
+                  >
+                    <RefreshCw size={11} className={skillsLoading ? 'animate-spin' : ''} />
+                    Rescan Disk
+                  </button>
+                </div>
+
+                {/* Scanned Directories Banner */}
+                <div className="rounded-lg border border-[#2c2c2c] bg-[#161616] p-2.5">
+                  <p className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#a3a3a3]">
+                    <FolderOpen size={11} />
+                    {skillsSubTab === 'skills'
+                      ? 'Scanned Skill Directories on Disk'
+                      : 'Skill Combos Source (Saving)'}
+                  </p>
+                  {skillsSubTab === 'skills' ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {skillDirs.map((dir) => (
+                        <span
+                          key={dir}
+                          className="rounded border border-[#2f2f2f] bg-[#111111] px-2 py-0.5 font-mono text-[9px] text-[#cccccc]"
+                        >
+                          {dir}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 font-mono text-[9px] text-[#9d9d9d]">
+                      {comboSource || 'C:\\VisualStudio\\Saving\\data\\combos.json'} · Type{' '}
+                      <span className="text-white">/combo:&lt;id&gt;</span> in AI Chat to activate!
+                    </p>
+                  )}
+                </div>
+
+                <label className="flex items-center gap-2 rounded border border-[#333333] bg-[#181818] px-2.5 py-1.5">
+                  <Search size={12} className="text-[#858585]" />
+                  <input
+                    value={skillSearch}
+                    onChange={(e) => setSkillSearch(e.target.value)}
+                    placeholder={
+                      skillsSubTab === 'skills'
+                        ? 'Search /command, skill name, or folder path (e.g. playwright, ponytail, headroom)...'
+                        : 'Search Skill Combos (e.g. token, ponytail, tdd, swarm, security)...'
+                    }
+                    className="w-full bg-transparent text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666]"
+                  />
+                  {skillSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSkillSearch('')}
+                      className="text-[#858585] hover:text-white"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </label>
+
+                {skillsSubTab === 'skills' ? (
+                  <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+                    {filteredSkills.map((skill) => {
+                      const enabled = settings.enabledSkillIds.includes(skill.id)
+                      const cmd = skill.command || `/${skill.slug || skill.name}`
+                      return (
+                        <div
+                          key={skill.id}
+                          className={`rounded border p-2.5 transition ${
+                            enabled
+                              ? 'border-[#6e6e6e] bg-[#242424]'
+                              : 'border-[#2b2b2b] bg-[#161616] hover:bg-[#1c1c1c]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                                  {cmd}
+                                </span>
+                                <span className="truncate text-[10px] font-medium text-[#d4d4d4]">
+                                  {skill.name}
+                                </span>
+                                <span className="rounded bg-[#222222] px-1 py-0.5 text-[8px] text-[#8f8f8f]">
+                                  {skill.source}
+                                </span>
+                              </div>
+                              <p className="mt-1 truncate font-mono text-[9px] text-[#7a7a7a]" title={skill.directory || skill.path}>
+                                📁 {skill.directory || skill.path}
+                              </p>
+                              <p className="mt-0.5 line-clamp-2 text-[9px] text-[#a3a3a3]">
+                                {skill.description}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => copyCommand(cmd)}
+                                className="rounded border border-[#3a3a3a] bg-[#1d1d1d] px-1.5 py-1 text-[9px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white"
+                                title={`Copy ${cmd}`}
+                              >
+                                {copiedCmd === cmd ? (
+                                  <Check size={10} className="text-white" />
+                                ) : (
+                                  <Copy size={10} />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleSkill(skill.id)}
+                                className={`grid size-5 place-items-center rounded border ${
+                                  enabled
+                                    ? 'border-[#e5e5e5] bg-[#e5e5e5] text-[#111111]'
+                                    : 'border-[#4a4a4a] text-transparent hover:border-[#737373]'
+                                }`}
+                                title="Toggle active skill"
+                              >
+                                <Check size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {!skillsLoading && filteredSkills.length === 0 && (
+                      <p className="py-4 text-center text-[10px] text-[#737373]">
+                        No matching skills found.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Create Custom Skill Combo */}
+                    <div className="space-y-2 rounded-lg border border-[#2c2c2c] bg-[#181818] p-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a3a3a3]">
+                        Create Custom Skill Combo
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <input
+                          value={newComboName}
+                          onChange={(e) => setNewComboName(e.target.value)}
+                          placeholder="Combo name (e.g. Fast React Fix)"
+                          className="rounded border border-[#333333] bg-[#121212] px-2.5 py-1.5 text-[11px] text-white outline-none"
+                        />
+                        <input
+                          value={newComboSkills}
+                          onChange={(e) => setNewComboSkills(e.target.value)}
+                          placeholder="Skills (comma-separated: ponytail, headroom, vitest)"
+                          className="rounded border border-[#333333] bg-[#121212] px-2.5 py-1.5 font-mono text-[10px] text-white outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={newComboDesc}
+                          onChange={(e) => setNewComboDesc(e.target.value)}
+                          placeholder="Short description / goal for this combo..."
+                          className="min-w-0 flex-1 rounded border border-[#333333] bg-[#121212] px-2.5 py-1.5 text-[11px] text-white outline-none"
+                        />
+                        <button
+                          type="button"
+                          disabled={comboSaving || !newComboName.trim() || !newComboSkills.trim()}
+                          onClick={() => void createCustomCombo()}
+                          className="flex shrink-0 items-center gap-1 rounded bg-[#e5e5e5] px-3 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-40"
+                        >
+                          <Plus size={11} /> Save Combo
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Saving & Custom Combos List */}
+                    <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                      {filteredCombos.map((combo) => {
+                        const comboKey = `combo:${combo.id}`
+                        const enabled = settings.enabledSkillIds.includes(comboKey)
+                        return (
+                          <div
+                            key={combo.id}
+                            className={`rounded border p-2.5 transition ${
+                              enabled
+                                ? 'border-[#6e6e6e] bg-[#242424]'
+                                : 'border-[#2b2b2b] bg-[#161616] hover:bg-[#1c1c1c]'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[11px] font-semibold text-white">
+                                    {combo.name}
+                                  </span>
+                                  <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[8px] text-[#e5e5e5]">
+                                    {combo.badge}
+                                  </span>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1">
+                                  <span className="rounded bg-[#111111] px-1.5 py-0.5 font-mono text-[9px] text-white">
+                                    {combo.command}
+                                  </span>
+                                  {combo.coreSkills.slice(0, 6).map((slug) => (
+                                    <span
+                                      key={slug}
+                                      className="rounded border border-[#2f2f2f] bg-[#1a1a1a] px-1 py-0.5 font-mono text-[8px] text-[#a3a3a3]"
+                                    >
+                                      /{slug}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-[9px] text-[#9d9d9d]">
+                                  {combo.description}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => copyCommand(combo.command)}
+                                  className="rounded border border-[#3a3a3a] bg-[#1d1d1d] px-1.5 py-1 text-[9px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white"
+                                  title={`Copy ${combo.command}`}
+                                >
+                                  {copiedCmd === combo.command ? (
+                                    <Check size={10} className="text-white" />
+                                  ) : (
+                                    <Copy size={10} />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSkill(comboKey)}
+                                  className={`grid size-5 place-items-center rounded border ${
+                                    enabled
+                                      ? 'border-[#e5e5e5] bg-[#e5e5e5] text-[#111111]'
+                                      : 'border-[#4a4a4a] text-transparent hover:border-[#737373]'
+                                  }`}
+                                  title="Pin combo as active"
+                                >
+                                  <Check size={10} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )
                       })}

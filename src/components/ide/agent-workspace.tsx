@@ -49,6 +49,7 @@ import {
   buildSlashCommands,
   extractActiveSlashQuery,
   SlashCommandPopover,
+  type SkillComboItem,
   type SkillIndexItem,
 } from './slash-command-popover'
 
@@ -68,6 +69,7 @@ export function AgentWorkspace({
   proposedPatches,
   pendingApproval,
   skills,
+  combos = [],
   mcpServers,
   plugins,
   onCreate,
@@ -93,6 +95,7 @@ export function AgentWorkspace({
   proposedPatches: ProposedPatch[]
   pendingApproval: PendingApprovalPlan | null
   skills: SkillIndexItem[]
+  combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   onCreate: () => void
@@ -219,6 +222,7 @@ export function AgentWorkspace({
       justReceivedMail={flightActivity.arrivedIds.includes(agent.id)}
       files={files}
       skills={skills}
+      combos={combos}
       mcpServers={mcpServers}
       plugins={plugins}
       peers={agents.filter((peer) => peer.id !== agent.id)}
@@ -512,6 +516,7 @@ function AgentPanel({
   justReceivedMail,
   files,
   skills,
+  combos = [],
   mcpServers,
   plugins,
   peers,
@@ -537,6 +542,7 @@ function AgentPanel({
   justReceivedMail: boolean
   files: WorkspaceFile[]
   skills: SkillIndexItem[]
+  combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   peers: Agent[]
@@ -569,8 +575,10 @@ function AgentPanel({
   const slashQuery = agent.composingPrompt ? null : extractActiveSlashQuery(draft)
   const slashItems = useMemo(
     () =>
-      slashQuery !== null ? buildSlashCommands(skills, mcpServers, plugins, slashQuery) : [],
-    [mcpServers, plugins, skills, slashQuery],
+      slashQuery !== null
+        ? buildSlashCommands(skills, mcpServers, plugins, slashQuery, combos)
+        : [],
+    [combos, mcpServers, plugins, skills, slashQuery],
   )
 
   return (
@@ -837,6 +845,7 @@ function AgentPanel({
             <SlashCommandPopover
               query={slashQuery}
               skills={skills}
+              combos={combos}
               mcpServers={mcpServers}
               plugins={plugins}
               selectedIndex={Math.min(slashIndex, Math.max(0, slashItems.length - 1))}
