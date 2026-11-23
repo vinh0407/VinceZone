@@ -194,6 +194,7 @@ export function AgentWorkspace({
     : visibleAgents
 
   const gridPlan = computeAgentGridPlan(agentsWithMainFirst.length, workspace.layout)
+  const isSolo = gridPlan.kind === 'single'
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
 
   const swapPanels = (targetId: string) => {
@@ -213,6 +214,7 @@ export function AgentWorkspace({
     <AgentPanel
       key={agent.id}
       agent={agent}
+      isSolo={isSolo}
       topologyRole={
         workspace.layout === 'equal'
           ? 'Peer'
@@ -267,17 +269,29 @@ export function AgentWorkspace({
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-[#1e1e1e]">
-      <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#2b2b2b] bg-[#181818] px-4 py-1.5">
-        <div className="flex items-center gap-2">
-          <LayoutGrid size={14} className="text-[#d4d4d4]" />
-          <span className="text-[12px] font-semibold text-white">
+      <div
+        className={`flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#2b2b2b] bg-[#181818] ${
+          isSolo ? 'min-h-12 px-5 py-2' : 'min-h-10 px-4 py-1.5'
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <LayoutGrid size={isSolo ? 17 : 14} className="text-[#d4d4d4]" />
+          <span className={`font-semibold text-white ${isSolo ? 'text-[14px]' : 'text-[12px]'}`}>
             VinceZone Multi-Agent Control Center
           </span>
-          <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[10px] text-[#a3a3a3]">
+          <span
+            className={`rounded bg-[#262626] font-mono text-[#a3a3a3] ${
+              isSolo ? 'px-2 py-0.5 text-[11.5px]' : 'px-1.5 py-0.5 text-[10px]'
+            }`}
+          >
             {agents.length} agent{agents.length === 1 ? '' : 's'} · unlimited
           </span>
           {tasks.length > 0 && (
-            <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[10px] text-[#e5e5e5]">
+            <span
+              className={`rounded bg-[#2a2a2a] font-mono text-[#e5e5e5] ${
+                isSolo ? 'px-2 py-0.5 text-[11.5px]' : 'px-1.5 py-0.5 text-[10px]'
+              }`}
+            >
               {tasks.filter((task) => task.status === 'completed').length}/{tasks.length} tasks
             </span>
           )}
@@ -286,22 +300,27 @@ export function AgentWorkspace({
           {communicationEvents.some((event) => event.recipientId) && (
             <button
               onClick={() => setReplayTrigger((count) => count + 1)}
-              className="flex items-center gap-1 rounded border border-[#333333] bg-[#222222] px-2 py-1 text-[11px] text-[#cccccc] hover:text-white"
+              className={`flex items-center gap-1.5 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
+                isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
+              }`}
               title="Replay last mail flights"
             >
-              <RotateCcw size={11} /> Replay
+              <RotateCcw size={isSolo ? 14 : 11} /> Replay
             </button>
           )}
           {pendingPatchCount > 0 && (
             <button
               onClick={() => onDiff()}
-              className="flex items-center gap-1.5 rounded border border-[#525252] bg-[#2a2a2a] px-2.5 py-1 text-[11px] text-[#f0f0f0] hover:bg-[#383838]"
+              className={`flex items-center gap-1.5 rounded border border-[#525252] bg-[#2a2a2a] text-[#f0f0f0] hover:bg-[#383838] ${
+                isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2.5 py-1 text-[11px]'
+              }`}
             >
-              <GitCompareArrows size={11} /> Diff ({pendingPatchCount})
+              <GitCompareArrows size={isSolo ? 14 : 11} /> Diff ({pendingPatchCount})
             </button>
           )}
           <SegmentedControl
             value={workspace.layout}
+            large={isSolo}
             onChange={(value) => setLayout(value as AgentLayout)}
             items={[
               { id: 'equal', label: '3:3 Peer' },
@@ -311,9 +330,11 @@ export function AgentWorkspace({
           />
           <button
             onClick={onCreate}
-            className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-3 py-1 text-[11px] font-medium text-[#111111] hover:bg-white"
+            className={`flex items-center gap-1.5 rounded bg-[#e5e5e5] font-medium text-[#111111] hover:bg-white ${
+              isSolo ? 'px-3.5 py-1.5 text-[12.5px]' : 'px-3 py-1 text-[11px]'
+            }`}
           >
-            <MessageSquarePlus size={12} /> New agent
+            <MessageSquarePlus size={isSolo ? 15 : 12} /> New agent
           </button>
         </div>
       </div>
@@ -392,8 +413,16 @@ export function AgentWorkspace({
         />
 
         {workspace.minimized.length > 0 && (
-          <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-[#2b2b2b] bg-[#141414] px-3">
-            <span className="mr-1 text-[9px] uppercase tracking-widest text-[#737373]">
+          <div
+            className={`flex shrink-0 items-center border-b border-[#2b2b2b] bg-[#141414] ${
+              isSolo ? 'h-10 gap-2 px-5' : 'h-8 gap-1.5 px-3'
+            }`}
+          >
+            <span
+              className={`mr-1 uppercase tracking-widest text-[#737373] ${
+                isSolo ? 'text-[11px]' : 'text-[9px]'
+              }`}
+            >
               Minimized
             </span>
             {workspace.minimized.map((id) => {
@@ -409,9 +438,11 @@ export function AgentWorkspace({
                       minimized: current.minimized.filter((item) => item !== id),
                     }))
                   }
-                  className="flex items-center gap-1 rounded border border-[#333333] bg-[#222222] px-2 py-1 text-[10px] text-[#cccccc] hover:text-white"
+                  className={`flex items-center gap-1 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
+                    isSolo ? 'px-2.5 py-1 text-[12px]' : 'px-2 py-1 text-[10px]'
+                  }`}
                 >
-                  <ChevronDown size={10} /> {agent.name}
+                  <ChevronDown size={isSolo ? 13 : 10} /> {agent.name}
                 </button>
               )
             })}
@@ -474,10 +505,12 @@ export function AgentWorkspace({
 function SegmentedControl({
   value,
   items,
+  large = false,
   onChange,
 }: {
   value: string
   items: Array<{ id: string; label: string }>
+  large?: boolean
   onChange: (value: string) => void
 }) {
   return (
@@ -486,7 +519,7 @@ function SegmentedControl({
         <button
           key={item.id}
           onClick={() => onChange(item.id)}
-          className={`rounded px-2 py-1 text-[10px] ${
+          className={`rounded ${large ? 'px-3 py-1.5 text-[12px]' : 'px-2 py-1 text-[10px]'} ${
             value === item.id ? 'bg-[#2f2f2f] text-white' : 'text-[#858585] hover:text-[#cccccc]'
           }`}
         >
@@ -521,6 +554,7 @@ function EmptyAgents({ onCreate }: { onCreate: () => void }) {
 
 function AgentPanel({
   agent,
+  isSolo = false,
   topologyRole,
   isSendingMail,
   justReceivedMail,
@@ -549,6 +583,7 @@ function AgentPanel({
   onPromote,
 }: {
   agent: Agent
+  isSolo?: boolean
   topologyRole: 'Peer' | 'Planner' | 'Coordinator' | 'Worker'
   isSendingMail: boolean
   justReceivedMail: boolean
@@ -597,6 +632,12 @@ function AgentPanel({
     [combos, mcpServers, plugins, skills, slashQuery],
   )
 
+  const headerBtnClass = isSolo
+    ? 'grid size-8 place-items-center rounded-md text-[#b3b3b3] transition hover:bg-[#2a2a2a] hover:text-white'
+    : 'mini-button'
+  const headerIconSize = isSolo ? 16 : 11
+  const headerCloseIconSize = isSolo ? 17 : 12
+
   return (
     <article
       data-agent-panel={agent.id}
@@ -608,128 +649,203 @@ function AgentPanel({
         agent.status === 'running' || agent.status === 'reviewing' ? 'agent-panel-running' : ''
       } ${isSendingMail ? 'mail-panel-sending' : ''} ${justReceivedMail ? 'mail-panel-arrived' : ''}`}
     >
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <GripVertical size={12} className="shrink-0 text-[#5c5c5c]" />
+      <div
+        className={`flex shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] ${
+          isSolo ? 'h-16 px-5' : 'h-11 px-3'
+        }`}
+      >
+        <div className={`flex min-w-0 items-center ${isSolo ? 'gap-3.5' : 'gap-2.5'}`}>
+          <GripVertical size={isSolo ? 16 : 12} className="shrink-0 text-[#5c5c5c]" />
           <button
             type="button"
             onClick={() => setModelPickerOpen((prev) => !prev)}
             title="Nhấp vào hình robot để đổi Model / Provider cho Agent này"
-            className={`relative grid size-7 shrink-0 place-items-center rounded transition ${
+            className={`relative grid shrink-0 place-items-center transition ${
+              isSolo ? 'size-10 rounded-lg' : 'size-7 rounded'
+            } ${
               modelPickerOpen
                 ? 'bg-[#e5e5e5] text-[#111111]'
                 : 'bg-[#262626] hover:bg-[#333333]'
             }`}
           >
             <Bot
-              size={14}
+              size={isSolo ? 21 : 14}
               style={{ color: modelPickerOpen ? '#111111' : agent.accent }}
             />
             <span
-              className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border-2 border-[#181818]"
+              className={`absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-[#181818] ${
+                isSolo ? 'size-2.5' : 'size-2'
+              }`}
               style={{ background: agent.status === 'blocked' ? '#f48771' : agent.accent }}
             />
           </button>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="truncate text-[11px] font-semibold text-white">{agent.name}</h2>
+            <div className={`flex items-center ${isSolo ? 'gap-2' : 'gap-1.5'}`}>
+              <h2
+                className={`truncate font-semibold text-white ${
+                  isSolo ? 'text-[15.5px]' : 'text-[11px]'
+                }`}
+              >
+                {agent.name}
+              </h2>
               {agent.roleId && agent.roleId !== 'custom' && (
-                <span className="rounded bg-[#262626] px-1 py-0.5 font-mono text-[8px] uppercase text-[#d4d4d4]">
+                <span
+                  className={`rounded bg-[#262626] font-mono uppercase text-[#d4d4d4] ${
+                    isSolo ? 'px-2 py-0.5 text-[11px]' : 'px-1 py-0.5 text-[8px]'
+                  }`}
+                >
                   @{agent.roleId}
                 </span>
               )}
               {topologyRole !== 'Worker' && (
-                <span className="rounded bg-[#333333] px-1 py-0.5 text-[7px] uppercase text-[#e5e5e5]">
+                <span
+                  className={`rounded bg-[#333333] uppercase text-[#e5e5e5] ${
+                    isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1 py-0.5 text-[7px]'
+                  }`}
+                >
                   {topologyRole}
                 </span>
               )}
             </div>
-            <p className="truncate text-[9px] text-[#858585]">{agent.currentTask || agent.role}</p>
+            <p
+              className={`truncate text-[#8f8f8f] ${
+                isSolo ? 'mt-0.5 text-[12.5px]' : 'text-[9px]'
+              }`}
+            >
+              {agent.currentTask || agent.role}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className={`flex items-center ${isSolo ? 'gap-1.5' : 'gap-0.5'}`}>
           <button
-            className="agent-panel-optional mini-button"
+            className={`agent-panel-optional ${headerBtnClass}`}
             title="Edit role, Soul, Mission, Memory & Model"
             onClick={onEdit}
           >
-            <Pencil size={11} />
+            <Pencil size={headerIconSize} />
           </button>
           <button
-            className="agent-panel-optional mini-button"
+            className={`agent-panel-optional ${headerBtnClass}`}
             title="Promote to main panel"
             onClick={onPromote}
           >
-            <Maximize2 size={11} />
+            <Maximize2 size={headerIconSize} />
           </button>
           <button
-            className="agent-panel-optional mini-button"
+            className={`agent-panel-optional ${headerBtnClass}`}
             title={agent.status === 'paused' ? 'Resume' : 'Pause or stop'}
             onClick={onPause}
           >
-            {agent.status === 'paused' ? <Play size={11} /> : <Pause size={11} />}
+            {agent.status === 'paused' ? (
+              <Play size={headerIconSize} />
+            ) : (
+              <Pause size={headerIconSize} />
+            )}
           </button>
           <button
-            className="agent-panel-optional mini-button"
+            className={`agent-panel-optional ${headerBtnClass}`}
             title="Duplicate agent"
             onClick={onDuplicate}
           >
-            <Copy size={11} />
+            <Copy size={headerIconSize} />
           </button>
-          <button className="mini-button" title="Minimize" onClick={onMinimize}>
-            <PanelTopClose size={12} />
+          <button className={headerBtnClass} title="Minimize" onClick={onMinimize}>
+            <PanelTopClose size={headerCloseIconSize} />
           </button>
-          <button className="mini-button" title="Close" onClick={onClose}>
-            <X size={12} />
+          <button className={headerBtnClass} title="Close" onClick={onClose}>
+            <X size={headerCloseIconSize} />
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-[#242424] bg-[#161616] px-3 py-1.5 text-[9px] text-[#858585]">
+      <div
+        className={`flex items-center border-b border-[#242424] bg-[#161616] text-[#9a9a9a] ${
+          isSolo ? 'gap-3 px-5 py-2.5 text-[12.5px]' : 'gap-2 px-3 py-1.5 text-[9px]'
+        }`}
+      >
         <span className="capitalize">{agent.status}</span>
         {agent.composingPrompt && (
-          <span className="rounded bg-[#333333] px-1.5 py-0.5 text-[8px] font-medium uppercase text-white">
+          <span
+            className={`rounded bg-[#333333] font-medium uppercase text-white ${
+              isSolo ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[8px]'
+            }`}
+          >
             Typing command…
           </span>
         )}
         {isSendingMail && (
-          <span className="flex items-center gap-0.5 rounded bg-[#333333] px-1.5 py-0.5 text-[8px] uppercase text-[#f5f5f5]">
-            <Mail size={8} /> Sending
+          <span
+            className={`flex items-center gap-1 rounded bg-[#333333] uppercase text-[#f5f5f5] ${
+              isSolo ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[8px]'
+            }`}
+          >
+            <Mail size={isSolo ? 12 : 8} /> Sending
           </span>
         )}
         {justReceivedMail && (
-          <span className="flex items-center gap-0.5 rounded bg-[#e5e5e5] px-1.5 py-0.5 text-[8px] font-medium uppercase text-[#111111]">
-            <Mail size={8} /> Received
+          <span
+            className={`flex items-center gap-1 rounded bg-[#e5e5e5] font-medium uppercase text-[#111111] ${
+              isSolo ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[8px]'
+            }`}
+          >
+            <Mail size={isSolo ? 12 : 8} /> Received
           </span>
         )}
-        <span className="ml-auto max-w-[45%] truncate rounded border border-[#2b2b2b] bg-[#1e1e1e] px-1.5 py-0.5 text-[#a3a3a3]">
+        <button
+          type="button"
+          onClick={() => setModelPickerOpen((prev) => !prev)}
+          title="Đổi Model / Provider"
+          className={`ml-auto max-w-[45%] truncate rounded border border-[#2b2b2b] bg-[#1e1e1e] font-mono text-[#c8c8c8] transition hover:border-[#4b4b4b] hover:text-white ${
+            isSolo ? 'px-3 py-1 text-[12px]' : 'px-1.5 py-0.5'
+          }`}
+        >
           {agent.model}
-        </span>
+        </button>
         <button
           onClick={() => onView('chat')}
           title="Chat view"
-          className={view === 'chat' ? 'text-white' : ''}
+          className={`${
+            isSolo
+              ? 'grid size-8 place-items-center rounded-md hover:bg-[#262626]'
+              : ''
+          } ${view === 'chat' ? 'bg-[#262626] text-white' : ''}`}
         >
-          <MessageSquare size={10} />
+          <MessageSquare size={isSolo ? 16 : 10} />
         </button>
         <button
           onClick={() => onView('terminal')}
           title="Terminal view"
-          className={view === 'terminal' ? 'text-white' : ''}
+          className={`${
+            isSolo
+              ? 'grid size-8 place-items-center rounded-md hover:bg-[#262626]'
+              : ''
+          } ${view === 'terminal' ? 'bg-[#262626] text-white' : ''}`}
         >
-          <TerminalSquare size={10} />
+          <TerminalSquare size={isSolo ? 16 : 10} />
         </button>
       </div>
 
       {modelPickerOpen && (
-        <div className="max-h-40 overflow-y-auto border-b border-[#333333] bg-[#141414] p-2">
-          <div className="mb-1 flex items-center justify-between text-[9px] font-semibold uppercase text-[#a3a3a3]">
+        <div
+          className={`overflow-y-auto border-b border-[#333333] bg-[#141414] ${
+            isSolo ? 'max-h-64 p-3.5' : 'max-h-40 p-2'
+          }`}
+        >
+          <div
+            className={`mb-1.5 flex items-center justify-between font-semibold uppercase text-[#a3a3a3] ${
+              isSolo ? 'text-[12px]' : 'text-[9px]'
+            }`}
+          >
             <span>Chọn Model cho {agent.name}</span>
-            <button type="button" onClick={() => setModelPickerOpen(false)} className="mini-button">
-              <X size={10} />
+            <button
+              type="button"
+              onClick={() => setModelPickerOpen(false)}
+              className={headerBtnClass}
+            >
+              <X size={isSolo ? 15 : 10} />
             </button>
           </div>
-          <div className="space-y-0.5">
+          <div className={isSolo ? 'space-y-1' : 'space-y-0.5'}>
             {providers.flatMap((p) =>
               (p.models || p.model || '')
                 .split(',')
@@ -745,14 +861,20 @@ function AgentPanel({
                         onChangeModel?.(p.id, m)
                         setModelPickerOpen(false)
                       }}
-                      className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-[9px] ${
+                      className={`flex w-full items-center justify-between rounded text-left ${
+                        isSolo ? 'px-3 py-2 text-[13px]' : 'px-2 py-1 text-[9px]'
+                      } ${
                         selected
                           ? 'bg-[#2e2e2e] font-semibold text-white'
                           : 'text-[#cccccc] hover:bg-[#222222]'
                       }`}
                     >
                       <span className="truncate font-mono">{m}</span>
-                      <span className="ml-2 shrink-0 text-[8px] text-[#7a7a7a]">
+                      <span
+                        className={`ml-2 shrink-0 text-[#7a7a7a] ${
+                          isSolo ? 'text-[11px]' : 'text-[8px]'
+                        }`}
+                      >
                         {p.name || p.id}
                       </span>
                     </button>
@@ -764,91 +886,150 @@ function AgentPanel({
       )}
 
       {(agent.status === 'running' || agent.status === 'reviewing') && (
-        <div className="relative flex h-6 shrink-0 items-center gap-2 overflow-hidden border-b border-[#2b2b2b] bg-[#1b1b1b] px-3 text-[9px] text-[#d4d4d4]">
-          <span className="agent-orbit size-1.5 rounded-full bg-[#e5e5e5]" />
+        <div
+          className={`relative flex shrink-0 items-center overflow-hidden border-b border-[#2b2b2b] bg-[#1b1b1b] text-[#d4d4d4] ${
+            isSolo ? 'h-9 gap-2.5 px-5 text-[12.5px]' : 'h-6 gap-2 px-3 text-[9px]'
+          }`}
+        >
+          <span
+            className={`agent-orbit rounded-full bg-[#e5e5e5] ${isSolo ? 'size-2' : 'size-1.5'}`}
+          />
           {agent.status === 'reviewing' ? 'Reviewing worker reports' : 'Runtime response active'}
           <span className="agent-progress absolute inset-x-0 bottom-0 h-px bg-[#e5e5e5]" />
         </div>
       )}
 
       {view === 'chat' ? (
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
-          {agent.messages.map((message) =>
-            message.role === 'tool' ? (
-              <div
-                key={message.id}
-                className="rounded border border-[#2b2b2b] bg-[#1c1c1c] p-2"
-              >
-                <div className="flex items-center gap-1.5 text-[9px] font-medium text-[#a3a3a3]">
-                  <TerminalSquare size={11} /> Runtime event
-                  <Check size={10} className="ml-auto text-[#e5e5e5]" />
-                </div>
-                <p className="mt-1 text-[10px] leading-4 text-[#a3a3a3]">{message.text}</p>
-                {message.codeSnippet && (
-                  <pre className="mt-1.5 overflow-x-auto rounded border border-[#2f2f2f] bg-[#111111] p-2 font-mono text-[9px] text-[#e5e5e5]">
-                    <code>{message.codeSnippet}</code>
-                  </pre>
-                )}
-                {message.change && (
-                  <button
-                    onClick={() => onDiff(message.patchId)}
-                    className="mt-2 flex w-full items-center justify-between rounded border border-[#454545] bg-[#262626] px-2 py-1.5 text-[9px] text-white hover:bg-[#333333]"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <GitCompareArrows size={11} /> Review proposed changes
-                    </span>
-                    <span>Diff</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto ${
+            isSolo ? 'px-6 py-5' : 'space-y-2.5 p-3'
+          }`}
+        >
+          <div className={isSolo ? 'mx-auto w-full max-w-5xl space-y-4' : 'space-y-2.5'}>
+            {agent.messages.map((message) =>
+              message.role === 'tool' ? (
                 <div
-                  className={`min-w-0 rounded-lg px-3 py-2 ${
-                    message.role === 'user'
-                      ? 'max-w-[90%] whitespace-pre-wrap bg-[#2a2a2a] text-[10.5px] leading-[1.55] text-white'
-                      : message.role === 'agent'
-                        ? 'w-full max-w-[98%] border border-[#454545] bg-[#202020] text-[#e5e5e5]'
-                        : 'w-full max-w-[98%] border border-[#2b2b2b] bg-[#1a1a1a] text-[#cccccc]'
+                  key={message.id}
+                  className={`rounded-lg border border-[#2b2b2b] bg-[#1c1c1c] ${
+                    isSolo ? 'p-3.5' : 'p-2'
                   }`}
                 >
-                  {message.role === 'agent' && (
-                    <div className="mb-1.5 flex items-center gap-1 border-b border-[#323232] pb-1 text-[8.5px] font-semibold uppercase tracking-wider text-[#a3a3a3]">
-                      {message.codeSnippet ? <Code2 size={9} /> : <Mail size={9} />}
-                      <span>
-                        {message.from} → {agent.name}
-                      </span>
-                    </div>
-                  )}
-                  {message.text ? (
-                    message.role === 'user' ? (
-                      <HighlightedChatText text={message.text} />
-                    ) : (
-                      <MarkdownReply text={message.text} compact />
-                    )
-                  ) : (
-                    <span className="streaming-dots">Generating</span>
-                  )}
+                  <div
+                    className={`flex items-center gap-2 font-medium text-[#a3a3a3] ${
+                      isSolo ? 'text-[12.5px]' : 'text-[9px]'
+                    }`}
+                  >
+                    <TerminalSquare size={isSolo ? 15 : 11} /> Runtime event
+                    <Check size={isSolo ? 14 : 10} className="ml-auto text-[#e5e5e5]" />
+                  </div>
+                  <p
+                    className={`mt-1.5 text-[#b5b5b5] ${
+                      isSolo ? 'text-[13px] leading-5' : 'text-[10px] leading-4'
+                    }`}
+                  >
+                    {message.text}
+                  </p>
                   {message.codeSnippet && (
-                    <pre className="mt-2 overflow-x-auto rounded border border-[#333333] bg-[#101010] p-2 font-mono text-[9px] leading-4 text-[#f0f0f0]">
+                    <pre
+                      className={`mt-2 overflow-x-auto rounded border border-[#2f2f2f] bg-[#111111] font-mono text-[#e5e5e5] ${
+                        isSolo ? 'p-3 text-[12.5px] leading-5' : 'p-2 text-[9px]'
+                      }`}
+                    >
                       <code>{message.codeSnippet}</code>
                     </pre>
                   )}
+                  {message.change && (
+                    <button
+                      onClick={() => onDiff(message.patchId)}
+                      className={`mt-2.5 flex w-full items-center justify-between rounded border border-[#454545] bg-[#262626] text-white hover:bg-[#333333] ${
+                        isSolo ? 'px-3.5 py-2 text-[12.5px]' : 'px-2 py-1.5 text-[9px]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <GitCompareArrows size={isSolo ? 15 : 11} /> Review proposed changes
+                      </span>
+                      <span>Diff</span>
+                    </button>
+                  )}
                 </div>
-              </div>
-            ),
-          )}
+              ) : (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`min-w-0 ${
+                      isSolo ? 'rounded-xl' : 'rounded-lg'
+                    } ${
+                      message.role === 'user'
+                        ? isSolo
+                          ? 'max-w-[78%] whitespace-pre-wrap bg-[#2a2a2a] px-4 py-3 text-[14.5px] leading-[1.6] text-white'
+                          : 'max-w-[90%] whitespace-pre-wrap bg-[#2a2a2a] px-3 py-2 text-[10.5px] leading-[1.55] text-white'
+                        : message.role === 'agent'
+                          ? `w-full max-w-[98%] border border-[#454545] bg-[#202020] text-[#e5e5e5] ${
+                              isSolo ? 'px-5 py-4' : 'px-3 py-2'
+                            }`
+                          : `w-full max-w-[98%] border border-[#2b2b2b] bg-[#1a1a1a] text-[#cccccc] ${
+                              isSolo ? 'px-5 py-4' : 'px-3 py-2'
+                            }`
+                    }`}
+                  >
+                    {message.role === 'agent' && (
+                      <div
+                        className={`mb-2 flex items-center gap-1.5 border-b border-[#323232] pb-1.5 font-semibold uppercase tracking-wider text-[#a3a3a3] ${
+                          isSolo ? 'text-[11px]' : 'text-[8.5px]'
+                        }`}
+                      >
+                        {message.codeSnippet ? (
+                          <Code2 size={isSolo ? 13 : 9} />
+                        ) : (
+                          <Mail size={isSolo ? 13 : 9} />
+                        )}
+                        <span>
+                          {message.from} → {agent.name}
+                        </span>
+                      </div>
+                    )}
+                    {message.text ? (
+                      message.role === 'user' ? (
+                        <HighlightedChatText text={message.text} />
+                      ) : (
+                        <MarkdownReply
+                          text={message.text}
+                          size={isSolo ? 'large' : 'compact'}
+                        />
+                      )
+                    ) : (
+                      <span className={`streaming-dots ${isSolo ? 'text-[14px]' : ''}`}>
+                        Generating
+                      </span>
+                    )}
+                    {message.codeSnippet && (
+                      <pre
+                        className={`mt-2.5 overflow-x-auto rounded border border-[#333333] bg-[#101010] font-mono text-[#f0f0f0] ${
+                          isSolo ? 'p-3.5 text-[12.5px] leading-5' : 'p-2 text-[9px] leading-4'
+                        }`}
+                      >
+                        <code>{message.codeSnippet}</code>
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
         </div>
       ) : (
-        <AgentTerminal agent={agent} />
+        <AgentTerminal agent={agent} isSolo={isSolo} />
       )}
 
-      <div className="shrink-0 border-t border-[#2b2b2b] bg-[#181818] p-2.5">
+      <div
+        className={`shrink-0 border-t border-[#2b2b2b] bg-[#181818] ${
+          isSolo ? 'px-6 py-4' : 'p-2.5'
+        }`}
+      >
         <div
-          className={`rounded-lg border bg-[#131313] transition ${
+          className={`${isSolo ? 'mx-auto w-full max-w-5xl rounded-xl' : 'rounded-lg'} border bg-[#131313] transition ${
             agent.composingPrompt
               ? 'border-[#e5e5e5] ring-1 ring-white/20'
               : 'border-[#333333] focus-within:border-[#737373]'
@@ -871,15 +1052,21 @@ function AgentPanel({
             />
           )}
           {delegationOpen && (
-            <div className="border-b border-[#2b2b2b] bg-[#1b1b1b] p-2">
-              <div className="mb-1.5 flex items-center gap-1 text-[8px] uppercase tracking-wider text-[#a3a3a3]">
-                <Mail size={9} /> Dispatch prompt from {agent.name}
+            <div className={`border-b border-[#2b2b2b] bg-[#1b1b1b] ${isSolo ? 'p-3.5' : 'p-2'}`}>
+              <div
+                className={`mb-2 flex items-center gap-1.5 uppercase tracking-wider text-[#a3a3a3] ${
+                  isSolo ? 'text-[11px]' : 'text-[8px]'
+                }`}
+              >
+                <Mail size={isSolo ? 13 : 9} /> Dispatch prompt from {agent.name}
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 <select
                   value={delegateTarget}
                   onChange={(event) => setDelegateTarget(event.target.value)}
-                  className="w-28 rounded border border-[#333333] bg-[#141414] px-1.5 text-[9px] text-[#cccccc]"
+                  className={`rounded border border-[#333333] bg-[#141414] text-[#cccccc] ${
+                    isSolo ? 'w-40 px-2.5 py-2 text-[12.5px]' : 'w-28 px-1.5 text-[9px]'
+                  }`}
                 >
                   {peers.map((peer) => (
                     <option key={peer.id} value={peer.id}>
@@ -891,7 +1078,9 @@ function AgentPanel({
                   value={delegatePrompt}
                   onChange={(event) => setDelegatePrompt(event.target.value)}
                   placeholder="Task prompt & code instructions…"
-                  className="min-w-0 flex-1 rounded border border-[#333333] bg-[#101010] px-2 py-1.5 text-[9px] text-white outline-none"
+                  className={`min-w-0 flex-1 rounded border border-[#333333] bg-[#101010] text-white outline-none ${
+                    isSolo ? 'px-3 py-2 text-[13px]' : 'px-2 py-1.5 text-[9px]'
+                  }`}
                 />
                 <button
                   onClick={() => {
@@ -900,9 +1089,11 @@ function AgentPanel({
                     setDelegationOpen(false)
                   }}
                   disabled={!delegatePrompt.trim() || !delegateTarget}
-                  className="grid size-6 place-items-center rounded bg-[#e5e5e5] text-[#111111] disabled:opacity-20"
+                  className={`grid place-items-center rounded bg-[#e5e5e5] text-[#111111] disabled:opacity-20 ${
+                    isSolo ? 'size-9' : 'size-6'
+                  }`}
                 >
-                  <Send size={10} />
+                  <Send size={isSolo ? 15 : 10} />
                 </button>
               </div>
             </div>
@@ -927,8 +1118,8 @@ function AgentPanel({
             textareaRef={textareaRef}
             value={effectiveDraft}
             readOnly={Boolean(agent.composingPrompt)}
-            rows={2}
-            size="sm"
+            rows={isSolo ? 3 : 2}
+            size={isSolo ? 'lg' : 'sm'}
             mono={Boolean(agent.composingPrompt)}
             placeholder={`Message ${agent.name}… Type / for skills, MCP & plugins`}
             onChange={(nextValue) => {
@@ -968,20 +1159,32 @@ function AgentPanel({
               }
             }}
           />
-          <div className="flex items-center justify-between px-2 pb-1.5">
-            <div className="flex gap-1">
+          <div
+            className={`flex items-center justify-between ${
+              isSolo ? 'px-3.5 pb-3 pt-1' : 'px-2 pb-1.5'
+            }`}
+          >
+            <div className={`flex ${isSolo ? 'gap-2' : 'gap-1'}`}>
               <button
-                className={`mini-button ${contextPickerOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
+                className={`${
+                  isSolo
+                    ? 'grid size-9 place-items-center rounded-md text-[#b3b3b3] transition hover:bg-[#2a2a2a] hover:text-white'
+                    : 'mini-button'
+                } ${contextPickerOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
                 title="Add Context"
                 onClick={() => {
                   setContextPickerOpen((prev) => !prev)
                   setDelegationOpen(false)
                 }}
               >
-                <Plus size={11} />
+                <Plus size={isSolo ? 18 : 11} />
               </button>
               <button
-                className="mini-button font-mono text-[10px] font-semibold"
+                className={`${
+                  isSolo
+                    ? 'grid size-9 place-items-center rounded-md font-mono text-[16px] font-bold text-[#b3b3b3] transition hover:bg-[#2a2a2a] hover:text-white'
+                    : 'mini-button font-mono text-[10px] font-semibold'
+                }`}
                 title="Invoke /skill, /mcp or /plugin"
                 onClick={() => {
                   onDraft(`${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}/`)
@@ -991,7 +1194,11 @@ function AgentPanel({
                 /
               </button>
               <button
-                className={`mini-button ${delegationOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
+                className={`${
+                  isSolo
+                    ? 'grid size-9 place-items-center rounded-md text-[#b3b3b3] transition hover:bg-[#2a2a2a] hover:text-white disabled:opacity-30'
+                    : 'mini-button'
+                } ${delegationOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
                 title="Dispatch prompt / delegate task to another agent"
                 disabled={peers.length === 0}
                 onClick={() => {
@@ -999,25 +1206,29 @@ function AgentPanel({
                   setContextPickerOpen(false)
                 }}
               >
-                <Mail size={11} />
+                <Mail size={isSolo ? 17 : 11} />
               </button>
             </div>
             {agent.status === 'running' || agent.status === 'reviewing' ? (
               <button
                 onClick={onPause}
-                className="grid size-5 place-items-center rounded bg-[#3a3a3a] text-white"
+                className={`grid place-items-center rounded-md bg-[#3a3a3a] text-white hover:bg-[#4a4a4a] ${
+                  isSolo ? 'size-9' : 'size-5 rounded'
+                }`}
               >
-                <Square size={9} fill="currentColor" />
+                <Square size={isSolo ? 14 : 9} fill="currentColor" />
               </button>
             ) : (
               <button
                 onClick={onSend}
                 disabled={!effectiveDraft.trim()}
-                className={`grid size-5 place-items-center rounded text-[#111111] transition disabled:opacity-20 ${
+                className={`grid place-items-center text-[#111111] transition disabled:opacity-20 ${
+                  isSolo ? 'size-9 rounded-lg' : 'size-5 rounded'
+                } ${
                   agent.composingPrompt ? 'scale-110 bg-white shadow' : 'bg-[#e5e5e5] hover:bg-white'
                 }`}
               >
-                <Send size={10} />
+                <Send size={isSolo ? 16 : 10} />
               </button>
             )}
           </div>
@@ -1027,9 +1238,13 @@ function AgentPanel({
   )
 }
 
-function AgentTerminal({ agent }: { agent: Agent }) {
+function AgentTerminal({ agent, isSolo = false }: { agent: Agent; isSolo?: boolean }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#111111] p-3 font-mono text-[10px] leading-[1.65] text-[#9a9a9a]">
+    <div
+      className={`min-h-0 flex-1 overflow-y-auto bg-[#111111] font-mono text-[#9a9a9a] ${
+        isSolo ? 'p-6 text-[13px] leading-[1.75]' : 'p-3 text-[10px] leading-[1.65]'
+      }`}
+    >
       <p className="text-[#666666]">VinceZone Runtime · session {agent.id.slice(0, 8)}</p>
       <p>
         <span className="text-[#e5e5e5]">●</span> provider session · {agent.status}
@@ -1041,7 +1256,13 @@ function AgentTerminal({ agent }: { agent: Agent }) {
       <div className="my-3 border-t border-dashed border-[#2b2b2b]" />
       {agent.messages.map((message) => (
         <div key={message.id} className="mb-3">
-          <p className="text-[9px] uppercase tracking-wider text-[#666666]">{message.role}</p>
+          <p
+            className={`uppercase tracking-wider text-[#666666] ${
+              isSolo ? 'text-[11px]' : 'text-[9px]'
+            }`}
+          >
+            {message.role}
+          </p>
           <p className="whitespace-pre-wrap text-[#cccccc]">
             {message.text || 'runtime event active...'}
           </p>

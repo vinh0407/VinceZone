@@ -97,7 +97,7 @@ export function HighlightedChatTextarea({
   readOnly?: boolean
   rows?: number
   placeholder: string
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   mono?: boolean
   onChange: (next: string) => void
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
@@ -106,9 +106,11 @@ export function HighlightedChatTextarea({
   const segments = useMemo(() => tokenizeChatHighlights(value), [value])
 
   const typography =
-    size === 'sm'
-      ? `px-2.5 pt-2 pb-1 text-[10px] leading-4 ${mono ? 'font-mono' : 'font-sans'}`
-      : `px-2.5 pt-2 pb-1 text-[11px] leading-4 ${mono ? 'font-mono' : 'font-sans'}`
+    size === 'lg'
+      ? `px-4 pt-3.5 pb-2 text-[14.5px] leading-6 ${mono ? 'font-mono' : 'font-sans'}`
+      : size === 'sm'
+        ? `px-2.5 pt-2 pb-1 text-[10px] leading-4 ${mono ? 'font-mono' : 'font-sans'}`
+        : `px-2.5 pt-2 pb-1 text-[11px] leading-4 ${mono ? 'font-mono' : 'font-sans'}`
 
   const syncScroll = (target: HTMLTextAreaElement) => {
     if (!backdropRef.current) return

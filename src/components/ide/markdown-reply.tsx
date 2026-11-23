@@ -141,7 +141,15 @@ function highlightCodeLine(line: string) {
   return parts.length ? parts : line
 }
 
-function CodeBlockCard({ language, content }: { language: string; content: string }) {
+function CodeBlockCard({
+  language,
+  content,
+  large = false,
+}: {
+  language: string
+  content: string
+  large?: boolean
+}) {
   const [copied, setCopied] = useState(false)
   const isAsciiDiagram = /[┌┐└┘├┤┬┴┼─│▼▲►◄→←↓↑]/.test(content)
 
@@ -155,21 +163,43 @@ function CodeBlockCard({ language, content }: { language: string; content: strin
 
   return (
     <div className="my-2 overflow-hidden rounded-lg border border-[#323232] bg-[#101010]">
-      <div className="flex items-center justify-between border-b border-[#262626] bg-[#181818] px-2.5 py-1">
-        <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-wider text-[#9d9d9d]">
-          {isAsciiDiagram ? <GitBranch size={11} /> : <Code2 size={11} />}
+      <div
+        className={`flex items-center justify-between border-b border-[#262626] bg-[#181818] ${
+          large ? 'px-3.5 py-2' : 'px-2.5 py-1'
+        }`}
+      >
+        <span
+          className={`flex items-center gap-1.5 font-mono uppercase tracking-wider text-[#9d9d9d] ${
+            large ? 'text-[11.5px]' : 'text-[9.5px]'
+          }`}
+        >
+          {isAsciiDiagram ? (
+            <GitBranch size={large ? 14 : 11} />
+          ) : (
+            <Code2 size={large ? 14 : 11} />
+          )}
           {isAsciiDiagram && language === 'text' ? 'diagram' : language}
         </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] text-[#a3a3a3] transition hover:bg-[#2a2a2a] hover:text-white"
+          className={`flex items-center gap-1 rounded px-2 py-0.5 text-[#a3a3a3] transition hover:bg-[#2a2a2a] hover:text-white ${
+            large ? 'text-[11.5px]' : 'text-[9.5px]'
+          }`}
         >
-          {copied ? <Check size={10} className="text-white" /> : <Copy size={10} />}
+          {copied ? (
+            <Check size={large ? 13 : 10} className="text-white" />
+          ) : (
+            <Copy size={large ? 13 : 10} />
+          )}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto p-2.5 font-mono text-[10.5px] leading-[1.6] text-[#e5e5e5]">
+      <pre
+        className={`overflow-x-auto font-mono text-[#e5e5e5] ${
+          large ? 'p-3.5 text-[13px] leading-[1.65]' : 'p-2.5 text-[10.5px] leading-[1.6]'
+        }`}
+      >
         <code>
           {isAsciiDiagram
             ? content
@@ -577,15 +607,23 @@ function CalloutBlock({
 export function MarkdownReply({
   text,
   compact = false,
+  size,
 }: {
   text: string
   compact?: boolean
+  size?: 'compact' | 'normal' | 'large'
 }) {
   const blocks = useMemo(() => parseMarkdownBlocks(text), [text])
-  const baseText = compact ? 'text-[10.5px] leading-[1.6]' : 'text-[11.5px] leading-[1.65]'
+  const effectiveSize = size ?? (compact ? 'compact' : 'normal')
+  const isLarge = effectiveSize === 'large'
+  const baseText = isLarge
+    ? 'text-[14.5px] leading-[1.72]'
+    : effectiveSize === 'compact'
+      ? 'text-[10.5px] leading-[1.6]'
+      : 'text-[11.5px] leading-[1.65]'
 
   return (
-    <div className={`min-w-0 space-y-2 text-[#d4d4d4] ${baseText}`}>
+    <div className={`min-w-0 ${isLarge ? 'space-y-3' : 'space-y-2'} text-[#d4d4d4] ${baseText}`}>
       {blocks.map((block: MarkdownBlock, idx: number) => {
         if (block.type === 'hr') {
           return <hr key={idx} className="my-2.5 border-t border-[#2f2f2f]" />
@@ -596,7 +634,9 @@ export function MarkdownReply({
             return (
               <h1
                 key={idx}
-                className="mt-2 border-b border-[#333333] pb-1.5 text-[14px] font-bold tracking-tight text-white"
+                className={`mt-2 border-b border-[#333333] pb-1.5 font-bold tracking-tight text-white ${
+                  isLarge ? 'text-[20px]' : 'text-[14px]'
+                }`}
               >
                 <InlineContent text={block.text} />
               </h1>
@@ -606,7 +646,9 @@ export function MarkdownReply({
             return (
               <h2
                 key={idx}
-                className="mt-2.5 border-b border-[#282828] pb-1 text-[12.5px] font-bold text-white"
+                className={`mt-2.5 border-b border-[#282828] pb-1 font-bold text-white ${
+                  isLarge ? 'text-[17px]' : 'text-[12.5px]'
+                }`}
               >
                 <InlineContent text={block.text} />
               </h2>
@@ -614,7 +656,12 @@ export function MarkdownReply({
           }
           if (block.level === 3) {
             return (
-              <h3 key={idx} className="mt-2 text-[11.5px] font-semibold text-[#f5f5f5]">
+              <h3
+                key={idx}
+                className={`mt-2 font-semibold text-[#f5f5f5] ${
+                  isLarge ? 'text-[15.5px]' : 'text-[11.5px]'
+                }`}
+              >
                 <InlineContent text={block.text} />
               </h3>
             )
@@ -622,7 +669,9 @@ export function MarkdownReply({
           return (
             <h4
               key={idx}
-              className="mt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#cccccc]"
+              className={`mt-1.5 font-semibold uppercase tracking-wider text-[#cccccc] ${
+                isLarge ? 'text-[13.5px]' : 'text-[10.5px]'
+              }`}
             >
               <InlineContent text={block.text} />
             </h4>
@@ -635,7 +684,11 @@ export function MarkdownReply({
               key={idx}
               className="my-2 overflow-x-auto rounded-lg border border-[#333333] bg-[#141414]"
             >
-              <table className="w-full border-collapse text-left text-[10.5px]">
+              <table
+                className={`w-full border-collapse text-left ${
+                  isLarge ? 'text-[13.5px]' : 'text-[10.5px]'
+                }`}
+              >
                 <thead>
                   <tr className="border-b border-[#333333] bg-[#202020]">
                     {block.headers.map((header, colIdx) => {
@@ -643,7 +696,7 @@ export function MarkdownReply({
                       return (
                         <th
                           key={colIdx}
-                          className={`px-2.5 py-1.5 font-semibold text-white ${
+                          className={`${isLarge ? 'px-3.5 py-2.5' : 'px-2.5 py-1.5'} font-semibold text-white ${
                             align === 'center'
                               ? 'text-center'
                               : align === 'right'
@@ -665,7 +718,7 @@ export function MarkdownReply({
                         return (
                           <td
                             key={colIdx}
-                            className={`px-2.5 py-1.5 align-top text-[#d4d4d4] ${
+                            className={`${isLarge ? 'px-3.5 py-2.5' : 'px-2.5 py-1.5'} align-top text-[#d4d4d4] ${
                               align === 'center'
                                 ? 'text-center'
                                 : align === 'right'
@@ -690,7 +743,14 @@ export function MarkdownReply({
         }
 
         if (block.type === 'code') {
-          return <CodeBlockCard key={idx} language={block.language} content={block.content} />
+          return (
+            <CodeBlockCard
+              key={idx}
+              language={block.language}
+              content={block.content}
+              large={isLarge}
+            />
+          )
         }
 
         if (block.type === 'callout') {
