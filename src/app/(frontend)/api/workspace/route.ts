@@ -18,6 +18,7 @@ const IGNORED_DIRS = new Set([
   'coverage',
   '.tmp',
   '.playwright-cli',
+  'tools',
 ])
 
 const BINARY_EXT = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|zip|tar|gz|pdf|exe|dll|so|dylib|mp4|mp3|wav|sqlite|db|lock)$/i

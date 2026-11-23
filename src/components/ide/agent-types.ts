@@ -3,7 +3,7 @@ import type { WorkspaceFileNode } from '@/lib/file-tree'
 import type { VinceZoneRoleId } from '@/lib/vincezone-protocol'
 
 export type WorkspaceFile = WorkspaceFileNode
-export type WorkspaceMode = 'ide' | 'agents' | 'android' | 'web'
+export type WorkspaceMode = 'ide' | 'agents' | 'android' | 'web' | 'craft'
 export type SidePanel = 'explorer' | 'search' | 'git' | 'revisions' | 'memory'
 
 export type Message = {

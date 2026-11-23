@@ -215,6 +215,13 @@ export const defaultAppSettings: AppSettings = {
       endpoint: 'npx @playwright/mcp',
       enabled: true,
     },
+    {
+      id: 'mcp-craft-anything',
+      name: 'Craft Anything (323 Tools MCP)',
+      transport: 'stdio',
+      endpoint: 'tools/craft-anything/craft-anything-0.6.1-windows-x64-portable/craft-anything-cli.exe mcp',
+      enabled: true,
+    },
   ],
   plugins: [
     {
@@ -233,6 +240,12 @@ export const defaultAppSettings: AppSettings = {
       id: 'plugin-cli-anything',
       name: 'CLI-Anything Harness Bridge',
       description: 'Exposes JSON-native CLI commands for autonomous verification.',
+      enabled: true,
+    },
+    {
+      id: 'plugin-craft-anything',
+      name: 'Craft Anything Engine (v0.6.1)',
+      description: '323 reverse-engineering, inspection, Clean-room/Deep study & rebuild tools.',
       enabled: true,
     },
   ],

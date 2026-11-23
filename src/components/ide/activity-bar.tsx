@@ -3,6 +3,7 @@
 import {
   Bot,
   Brain,
+  Compass,
   Files,
   GitBranch,
   History,
@@ -118,6 +119,13 @@ export function ActivityBar({
           onClick={() => onSelectMode('web')}
         >
           <Monitor size={20} strokeWidth={1.6} />
+        </button>
+        <button
+          className={`activity-button ${workspaceMode === 'craft' ? 'active' : ''}`}
+          title="Craft Studio (323 Tools · Study → Build → Check)"
+          onClick={() => onSelectMode('craft')}
+        >
+          <Compass size={20} strokeWidth={1.6} />
         </button>
       </div>
       <div className="flex flex-col items-center pb-1">

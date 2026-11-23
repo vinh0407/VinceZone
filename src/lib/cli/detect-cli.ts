@@ -13,6 +13,12 @@ export const supportedCliTools = [
   { id: 'gh', name: 'GitHub CLI', executable: 'gh', category: 'devtools' },
   { id: 'playwright-cli', name: 'Playwright CLI', executable: 'playwright-cli', category: 'testing' },
   { id: 'adb', name: 'Android Debug Bridge', executable: 'adb', category: 'mobile' },
+  {
+    id: 'craft-anything-cli',
+    name: 'Craft Anything (323 Tools)',
+    executable: 'craft-anything-cli',
+    category: 'craft-engine',
+  },
 ] as const
 
 export type CliDetection = {
@@ -69,6 +75,14 @@ async function isExecutable(
   // Include Android platform-tools if ANDROID_HOME is set
   if (executable === 'adb' && process.env.ANDROID_HOME) {
     dirs.push(join(process.env.ANDROID_HOME, 'platform-tools'))
+  }
+
+  // Include local tools/craft-anything portable folder when checking craft-anything-cli
+  if (executable === 'craft-anything-cli') {
+    dirs.push(
+      join(process.cwd(), 'tools', 'craft-anything'),
+      join(process.cwd(), 'tools', 'craft-anything', 'craft-anything-0.6.1-windows-x64-portable'),
+    )
   }
 
   for (const directory of dirs) {

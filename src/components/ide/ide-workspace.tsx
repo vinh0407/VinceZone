@@ -37,6 +37,7 @@ import type {
 import { AgentWorkspace } from './agent-workspace'
 import { AndroidEmulator } from './android-emulator'
 import { BottomPanel } from './bottom-panel'
+import { CraftStudio } from './craft-studio'
 import { EditorPane } from './editor-pane'
 import { ExplorerSidebar } from './explorer-sidebar'
 import { AgentCreatorModal } from './modals/agent-creator-modal'
@@ -1372,10 +1373,22 @@ export function IDEWorkspace() {
             projectName={activeProject?.name ?? 'VinceZone Studio'}
             onRunCommand={(cmd) => void runTerminalCommand(cmd)}
           />
-        ) : (
+        ) : workspaceMode === 'web' ? (
           <WebPreview
             projectName={activeProject?.name ?? 'VinceZone Studio'}
             onRunCommand={(cmd) => void runTerminalCommand(cmd)}
+          />
+        ) : (
+          <CraftStudio
+            projectName={activeProject?.name ?? 'VinceZone Studio'}
+            onSendToAgents={(summaryTitle, evidenceText, prompt) => {
+              addMemoryNote(summaryTitle, evidenceText)
+              const pmId = agents.find((a) => a.roleId === 'pm')?.id ?? agents[0]?.id
+              if (pmId) {
+                setDrafts((current) => ({ ...current, [pmId]: prompt }))
+              }
+              setWorkspaceMode('agents')
+            }}
           />
         )}
       </div>

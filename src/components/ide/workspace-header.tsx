@@ -245,6 +245,11 @@ export function WorkspaceHeader({
           checked: workspaceMode === 'web',
           onSelect: () => onSelectMode('web'),
         },
+        {
+          label: 'Craft Studio (323 Tools)',
+          checked: workspaceMode === 'craft',
+          onSelect: () => onSelectMode('craft'),
+        },
       ],
     },
     {

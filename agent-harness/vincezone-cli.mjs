@@ -50,14 +50,17 @@ async function runCommand(cmd, args, baseUrl) {
       return apiGet('/api/cli/detect', baseUrl)
     case 'extensions':
       return apiGet('/api/extensions', baseUrl)
+    case 'craft':
+      return apiGet('/api/craft', baseUrl)
     case 'audit': {
-      const [ping, workspace, android, github, cliTools, extensions] = await Promise.all([
+      const [ping, workspace, android, github, cliTools, extensions, craft] = await Promise.all([
         apiGet('/api/vz-ping', baseUrl),
         apiGet('/api/workspace', baseUrl),
         apiGet('/api/android', baseUrl),
         apiGet('/api/github', baseUrl),
         apiGet('/api/cli/detect', baseUrl),
         apiGet('/api/extensions', baseUrl),
+        apiGet('/api/craft', baseUrl),
       ])
 
       const gaps = []
@@ -80,7 +83,7 @@ async function runCommand(cmd, args, baseUrl) {
       }
 
       return {
-        ok: ping.ok && workspace.ok && android.ok && github.ok && cliTools.ok && extensions.ok,
+        ok: ping.ok && workspace.ok && android.ok && github.ok && cliTools.ok && extensions.ok && craft.ok,
         baseUrl,
         endpoints: {
           ping: { ok: ping.ok, status: ping.status, latencyMs: ping.latencyMs },
@@ -115,6 +118,14 @@ async function runCommand(cmd, args, baseUrl) {
             ok: extensions.ok,
             skillCount: extensions.data?.skills?.length ?? 0,
             scannedDirs: extensions.data?.scannedDirs ?? [],
+          },
+          craft: {
+            ok: craft.ok,
+            installed: craft.data?.installed ?? false,
+            version: craft.data?.version ?? null,
+            totalTools: craft.data?.totalTools ?? 0,
+            toolsetCount: craft.data?.toolsets?.length ?? 0,
+            readyEngines: (craft.data?.engines || []).filter((e) => e.found).map((e) => e.id),
           },
         },
         gaps,
