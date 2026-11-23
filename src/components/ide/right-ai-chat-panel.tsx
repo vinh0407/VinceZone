@@ -3,7 +3,6 @@
 import {
   ArrowRightLeft,
   Bot,
-  FileCode2,
   Link2,
   Maximize2,
   Plus,
@@ -16,6 +15,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type { Agent, McpServerConfig, PluginConfig, WorkspaceFile } from './agent-types'
+import { ChatContextMenu } from './chat-context-menu'
+import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import {
   applySlashSelection,
   buildSlashCommands,
@@ -288,7 +289,11 @@ export function RightAiChatPanel({
                   {message.from} → {agent.name}
                 </p>
               )}
-              {message.text || <span className="streaming-dots">Generating</span>}
+              {message.text ? (
+                <HighlightedChatText text={message.text} />
+              ) : (
+                <span className="streaming-dots">Generating</span>
+              )}
               {message.codeSnippet && (
                 <pre className="mt-2 overflow-x-auto rounded border border-[#333333] bg-[#111111] p-2 font-mono text-[10px] text-[#e5e5e5]">
                   <code>{message.codeSnippet}</code>
@@ -339,31 +344,34 @@ export function RightAiChatPanel({
               onSelect={(command) => {
                 onDraft(agent.id, applySlashSelection(draft, command))
                 setSlashIndex(0)
+                textareaRef.current?.focus()
               }}
             />
           )}
           {contextOpen && (
-            <div className="max-h-32 overflow-y-auto border-b border-[#2b2b2b] p-1.5">
-              {files.slice(0, 20).map((file) => (
-                <button
-                  key={file.path}
-                  onClick={() => {
-                    onDraft(agent.id, `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}@${file.path} `)
-                    setContextOpen(false)
-                  }}
-                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[10px] text-[#cccccc] hover:bg-[#2a2a2a]"
-                >
-                  <FileCode2 size={11} className="shrink-0 text-[#9a9a9a]" />
-                  <span className="truncate font-mono">{file.path}</span>
-                </button>
-              ))}
-            </div>
+            <ChatContextMenu
+              files={files}
+              agents={agents}
+              skills={skills}
+              combos={combos}
+              mcpServers={mcpServers}
+              plugins={plugins}
+              onInsert={(token) => {
+                const spacer = draft && !draft.endsWith(' ') && !draft.endsWith('\n') ? ' ' : ''
+                onDraft(agent.id, `${draft}${spacer}${token} `)
+                textareaRef.current?.focus()
+              }}
+              onClose={() => setContextOpen(false)}
+            />
           )}
-          <textarea
-            ref={textareaRef}
+          <HighlightedChatTextarea
+            textareaRef={textareaRef}
             value={draft}
-            onChange={(event) => {
-              onDraft(agent.id, event.target.value)
+            rows={3}
+            size="md"
+            placeholder={`Ask ${agent.name}… Type @BE/@FE/@QA to bridge or / for skills`}
+            onChange={(nextValue) => {
+              onDraft(agent.id, nextValue)
               setSlashIndex(0)
             }}
             onKeyDown={(event) => {
@@ -398,16 +406,13 @@ export function RightAiChatPanel({
                 onSend(agent)
               }
             }}
-            rows={3}
-            placeholder={`Ask ${agent.name}… Type @BE/@FE/@QA to bridge or / for skills`}
-            className="w-full resize-none bg-transparent px-2.5 pt-2 text-[11px] leading-4 text-white outline-none placeholder:text-[#6e6e6e]"
           />
           <div className="flex items-center justify-between px-2 pb-1.5">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setContextOpen((prev) => !prev)}
-                className="mini-button"
-                title="Attach @file reference"
+                className={`mini-button ${contextOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
+                title="Add Context"
               >
                 <Plus size={12} />
               </button>

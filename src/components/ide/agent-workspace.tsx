@@ -31,6 +31,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { AgentMailOverlay } from './agent-mail-overlay'
+import { ChatContextMenu } from './chat-context-menu'
+import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import type {
   Agent,
   AgentLayout,
@@ -567,6 +569,7 @@ function AgentPanel({
   const [slashIndex, setSlashIndex] = useState(0)
   const [delegateTarget, setDelegateTarget] = useState(peers[0]?.id ?? '')
   const [delegatePrompt, setDelegatePrompt] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     if (!peers.some((peer) => peer.id === delegateTarget)) setDelegateTarget(peers[0]?.id ?? '')
   }, [delegateTarget, peers])
@@ -757,7 +760,11 @@ function AgentPanel({
                       </span>
                     </div>
                   )}
-                  {message.text || <span className="streaming-dots">Generating</span>}
+                  {message.text ? (
+                    <HighlightedChatText text={message.text} />
+                  ) : (
+                    <span className="streaming-dots">Generating</span>
+                  )}
                   {message.codeSnippet && (
                     <pre className="mt-2 overflow-x-auto rounded border border-[#333333] bg-[#101010] p-2 font-mono text-[9px] leading-4 text-[#f0f0f0]">
                       <code>{message.codeSnippet}</code>
@@ -781,28 +788,20 @@ function AgentPanel({
           }`}
         >
           {contextPickerOpen && (
-            <div className="max-h-32 overflow-y-auto border-b border-[#2b2b2b] bg-[#161616] p-1.5">
-              <div className="mb-1 flex items-center justify-between px-1 text-[8px] uppercase tracking-wider text-[#858585]">
-                <span>Attach file reference</span>
-                <button onClick={() => setContextPickerOpen(false)}>
-                  <X size={10} />
-                </button>
-              </div>
-              {files.map((file) => (
-                <button
-                  key={file.path}
-                  onClick={() => {
-                    const spacer = draft && !draft.endsWith(' ') ? ' ' : ''
-                    onDraft(`${draft}${spacer}@${file.path} `)
-                    setContextPickerOpen(false)
-                  }}
-                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[9px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white"
-                >
-                  <FileCode2 size={10} className="shrink-0 text-[#a3a3a3]" />
-                  <span className="truncate font-mono">{file.path}</span>
-                </button>
-              ))}
-            </div>
+            <ChatContextMenu
+              files={files}
+              agents={[agent, ...peers]}
+              skills={skills}
+              combos={combos}
+              mcpServers={mcpServers}
+              plugins={plugins}
+              onInsert={(token) => {
+                const spacer = draft && !draft.endsWith(' ') && !draft.endsWith('\n') ? ' ' : ''
+                onDraft(`${draft}${spacer}${token} `)
+                textareaRef.current?.focus()
+              }}
+              onClose={() => setContextPickerOpen(false)}
+            />
           )}
           {delegationOpen && (
             <div className="border-b border-[#2b2b2b] bg-[#1b1b1b] p-2">
@@ -853,14 +852,20 @@ function AgentPanel({
               onSelect={(command) => {
                 onDraft(applySlashSelection(draft, command))
                 setSlashIndex(0)
+                textareaRef.current?.focus()
               }}
             />
           )}
-          <textarea
+          <HighlightedChatTextarea
+            textareaRef={textareaRef}
             value={effectiveDraft}
             readOnly={Boolean(agent.composingPrompt)}
-            onChange={(event) => {
-              onDraft(event.target.value)
+            rows={2}
+            size="sm"
+            mono={Boolean(agent.composingPrompt)}
+            placeholder={`Message ${agent.name}… Type / for skills, MCP & plugins`}
+            onChange={(nextValue) => {
+              onDraft(nextValue)
               setSlashIndex(0)
             }}
             onKeyDown={(event) => {
@@ -895,17 +900,12 @@ function AgentPanel({
                 onSend()
               }
             }}
-            rows={2}
-            placeholder={`Message ${agent.name}… Type / for skills, MCP & plugins`}
-            className={`w-full resize-none bg-transparent px-2.5 pt-2 text-[10px] leading-4 outline-none placeholder:text-[#666666] ${
-              agent.composingPrompt ? 'font-mono text-white' : 'text-[#d4d4d4]'
-            }`}
           />
           <div className="flex items-center justify-between px-2 pb-1.5">
             <div className="flex gap-1">
               <button
                 className={`mini-button ${contextPickerOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
-                title="Attach project file reference"
+                title="Add Context"
                 onClick={() => {
                   setContextPickerOpen((prev) => !prev)
                   setDelegationOpen(false)
