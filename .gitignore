@@ -16,6 +16,7 @@ logs/
 .tmp-*
 .playwright-cli/
 dist-desktop/
+*.lnk
 /.figma/design-context/
 
 # Platform-managed agentplat state, not project source. In the

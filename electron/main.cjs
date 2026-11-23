@@ -8,6 +8,10 @@ const SERVER_URL = `http://127.0.0.1:${PORT}`
 let mainWindow = null
 let serverChild = null
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.vincezone.studio')
+}
+
 process.on('uncaughtException', (err) => {
   console.error('[VinceZone Desktop] UncaughtException:', err.message || err)
 })
@@ -155,6 +159,7 @@ async function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     title: 'VinceZone Studio',
+    icon: path.join(__dirname, 'icon.ico'),
     backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
