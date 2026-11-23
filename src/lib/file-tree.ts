@@ -4,6 +4,8 @@ export type WorkspaceFileNode = {
   content: string
   language: string
   dirty?: boolean
+  lazy?: boolean
+  size?: number
 }
 
 export type FileTreeFolder = {

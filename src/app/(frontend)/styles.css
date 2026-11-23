@@ -247,3 +247,28 @@
     animation: none;
   }
 }
+
+.vz-breakpoint-glyph {
+  background: #e51400;
+  border-radius: 9999px;
+  width: 9px !important;
+  height: 9px !important;
+  margin-left: 5px;
+  margin-top: 5px;
+  box-shadow: 0 0 6px rgba(229, 20, 0, 0.7);
+}
+
+.vz-debug-active-line {
+  background: rgba(220, 220, 170, 0.14) !important;
+  border-left: 2px solid #dcdcaa;
+}
+
+.vz-debug-active-glyph {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #dcdcaa;
+  width: 0 !important;
+  height: 0 !important;
+  margin-left: 6px;
+  margin-top: 5px;
+}

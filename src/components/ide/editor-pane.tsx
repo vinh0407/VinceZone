@@ -80,6 +80,9 @@ export function EditorPane({
   provider,
   revealRequest,
   formatSeq = 0,
+  breakpoints = {},
+  debugActiveLocation = null,
+  onToggleBreakpoint,
   onOpenExplorer,
   onSelectTab,
   onCloseTab,
@@ -108,6 +111,9 @@ export function EditorPane({
   provider?: ProviderConfig
   revealRequest: { path: string; line: number; seq: number } | null
   formatSeq?: number
+  breakpoints?: Record<string, number[]>
+  debugActiveLocation?: { path: string; line: number } | null
+  onToggleBreakpoint?: (path: string, line: number) => void
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
@@ -147,7 +153,19 @@ export function EditorPane({
   // Tab context menu state
   const [tabMenu, setTabMenu] = useState<{ path: string; x: number; y: number } | null>(null)
 
-  // Ctrl+K Inline AI Edit state
+  // Ctrl+K Inline AI Edit state + AI Tab Ghost-Text state + Breakpoint decorations
+  const [aiTabEnabled, setAiTabEnabled] = useState(true)
+  const aiTabEnabledRef = useRef(true)
+  aiTabEnabledRef.current = aiTabEnabled
+  const providerRef = useRef(provider)
+  providerRef.current = provider
+  const toggleBreakpointRef = useRef(onToggleBreakpoint)
+  toggleBreakpointRef.current = onToggleBreakpoint
+  const decorationIdsRef = useRef<string[]>([])
+  const inlineProviderDisposablesRef = useRef<Array<{ dispose: () => void }>>([])
+  const ghostAbortRef = useRef<AbortController | null>(null)
+  const ghostCacheRef = useRef<Map<string, string>>(new Map())
+
   const [inlineOpen, setInlineOpen] = useState(false)
   const [inlinePrompt, setInlinePrompt] = useState('')
   const [inlineLoading, setInlineLoading] = useState(false)
@@ -284,7 +302,182 @@ export function EditorPane({
     }
     monaco.editor.onDidChangeMarkers(emitMarkers)
     window.setTimeout(emitMarkers, 800)
+
+    // P0-3: Real clickable Monaco Gutter Breakpoints
+    editor.onMouseDown((event) => {
+      if (event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+        const line = event.target.position?.lineNumber
+        const current = activeFileRef.current
+        if (line && current && toggleBreakpointRef.current) {
+          toggleBreakpointRef.current(current.path, line)
+        }
+      }
+    })
+
+    // P0-4: Real AI Tab Ghost-Text Autocomplete (registerInlineCompletionsProvider)
+    for (const d of inlineProviderDisposablesRef.current) d.dispose()
+    inlineProviderDisposablesRef.current = []
+
+    const langs = ['typescript', 'javascript', 'python', 'css', 'html', 'json']
+    for (const lang of langs) {
+      const disposable = monaco.languages.registerInlineCompletionsProvider(lang, {
+        provideInlineCompletions: async (
+          model: {
+            getLineContent: (line: number) => string
+            getLineCount: () => number
+            getLineMaxColumn: (line: number) => number
+            getValueInRange: (range: {
+              startLineNumber: number
+              startColumn: number
+              endLineNumber: number
+              endColumn: number
+            }) => string
+          },
+          position: { lineNumber: number; column: number },
+          _context: unknown,
+          token: {
+            isCancellationRequested: boolean
+            onCancellationRequested: (cb: () => void) => unknown
+          },
+        ) => {
+          if (!aiTabEnabledRef.current) return { items: [] }
+          const active = activeFileRef.current
+          if (!active) return { items: [] }
+
+          const lineText = model.getLineContent(position.lineNumber)
+          const beforeCursor = lineText.slice(0, position.column - 1)
+          if (beforeCursor.trim().length < 2) return { items: [] }
+
+          const startLine = Math.max(1, position.lineNumber - 35)
+          const endLine = Math.min(model.getLineCount(), position.lineNumber + 12)
+          const prefix = model.getValueInRange({
+            startLineNumber: startLine,
+            startColumn: 1,
+            endLineNumber: position.lineNumber,
+            endColumn: position.column,
+          })
+          const suffix = model.getValueInRange({
+            startLineNumber: position.lineNumber,
+            startColumn: position.column,
+            endLineNumber: endLine,
+            endColumn: model.getLineMaxColumn(endLine),
+          })
+
+          const cacheKey = `${active.path}:${prefix.slice(-180)}`
+          const cached = ghostCacheRef.current.get(cacheKey)
+          if (cached) {
+            return {
+              items: [
+                {
+                  insertText: cached,
+                  range: {
+                    startLineNumber: position.lineNumber,
+                    startColumn: position.column,
+                    endLineNumber: position.lineNumber,
+                    endColumn: position.column,
+                  },
+                },
+              ],
+            }
+          }
+
+          // Debounce 450ms so rapid typing stays zero-lag
+          await new Promise((resolve) => setTimeout(resolve, 450))
+          if (token.isCancellationRequested || !aiTabEnabledRef.current) return { items: [] }
+
+          ghostAbortRef.current?.abort()
+          const controller = new AbortController()
+          ghostAbortRef.current = controller
+          token.onCancellationRequested(() => controller.abort())
+
+          try {
+            const p = providerRef.current
+            const res = await fetch('/api/autocomplete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify({
+                baseUrl: p?.baseUrl || 'http://localhost:20128/v1',
+                apiKey: p?.apiKey || '',
+                model: 'always-on',
+                path: active.path,
+                language: active.language,
+                prefix,
+                suffix,
+              }),
+            })
+            if (!res.ok || token.isCancellationRequested) return { items: [] }
+            const data = (await res.json()) as { completion?: string }
+            const insertText = data.completion || ''
+            if (!insertText.trim()) return { items: [] }
+
+            if (ghostCacheRef.current.size > 40) ghostCacheRef.current.clear()
+            ghostCacheRef.current.set(cacheKey, insertText)
+
+            return {
+              items: [
+                {
+                  insertText,
+                  range: {
+                    startLineNumber: position.lineNumber,
+                    startColumn: position.column,
+                    endLineNumber: position.lineNumber,
+                    endColumn: position.column,
+                  },
+                },
+              ],
+            }
+          } catch {
+            return { items: [] }
+          }
+        },
+        disposeInlineCompletions: () => {},
+      })
+      inlineProviderDisposablesRef.current.push(disposable)
+    }
   }
+
+  useEffect(() => {
+    return () => {
+      ghostAbortRef.current?.abort()
+      for (const d of inlineProviderDisposablesRef.current) d.dispose()
+      inlineProviderDisposablesRef.current = []
+    }
+  }, [])
+
+  // Sync Breakpoint dots & Paused Debug Execution Line decorations in Monaco
+  useEffect(() => {
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    if (!editor || !monaco || !activeFile) return
+
+    const fileBps = breakpoints[activeFile.path] ?? []
+    const nextDecorations: Array<{
+      range: InstanceType<typeof monaco.Range>
+      options: Record<string, unknown>
+    }> = fileBps.map((line) => ({
+      range: new monaco.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: false,
+        glyphMarginClassName: 'vz-breakpoint-glyph',
+        glyphMarginHoverMessage: { value: `Breakpoint at line ${line} (click to remove)` },
+      },
+    }))
+
+    if (debugActiveLocation && debugActiveLocation.path === activeFile.path) {
+      nextDecorations.push({
+        range: new monaco.Range(debugActiveLocation.line, 1, debugActiveLocation.line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'vz-debug-active-line',
+          glyphMarginClassName: 'vz-debug-active-glyph',
+        },
+      })
+      editor.revealLineInCenter(debugActiveLocation.line)
+    }
+
+    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, nextDecorations)
+  }, [activeFile, breakpoints, debugActiveLocation])
 
   useEffect(() => {
     if (monacoRef.current) {
@@ -454,6 +647,22 @@ export function EditorPane({
             )
           })}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setAiTabEnabled((prev) => !prev)}
+          className={`mx-1 flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-[10px] transition ${
+            aiTabEnabled
+              ? 'border-[#4a4a4a] bg-[#242424] text-white'
+              : 'border-[#2f2f2f] bg-[#1a1a1a] text-[#787878] hover:text-[#cccccc]'
+          }`}
+          title="Toggle AI Tab Ghost-Text Autocomplete while typing"
+        >
+          <span
+            className={`size-1.5 rounded-full ${aiTabEnabled ? 'bg-[#4ec9b0]' : 'bg-[#666666]'}`}
+          />
+          <span>AI Tab</span>
+        </button>
 
         <button
           className={`mx-1 flex h-6 items-center gap-1 rounded border px-2 text-[10px] transition ${
@@ -687,6 +896,8 @@ export function EditorPane({
               theme="vs-dark"
               options={{
                 automaticLayout: true,
+                glyphMargin: true,
+                inlineSuggest: { enabled: true },
                 fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
                 fontSize,
                 lineHeight: Math.round(fontSize * 1.55),

@@ -1,3 +1,4 @@
+import { watch as fsWatch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { inferLanguage } from '@/lib/file-tree'
@@ -24,10 +25,13 @@ const IGNORED_DIRS = new Set([
   'VinceZone Studio',
 ])
 
-const BINARY_EXT = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|zip|tar|gz|pdf|exe|dll|so|dylib|mp4|mp3|wav|sqlite|db|lock)$/i
+const BINARY_EXT =
+  /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|zip|tar|gz|pdf|exe|dll|so|dylib|mp4|mp3|wav|sqlite|db|lock)$/i
 
-const MAX_FILES = 120
-const MAX_FILE_BYTES = 300_000
+const MAX_FILES = 5000
+const EAGER_CONTENT_LIMIT = 100
+const MAX_EAGER_BYTES = 120_000
+const MAX_READ_BYTES = 600_000
 
 type DiskFile = {
   name: string
@@ -35,15 +39,26 @@ type DiskFile = {
   content: string
   language: string
   dirty?: boolean
+  lazy?: boolean
+  size?: number
+}
+
+function isIgnoredRelPath(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.some((segment) => IGNORED_DIRS.has(segment))) return true
+  const base = parts[parts.length - 1] || ''
+  return BINARY_EXT.test(base)
 }
 
 async function scanWorkspaceDir(
   rootDir: string,
   currentDir: string,
   results: DiskFile[],
+  eagerCounter: { count: number },
   depth = 0,
 ) {
-  if (results.length >= MAX_FILES || depth > 6) return
+  if (results.length >= MAX_FILES || depth > 10) return
   let entries
   try {
     entries = await readdir(currentDir, { withFileTypes: true })
@@ -55,23 +70,46 @@ async function scanWorkspaceDir(
     if (results.length >= MAX_FILES) break
     if (entry.isDirectory()) {
       if (IGNORED_DIRS.has(entry.name)) continue
-      await scanWorkspaceDir(rootDir, path.join(currentDir, entry.name), results, depth + 1)
+      await scanWorkspaceDir(
+        rootDir,
+        path.join(currentDir, entry.name),
+        results,
+        eagerCounter,
+        depth + 1,
+      )
     } else if (entry.isFile()) {
       if (BINARY_EXT.test(entry.name)) continue
       const absPath = path.join(currentDir, entry.name)
       try {
         const info = await stat(absPath)
-        if (info.size > MAX_FILE_BYTES) continue
-        const content = await readFile(absPath, 'utf8')
-        if (content.includes('\0')) continue
         const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/')
-        results.push({
-          name: entry.name,
-          path: relPath,
-          content,
-          language: inferLanguage(entry.name),
-          dirty: false,
-        })
+        const shouldLoadEagerly =
+          eagerCounter.count < EAGER_CONTENT_LIMIT && info.size <= MAX_EAGER_BYTES
+
+        if (shouldLoadEagerly) {
+          const content = await readFile(absPath, 'utf8')
+          if (content.includes('\0')) continue
+          eagerCounter.count += 1
+          results.push({
+            name: entry.name,
+            path: relPath,
+            content,
+            language: inferLanguage(entry.name),
+            dirty: false,
+            lazy: false,
+            size: info.size,
+          })
+        } else if (info.size <= MAX_READ_BYTES) {
+          results.push({
+            name: entry.name,
+            path: relPath,
+            content: '',
+            language: inferLanguage(entry.name),
+            dirty: false,
+            lazy: true,
+            size: info.size,
+          })
+        }
       } catch {
         // Skip unreadable files quietly.
       }
@@ -88,6 +126,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
+  const action = searchParams.get('action')?.trim() || 'list'
   const requestedRoot =
     searchParams.get('root')?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
   const resolvedRoot = path.resolve(requestedRoot)
@@ -101,14 +140,155 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Workspace directory does not exist.' }, { status: 404 })
   }
 
+  // Action: lazy-read a single file on demand
+  if (action === 'read') {
+    const relPath = searchParams.get('path')?.trim() || ''
+    if (!relPath) {
+      return Response.json({ error: 'File path is required.' }, { status: 400 })
+    }
+    try {
+      const target = resolvePathInsideWorkspace(resolvedRoot, relPath)
+      const info = await stat(target)
+      if (!info.isFile()) {
+        return Response.json({ error: 'Target is not a file.' }, { status: 400 })
+      }
+      if (info.size > MAX_READ_BYTES) {
+        return Response.json({ error: 'File exceeds preview size limit (600 KB).' }, { status: 413 })
+      }
+      const content = await readFile(target, 'utf8')
+      if (content.includes('\0')) {
+        return Response.json({ error: 'Binary files cannot be opened in text editor.' }, { status: 415 })
+      }
+      const cleanRel = relPath.replace(/\\/g, '/').replace(/^\/+/, '')
+      return Response.json(
+        {
+          ok: true,
+          path: cleanRel,
+          name: path.basename(cleanRel),
+          language: inferLanguage(path.basename(cleanRel)),
+          content,
+          size: info.size,
+        },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : 'Unable to read file.' },
+        { status: 404 },
+      )
+    }
+  }
+
+  // Action: real-time SSE file watcher for external edits (git pull, CLI tools, external editors)
+  if (action === 'watch') {
+    const encoder = new TextEncoder()
+    let watcher: FSWatcher | null = null
+    let pingTimer: ReturnType<typeof setInterval> | null = null
+    const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+    const cleanup = () => {
+      if (watcher) {
+        try {
+          watcher.close()
+        } catch {
+          // ignore
+        }
+        watcher = null
+      }
+      if (pingTimer) {
+        clearInterval(pingTimer)
+        pingTimer = null
+      }
+      for (const timer of pendingTimers.values()) clearTimeout(timer)
+      pendingTimers.clear()
+    }
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const send = (payload: unknown) => {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+          } catch {
+            cleanup()
+          }
+        }
+
+        send({ type: 'watch.ready', root: resolvedRoot })
+
+        try {
+          watcher = fsWatch(resolvedRoot, { recursive: true }, (_eventType, filename) => {
+            if (!filename) return
+            const rel = String(filename).replace(/\\/g, '/').replace(/^\/+/, '')
+            if (!rel || isIgnoredRelPath(rel)) return
+
+            const existing = pendingTimers.get(rel)
+            if (existing) clearTimeout(existing)
+            pendingTimers.set(
+              rel,
+              setTimeout(async () => {
+                pendingTimers.delete(rel)
+                try {
+                  const full = resolvePathInsideWorkspace(resolvedRoot, rel)
+                  const info = await stat(full)
+                  if (!info.isFile() || info.size > MAX_EAGER_BYTES) return
+                  const content = await readFile(full, 'utf8')
+                  if (content.includes('\0')) return
+                  send({
+                    type: 'file.changed',
+                    path: rel,
+                    name: path.basename(rel),
+                    language: inferLanguage(path.basename(rel)),
+                    content,
+                    size: info.size,
+                  })
+                } catch {
+                  send({ type: 'file.removed', path: rel })
+                }
+              }, 240),
+            )
+          })
+          watcher.on('error', () => {
+            cleanup()
+          })
+        } catch {
+          send({ type: 'watch.unavailable' })
+        }
+
+        pingTimer = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: keepalive\n\n`))
+          } catch {
+            cleanup()
+          }
+        }, 20_000)
+
+        request.signal.addEventListener('abort', cleanup, { once: true })
+      },
+      cancel() {
+        cleanup()
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-store',
+        Connection: 'keep-alive',
+      },
+    })
+  }
+
+  // Default action: list all files up to MAX_FILES (5,000), eager-loading first 100 & lazy-marking rest
   const files: DiskFile[] = []
-  await scanWorkspaceDir(resolvedRoot, resolvedRoot, files)
+  await scanWorkspaceDir(resolvedRoot, resolvedRoot, files, { count: 0 })
 
   return Response.json(
     {
       root: resolvedRoot,
       name: path.basename(resolvedRoot) || 'workspace',
       files,
+      totalCount: files.length,
+      lazyCount: files.filter((f) => f.lazy).length,
       truncated: files.length >= MAX_FILES,
     },
     { headers: { 'Cache-Control': 'no-store' } },
@@ -136,8 +316,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const root =
-    body.root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
+  const root = body.root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
 
   try {
     if (body.action === 'write') {

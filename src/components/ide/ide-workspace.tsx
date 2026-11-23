@@ -4,6 +4,7 @@ import { Bot, Smartphone } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOrchestration } from '@/hooks/use-orchestration'
 import type { BridgeMessage } from '@/lib/agent-bridge'
+import type { DebugSnapshot } from '@/lib/debugger-runtime'
 import {
   createEditRevision,
   findRevisionForIntent,
@@ -155,6 +156,12 @@ export function IDEWorkspace() {
   const [runState, setRunState] = useState<'idle' | 'running' | 'success'>('idle')
   const [debugState, setDebugState] = useState<'idle' | 'starting' | 'paused' | 'running'>('idle')
   const [debugLine, setDebugLine] = useState(5)
+  const [breakpoints, setBreakpoints] = useState<Record<string, number[]>>({})
+  const [debugSnapshot, setDebugSnapshot] = useState<DebugSnapshot | null>(null)
+  const [pendingTerminalCmd, setPendingTerminalCmd] = useState<{
+    command: string
+    seq: number
+  } | null>(null)
   const [aiActivity, setAiActivity] = useState<'idle' | 'reading' | 'editing'>('idle')
   const [editPulse, setEditPulse] = useState(false)
   const editPulseTimer = useRef<number | null>(null)
@@ -818,6 +825,10 @@ export function IDEWorkspace() {
         setWorkspaceMode('ide')
         setTerminalOpen(true)
         setBottomPanel('terminal')
+        setRunState('running')
+        setPendingTerminalCmd((prev) => ({ command, seq: (prev?.seq ?? 0) + 1 }))
+        window.setTimeout(() => setRunState('success'), 900)
+        return
       }
       setTerminalRunning(true)
       setRunState('running')
@@ -1096,12 +1107,118 @@ export function IDEWorkspace() {
     })
   }
 
+  // P0-2: Real-time File Watcher SSE (auto-syncs external git pull, CLI edits, created/deleted files)
+  useEffect(() => {
+    const watchRoot = activeProject?.rootPath
+    if (!watchRoot) return
+    const controller = new AbortController()
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/workspace?action=watch&root=${encodeURIComponent(watchRoot)}`,
+          { cache: 'no-store', signal: controller.signal },
+        )
+        if (!res.ok || !res.body) return
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let pending = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          pending += decoder.decode(value, { stream: true })
+          const frames = pending.split('\n\n')
+          pending = frames.pop() ?? ''
+          for (const frame of frames) {
+            const line = frame
+              .split('\n')
+              .find((l) => l.startsWith('data:'))
+              ?.slice(5)
+              .trim()
+            if (!line) continue
+            try {
+              const ev = JSON.parse(line) as {
+                type: string
+                path?: string
+                name?: string
+                language?: string
+                content?: string
+                size?: number
+              }
+              if (ev.type === 'file.changed' && ev.path && typeof ev.content === 'string') {
+                const changedPath = ev.path
+                const changedContent = ev.content
+                diskSnapshotRef.current.set(changedPath, changedContent)
+                setFiles((current) => {
+                  const exists = current.find((f) => f.path === changedPath)
+                  if (exists) {
+                    if (exists.dirty || exists.content === changedContent) return current
+                    return current.map((f) =>
+                      f.path === changedPath
+                        ? { ...f, content: changedContent, lazy: false, size: ev.size ?? f.size }
+                        : f,
+                    )
+                  }
+                  return [
+                    ...current,
+                    {
+                      name: ev.name || changedPath.split('/').pop() || changedPath,
+                      path: changedPath,
+                      content: changedContent,
+                      language: ev.language || inferLanguage(changedPath),
+                      dirty: false,
+                      lazy: false,
+                      size: ev.size,
+                    },
+                  ]
+                })
+              } else if (ev.type === 'file.removed' && ev.path) {
+                const removedPath = ev.path
+                diskSnapshotRef.current.delete(removedPath)
+                setFiles((current) => current.filter((f) => f.path !== removedPath))
+              }
+            } catch {
+              // ignore malformed watcher frame
+            }
+          }
+        }
+      } catch {
+        // watcher aborted on project switch or unmount
+      }
+    })()
+
+    return () => controller.abort()
+  }, [activeProject?.rootPath])
+
   const openFile = (path: string, line?: number) => {
     setWorkspaceMode('ide')
     setActivePath(path)
     setOpenPaths((current) => (current.includes(path) ? current : [...current, path]))
     if (line) {
       setRevealRequest((current) => ({ path, line, seq: (current?.seq ?? 0) + 1 }))
+    }
+
+    // P0-2: Lazy-load file content on demand for large workspaces (> 100 files)
+    const target = filesRef.current.find((f) => f.path === path)
+    if (target?.lazy && activeProject?.rootPath) {
+      void fetch(
+        `/api/workspace?action=read&root=${encodeURIComponent(activeProject.rootPath)}&path=${encodeURIComponent(path)}`,
+        { cache: 'no-store' },
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { ok?: boolean; content?: string; size?: number } | null) => {
+          if (!data?.ok || typeof data.content !== 'string') return
+          diskSnapshotRef.current.set(path, data.content)
+          setFiles((current) =>
+            current.map((f) =>
+              f.path === path
+                ? { ...f, content: data.content!, lazy: false, size: data.size ?? f.size }
+                : f,
+            ),
+          )
+        })
+        .catch(() => {})
     }
   }
 
@@ -1766,6 +1883,102 @@ export function IDEWorkspace() {
     await runTerminalCommand(hasPnpmLock ? 'pnpm test' : 'npm test', { openTerminal: true })
   }, [activePath, runTerminalCommand])
 
+  const flattenBreakpoints = useCallback((map: Record<string, number[]>) => {
+    return Object.entries(map).flatMap(([bpPath, lines]) =>
+      lines.map((line) => ({ path: bpPath, line })),
+    )
+  }, [])
+
+  const applyDebugSnapshot = useCallback((snap: DebugSnapshot) => {
+    setDebugSnapshot(snap)
+    if (snap.status === 'paused') {
+      setDebugState('paused')
+      if (snap.activeLocation) {
+        setDebugLine(snap.activeLocation.line)
+        setActivePath(snap.activeLocation.path)
+        setOpenPaths((current) =>
+          current.includes(snap.activeLocation!.path)
+            ? current
+            : [...current, snap.activeLocation!.path],
+        )
+        setRevealRequest((prev) => ({
+          path: snap.activeLocation!.path,
+          line: snap.activeLocation!.line,
+          seq: (prev?.seq ?? 0) + 1,
+        }))
+      }
+    } else if (snap.status === 'running' || snap.status === 'starting') {
+      setDebugState(snap.status)
+    } else {
+      setDebugState('idle')
+    }
+  }, [])
+
+  const toggleBreakpoint = useCallback(
+    (filePath: string, line: number) => {
+      setBreakpoints((current) => {
+        const existing = current[filePath] ?? []
+        const nextLines = existing.includes(line)
+          ? existing.filter((l) => l !== line)
+          : [...existing, line].sort((a, b) => a - b)
+        const nextMap = { ...current }
+        if (nextLines.length === 0) delete nextMap[filePath]
+        else nextMap[filePath] = nextLines
+
+        if (debugState !== 'idle') {
+          void fetch('/api/debug', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'setBreakpoints',
+              breakpoints: flattenBreakpoints(nextMap),
+            }),
+          }).catch(() => {})
+        }
+        return nextMap
+      })
+    },
+    [debugState, flattenBreakpoints],
+  )
+
+  const controlDebugger = useCallback(
+    async (action: 'resume' | 'stepOver' | 'stepInto' | 'stepOut' | 'stop') => {
+      try {
+        const res = await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        })
+        const data = (await res.json()) as { debug?: DebugSnapshot }
+        if (data.debug) applyDebugSnapshot(data.debug)
+        else if (action === 'stop') {
+          setDebugState('idle')
+          setDebugSnapshot(null)
+        }
+      } catch {
+        if (action === 'stop') setDebugState('idle')
+      }
+    },
+    [applyDebugSnapshot],
+  )
+
+  const evaluateInDebugger = useCallback(
+    async (expression: string) => {
+      try {
+        const res = await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'evaluate', expression }),
+        })
+        const data = (await res.json()) as { debug?: DebugSnapshot }
+        if (data.debug) setDebugSnapshot(data.debug)
+      } catch {
+        // ignore
+      }
+    },
+    [],
+  )
+
   const debugProject = useCallback(async () => {
     setWorkspaceMode('ide')
     setTerminalOpen(true)
@@ -1773,14 +1986,40 @@ export function IDEWorkspace() {
     const currentFile = filesRef.current.find((f) => f.path === activePath)
     const lowerPath = currentFile?.path.toLowerCase() || ''
     setDebugLine(Math.max(1, cursor.line || 1))
-    setDebugState('running')
+    setDebugState('starting')
 
-    let cmd = 'pnpm exec tsc --noEmit'
-    if (lowerPath.endsWith('.py')) {
-      cmd = `python -m py_compile "${currentFile!.path}"`
-    } else if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.cjs')) {
-      cmd = `node --check "${currentFile!.path}"`
+    // Real V8 Inspector CDP Debugging for Node JS/TS scripts
+    const isNodeDebuggable =
+      Boolean(currentFile) &&
+      (/\.(js|mjs|cjs|mts|cts)$/i.test(lowerPath) ||
+        (lowerPath.endsWith('.ts') && !lowerPath.endsWith('.d.ts') && !lowerPath.endsWith('.tsx')))
+
+    if (isNodeDebuggable && currentFile) {
+      try {
+        const res = await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'start',
+            cwd: activeProject?.rootPath,
+            targetFile: currentFile.path,
+            breakpoints: flattenBreakpoints(breakpoints),
+          }),
+        })
+        const data = (await res.json()) as { ok?: boolean; debug?: DebugSnapshot; error?: string }
+        if (data.debug) {
+          applyDebugSnapshot(data.debug)
+          return
+        }
+      } catch {
+        // Fall through to diagnostic mode if CDP spawn fails
+      }
     }
+
+    // Fallback for React TSX / Python / full-project static verification
+    const cmd = lowerPath.endsWith('.py')
+      ? `python -m py_compile "${currentFile!.path}"`
+      : 'pnpm exec tsc --noEmit'
 
     try {
       const response = await fetch('/api/runner', {
@@ -1794,38 +2033,42 @@ export function IDEWorkspace() {
       })
       const data = (await response.json()) as {
         ok?: boolean
-        exitCode?: number
-        cwd?: string
-        durationMs?: number
         stdout?: string
         stderr?: string
         error?: string
       }
-      const combined = `${data.stdout || ''}\n${data.stderr || data.error || ''}`
-      const lineMatch = combined.match(/\((\d+),\d+\)|:(\d+):\d+|line (\d+)/i)
-      const detectedLine = Number(lineMatch?.[1] || lineMatch?.[2] || lineMatch?.[3] || 0)
-      if (detectedLine > 0) setDebugLine(detectedLine)
-
-      setTerminalEntries((current) => [
-        ...current.slice(-24),
-        {
-          id: uid(),
-          command: `[Debug] ${cmd}`,
-          cwd: data.cwd || activeProject?.rootPath || 'workspace',
-          stdout:
-            data.stdout ||
-            (data.ok ? 'Debug check passed with 0 errors. Paused at active frame.' : ''),
-          stderr: data.stderr || data.error || '',
-          exitCode: data.exitCode ?? (response.ok ? 0 : 1),
-          durationMs: data.durationMs ?? 0,
-          timestamp: new Date().toISOString(),
-        },
-      ])
+      const lines = [
+        `[Debugger] Static inspect (${cmd})`,
+        ...(data.stdout ? data.stdout.split(/\r?\n/) : []),
+        ...(data.stderr ? data.stderr.split(/\r?\n/).map((l) => `[stderr] ${l}`) : []),
+        ...(data.ok ? ['✓ Zero errors found. Open a .js/.ts script to attach live V8 Inspector.'] : []),
+      ].filter(Boolean)
+      setDebugSnapshot({
+        status: 'paused',
+        targetFile: currentFile?.path ?? null,
+        cwd: activeProject?.rootPath ?? null,
+        pid: null,
+        activeLocation: currentFile ? { path: currentFile.path, line: Math.max(1, cursor.line) } : null,
+        callFrames: currentFile
+          ? [
+              {
+                callFrameId: 'static-0',
+                functionName: '(diagnostic check)',
+                path: currentFile.path,
+                line: Math.max(1, cursor.line),
+                column: 1,
+              },
+            ]
+          : [],
+        variables: [],
+        consoleLines: lines,
+        error: data.error || null,
+      })
       setDebugState('paused')
     } catch {
-      setDebugState('paused')
+      setDebugState('idle')
     }
-  }, [activePath, activeProject?.rootPath, cursor.line])
+  }, [activePath, activeProject?.rootPath, applyDebugSnapshot, breakpoints, cursor.line, flattenBreakpoints])
 
   const dirtyCount = files.filter((file) => file.dirty).length
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
@@ -1909,7 +2152,7 @@ export function IDEWorkspace() {
         onRun={() => void handleRunProject()}
         onRunCommand={(cmd) => void runTerminalCommand(cmd, { openTerminal: true })}
         onDebug={() => void debugProject()}
-        onStopDebug={() => setDebugState('idle')}
+        onStopDebug={() => void controlDebugger('stop')}
         onOpenSearch={() => {
           setWorkspaceMode('ide')
           setSidePanel('search')
@@ -2025,6 +2268,9 @@ export function IDEWorkspace() {
                 minimap={appSettings.editorMinimap}
                 revealRequest={revealRequest}
                 formatSeq={formatSeq}
+                breakpoints={breakpoints}
+                debugActiveLocation={debugSnapshot?.activeLocation ?? null}
+                onToggleBreakpoint={toggleBreakpoint}
                 provider={savedProvider}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
@@ -2067,27 +2313,27 @@ export function IDEWorkspace() {
                 runState={runState}
                 debugState={debugState}
                 debugLine={debugLine}
+                debugSnapshot={debugSnapshot}
+                breakpoints={breakpoints}
                 agentCount={agents.length}
                 communicationEvents={communicationEvents}
                 bridgeMessages={bridgeMessages}
                 terminalEntries={terminalEntries}
                 terminalRunning={terminalRunning}
-                onRunTerminalCommand={(cmd) => void runTerminalCommand(cmd)}
+                pendingTerminalCmd={pendingTerminalCmd}
+                onRunTerminalCommand={(cmd) => void runTerminalCommand(cmd, { openTerminal: true })}
                 onClearTerminal={() => setTerminalEntries([])}
                 onSetOpen={setTerminalOpen}
                 onToggleMaximized={() => setTerminalMaximized((current) => !current)}
                 onSelectTab={setBottomPanel}
                 onOpenFile={openFile}
                 onStartDebug={() => void debugProject()}
-                onContinueDebug={() => {
-                  setDebugState('running')
-                  window.setTimeout(() => {
-                    setDebugLine((line) => line + 2)
-                    setDebugState('paused')
-                  }, 700)
-                }}
-                onStepOverDebug={() => setDebugLine((line) => line + 1)}
-                onStopDebug={() => setDebugState('idle')}
+                onContinueDebug={() => void controlDebugger('resume')}
+                onStepOverDebug={() => void controlDebugger('stepOver')}
+                onStepIntoDebug={() => void controlDebugger('stepInto')}
+                onStepOutDebug={() => void controlDebugger('stepOut')}
+                onStopDebug={() => void controlDebugger('stop')}
+                onEvaluateDebug={evaluateInDebugger}
               />
             </section>
 
