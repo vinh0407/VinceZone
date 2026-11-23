@@ -306,9 +306,11 @@ export function WorkspaceHeader({
       {/* Left: VS Code Menu Bar with real dropdown options + Workspace Switcher */}
       <div className="flex min-w-0 items-center gap-1">
         <div className="flex items-center gap-1.5 pr-1.5">
-          <div className="grid size-5 place-items-center rounded bg-[#0078d4] text-[10px] font-bold text-white">
-            VZ
-          </div>
+          <img
+            src="/logo.png"
+            alt="VinceZone"
+            className="size-5 rounded border border-[#2f2f2f] object-cover"
+          />
           <span className="hidden text-[12px] font-semibold tracking-tight text-white sm:inline">
             VinceZone
           </span>
@@ -357,9 +359,9 @@ export function WorkspaceHeader({
                             setOpenMenuId(null)
                             item.onSelect()
                           }}
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#cccccc] transition hover:bg-[#04395e] hover:text-white disabled:cursor-default disabled:text-[#666666] disabled:hover:bg-transparent"
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#d4d4d4] transition hover:bg-[#2e2e2e] hover:text-white disabled:cursor-default disabled:text-[#666666] disabled:hover:bg-transparent"
                         >
-                          <span className="grid size-3.5 shrink-0 place-items-center text-[#4ec9b0]">
+                          <span className="grid size-3.5 shrink-0 place-items-center text-[#e5e5e5]">
                             {item.checked ? <Check size={12} /> : null}
                           </span>
                           <span className="flex-1 truncate">{item.label}</span>
@@ -392,7 +394,7 @@ export function WorkspaceHeader({
                   : 'text-[#9d9d9d] hover:bg-[#2a2d2e]/60 hover:text-white'
               }`}
             >
-              <FolderOpen size={12} className="text-[#dcb67a]" />
+              <FolderOpen size={12} className="text-[#a3a3a3]" />
               <span className="max-w-28 truncate">{project.name}</span>
               {projects.length > 1 && (
                 <X
@@ -448,7 +450,7 @@ export function WorkspaceHeader({
         {pendingPatchCount > 0 && (
           <button
             onClick={onOpenDiff}
-            className="flex h-6 items-center gap-1 rounded border border-[#0078d4]/60 bg-[#0078d4]/20 px-2 text-[11px] text-[#9cdcfe] hover:bg-[#0078d4]/30"
+            className="flex h-6 items-center gap-1 rounded border border-[#4a4a4a] bg-[#2a2a2a] px-2 text-[11px] text-[#f0f0f0] hover:bg-[#363636]"
             title="Review agent patches"
           >
             <GitCompareArrows size={12} />
@@ -458,7 +460,7 @@ export function WorkspaceHeader({
 
         <button
           onClick={onRun}
-          className="flex h-6 items-center gap-1 rounded bg-[#0078d4] px-2 text-[11px] font-medium text-white hover:bg-[#1a8ad4]"
+          className="flex h-6 items-center gap-1 rounded bg-[#e5e5e5] px-2 text-[11px] font-medium text-[#111111] hover:bg-white"
           title="Run test suite"
         >
           {runState === 'running' ? <Square size={10} fill="currentColor" /> : <Play size={11} />}
@@ -469,8 +471,8 @@ export function WorkspaceHeader({
           onClick={onDebug}
           className={`flex h-6 items-center gap-1 rounded border px-2 text-[11px] transition ${
             debugState === 'paused'
-              ? 'border-[#68217a] bg-[#68217a]/40 text-white'
-              : 'border-[#3c3c3c] bg-[#252526] text-[#cccccc] hover:bg-[#2a2d2e]'
+              ? 'border-[#6e6e6e] bg-[#333333] text-white'
+              : 'border-[#333333] bg-[#222222] text-[#d4d4d4] hover:bg-[#2d2d2d]'
           }`}
           title="Start debugger"
         >
@@ -482,21 +484,21 @@ export function WorkspaceHeader({
 
         <button
           onClick={onToggleExplorer}
-          className={`icon-button !size-6 ${explorerOpen && workspaceMode === 'ide' ? 'bg-[#2a2d2e] text-white' : ''}`}
+          className={`icon-button !size-6 ${explorerOpen && workspaceMode === 'ide' ? 'bg-[#2a2a2a] text-white' : ''}`}
           title="Toggle Primary Side Bar"
         >
           <PanelLeft size={14} />
         </button>
         <button
           onClick={onToggleTerminal}
-          className={`icon-button !size-6 ${terminalOpen && workspaceMode === 'ide' ? 'bg-[#2a2d2e] text-white' : ''}`}
+          className={`icon-button !size-6 ${terminalOpen && workspaceMode === 'ide' ? 'bg-[#2a2a2a] text-white' : ''}`}
           title="Toggle Bottom Panel"
         >
           <PanelBottom size={14} />
         </button>
         <button
           onClick={onToggleAgents}
-          className={`icon-button !size-6 ${workspaceMode === 'agents' ? 'bg-[#0078d4]/30 text-[#9cdcfe]' : ''}`}
+          className={`icon-button !size-6 ${workspaceMode === 'agents' ? 'bg-[#333333] text-white' : ''}`}
           title="Toggle VinceZone Multi-Agent Control Center"
         >
           <Bot size={14} />
@@ -506,7 +508,7 @@ export function WorkspaceHeader({
         </button>
 
         <span
-          className="ml-1 hidden items-center gap-1 rounded border border-[#2b2b2b] bg-[#222222] px-1.5 py-0.5 font-mono text-[9px] text-[#4ec9b0] xl:flex"
+          className="ml-1 hidden items-center gap-1 rounded border border-[#2f2f2f] bg-[#141414] px-1.5 py-0.5 font-mono text-[9px] text-[#a3a3a3] xl:flex"
           title="VinceZone Local Desktop Runtime"
         >
           <TerminalSquare size={10} />

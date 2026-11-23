@@ -109,7 +109,7 @@ export function BottomPanel({
               onClick={() => onSelectTab(tab.id)}
               className={
                 activeTab === tab.id
-                  ? 'border-b border-[#0078d4] text-white'
+                  ? 'border-b border-[#e5e5e5] text-white'
                   : 'text-[#858585] hover:text-[#cccccc]'
               }
             >
@@ -121,10 +121,10 @@ export function BottomPanel({
           {activeTab === 'debug' && debugState !== 'idle' && (
             <div className="mr-2 flex items-center gap-0.5 rounded border border-[#3c3c3c] bg-[#252526] p-0.5">
               <button className="mini-button" title="Continue" onClick={onContinueDebug}>
-                <Play size={11} className="text-[#4ec9b0]" />
+                <Play size={11} className="text-[#e5e5e5]" />
               </button>
               <button className="mini-button" title="Step over" onClick={onStepOverDebug}>
-                <StepForward size={11} className="text-[#9cdcfe]" />
+                <StepForward size={11} className="text-[#cccccc]" />
               </button>
               <button className="mini-button" title="Restart" onClick={onStartDebug}>
                 <RotateCcw size={11} />
@@ -161,23 +161,23 @@ export function BottomPanel({
             <div className="min-h-0 flex-1 overflow-y-auto p-3 font-mono text-[12px] leading-5 text-[#cccccc]">
               <p className="text-[#858585]">
                 VinceZone Desktop Terminal · cwd:{' '}
-                <span className="text-[#9cdcfe]">{rootPath || projectName}</span>
+                <span className="text-[#e5e5e5]">{rootPath || projectName}</span>
               </p>
               {terminalEntries.length === 0 ? (
                 <p className="mt-1 text-[#6e6e6e]">
-                  Type a shell command below (e.g. <span className="text-[#dcdcaa]">pnpm test</span>{' '}
-                  or <span className="text-[#dcdcaa]">git status</span>) to execute locally on
+                  Type a shell command below (e.g. <span className="text-[#d4d4d4]">pnpm test</span>{' '}
+                  or <span className="text-[#d4d4d4]">git status</span>) to execute locally on
                   localhost:40704.
                 </p>
               ) : (
                 terminalEntries.map((entry) => (
                   <div key={entry.id} className="mt-2 border-t border-[#2b2b2b] pt-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-[#4ec9b0]">PS&gt;</span>
+                      <span className="text-[#a3a3a3]">PS&gt;</span>
                       <span className="text-white">{entry.command}</span>
                       <span
                         className={`ml-auto text-[10px] ${
-                          entry.exitCode === 0 ? 'text-[#4ec9b0]' : 'text-[#f48771]'
+                          entry.exitCode === 0 ? 'text-[#cccccc]' : 'text-[#f48771]'
                         }`}
                       >
                         exit {entry.exitCode} · {entry.durationMs}ms
@@ -197,11 +197,11 @@ export function BottomPanel({
                 ))
               )}
               {terminalRunning && (
-                <p className="mt-2 text-[#dcdcaa]">Running local command…</p>
+                <p className="mt-2 text-[#d4d4d4]">Running local command…</p>
               )}
             </div>
-            <div className="flex items-center gap-2 border-t border-[#2b2b2b] bg-[#1e1e1e] px-3 py-1.5 font-mono text-[12px]">
-              <span className="text-[#4ec9b0]">PS&gt;</span>
+            <div className="flex items-center gap-2 border-t border-[#2b2b2b] bg-[#141414] px-3 py-1.5 font-mono text-[12px]">
+              <span className="text-[#a3a3a3]">PS&gt;</span>
               <input
                 value={commandInput}
                 onChange={(event) => setCommandInput(event.target.value)}
@@ -218,7 +218,7 @@ export function BottomPanel({
               <button
                 onClick={submitCommand}
                 disabled={!commandInput.trim() || terminalRunning}
-                className="flex items-center gap-1 rounded bg-[#0078d4] px-2 py-0.5 text-[10px] text-white disabled:opacity-30"
+                className="flex items-center gap-1 rounded bg-[#e5e5e5] px-2 py-0.5 text-[10px] font-medium text-[#111111] hover:bg-white disabled:opacity-30"
               >
                 <CornerDownLeft size={10} /> Run
               </button>

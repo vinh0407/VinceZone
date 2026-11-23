@@ -9,10 +9,10 @@ export const LEGACY_STORAGE_KEYS = ['baton-workspace', 'nova-workspace'] as cons
 export const uid = () => Math.random().toString(36).slice(2, 10)
 
 export function fileIcon(file: WorkspaceFile) {
-  if (file.language === 'json') return <FileJson size={14} className="shrink-0 text-[#cbcb41]" />
-  if (file.language === 'markdown') return <FileText size={14} className="shrink-0 text-[#519aba]" />
-  if (file.language === 'css') return <FileCode2 size={14} className="shrink-0 text-[#a074c4]" />
-  return <FileCode2 size={14} className="shrink-0 text-[#519aba]" />
+  if (file.language === 'json') return <FileJson size={14} className="shrink-0 text-[#a3a3a3]" />
+  if (file.language === 'markdown') return <FileText size={14} className="shrink-0 text-[#b5b5b5]" />
+  if (file.language === 'css') return <FileCode2 size={14} className="shrink-0 text-[#8f8f8f]" />
+  return <FileCode2 size={14} className="shrink-0 text-[#c4c4c4]" />
 }
 
 export const starterFiles: WorkspaceFile[] = [
@@ -49,7 +49,7 @@ export const seedAgents: Agent[] = [
     role: 'Central Task Registry, decomposition & QA coordination',
     roleId: 'pm',
     model: 'openai/gpt-4.1',
-    accent: '#0078d4',
+    accent: '#f5f5f5',
     status: 'idle',
     messages: [
       {
@@ -65,7 +65,7 @@ export const seedAgents: Agent[] = [
     role: 'System architecture, API contracts & docs',
     roleId: 'arch',
     model: 'anthropic/claude-sonnet-4',
-    accent: '#c586c0',
+    accent: '#d4d4d4',
     status: 'idle',
     messages: [
       {
@@ -81,7 +81,7 @@ export const seedAgents: Agent[] = [
     role: 'VS Code UI, React components & styles',
     roleId: 'fe',
     model: 'anthropic/claude-sonnet-4',
-    accent: '#4ec9b0',
+    accent: '#b8b8b8',
     status: 'idle',
     messages: [
       {
@@ -97,7 +97,7 @@ export const seedAgents: Agent[] = [
     role: 'API endpoints, security & server runtime',
     roleId: 'be',
     model: 'google/gemini-2.5-pro',
-    accent: '#dcdcaa',
+    accent: '#a3a3a3',
     status: 'idle',
     messages: [
       {
@@ -113,7 +113,7 @@ export const seedAgents: Agent[] = [
     role: 'Vitest suites, Playwright verification & acceptance',
     roleId: 'qa',
     model: 'openai/gpt-4.1',
-    accent: '#9cdcfe',
+    accent: '#8a8a8a',
     status: 'idle',
     messages: [
       {

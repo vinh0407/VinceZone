@@ -19,12 +19,12 @@ import type { Agent, AgentTask, EditRevision, SidePanel, WorkspaceFile } from '.
 import { fileIcon } from './workspace-defaults'
 
 const statusStyles: Record<AgentTask['status'], { dot: string; label: string }> = {
-  planned: { dot: 'bg-[#38bdf8]', label: 'ASSIGNED' },
-  'awaiting-approval': { dot: 'bg-[#dcdcaa]', label: 'APPROVAL' },
-  running: { dot: 'bg-[#0078d4]', label: 'IN_PROGRESS' },
-  completed: { dot: 'bg-[#4ec9b0]', label: 'COMPLETED' },
+  planned: { dot: 'bg-[#a3a3a3]', label: 'ASSIGNED' },
+  'awaiting-approval': { dot: 'bg-[#d4d4d4]', label: 'APPROVAL' },
+  running: { dot: 'bg-[#f5f5f5]', label: 'IN_PROGRESS' },
+  completed: { dot: 'bg-[#8f8f8f]', label: 'COMPLETED' },
   failed: { dot: 'bg-[#f48771]', label: 'FAILED' },
-  blocked: { dot: 'bg-[#ce9178]', label: 'BLOCKED' },
+  blocked: { dot: 'bg-[#737373]', label: 'BLOCKED' },
 }
 
 export function ExplorerSidebar({
@@ -99,7 +99,7 @@ export function ExplorerSidebar({
             ) : (
               <ChevronDown size={13} className="shrink-0 text-[#858585]" />
             )}
-            <Folder size={14} className="shrink-0 text-[#dcb67a]" />
+            <Folder size={14} className="shrink-0 text-[#8f8f8f]" />
             <span className="truncate">{item.name}</span>
           </button>
           {!collapsed && item.children.map((child) => renderTreeItem(child, depth + 1))}
@@ -116,14 +116,14 @@ export function ExplorerSidebar({
           compactMode ? 'py-[3px]' : 'py-1'
         } ${
           activePath === item.path
-            ? 'bg-[#04395e] text-white'
-            : 'text-[#cccccc] hover:bg-[#2a2d2e]'
+            ? 'bg-[#2c2c2c] text-white'
+            : 'text-[#cccccc] hover:bg-[#222222]'
         }`}
       >
         {fileIcon(item.file)}
         <span className="truncate">{item.name}</span>
         {item.file.dirty && (
-          <span className="ml-auto font-mono text-[10px] font-semibold text-[#e2c08d]">M</span>
+          <span className="ml-auto font-mono text-[10px] font-semibold text-[#e5e5e5]">M</span>
         )}
       </button>
     )
@@ -173,7 +173,7 @@ export function ExplorerSidebar({
             {collapsedGroups.__root ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             <span className="truncate">{projectName}</span>
             {rootPath && (
-              <span className="ml-auto rounded bg-[#252526] px-1 text-[9px] font-normal lowercase text-[#4ec9b0]">
+              <span className="ml-auto rounded bg-[#262626] px-1 text-[9px] font-normal lowercase text-[#a3a3a3]">
                 disk
               </span>
             )}
@@ -189,7 +189,7 @@ export function ExplorerSidebar({
 
       {sidePanel === 'search' && (
         <div className="flex min-h-0 flex-1 flex-col border-y border-[#2b2b2b] p-3">
-          <label className="flex items-center gap-2 rounded border border-[#3c3c3c] bg-[#252526] px-2 py-1.5 focus-within:border-[#0078d4]">
+          <label className="flex items-center gap-2 rounded border border-[#3c3c3c] bg-[#222222] px-2 py-1.5 focus-within:border-[#737373]">
             <Search size={13} className="shrink-0 text-[#858585]" />
             <input
               autoFocus
@@ -285,12 +285,12 @@ export function ExplorerSidebar({
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
               Edit Memory Snapshots
             </span>
-            <span className="rounded bg-[#252526] px-1.5 py-0.5 font-mono text-[9px] text-[#4ec9b0]">
+            <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#d4d4d4]">
               {revisions.length}
             </span>
           </div>
           {revisions.length === 0 ? (
-            <p className="rounded border border-[#2b2b2b] bg-[#1e1e1e] p-2.5 text-[11px] leading-4 text-[#858585]">
+            <p className="rounded border border-[#2b2b2b] bg-[#141414] p-2.5 text-[11px] leading-4 text-[#858585]">
               No revisions yet. Saving a file or applying an agent patch automatically records
               REV-001, REV-002… for instant rollback.
             </p>
@@ -299,10 +299,10 @@ export function ExplorerSidebar({
               {[...revisions].reverse().map((rev) => (
                 <div
                   key={rev.id}
-                  className="rounded border border-[#2b2b2b] bg-[#1e1e1e] p-2 text-[11px]"
+                  className="rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[11px]"
                 >
                   <div className="flex items-center justify-between gap-1">
-                    <span className="font-mono text-[10px] font-semibold text-[#4ec9b0]">
+                    <span className="font-mono text-[10px] font-semibold text-[#e5e5e5]">
                       {rev.id}
                     </span>
                     <span className="text-[9px] text-[#858585]">
@@ -315,7 +315,7 @@ export function ExplorerSidebar({
                   </p>
                   <button
                     onClick={() => onRestoreRevision(rev.id)}
-                    className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-[#3c3c3c] bg-[#252526] py-1 text-[10px] text-[#cccccc] hover:border-[#0078d4] hover:text-white"
+                    className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-[#3c3c3c] bg-[#242424] py-1 text-[10px] text-[#d4d4d4] hover:border-[#737373] hover:text-white"
                   >
                     <RotateCcw size={10} /> Restore before {rev.id}
                   </button>
@@ -335,12 +335,12 @@ export function ExplorerSidebar({
             >
               Task Registry
             </button>
-            <span className="rounded bg-[#0078d4]/20 px-1.5 py-0.5 font-mono text-[9px] text-[#9cdcfe]">
+            <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[9px] text-[#d4d4d4]">
               {completedCount}/{agentTasks.length}
             </span>
           </div>
           {visibleTasks.length === 0 ? (
-            <p className="rounded border border-[#2b2b2b] bg-[#1e1e1e] p-2 text-[10px] leading-4 text-[#858585]">
+            <p className="rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[10px] leading-4 text-[#858585]">
               Central PM Task Registry empty. Open Agent Control Center to delegate work.
             </p>
           ) : (
@@ -352,7 +352,7 @@ export function ExplorerSidebar({
                   <button
                     key={task.id}
                     onClick={onOpenAgents}
-                    className="block w-full rounded border border-[#2b2b2b] bg-[#1e1e1e] p-2 text-left hover:border-[#0078d4]"
+                    className="block w-full rounded border border-[#2b2b2b] bg-[#141414] p-2 text-left hover:border-[#525252]"
                   >
                     <div className="flex items-center gap-1.5 text-[9px] text-[#9d9d9d]">
                       <span className={`size-1.5 rounded-full ${style.dot}`} />
@@ -380,11 +380,12 @@ export function ExplorerSidebar({
           {revisions.length > 0 && (
             <div className="mt-2 flex items-center justify-between border-t border-[#2b2b2b] pt-2 text-[10px] text-[#858585]">
               <span className="flex items-center gap-1">
-                <History size={11} className="text-[#4ec9b0]" /> Latest: {revisions[revisions.length - 1].id}
+                <History size={11} className="text-[#d4d4d4]" /> Latest:{' '}
+                {revisions[revisions.length - 1].id}
               </span>
               <button
                 onClick={() => onRestoreRevision(revisions[revisions.length - 1].id)}
-                className="text-[#9cdcfe] hover:underline"
+                className="text-[#e5e5e5] hover:underline"
               >
                 Undo
               </button>

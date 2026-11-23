@@ -223,7 +223,7 @@ export function DiffReviewModal({
                         </button>
                         <button
                           onClick={() => onApply(selected.id)}
-                          className="flex items-center gap-1.5 rounded-md bg-lime-400 px-3 py-1.5 text-[11px] font-semibold text-black hover:bg-lime-300"
+                          className="flex items-center gap-1.5 rounded-md bg-[#e5e5e5] px-3 py-1.5 text-[11px] font-semibold text-[#111111] hover:bg-white"
                         >
                           <Check size={12} /> Accept &amp; Apply
                         </button>

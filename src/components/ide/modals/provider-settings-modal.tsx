@@ -480,7 +480,7 @@ export function ProviderSettingsModal({
           </button>
           <button
             onClick={() => onSave({ provider, providers, settings })}
-            className="rounded-md bg-lime-400 px-3 py-1.5 text-[11px] font-semibold text-black hover:bg-lime-300"
+            className="rounded-md bg-[#e5e5e5] px-3 py-1.5 text-[11px] font-semibold text-[#111111] hover:bg-white"
           >
             Save settings
           </button>
@@ -531,10 +531,10 @@ function Toggle({
         <span className="mt-1 block text-[10px] leading-4 text-zinc-600">{description}</span>
       </span>
       <span
-        className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? 'bg-lime-400' : 'bg-zinc-800'}`}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? 'bg-[#e5e5e5]' : 'bg-zinc-800'}`}
       >
         <span
-          className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition ${checked ? 'left-[18px]' : 'left-0.5'}`}
+          className={`absolute top-0.5 size-4 rounded-full shadow transition ${checked ? 'left-[18px] bg-[#111111]' : 'left-0.5 bg-zinc-400'}`}
         />
       </span>
     </button>

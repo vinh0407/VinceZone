@@ -25,29 +25,29 @@ type ActiveFlight = {
 
 const mailColors: Record<MailKind, { stroke: string; badge: string; glow: string }> = {
   delegation: {
-    stroke: '#0078d4',
-    badge: 'border-[#0078d4]/70 bg-[#0d2236]/95 text-[#9cdcfe]',
-    glow: '0 0 18px rgba(0,120,212,0.5)',
+    stroke: '#f5f5f5',
+    badge: 'border-[#737373] bg-[#171717]/95 text-[#f5f5f5]',
+    glow: '0 0 18px rgba(255,255,255,0.28)',
   },
   direct: {
-    stroke: '#c586c0',
-    badge: 'border-[#c586c0]/70 bg-[#27182a]/95 text-[#e6b3e2]',
-    glow: '0 0 18px rgba(197,134,192,0.45)',
+    stroke: '#d4d4d4',
+    badge: 'border-[#525252] bg-[#1c1c1c]/95 text-[#e5e5e5]',
+    glow: '0 0 16px rgba(212,212,212,0.25)',
   },
   peer: {
-    stroke: '#38bdf8',
-    badge: 'border-sky-400/60 bg-[#0d1c29]/95 text-sky-200',
-    glow: '0 0 18px rgba(56,189,248,0.45)',
+    stroke: '#a3a3a3',
+    badge: 'border-[#525252] bg-[#181818]/95 text-[#d4d4d4]',
+    glow: '0 0 16px rgba(163,163,163,0.25)',
   },
   report: {
-    stroke: '#4ec9b0',
-    badge: 'border-[#4ec9b0]/65 bg-[#0f2622]/95 text-[#8be9d7]',
-    glow: '0 0 18px rgba(78,201,176,0.45)',
+    stroke: '#e5e5e5',
+    badge: 'border-[#737373] bg-[#1f1f1f]/95 text-[#ffffff]',
+    glow: '0 0 18px rgba(229,229,229,0.32)',
   },
   conflict: {
     stroke: '#f48771',
     badge: 'border-[#f48771]/75 bg-[#2d1410]/95 text-[#ffbeb3]',
-    glow: '0 0 20px rgba(244,135,113,0.55)',
+    glow: '0 0 20px rgba(244,135,113,0.45)',
   },
 }
 

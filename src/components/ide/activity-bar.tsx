@@ -62,7 +62,7 @@ export function ActivityBar({
         >
           <GitBranch size={21} strokeWidth={1.6} />
           {dirtyCount > 0 && (
-            <span className="absolute right-2 top-2 grid min-w-4 place-items-center rounded-full bg-[#0078d4] px-1 text-[9px] font-semibold text-white">
+            <span className="absolute right-2 top-2 grid min-w-4 place-items-center rounded-full bg-[#e5e5e5] px-1 text-[9px] font-semibold text-[#111111]">
               {dirtyCount}
             </span>
           )}
@@ -74,7 +74,7 @@ export function ActivityBar({
         >
           <History size={21} strokeWidth={1.6} />
           {revisionCount > 0 && (
-            <span className="absolute right-2 top-2 grid min-w-4 place-items-center rounded-full bg-[#4ec9b0] px-1 text-[9px] font-semibold text-black">
+            <span className="absolute right-2 top-2 grid min-w-4 place-items-center rounded-full bg-[#737373] px-1 text-[9px] font-semibold text-white">
               {revisionCount}
             </span>
           )}
@@ -86,7 +86,7 @@ export function ActivityBar({
         >
           <Bot size={21} strokeWidth={1.6} />
           {activeAgentCount > 0 && (
-            <span className="agent-orbit absolute right-2.5 top-2.5 size-2 rounded-full bg-[#0078d4]" />
+            <span className="agent-orbit absolute right-2.5 top-2.5 size-2 rounded-full bg-[#e5e5e5]" />
           )}
         </button>
         <button

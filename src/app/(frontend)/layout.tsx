@@ -10,7 +10,7 @@ const title = makeSiteSettings.title ?? defaultTitle
 const description =
   makeSiteSettings.description ??
   'VinceZone Studio desktop IDE combining VS Code Dark Modern ergonomics with autonomous multi-agent territory orchestration and edit memory.'
-const favicon = makeSiteSettings.icons?.icon ?? '/favicon.svg'
+const favicon = makeSiteSettings.icons?.icon ?? '/logo.png'
 const socialImage = makeSiteSettings.openGraph?.image
 const googleAnalyticsId = sanitizeHtmlAttribute(makeSiteSettings.analytics?.googleAnalyticsId)
 

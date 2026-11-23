@@ -232,15 +232,15 @@ export function AgentWorkspace({
     <section className="flex min-w-0 flex-1 flex-col bg-[#1e1e1e]">
       <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#2b2b2b] bg-[#181818] px-4 py-1.5">
         <div className="flex items-center gap-2">
-          <LayoutGrid size={14} className="text-[#0078d4]" />
+          <LayoutGrid size={14} className="text-[#d4d4d4]" />
           <span className="text-[12px] font-semibold text-white">
             VinceZone Multi-Agent Control Center
           </span>
-          <span className="rounded bg-[#252526] px-1.5 py-0.5 font-mono text-[10px] text-[#9d9d9d]">
+          <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[10px] text-[#a3a3a3]">
             {agents.length}/7
           </span>
           {tasks.length > 0 && (
-            <span className="rounded bg-[#0078d4]/20 px-1.5 py-0.5 font-mono text-[10px] text-[#9cdcfe]">
+            <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[10px] text-[#e5e5e5]">
               {tasks.filter((task) => task.status === 'completed').length}/{tasks.length} tasks
             </span>
           )}
@@ -258,7 +258,7 @@ export function AgentWorkspace({
               }
             }}
             disabled={agents.length < 2}
-            className="flex items-center gap-1.5 rounded border border-[#0078d4]/50 bg-[#0078d4]/15 px-2.5 py-1 text-[11px] text-[#9cdcfe] hover:bg-[#0078d4]/25 disabled:opacity-30"
+            className="flex items-center gap-1.5 rounded border border-[#454545] bg-[#262626] px-2.5 py-1 text-[11px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-30"
             title="Animate VinceZone agent mail exchange across the active topology"
           >
             {communicationEvents.some((event) => event.recipientId) ? (
@@ -275,8 +275,8 @@ export function AgentWorkspace({
             onClick={() => setMailLogOpen((prev) => !prev)}
             className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] ${
               mailLogOpen
-                ? 'border-[#0078d4] bg-[#2a2d2e] text-white'
-                : 'border-[#3c3c3c] bg-[#252526] text-[#cccccc] hover:text-white'
+                ? 'border-[#737373] bg-[#2f2f2f] text-white'
+                : 'border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white'
             }`}
           >
             <History size={11} /> Mail log ({communicationEvents.length})
@@ -284,7 +284,7 @@ export function AgentWorkspace({
           {pendingPatchCount > 0 && (
             <button
               onClick={() => onDiff()}
-              className="flex items-center gap-1.5 rounded border border-[#4ec9b0]/50 bg-[#4ec9b0]/15 px-2.5 py-1 text-[11px] text-[#4ec9b0] hover:bg-[#4ec9b0]/25"
+              className="flex items-center gap-1.5 rounded border border-[#525252] bg-[#2a2a2a] px-2.5 py-1 text-[11px] text-[#f0f0f0] hover:bg-[#383838]"
             >
               <GitCompareArrows size={11} /> Diff ({pendingPatchCount})
             </button>
@@ -301,7 +301,7 @@ export function AgentWorkspace({
           <button
             onClick={onCreate}
             disabled={agents.length >= 7}
-            className="flex items-center gap-1.5 rounded bg-[#0078d4] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#1a8ad4] disabled:opacity-30"
+            className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-3 py-1 text-[11px] font-medium text-[#111111] hover:bg-white disabled:opacity-30"
           >
             <MessageSquarePlus size={12} /> New agent
           </button>
@@ -634,12 +634,12 @@ function AgentPanel({
             <div className="flex items-center gap-1.5">
               <h2 className="truncate text-[11px] font-semibold text-white">{agent.name}</h2>
               {agent.roleId && agent.roleId !== 'custom' && (
-                <span className="rounded bg-[#252526] px-1 py-0.5 font-mono text-[8px] uppercase text-[#9cdcfe]">
+                <span className="rounded bg-[#262626] px-1 py-0.5 font-mono text-[8px] uppercase text-[#d4d4d4]">
                   @{agent.roleId}
                 </span>
               )}
               {topologyRole !== 'Worker' && (
-                <span className="rounded bg-[#0078d4]/20 px-1 py-0.5 text-[7px] uppercase text-[#9cdcfe]">
+                <span className="rounded bg-[#333333] px-1 py-0.5 text-[7px] uppercase text-[#e5e5e5]">
                   {topologyRole}
                 </span>
               )}
@@ -677,15 +677,15 @@ function AgentPanel({
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 border-b border-white/[0.04] px-3 py-1.5 text-[9px] text-zinc-600">
+      <div className="flex items-center gap-2 border-b border-white/[0.04] px-3 py-1.5 text-[9px] text-zinc-500">
         <span className="capitalize">{agent.status}</span>
         {isSendingMail && (
-          <span className="flex items-center gap-0.5 rounded bg-[#0078d4]/25 px-1.5 py-0.5 text-[8px] uppercase text-[#9cdcfe]">
+          <span className="flex items-center gap-0.5 rounded bg-[#333333] px-1.5 py-0.5 text-[8px] uppercase text-[#f5f5f5]">
             <Mail size={8} /> Sending
           </span>
         )}
         {justReceivedMail && (
-          <span className="flex items-center gap-0.5 rounded bg-[#4ec9b0]/20 px-1.5 py-0.5 text-[8px] uppercase text-[#4ec9b0]">
+          <span className="flex items-center gap-0.5 rounded bg-[#e5e5e5] px-1.5 py-0.5 text-[8px] font-medium uppercase text-[#111111]">
             <Mail size={8} /> Received
           </span>
         )}
@@ -881,7 +881,7 @@ function AgentPanel({
               <button
                 onClick={onSend}
                 disabled={!draft.trim()}
-                className="grid size-5 place-items-center rounded bg-lime-400 text-black disabled:opacity-20"
+                className="grid size-5 place-items-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-20"
               >
                 <Send size={10} />
               </button>

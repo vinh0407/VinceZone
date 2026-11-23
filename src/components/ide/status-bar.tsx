@@ -51,12 +51,12 @@ export function StatusBar({
 
   return (
     <footer
-      className={`flex h-[22px] shrink-0 select-none items-center justify-between px-2 text-[11px] text-white transition-colors ${
-        debugActive ? 'bg-[#68217a]' : 'bg-[#0078d4]'
+      className={`flex h-[22px] shrink-0 select-none items-center justify-between border-t border-[#2b2b2b] px-2 text-[11px] text-[#d4d4d4] transition-colors ${
+        debugActive ? 'bg-[#2a2a2a] text-white' : 'bg-[#121212]'
       }`}
     >
       <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1 bg-black/15 px-1.5 py-0.5 font-medium">
+        <span className="flex items-center gap-1 rounded bg-[#222222] px-1.5 py-0.5 font-medium text-[#f0f0f0]">
           <Monitor size={11} />
           {isDesktop ? 'VinceZone Desktop' : 'VinceZone Local'} :40704
         </span>

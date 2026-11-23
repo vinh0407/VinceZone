@@ -67,8 +67,8 @@ export function AgentCreatorModal({
                     onClick={() => setDetails({ ...details, view: option.id })}
                     className={`flex items-center justify-center gap-2 rounded-md border py-2 text-[10px] ${
                       details.view === option.id
-                        ? 'border-lime-400/40 bg-lime-400/10 text-lime-300'
-                        : 'border-white/[0.08] text-zinc-600 hover:bg-white/[0.03]'
+                        ? 'border-[#737373] bg-[#2a2a2a] text-white'
+                        : 'border-white/[0.08] text-zinc-500 hover:bg-white/[0.03]'
                     }`}
                   >
                     <Icon size={13} /> {option.label}
@@ -92,7 +92,7 @@ export function AgentCreatorModal({
                 name: details.name.trim() || 'New agent',
               })
             }
-            className="rounded-md bg-lime-400 px-3 py-1.5 text-[11px] font-semibold text-black hover:bg-lime-300"
+            className="rounded-md bg-[#e5e5e5] px-3 py-1.5 text-[11px] font-semibold text-[#111111] hover:bg-white"
           >
             Create agent
           </button>

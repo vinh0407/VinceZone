@@ -89,7 +89,7 @@ export function EditorPane({
                 onClick={() => onSelectTab(path)}
                 className={`group flex min-w-32 items-center gap-2 border-r border-[#2b2b2b] px-3 text-[12px] ${
                   isActive
-                    ? 'border-t-2 border-t-[#0078d4] bg-[#1e1e1e] text-white'
+                    ? 'border-t-2 border-t-[#e5e5e5] bg-[#1e1e1e] text-white'
                     : 'bg-[#181818] text-[#9d9d9d] hover:bg-[#1f1f1f]'
                 }`}
               >
@@ -133,7 +133,7 @@ export function EditorPane({
       </div>
       <div
         className={`relative min-h-0 flex-1 overflow-hidden bg-[#1e1e1e] ${
-          aiActivity !== 'idle' ? 'ring-1 ring-inset ring-[#0078d4]/40' : ''
+          aiActivity !== 'idle' ? 'ring-1 ring-inset ring-white/25' : ''
         }`}
       >
         {activeFile ? (
@@ -163,14 +163,14 @@ export function EditorPane({
           </div>
         )}
         {editPulse && (
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-1 bg-[#0078d4]/80 shadow-[0_0_20px_rgba(0,120,212,0.8)]" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1 bg-white/60 shadow-[0_0_20px_rgba(255,255,255,0.45)]" />
         )}
         {aiActivity !== 'idle' && activeFile && (
           <>
-            <div className="ai-editor-scan pointer-events-none absolute inset-x-0 h-20 bg-gradient-to-b from-transparent via-[#0078d4]/10 to-transparent" />
-            <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2 rounded border border-[#0078d4]/40 bg-[#181818]/95 px-2.5 py-1.5 shadow-xl">
-              <span className="agent-orbit size-2 rounded-full bg-[#0078d4]" />
-              <span className="text-[10px] font-medium text-[#9cdcfe]">
+            <div className="ai-editor-scan pointer-events-none absolute inset-x-0 h-20 bg-gradient-to-b from-transparent via-white/[0.06] to-transparent" />
+            <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2 rounded border border-[#454545] bg-[#181818]/95 px-2.5 py-1.5 shadow-xl">
+              <span className="agent-orbit size-2 rounded-full bg-[#e5e5e5]" />
+              <span className="text-[10px] font-medium text-[#e5e5e5]">
                 VinceZone AI {aiActivity === 'reading' ? 'analyzing context' : 'editing code'}
               </span>
               <span className="text-[10px] text-[#858585]">{activeFile.name}</span>
@@ -179,8 +179,8 @@ export function EditorPane({
         )}
         {debugState === 'paused' && (
           <div className="pointer-events-none absolute left-12 top-[92px] flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#e51400] shadow-[0_0_12px_rgba(229,20,0,0.85)]" />
-            <span className="rounded bg-[#68217a]/90 px-2 py-0.5 font-mono text-[10px] text-white">
+            <span className="size-2.5 rounded-full bg-[#e5e5e5] shadow-[0_0_12px_rgba(255,255,255,0.7)]" />
+            <span className="rounded border border-[#454545] bg-[#262626]/95 px-2 py-0.5 font-mono text-[10px] text-white">
               paused · line {debugLine}
             </span>
           </div>

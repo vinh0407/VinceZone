@@ -1,6 +1,6 @@
 'use client'
 
-import { Braces, Play, Smartphone } from 'lucide-react'
+import { Play, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 
 export function AndroidEmulator({
@@ -33,20 +33,20 @@ export function AndroidEmulator({
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-[#090909]">
-      <div className="flex h-11 items-center justify-between border-b border-white/[0.07] px-4">
+      <div className="flex h-11 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-4">
         <div className="flex items-center gap-2">
-          <Smartphone size={14} className="text-emerald-400" />
-          <span className="text-[12px] font-semibold text-zinc-200">Android simulator</span>
-          <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[9px] text-amber-300">
+          <Smartphone size={14} className="text-[#d4d4d4]" />
+          <span className="text-[12px] font-semibold text-white">Android simulator</span>
+          <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[9px] text-[#a3a3a3]">
             Simulated preview
           </span>
-          <span className="text-[10px] text-zinc-600">{projectName}</span>
+          <span className="text-[10px] text-[#858585]">{projectName}</span>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={device}
             onChange={(event) => setDevice(event.target.value)}
-            className="h-7 rounded-md border border-white/10 bg-[#141414] px-2 text-[10px] text-zinc-400 outline-none"
+            className="h-7 rounded border border-[#333333] bg-[#141414] px-2 text-[10px] text-[#cccccc] outline-none"
           >
             <option>Pixel 9 API 35</option>
             <option>Pixel Fold API 35</option>
@@ -54,44 +54,46 @@ export function AndroidEmulator({
           </select>
           <button
             onClick={runAndroid}
-            className="flex h-7 items-center gap-1.5 rounded-md bg-lime-400 px-2.5 text-[10px] font-semibold text-black"
+            className="flex h-7 items-center gap-1.5 rounded bg-[#e5e5e5] px-2.5 text-[10px] font-semibold text-[#111111] hover:bg-white"
           >
             <Play size={11} /> Run preview
           </button>
         </div>
       </div>
       {syncing && (
-        <div className="relative h-7 shrink-0 overflow-hidden border-b border-sky-400/10 bg-sky-400/[0.06] px-4 text-[10px] leading-7 text-sky-200/70">
+        <div className="relative h-7 shrink-0 overflow-hidden border-b border-[#333333] bg-[#1f1f1f] px-4 text-[10px] leading-7 text-[#d4d4d4]">
           Simulated Gradle project sync in progress…
-          <span className="android-sync-line absolute inset-x-0 bottom-0 h-0.5 bg-sky-400" />
+          <span className="android-sync-line absolute inset-x-0 bottom-0 h-0.5 bg-[#e5e5e5]" />
         </div>
       )}
-      <div className="flex min-h-0 flex-1 items-center justify-center gap-8 overflow-auto bg-[radial-gradient(circle_at_center,#171717_0,#0b0b0b_58%)] p-8">
-        <div className="rounded-[38px] border-[7px] border-[#272727] bg-black p-1 shadow-2xl shadow-black transition-all">
+      <div className="flex min-h-0 flex-1 items-center justify-center gap-8 overflow-auto bg-[radial-gradient(circle_at_center,#1c1c1c_0,#0d0d0d_60%)] p-8">
+        <div className="rounded-[38px] border-[7px] border-[#2b2b2b] bg-black p-1 shadow-2xl shadow-black transition-all">
           <div
-            className={`relative overflow-hidden rounded-[29px] bg-[#111827] transition-all ${
+            className={`relative overflow-hidden rounded-[29px] bg-[#111111] transition-all ${
               landscape ? 'h-[270px] w-[560px]' : 'h-[560px] w-[270px]'
             }`}
           >
             <div className="absolute left-1/2 top-2 z-10 h-5 w-20 -translate-x-1/2 rounded-full bg-black" />
             {powered ? (
               <>
-                <div className="flex h-8 items-center justify-between bg-black/20 px-4 text-[8px] text-white/70">
+                <div className="flex h-8 items-center justify-between bg-black/30 px-4 text-[8px] text-white/70">
                   <span>9:41</span>
                   <span>5G · 100%</span>
                 </div>
-                <div className="flex h-[calc(100%-32px)] flex-col items-center justify-center bg-gradient-to-b from-[#152018] to-[#0c120e] px-7 text-center">
-                  <div className="grid size-16 place-items-center rounded-2xl bg-lime-400 text-black shadow-lg shadow-lime-400/10">
-                    <Braces size={28} />
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-white">Baton Preview</h3>
-                  <p className="mt-2 text-[10px] leading-5 text-white/40">
+                <div className="flex h-[calc(100%-32px)] flex-col items-center justify-center bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] px-7 text-center">
+                  <img
+                    src="/logo.png"
+                    alt="VinceZone"
+                    className="size-16 rounded-2xl border border-[#333333] object-cover shadow-lg"
+                  />
+                  <h3 className="mt-5 text-lg font-semibold text-white">VinceZone Preview</h3>
+                  <p className="mt-2 text-[10px] leading-5 text-white/45">
                     Android UI simulation for {projectName}. Connect the Local Companion for real
                     ADB, Gradle, and APK execution.
                   </p>
                   <button
                     onClick={runAndroid}
-                    className="mt-6 rounded-full bg-lime-400 px-5 py-2 text-[10px] font-semibold text-black"
+                    className="mt-6 rounded-full bg-[#e5e5e5] px-5 py-2 text-[10px] font-semibold text-[#111111] hover:bg-white"
                   >
                     Simulate launch
                   </button>
