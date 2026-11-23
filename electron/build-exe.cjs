@@ -88,6 +88,94 @@ function removeLegacyLocalhostFiles() {
   }
 }
 
+/**
+ * Flattens pnpm's `.next/standalone/node_modules/.pnpm/*\/node_modules/*` layout
+ * into a clean, symlink-free top-level `node_modules` directory so Electron's
+ * packaged `resources/app` resolves `@swc/helpers`, `@next/env`, `styled-jsx`,
+ * `next`, `react`, `react-dom`, etc. on any Windows machine without symlinks.
+ */
+function copyStandaloneBundleClean(srcStandalone, dstStandalone) {
+  fs.mkdirSync(dstStandalone, { recursive: true })
+
+  // 1. Copy everything except node_modules
+  for (const entry of fs.readdirSync(srcStandalone, { withFileTypes: true })) {
+    if (entry.name === 'node_modules') continue
+    fs.cpSync(path.join(srcStandalone, entry.name), path.join(dstStandalone, entry.name), {
+      recursive: true,
+      force: true,
+      dereference: true,
+    })
+  }
+
+  // 2. Flatten node_modules cleanly (hoist all real packages from .pnpm)
+  const srcNm = path.join(srcStandalone, 'node_modules')
+  const dstNm = path.join(dstStandalone, 'node_modules')
+  fs.mkdirSync(dstNm, { recursive: true })
+
+  const copyPackageDir = (srcPkgDir, relName) => {
+    // Skip non-Windows native sharp/libvips binaries to keep bundle lean
+    if (/sharp-(linux|darwin)|libvips-(linux|darwin)/i.test(relName)) return
+    const dstPkgDir = path.join(dstNm, relName)
+    const realSrc = fs.realpathSync(srcPkgDir)
+    if (!fs.statSync(realSrc).isDirectory()) return
+    // Prefer already-copied higher-version or top-level packages unless missing
+    if (fs.existsSync(dstPkgDir)) return
+    fs.mkdirSync(path.dirname(dstPkgDir), { recursive: true })
+    fs.cpSync(realSrc, dstPkgDir, { recursive: true, force: true, dereference: true })
+  }
+
+  const scanNodeModulesContainer = (containerDir) => {
+    if (!fs.existsSync(containerDir)) return
+    for (const entry of fs.readdirSync(containerDir, { withFileTypes: true })) {
+      if (entry.name === '.pnpm' || entry.name === '.bin') continue
+      const fullPath = path.join(containerDir, entry.name)
+      if (entry.name.startsWith('@')) {
+        let scopedEntries = []
+        try {
+          scopedEntries = fs.readdirSync(fullPath, { withFileTypes: true })
+        } catch {
+          continue
+        }
+        for (const scoped of scopedEntries) {
+          copyPackageDir(path.join(fullPath, scoped.name), path.join(entry.name, scoped.name))
+        }
+      } else {
+        copyPackageDir(fullPath, entry.name)
+      }
+    }
+  }
+
+  // Copy top-level packages first (next, react, react-dom)
+  scanNodeModulesContainer(srcNm)
+
+  // Hoist every real package inside .pnpm/<store>/node_modules/* and .pnpm/node_modules/*
+  const pnpmDir = path.join(srcNm, '.pnpm')
+  if (fs.existsSync(pnpmDir)) {
+    scanNodeModulesContainer(path.join(pnpmDir, 'node_modules'))
+    for (const storeEntry of fs.readdirSync(pnpmDir, { withFileTypes: true })) {
+      if (!storeEntry.isDirectory() || storeEntry.name === 'node_modules') continue
+      scanNodeModulesContainer(path.join(pnpmDir, storeEntry.name, 'node_modules'))
+    }
+  }
+}
+
+async function verifyPackagedRuntime() {
+  const { createInProcessNextHandler } = require(path.join(APP_DIR, 'electron', 'in-process-bridge.cjs'))
+  const handler = await createInProcessNextHandler(APP_DIR, ROOT)
+  const [homeRes, pingRes] = await Promise.all([
+    handler(new Request('vincezone://studio/')),
+    handler(new Request('vincezone://studio/api/vz-ping')),
+  ])
+  if (!homeRes.ok || !pingRes.ok) {
+    throw new Error(`Packaged runtime check failed: /=${homeRes.status}, /api/vz-ping=${pingRes.status}`)
+  }
+  const html = await homeRes.text()
+  if (!html.includes('VinceZone')) {
+    throw new Error('Packaged runtime / did not return expected VinceZone HTML.')
+  }
+  console.log(`Verified packaged runtime: GET / (${homeRes.status}), GET /api/vz-ping (${pingRes.status})`)
+}
+
 async function main() {
   if (!fs.existsSync(path.join(STANDALONE_DIR, 'server.js'))) {
     console.error('Standalone build missing. Run `pnpm build` first.')
@@ -137,12 +225,8 @@ async function main() {
     fs.copyFileSync(path.join(ROOT, 'electron', file), path.join(APP_DIR, 'electron', file))
   }
 
-  // Copy compiled self-contained Next.js standalone bundle (dereference symlinks for portability)
-  fs.cpSync(STANDALONE_DIR, path.join(APP_DIR, '.next', 'standalone'), {
-    recursive: true,
-    force: true,
-    dereference: true,
-  })
+  // Copy compiled self-contained Next.js standalone bundle with flattened pnpm node_modules
+  copyStandaloneBundleClean(STANDALONE_DIR, path.join(APP_DIR, '.next', 'standalone'))
 
   // Copy CLI-Anything harness
   fs.copyFileSync(
@@ -150,10 +234,13 @@ async function main() {
     path.join(APP_DIR, 'agent-harness', 'vincezone-cli.mjs'),
   )
 
-  // 4. Embed VinceAuto icon & Windows app metadata into VinceZone Studio.exe
+  // 4. Verify the packaged resources/app actually boots Next.js in-process with 0 missing modules
+  await verifyPackagedRuntime()
+
+  // 5. Embed VinceAuto icon & Windows app metadata into VinceZone Studio.exe
   await patchExeIconAndMetadata()
 
-  // 5. Remove legacy localhost launchers (.bat, .vbs, .lnk, .zip)
+  // 6. Remove legacy localhost launchers (.bat, .vbs, .lnk, .zip)
   removeLegacyLocalhostFiles()
 
   const exeStat = fs.statSync(EXE_PATH)
