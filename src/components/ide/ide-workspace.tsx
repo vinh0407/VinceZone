@@ -87,6 +87,29 @@ declare global {
   }
 }
 
+function normalizeRootKey(root?: string): string {
+  if (!root) return ''
+  return root.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+function makeDiskProjectId(root: string): string {
+  return `disk-${normalizeRootKey(root)}`
+}
+
+function cloneProjectSession(session: ProjectSessionData): ProjectSessionData {
+  return {
+    agents: session.agents.map((a) => ({
+      ...a,
+      messages: a.messages.map((m) => ({ ...m })),
+    })),
+    agentTasks: session.agentTasks.map((t) => ({ ...t })),
+    communicationEvents: session.communicationEvents.map((e) => ({ ...e })),
+    proposedPatches: session.proposedPatches.map((p) => ({ ...p })),
+    revisions: session.revisions.map((r) => ({ ...r })),
+    memoryNotes: session.memoryNotes.map((n) => ({ ...n })),
+  }
+}
+
 function findPmAgentId(list: Agent[]): string {
   return (
     list.find((item) => item.roleId === 'pm' || item.id === 'pm')?.id ??
@@ -237,15 +260,77 @@ export function IDEWorkspace() {
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0]
   const activeFile = files.find((file) => file.path === activePath) ?? files[0]
 
+  // Guard ref: auto-save to `.vincezone/session-store.json` is ONLY allowed once the active project's
+  // own session has finished hydrating (prevents cross-project chat leakage during project switch!)
+  const diskSessionReadyRootRef = useRef<string>('')
+
+  const flushSessionToDisk = useCallback(
+    (rootPath: string | undefined, projectName: string, sessionData: ProjectSessionData) => {
+      if (!rootPath) return
+      void fetch('/api/session-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          root: rootPath,
+          session: {
+            projectName,
+            agents: sessionData.agents,
+            agentTasks: sessionData.agentTasks,
+            communicationEvents: sessionData.communicationEvents,
+            proposedPatches: sessionData.proposedPatches,
+            revisions: sessionData.revisions,
+            memoryNotes: sessionData.memoryNotes,
+          },
+        }),
+      }).catch(() => {})
+    },
+    [],
+  )
+
+  const readDiskSessionForRoot = useCallback(
+    async (rootPath: string): Promise<(Partial<ProjectSessionData> & { usageRecords?: UsageRecord[] }) | null> => {
+      try {
+        const res = await fetch(`/api/session-store?root=${encodeURIComponent(rootPath)}`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) return null
+        const data = (await res.json()) as {
+          ok?: boolean
+          exists?: boolean
+          session?: Partial<ProjectSessionData> & { usageRecords?: UsageRecord[] }
+        }
+        if (data?.ok && data.exists && data.session) return data.session
+        return null
+      } catch {
+        return null
+      }
+    },
+    [],
+  )
+
   const hydrateSession = useCallback((session: ProjectSessionData) => {
-    const nextAgents = session.agents.length ? session.agents : createSeedAgents()
+    const cloned = cloneProjectSession(session)
+    const nextAgents = cloned.agents.length ? cloned.agents : createSeedAgents()
+    const normalizedSession: ProjectSessionData = {
+      agents: nextAgents,
+      agentTasks: cloned.agentTasks ?? [],
+      communicationEvents: cloned.communicationEvents ?? [],
+      proposedPatches: cloned.proposedPatches ?? [],
+      revisions: cloned.revisions ?? [],
+      memoryNotes: cloned.memoryNotes?.length ? cloned.memoryNotes : defaultMemoryNotes,
+    }
+    sessionRef.current = normalizedSession
     setAgents(nextAgents)
-    setAgentTasks(session.agentTasks ?? [])
-    setCommunicationEvents(session.communicationEvents ?? [])
-    setProposedPatches(session.proposedPatches ?? [])
-    setRevisions(session.revisions ?? [])
-    setMemoryNotes(session.memoryNotes ?? defaultMemoryNotes)
+    setAgentTasks(normalizedSession.agentTasks)
+    setCommunicationEvents(normalizedSession.communicationEvents)
+    setProposedPatches(normalizedSession.proposedPatches)
+    setRevisions(normalizedSession.revisions)
+    setMemoryNotes(normalizedSession.memoryNotes)
     setPendingApproval(null)
+    setDrafts({})
+    setBridgeMessages([])
+    setCommandApprovals([])
+    setHunkReviews({})
     setRightChatAgentId(findPmAgentId(nextAgents))
   }, [])
 
@@ -262,28 +347,79 @@ export function IDEWorkspace() {
         }
         if (!payload.files.length) return false
 
-        const projectId = `disk-${payload.root}`
+        const targetRootKey = normalizeRootKey(payload.root)
+        const projectId = makeDiskProjectId(payload.root)
         diskSnapshotRef.current = new Map(payload.files.map((file) => [file.path, file.content]))
 
-        const existingTarget = projectsRef.current.find((item) => item.id === projectId)
         const outgoingId = activeProjectIdRef.current
-        const outgoingSession = sessionRef.current
+        const outgoingProject = projectsRef.current.find((item) => item.id === outgoingId)
+        const outgoingRootKey = normalizeRootKey(outgoingProject?.rootPath)
+        const outgoingSession = cloneProjectSession(sessionRef.current)
         const outgoingFiles = filesRef.current
+        const isSameProject =
+          Boolean(outgoingRootKey && outgoingRootKey === targetRootKey) ||
+          outgoingId === projectId
 
-        const nextTargetSession = preserveCurrentSession
-          ? outgoingSession
-          : existingTarget?.session ?? createFreshSession(payload.name)
+        // Lock disk auto-save during switch and immediately flush outgoing project's own chat to its disk store
+        if (!isSameProject) {
+          diskSessionReadyRootRef.current = ''
+          if (outgoingProject?.rootPath) {
+            flushSessionToDisk(outgoingProject.rootPath, outgoingProject.name, outgoingSession)
+          }
+        }
+
+        const existingTarget = projectsRef.current.find(
+          (item) =>
+            item.id === projectId ||
+            (item.rootPath && normalizeRootKey(item.rootPath) === targetRootKey),
+        )
+
+        // NEVER carry chat from Project A into a different Project B!
+        const shouldPreserve = preserveCurrentSession && isSameProject
+        let nextTargetSession: ProjectSessionData
+        if (shouldPreserve) {
+          nextTargetSession = outgoingSession
+        } else {
+          // Always check target project's own `.vincezone/session-store.json` first
+          const diskSession = await readDiskSessionForRoot(payload.root)
+          if (diskSession?.agents?.length) {
+            nextTargetSession = {
+              agents: diskSession.agents.map((a) => ({
+                ...a,
+                status: a.status === 'running' || a.status === 'reviewing' ? 'paused' : a.status,
+                currentTask: undefined,
+                composingPrompt: undefined,
+              })),
+              agentTasks: diskSession.agentTasks ?? [],
+              communicationEvents: diskSession.communicationEvents ?? [],
+              proposedPatches: diskSession.proposedPatches ?? [],
+              revisions: diskSession.revisions ?? [],
+              memoryNotes: diskSession.memoryNotes?.length
+                ? diskSession.memoryNotes
+                : defaultMemoryNotes,
+            }
+          } else if (existingTarget?.session?.agents?.length && !isSameProject) {
+            nextTargetSession = cloneProjectSession(existingTarget.session)
+          } else if (existingTarget?.session?.agents?.length && isSameProject) {
+            nextTargetSession = outgoingSession
+          } else {
+            nextTargetSession = createFreshSession(payload.name)
+          }
+        }
+
+        const resolvedId = existingTarget?.id ?? projectId
+        activeProjectIdRef.current = resolvedId
 
         setProjects((current) => {
           const withSavedOutgoing = current.map((item) =>
-            item.id === outgoingId
+            item.id === outgoingId && item.id !== resolvedId
               ? { ...item, files: outgoingFiles, session: outgoingSession }
               : item,
           )
-          const exists = withSavedOutgoing.some((item) => item.id === projectId)
+          const exists = withSavedOutgoing.some((item) => item.id === resolvedId)
           if (exists) {
             return withSavedOutgoing.map((item) =>
-              item.id === projectId
+              item.id === resolvedId
                 ? {
                     ...item,
                     name: payload.name,
@@ -297,7 +433,7 @@ export function IDEWorkspace() {
           return [
             ...withSavedOutgoing.filter((item) => item.id !== 'vincezone-studio'),
             {
-              id: projectId,
+              id: resolvedId,
               name: payload.name,
               rootPath: payload.root,
               files: payload.files,
@@ -306,11 +442,14 @@ export function IDEWorkspace() {
           ]
         })
 
-        setActiveProjectId(projectId)
+        setActiveProjectId(resolvedId)
         setFiles(payload.files)
-        if (!preserveCurrentSession) {
+        filesRef.current = payload.files
+        if (!shouldPreserve) {
           hydrateSession(nextTargetSession)
         }
+        diskSessionReadyRootRef.current = targetRootKey
+
         const preferred =
           payload.files.find((f) => f.path.endsWith('page.tsx')) ??
           payload.files.find((f) => f.name === 'README.md') ??
@@ -324,7 +463,7 @@ export function IDEWorkspace() {
         return false
       }
     },
-    [hydrateSession],
+    [flushSessionToDisk, hydrateSession, readDiskSessionForRoot],
   )
 
   // Hydrate persisted state + auto-load local workspace on localhost:40704 desktop runtime
@@ -344,6 +483,7 @@ export function IDEWorkspace() {
     hydratedRef.current = true
 
     let restoredAgents = false
+    let restoredActiveRoot: string | undefined
     if (rawSaved) {
       try {
         const parsed = JSON.parse(rawSaved) as {
@@ -434,6 +574,9 @@ export function IDEWorkspace() {
           )
           if (parsed.activeProjectId) {
             setActiveProjectId(parsed.activeProjectId)
+            activeProjectIdRef.current = parsed.activeProjectId
+            const activeProj = parsed.projects.find((p) => p.id === parsed.activeProjectId)
+            if (activeProj?.rootPath) restoredActiveRoot = activeProj.rootPath
           }
         }
         if (parsed.agents?.length) {
@@ -484,8 +627,8 @@ export function IDEWorkspace() {
       }
     }
 
-    // Load actual workspace files from disk via localhost API, preserving restored session on boot
-    void loadLocalDirectory(undefined, restoredAgents)
+    // Load the active project's own directory (or default workspace); never leak another project's chat!
+    void loadLocalDirectory(restoredActiveRoot, Boolean(restoredActiveRoot && restoredAgents))
 
     // Preload discovered skills + Saving Skill Combos for `/` slash commands
     void fetch('/api/extensions', { cache: 'no-store' })
@@ -621,6 +764,7 @@ export function IDEWorkspace() {
       files?: WorkspaceFile[]
       projects?: ProjectTab[]
       activeProjectId?: string
+      session?: ProjectSessionData
       provider?: ProviderConfig
       providers?: ProviderConfig[]
       settings?: AppSettings
@@ -630,17 +774,22 @@ export function IDEWorkspace() {
     }) => {
       const nextFiles = overrides?.files ?? files
       const nextActiveId = overrides?.activeProjectId ?? activeProjectId
-      const currentSession: ProjectSessionData = {
-        agents,
-        agentTasks,
-        communicationEvents: communicationEvents.slice(-200),
-        proposedPatches: proposedPatches.slice(0, 40),
-        revisions: (overrides?.revisions ?? revisions).slice(-30),
-        memoryNotes: overrides?.memoryNotes ?? memoryNotes,
-      }
+      const switchingActive =
+        Boolean(overrides?.activeProjectId) && overrides?.activeProjectId !== activeProjectId
+      const currentSession: ProjectSessionData =
+        overrides?.session ?? {
+          agents,
+          agentTasks,
+          communicationEvents: communicationEvents.slice(-200),
+          proposedPatches: proposedPatches.slice(0, 40),
+          revisions: (overrides?.revisions ?? revisions).slice(-30),
+          memoryNotes: overrides?.memoryNotes ?? memoryNotes,
+        }
       const nextProjects = (overrides?.projects ?? projects).map((project) =>
         project.id === nextActiveId
-          ? { ...project, files: nextFiles, session: currentSession }
+          ? switchingActive && !overrides?.session && project.session
+            ? { ...project, files: nextFiles }
+            : { ...project, files: nextFiles, session: currentSession }
           : project,
       )
       const nextProvider = overrides?.provider ?? savedProvider
@@ -748,45 +897,16 @@ export function IDEWorkspace() {
     return () => window.clearTimeout(timer)
   }, [providers, savedProvider])
 
-  // P2-2: Load durable unlimited session from `<workspaceRoot>/.vincezone/session-store.json`
-  const loadedDiskSessionRootRef = useRef<string>('')
-  useEffect(() => {
-    const root = activeProject?.rootPath
-    if (!root || loadedDiskSessionRootRef.current === root) return
-    loadedDiskSessionRootRef.current = root
-    let cancelled = false
-    void fetch(`/api/session-store?root=${encodeURIComponent(root)}`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (
-          data: {
-            ok?: boolean
-            exists?: boolean
-            session?: Partial<ProjectSessionData> & { usageRecords?: UsageRecord[] }
-          } | null,
-        ) => {
-          if (cancelled || !data?.ok || !data.exists || !data.session) return
-          const s = data.session
-          if (Array.isArray(s.agents) && s.agents.length > 0) setAgents(s.agents)
-          if (Array.isArray(s.agentTasks)) setAgentTasks(s.agentTasks)
-          if (Array.isArray(s.communicationEvents)) setCommunicationEvents(s.communicationEvents)
-          if (Array.isArray(s.proposedPatches)) setProposedPatches(s.proposedPatches)
-          if (Array.isArray(s.revisions)) setRevisions(s.revisions)
-          if (Array.isArray(s.memoryNotes) && s.memoryNotes.length > 0) setMemoryNotes(s.memoryNotes)
-          if (Array.isArray(s.usageRecords)) setUsageRecords(s.usageRecords)
-        },
-      )
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [activeProject?.rootPath])
-
   // P2-2: Debounced durable write to `<workspaceRoot>/.vincezone/session-store.json` (no 5MB limit!)
+  // STRICTLY gated by `diskSessionReadyRootRef === normalizeRootKey(root)` so switching projects can
+  // NEVER write Project A's chat into Project B's `.vincezone/session-store.json`!
   useEffect(() => {
     if (!hydratedRef.current || !activeProject?.rootPath) return
     const root = activeProject.rootPath
+    const rootKey = normalizeRootKey(root)
+    if (diskSessionReadyRootRef.current !== rootKey) return
     const timer = window.setTimeout(() => {
+      if (diskSessionReadyRootRef.current !== rootKey) return
       void fetch('/api/session-store', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1557,11 +1677,22 @@ export function IDEWorkspace() {
 
   const switchProject = (id: string) => {
     if (id === activeProjectId) return
-    const outgoingSession = sessionRef.current
+    const outgoingProject = projects.find((project) => project.id === activeProjectId)
+    const outgoingSession = cloneProjectSession(sessionRef.current)
     const target = projects.find((project) => project.id === id)
     if (!target) return
-    const targetSession = target.session ?? createFreshSession(target.name)
 
+    // Lock auto-save and flush outgoing project's chat to its own disk store BEFORE switching
+    diskSessionReadyRootRef.current = ''
+    if (outgoingProject?.rootPath) {
+      flushSessionToDisk(outgoingProject.rootPath, outgoingProject.name, outgoingSession)
+    }
+
+    const targetSession = target.session
+      ? cloneProjectSession(target.session)
+      : createFreshSession(target.name)
+
+    activeProjectIdRef.current = id
     setProjects((current) =>
       current.map((project) =>
         project.id === activeProjectId
@@ -1573,23 +1704,63 @@ export function IDEWorkspace() {
     )
     setActiveProjectId(id)
     setFiles(target.files)
+    filesRef.current = target.files
     setActivePath(target.files[0]?.path ?? '')
     setOpenPaths(target.files[0] ? [target.files[0].path] : [])
     hydrateSession(targetSession)
+
+    if (target.rootPath) {
+      const targetKey = normalizeRootKey(target.rootPath)
+      // If target project didn't have in-memory messages yet, try loading its own disk store
+      const hasUserChat = targetSession.agents.some((a) => a.messages.length > 1)
+      if (!hasUserChat) {
+        void readDiskSessionForRoot(target.rootPath).then((diskSession) => {
+          if (activeProjectIdRef.current !== id) return
+          if (diskSession?.agents?.length) {
+            const hydrated: ProjectSessionData = {
+              agents: diskSession.agents,
+              agentTasks: diskSession.agentTasks ?? [],
+              communicationEvents: diskSession.communicationEvents ?? [],
+              proposedPatches: diskSession.proposedPatches ?? [],
+              revisions: diskSession.revisions ?? [],
+              memoryNotes: diskSession.memoryNotes?.length
+                ? diskSession.memoryNotes
+                : defaultMemoryNotes,
+            }
+            hydrateSession(hydrated)
+          }
+          diskSessionReadyRootRef.current = targetKey
+        })
+      } else {
+        diskSessionReadyRootRef.current = targetKey
+      }
+    }
   }
 
   const closeProject = (id: string) => {
     if (projects.length === 1) return
+    const closing = projects.find((p) => p.id === id)
+    if (id === activeProjectId && closing?.rootPath) {
+      flushSessionToDisk(closing.rootPath, closing.name, cloneProjectSession(sessionRef.current))
+    }
     const remaining = projects.filter((project) => project.id !== id)
     setProjects(remaining)
     if (activeProjectId === id) {
+      diskSessionReadyRootRef.current = ''
       const next = remaining[0]
-      const nextSession = next.session ?? createFreshSession(next.name)
+      const nextSession = next.session
+        ? cloneProjectSession(next.session)
+        : createFreshSession(next.name)
+      activeProjectIdRef.current = next.id
       setActiveProjectId(next.id)
       setFiles(next.files)
+      filesRef.current = next.files
       setActivePath(next.files[0]?.path ?? '')
       setOpenPaths(next.files[0] ? [next.files[0].path] : [])
       hydrateSession(nextSession)
+      if (next.rootPath) {
+        diskSessionReadyRootRef.current = normalizeRootKey(next.rootPath)
+      }
     }
   }
 
@@ -1617,8 +1788,13 @@ export function IDEWorkspace() {
     )
 
     if (imported.length) {
+      diskSessionReadyRootRef.current = ''
+      const outgoingProject = projects.find((project) => project.id === activeProjectId)
+      const outgoingSession = cloneProjectSession(sessionRef.current)
+      if (outgoingProject?.rootPath) {
+        flushSessionToDisk(outgoingProject.rootPath, outgoingProject.name, outgoingSession)
+      }
       const projectId = `${folderName}-${uid()}`
-      const outgoingSession = sessionRef.current
       const freshSession = createFreshSession(folderName)
       const nextProjects = [
         ...projects.map((project) =>
@@ -1626,9 +1802,11 @@ export function IDEWorkspace() {
         ),
         { id: projectId, name: folderName, files: imported, session: freshSession },
       ]
+      activeProjectIdRef.current = projectId
       setProjects(nextProjects)
       setActiveProjectId(projectId)
       setFiles(imported)
+      filesRef.current = imported
       setActivePath(imported[0].path)
       setOpenPaths([imported[0].path])
       hydrateSession(freshSession)
@@ -1636,6 +1814,7 @@ export function IDEWorkspace() {
         files: imported,
         projects: nextProjects,
         activeProjectId: projectId,
+        session: freshSession,
       })
     }
     event.target.value = ''
