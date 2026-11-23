@@ -1,5 +1,6 @@
 'use client'
 
+import { Bot, Smartphone } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOrchestration } from '@/hooks/use-orchestration'
 import type { BridgeMessage } from '@/lib/agent-bridge'
@@ -77,6 +78,14 @@ declare global {
   }
 }
 
+function findPmAgentId(list: Agent[]): string {
+  return (
+    list.find((item) => item.roleId === 'pm' || item.id === 'pm')?.id ??
+    list[0]?.id ??
+    'pm'
+  )
+}
+
 function createFreshSession(projectName: string): ProjectSessionData {
   const seeded = createSeedAgents().map((agent, index) =>
     index === 0
@@ -128,7 +137,8 @@ export function IDEWorkspace() {
   const [agentViews, setAgentViews] = useState<Record<string, AgentView>>({})
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('ide')
   const [sidePanel, setSidePanel] = useState<SidePanel>('explorer')
-  const [rightChatOpen, setRightChatOpen] = useState(true)
+  const [rightPanelMode, setRightPanelMode] = useState<'chat' | 'phone' | null>('chat')
+  const rightChatOpen = rightPanelMode === 'chat'
   const [rightChatAgentId, setRightChatAgentId] = useState('pm')
   const [searchQuery, setSearchQuery] = useState('')
   const [revealRequest, setRevealRequest] = useState<{
@@ -211,14 +221,15 @@ export function IDEWorkspace() {
   const activeFile = files.find((file) => file.path === activePath) ?? files[0]
 
   const hydrateSession = useCallback((session: ProjectSessionData) => {
-    setAgents(session.agents.length ? session.agents : createSeedAgents())
+    const nextAgents = session.agents.length ? session.agents : createSeedAgents()
+    setAgents(nextAgents)
     setAgentTasks(session.agentTasks ?? [])
     setCommunicationEvents(session.communicationEvents ?? [])
     setProposedPatches(session.proposedPatches ?? [])
     setRevisions(session.revisions ?? [])
     setMemoryNotes(session.memoryNotes ?? defaultMemoryNotes)
     setPendingApproval(null)
-    setRightChatAgentId(session.agents[0]?.id ?? 'pm')
+    setRightChatAgentId(findPmAgentId(nextAgents))
   }, [])
 
   const loadLocalDirectory = useCallback(
@@ -417,7 +428,7 @@ export function IDEWorkspace() {
             }
           })
           setAgents(normalized)
-          setRightChatAgentId(normalized[0]?.id ?? 'pm')
+          setRightChatAgentId(findPmAgentId(normalized))
         }
         if (parsed.agentTasks) {
           setAgentTasks(
@@ -685,22 +696,24 @@ export function IDEWorkspace() {
   }, [persistWorkspace])
 
   const writeFileToDiskIfConnected = useCallback(
-    async (filePath: string, content: string) => {
-      if (!activeProject?.rootPath) return
+    async (filePath: string, content: string): Promise<boolean> => {
       try {
-        await fetch('/api/workspace', {
+        const res = await fetch('/api/workspace', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'write',
-            root: activeProject.rootPath,
+            root: activeProject?.rootPath || '',
             path: filePath,
             content,
           }),
         })
+        if (!res.ok) return false
         diskSnapshotRef.current.set(filePath, content)
+        return true
       } catch {
         // Keep browser state even if local disk write fails.
+        return false
       }
     },
     [activeProject?.rootPath],
@@ -971,7 +984,16 @@ export function IDEWorkspace() {
       setRevisions((current) => [...current.slice(-39), nextRev])
       setFiles(nextFiles)
       filesRef.current = nextFiles
-      void writeFileToDiskIfConnected(targetPath, content)
+      void writeFileToDiskIfConnected(targetPath, content).then((saved) => {
+        if (!saved) return
+        setFiles((current) => {
+          const clean = current.map((f) =>
+            f.path === targetPath && f.content === content ? { ...f, dirty: false } : f,
+          )
+          filesRef.current = clean
+          return clean
+        })
+      })
       setActivePath(targetPath)
       setOpenPaths((current) => (current.includes(targetPath) ? current : [...current, targetPath]))
       persistWorkspace({ files: nextFiles })
@@ -1492,12 +1514,23 @@ export function IDEWorkspace() {
     [persistWorkspace, recordRevision, writeFileToDiskIfConnected],
   )
 
+  const handleChangeAgentModel = useCallback(
+    (agentId: string, providerId: string, model: string) => {
+      setAgents((current) =>
+        current.map((item) =>
+          item.id === agentId ? { ...item, providerId, model } : item,
+        ),
+      )
+    },
+    [],
+  )
+
   const handleSendSelectionToChat = useCallback(
     (payload: { path: string; startLine: number; endLine: number; snippet: string }) => {
-      const targetId = rightChatAgentId || agents[0]?.id
+      const targetId = rightChatAgentId || findPmAgentId(agents)
       if (!targetId) return
       setWorkspaceMode('ide')
-      setRightChatOpen(true)
+      setRightPanelMode('chat')
       const block = `@${payload.path}:${payload.startLine}-${payload.endLine}\n\`\`\`\n${payload.snippet}\n\`\`\`\n`
       setDrafts((current) => ({
         ...current,
@@ -1509,16 +1542,16 @@ export function IDEWorkspace() {
   )
 
   const toggleZenMode = useCallback(() => {
-    const anyOpen = explorerOpen || rightChatOpen || terminalOpen
+    const anyOpen = explorerOpen || rightPanelMode !== null || terminalOpen
     if (anyOpen) {
       setExplorerOpen(false)
-      setRightChatOpen(false)
+      setRightPanelMode(null)
       setTerminalOpen(false)
     } else {
       setExplorerOpen(true)
-      setRightChatOpen(true)
+      setRightPanelMode('chat')
     }
-  }, [explorerOpen, rightChatOpen, terminalOpen])
+  }, [explorerOpen, rightPanelMode, terminalOpen])
 
   const paletteActions: PaletteAction[] = useMemo(
     () => [
@@ -1595,7 +1628,16 @@ export function IDEWorkspace() {
         shortcut: 'Ctrl+L',
         run: () => {
           setWorkspaceMode('ide')
-          setRightChatOpen((prev) => !prev)
+          setRightPanelMode((prev) => (prev === 'chat' ? null : 'chat'))
+        },
+      },
+      {
+        id: 'toggle-phone-demo',
+        category: 'View',
+        label: 'Toggle Right Phone Demo / Android Emulator',
+        run: () => {
+          setWorkspaceMode('ide')
+          setRightPanelMode((prev) => (prev === 'phone' ? null : 'phone'))
         },
       },
       {
@@ -1688,14 +1730,104 @@ export function IDEWorkspace() {
     setActivePath(openPaths[nextIndex])
   }
 
-  const debugProject = () => {
+  const handleRunProject = useCallback(async () => {
+    setWorkspaceMode('ide')
+    const currentFile = filesRef.current.find((f) => f.path === activePath)
+    const lowerPath = currentFile?.path.toLowerCase() || ''
+
+    // HTML file -> immediately preview live on the right Phone Demo panel
+    if (lowerPath.endsWith('.html') || lowerPath.endsWith('.htm')) {
+      setRightPanelMode('phone')
+      setRunState('success')
+      return
+    }
+
+    // Android Gradle project -> open Phone Demo panel + open Terminal
+    const hasGradle = filesRef.current.some(
+      (f) => f.path.toLowerCase().endsWith('gradlew') || f.path.toLowerCase().endsWith('gradlew.bat'),
+    )
+    if (hasGradle && (lowerPath.endsWith('.kt') || lowerPath.endsWith('.java'))) {
+      setRightPanelMode('phone')
+    }
+
+    // Runnable standalone script file
+    if (lowerPath.endsWith('.py')) {
+      await runTerminalCommand(`python "${currentFile!.path}"`, { openTerminal: true })
+      return
+    }
+    if (
+      (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.cjs')) &&
+      !lowerPath.includes('next.config')
+    ) {
+      await runTerminalCommand(`node "${currentFile!.path}"`, { openTerminal: true })
+      return
+    }
+
+    // Default project run: open Terminal & run test suite / verification
+    const hasPnpmLock = filesRef.current.some((f) => f.path === 'pnpm-lock.yaml')
+    await runTerminalCommand(hasPnpmLock ? 'pnpm test' : 'npm test', { openTerminal: true })
+  }, [activePath, runTerminalCommand])
+
+  const debugProject = useCallback(async () => {
     setWorkspaceMode('ide')
     setTerminalOpen(true)
     setBottomPanel('debug')
-    setDebugLine(5)
-    setDebugState('starting')
-    window.setTimeout(() => setDebugState('paused'), 700)
-  }
+    const currentFile = filesRef.current.find((f) => f.path === activePath)
+    const lowerPath = currentFile?.path.toLowerCase() || ''
+    setDebugLine(Math.max(1, cursor.line || 1))
+    setDebugState('running')
+
+    let cmd = 'pnpm exec tsc --noEmit'
+    if (lowerPath.endsWith('.py')) {
+      cmd = `python -m py_compile "${currentFile!.path}"`
+    } else if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.cjs')) {
+      cmd = `node --check "${currentFile!.path}"`
+    }
+
+    try {
+      const response = await fetch('/api/runner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'run-silent',
+          command: cmd,
+          cwd: activeProject?.rootPath,
+        }),
+      })
+      const data = (await response.json()) as {
+        ok?: boolean
+        exitCode?: number
+        cwd?: string
+        durationMs?: number
+        stdout?: string
+        stderr?: string
+        error?: string
+      }
+      const combined = `${data.stdout || ''}\n${data.stderr || data.error || ''}`
+      const lineMatch = combined.match(/\((\d+),\d+\)|:(\d+):\d+|line (\d+)/i)
+      const detectedLine = Number(lineMatch?.[1] || lineMatch?.[2] || lineMatch?.[3] || 0)
+      if (detectedLine > 0) setDebugLine(detectedLine)
+
+      setTerminalEntries((current) => [
+        ...current.slice(-24),
+        {
+          id: uid(),
+          command: `[Debug] ${cmd}`,
+          cwd: data.cwd || activeProject?.rootPath || 'workspace',
+          stdout:
+            data.stdout ||
+            (data.ok ? 'Debug check passed with 0 errors. Paused at active frame.' : ''),
+          stderr: data.stderr || data.error || '',
+          exitCode: data.exitCode ?? (response.ok ? 0 : 1),
+          durationMs: data.durationMs ?? 0,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      setDebugState('paused')
+    } catch {
+      setDebugState('paused')
+    }
+  }, [activePath, activeProject?.rootPath, cursor.line])
 
   const dirtyCount = files.filter((file) => file.dirty).length
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
@@ -1754,7 +1886,7 @@ export function IDEWorkspace() {
         }}
         onToggleRightChat={() => {
           setWorkspaceMode('ide')
-          setRightChatOpen((prev) => !prev)
+          setRightPanelMode((prev) => (prev === 'chat' ? null : 'chat'))
         }}
         onToggleTerminal={() => {
           setWorkspaceMode('ide')
@@ -1776,9 +1908,9 @@ export function IDEWorkspace() {
         }}
         onSelectMode={setWorkspaceMode}
         onCycleTab={cycleEditorTab}
-        onRun={() => void runTerminalCommand('pnpm test')}
-        onRunCommand={(cmd) => void runTerminalCommand(cmd)}
-        onDebug={debugProject}
+        onRun={() => void handleRunProject()}
+        onRunCommand={(cmd) => void runTerminalCommand(cmd, { openTerminal: true })}
+        onDebug={() => void debugProject()}
         onStopDebug={() => setDebugState('idle')}
         onOpenSearch={() => {
           setWorkspaceMode('ide')
@@ -1948,7 +2080,7 @@ export function IDEWorkspace() {
                 onToggleMaximized={() => setTerminalMaximized((current) => !current)}
                 onSelectTab={setBottomPanel}
                 onOpenFile={openFile}
-                onStartDebug={debugProject}
+                onStartDebug={() => void debugProject()}
                 onContinueDebug={() => {
                   setDebugState('running')
                   window.setTimeout(() => {
@@ -1961,41 +2093,114 @@ export function IDEWorkspace() {
               />
             </section>
 
-            {rightChatOpen && (
+            {rightPanelMode !== null && (
               <>
                 <div
                   data-resize="chat"
                   onMouseDown={(event) =>
-                    startDragResize('x', event.clientX, rightChatWidth, 240, 520, true, setRightChatWidth)
+                    startDragResize(
+                      'x',
+                      event.clientX,
+                      rightChatWidth,
+                      260,
+                      560,
+                      true,
+                      setRightChatWidth,
+                    )
                   }
                   className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-[#525252]"
-                  title="Drag to resize AI Agent Chat panel"
+                  title="Drag to resize right side panel"
                 />
-                <RightAiChatPanel
-                  agents={agents}
-                  selectedAgentId={rightChatAgentId}
-                  drafts={drafts}
-                  files={files}
-                  activeFilePath={activeFile?.path}
-                  skills={availableSkills}
-                  combos={availableCombos}
-                  mcpServers={appSettings.mcpServers}
-                  plugins={appSettings.plugins}
-                  width={rightChatWidth}
-                  bridgeEnabled={bridgeEnabled}
-                  bridgeMessages={bridgeMessages}
-                  focusSeq={chatFocusSeq}
-                  onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
-                  onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
-                  onSelectAgent={setRightChatAgentId}
-                  onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-                  onSend={(agent) => void sendMessage(agent, undefined, false, { forceDirectChat: true })}
-                  onPause={pauseAgent}
-                  onOpenFullAgents={() => setWorkspaceMode('agents')}
-                  onClose={() => setRightChatOpen(false)}
-                />
+                {rightPanelMode === 'chat' ? (
+                  <RightAiChatPanel
+                    agents={agents}
+                    selectedAgentId={rightChatAgentId}
+                    drafts={drafts}
+                    files={files}
+                    activeFilePath={activeFile?.path}
+                    skills={availableSkills}
+                    combos={availableCombos}
+                    mcpServers={appSettings.mcpServers}
+                    plugins={appSettings.plugins}
+                    providers={providers}
+                    width={rightChatWidth}
+                    bridgeEnabled={bridgeEnabled}
+                    bridgeMessages={bridgeMessages}
+                    focusSeq={chatFocusSeq}
+                    onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
+                    onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
+                    onChangeAgentModel={handleChangeAgentModel}
+                    onSelectAgent={setRightChatAgentId}
+                    onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
+                    onSend={(agent) =>
+                      void sendMessage(agent, undefined, false, { forceDirectChat: true })
+                    }
+                    onPause={pauseAgent}
+                    onOpenFullAgents={() => setWorkspaceMode('agents')}
+                    onClose={() => setRightPanelMode(null)}
+                  />
+                ) : (
+                  <AndroidEmulator
+                    compact
+                    width={rightChatWidth}
+                    projectName={activeProject?.name ?? 'VinceZone Studio'}
+                    rootPath={activeProject?.rootPath}
+                    files={files}
+                    activeFile={activeFile}
+                    onClose={() => setRightPanelMode(null)}
+                  />
+                )}
               </>
             )}
+
+            {/* Right-edge Quick Switcher Rail: Robot (AI Agent Chat @PM) & Phone (Live Phone Demo / Android) */}
+            <aside
+              aria-label="Right Panel Switcher"
+              className="flex w-10 shrink-0 flex-col items-center gap-1 border-l border-[#2b2b2b] bg-[#181818] py-2"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (rightPanelMode === 'chat') {
+                    setRightPanelMode(null)
+                  } else {
+                    if (!agents.some((a) => a.id === rightChatAgentId)) {
+                      setRightChatAgentId(findPmAgentId(agents))
+                    }
+                    setRightPanelMode('chat')
+                  }
+                }}
+                title="AI Agent Chat (mặc định @PM)"
+                className={`relative grid size-8 place-items-center rounded transition ${
+                  rightPanelMode === 'chat'
+                    ? 'bg-[#2a2a2a] text-white'
+                    : 'text-[#858585] hover:bg-[#222222] hover:text-white'
+                }`}
+              >
+                {rightPanelMode === 'chat' && (
+                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#e5e5e5]" />
+                )}
+                <Bot size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setRightPanelMode((prev) => (prev === 'phone' ? null : 'phone'))
+                }
+                title="Demo giả lập điện thoại / Android trực tiếp"
+                className={`relative grid size-8 place-items-center rounded transition ${
+                  rightPanelMode === 'phone'
+                    ? 'bg-[#2a2a2a] text-white'
+                    : 'text-[#858585] hover:bg-[#222222] hover:text-white'
+                }`}
+              >
+                {rightPanelMode === 'phone' && (
+                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#e5e5e5]" />
+                )}
+                <Smartphone size={16} />
+              </button>
+            </aside>
           </>
         ) : workspaceMode === 'agents' ? (
           <AgentWorkspace
@@ -2011,6 +2216,7 @@ export function IDEWorkspace() {
             combos={availableCombos}
             mcpServers={appSettings.mcpServers}
             plugins={appSettings.plugins}
+            providers={providers}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)
@@ -2019,6 +2225,7 @@ export function IDEWorkspace() {
               setEditingAgent(agent)
               setAgentCreatorOpen(true)
             }}
+            onChangeAgentModel={handleChangeAgentModel}
             onView={(id, view) => setAgentViews((current) => ({ ...current, [id]: view }))}
             onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
             onSend={sendMessage}
@@ -2035,6 +2242,8 @@ export function IDEWorkspace() {
           <AndroidEmulator
             projectName={activeProject?.name ?? 'VinceZone Studio'}
             rootPath={activeProject?.rootPath}
+            files={files}
+            activeFile={activeFile}
           />
         ) : workspaceMode === 'web' ? (
           <WebPreview

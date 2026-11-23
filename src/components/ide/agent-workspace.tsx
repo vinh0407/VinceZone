@@ -44,6 +44,7 @@ import type {
   PendingApprovalPlan,
   PluginConfig,
   ProposedPatch,
+  ProviderConfig,
   WorkspaceFile,
 } from './agent-types'
 import {
@@ -74,8 +75,10 @@ export function AgentWorkspace({
   combos = [],
   mcpServers,
   plugins,
+  providers = [],
   onCreate,
   onEditAgent,
+  onChangeAgentModel,
   onView,
   onDraft,
   onSend,
@@ -100,8 +103,10 @@ export function AgentWorkspace({
   combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
+  providers?: ProviderConfig[]
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
+  onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
   onView: (id: string, view: AgentView) => void
   onDraft: (id: string, value: string) => void
   onSend: (agent: Agent) => void
@@ -227,12 +232,14 @@ export function AgentWorkspace({
       combos={combos}
       mcpServers={mcpServers}
       plugins={plugins}
+      providers={providers}
       peers={agents.filter((peer) => peer.id !== agent.id)}
       view={views[agent.id] ?? 'chat'}
       draft={drafts[agent.id] ?? ''}
       onDragStart={() => setDraggedId(agent.id)}
       onDrop={() => swapPanels(agent.id)}
       onEdit={() => onEditAgent(agent)}
+      onChangeModel={(providerId, model) => onChangeAgentModel?.(agent.id, providerId, model)}
       onView={(view) => onView(agent.id, view)}
       onDraft={(value) => onDraft(agent.id, value)}
       onSend={() => onSend(agent)}
@@ -521,12 +528,14 @@ function AgentPanel({
   combos = [],
   mcpServers,
   plugins,
+  providers = [],
   peers,
   view,
   draft,
   onDragStart,
   onDrop,
   onEdit,
+  onChangeModel,
   onView,
   onDraft,
   onSend,
@@ -547,12 +556,14 @@ function AgentPanel({
   combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
+  providers?: ProviderConfig[]
   peers: Agent[]
   view: AgentView
   draft: string
   onDragStart: () => void
   onDrop: () => void
   onEdit: () => void
+  onChangeModel?: (providerId: string, model: string) => void
   onView: (view: AgentView) => void
   onDraft: (value: string) => void
   onSend: () => void
@@ -566,6 +577,7 @@ function AgentPanel({
 }) {
   const [delegationOpen, setDelegationOpen] = useState(false)
   const [contextPickerOpen, setContextPickerOpen] = useState(false)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [delegateTarget, setDelegateTarget] = useState(peers[0]?.id ?? '')
   const [delegatePrompt, setDelegatePrompt] = useState('')
@@ -598,17 +610,25 @@ function AgentPanel({
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <GripVertical size={12} className="shrink-0 text-[#5c5c5c]" />
-          <div className="relative grid size-7 shrink-0 place-items-center rounded bg-[#262626]">
-            {agent.roleId === 'pm' || agent.id === 'pm' ? (
-              <Sparkles size={14} style={{ color: agent.accent }} />
-            ) : (
-              <Bot size={14} style={{ color: agent.accent }} />
-            )}
+          <button
+            type="button"
+            onClick={() => setModelPickerOpen((prev) => !prev)}
+            title="Nhấp vào hình robot để đổi Model / Provider cho Agent này"
+            className={`relative grid size-7 shrink-0 place-items-center rounded transition ${
+              modelPickerOpen
+                ? 'bg-[#e5e5e5] text-[#111111]'
+                : 'bg-[#262626] hover:bg-[#333333]'
+            }`}
+          >
+            <Bot
+              size={14}
+              style={{ color: modelPickerOpen ? '#111111' : agent.accent }}
+            />
             <span
               className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border-2 border-[#181818]"
               style={{ background: agent.status === 'blocked' ? '#f48771' : agent.accent }}
             />
-          </div>
+          </button>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h2 className="truncate text-[11px] font-semibold text-white">{agent.name}</h2>
@@ -699,6 +719,48 @@ function AgentPanel({
           <TerminalSquare size={10} />
         </button>
       </div>
+
+      {modelPickerOpen && (
+        <div className="max-h-40 overflow-y-auto border-b border-[#333333] bg-[#141414] p-2">
+          <div className="mb-1 flex items-center justify-between text-[9px] font-semibold uppercase text-[#a3a3a3]">
+            <span>Chọn Model cho {agent.name}</span>
+            <button type="button" onClick={() => setModelPickerOpen(false)} className="mini-button">
+              <X size={10} />
+            </button>
+          </div>
+          <div className="space-y-0.5">
+            {providers.flatMap((p) =>
+              (p.models || p.model || '')
+                .split(',')
+                .map((m) => m.trim())
+                .filter(Boolean)
+                .map((m) => {
+                  const selected = agent.model === m
+                  return (
+                    <button
+                      key={`${p.id}:${m}`}
+                      type="button"
+                      onClick={() => {
+                        onChangeModel?.(p.id, m)
+                        setModelPickerOpen(false)
+                      }}
+                      className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-[9px] ${
+                        selected
+                          ? 'bg-[#2e2e2e] font-semibold text-white'
+                          : 'text-[#cccccc] hover:bg-[#222222]'
+                      }`}
+                    >
+                      <span className="truncate font-mono">{m}</span>
+                      <span className="ml-2 shrink-0 text-[8px] text-[#7a7a7a]">
+                        {p.name || p.id}
+                      </span>
+                    </button>
+                  )
+                }),
+            )}
+          </div>
+        </div>
+      )}
 
       {(agent.status === 'running' || agent.status === 'reviewing') && (
         <div className="relative flex h-6 shrink-0 items-center gap-2 overflow-hidden border-b border-[#2b2b2b] bg-[#1b1b1b] px-3 text-[9px] text-[#d4d4d4]">

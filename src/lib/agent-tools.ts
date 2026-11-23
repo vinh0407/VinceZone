@@ -81,9 +81,26 @@ export const AGENT_TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'write_file',
+      description:
+        'Create a new file or overwrite an existing workspace file with complete updated content and save it directly to disk.',
+      parameters: {
+        type: 'object',
+        required: ['path', 'content'],
+        properties: {
+          path: { type: 'string', description: 'Relative file path (e.g. src/app/page.tsx).' },
+          content: { type: 'string', description: 'Complete file content to write and save.' },
+          summary: { type: 'string', description: 'Short 1-line summary of the edit.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'patch_file',
       description:
-        'Surgically edit an existing file using exact search/replace, or create a new file when search is empty.',
+        'Surgically edit an existing file using search/replace, or create/overwrite a file when search is omitted. Saves directly to disk.',
       parameters: {
         type: 'object',
         required: ['path', 'replace'],
@@ -92,7 +109,7 @@ export const AGENT_TOOL_DEFINITIONS = [
           search: {
             type: 'string',
             description:
-              'Exact existing text block to replace. Omit or leave empty ONLY when creating a new file or replacing entire content.',
+              'Existing text block to replace. Omit or leave empty when creating a new file or replacing entire content.',
           },
           replace: { type: 'string', description: 'Replacement text (or full content for new file).' },
           summary: { type: 'string', description: 'Short 1-line description of the change.' },
@@ -158,6 +175,15 @@ export const AGENT_TOOL_DEFINITIONS = [
   },
 ] as const
 
+function stripReadFileLineNumbers(block: string): string {
+  const lines = block.split('\n')
+  const numbered = lines.filter((line) => /^\s*\d+:\s/.test(line))
+  if (numbered.length >= Math.max(1, Math.ceil(lines.length * 0.6))) {
+    return lines.map((line) => line.replace(/^\s*\d+:\s/, '')).join('\n')
+  }
+  return block
+}
+
 export function applySearchReplace(
   original: string,
   search: string | undefined,
@@ -167,21 +193,65 @@ export function applySearchReplace(
     return { ok: true, nextContent: replace }
   }
   const normalizedOrig = original.replace(/\r\n/g, '\n')
-  const normalizedSearch = search.replace(/\r\n/g, '\n')
-  const normalizedReplace = replace.replace(/\r\n/g, '\n')
+  const rawSearch = search.replace(/\r\n/g, '\n')
+  const normalizedReplace = stripReadFileLineNumbers(replace.replace(/\r\n/g, '\n'))
 
-  const idx = normalizedOrig.indexOf(normalizedSearch)
-  if (idx === -1) {
+  // 1) Exact match
+  const exactIdx = normalizedOrig.indexOf(rawSearch)
+  if (exactIdx !== -1) {
     return {
-      ok: false,
-      error: 'Search block not found verbatim in file. Read the exact lines first before patching.',
+      ok: true,
+      nextContent:
+        normalizedOrig.slice(0, exactIdx) +
+        normalizedReplace +
+        normalizedOrig.slice(exactIdx + rawSearch.length),
     }
   }
-  const nextContent =
-    normalizedOrig.slice(0, idx) +
-    normalizedReplace +
-    normalizedOrig.slice(idx + normalizedSearch.length)
-  return { ok: true, nextContent }
+
+  // 2) Match after stripping accidental `123: ` prefixes copied from read_file
+  const cleanedSearch = stripReadFileLineNumbers(rawSearch)
+  const cleanedIdx = normalizedOrig.indexOf(cleanedSearch)
+  if (cleanedIdx !== -1) {
+    return {
+      ok: true,
+      nextContent:
+        normalizedOrig.slice(0, cleanedIdx) +
+        normalizedReplace +
+        normalizedOrig.slice(cleanedIdx + cleanedSearch.length),
+    }
+  }
+
+  // 3) Trimmed line-sequence match (tolerates minor leading/trailing whitespace drift)
+  const origLines = normalizedOrig.split('\n')
+  const searchLines = cleanedSearch.split('\n').map((line) => line.trim())
+  while (searchLines.length > 0 && searchLines[0] === '') searchLines.shift()
+  while (searchLines.length > 0 && searchLines[searchLines.length - 1] === '') searchLines.pop()
+
+  if (searchLines.length > 0) {
+    for (let i = 0; i <= origLines.length - searchLines.length; i += 1) {
+      let matched = true
+      for (let j = 0; j < searchLines.length; j += 1) {
+        if (origLines[i + j].trim() !== searchLines[j]) {
+          matched = false
+          break
+        }
+      }
+      if (matched) {
+        const nextLines = [
+          ...origLines.slice(0, i),
+          ...normalizedReplace.split('\n'),
+          ...origLines.slice(i + searchLines.length),
+        ]
+        return { ok: true, nextContent: nextLines.join('\n') }
+      }
+    }
+  }
+
+  return {
+    ok: false,
+    error:
+      'Search block not found in file. Call read_file to inspect exact lines or use write_file with complete updated content.',
+  }
 }
 
 async function collectFiles(rootDir: string, dirPath: string, limit = 180): Promise<string[]> {
@@ -302,12 +372,44 @@ async function executeAgentToolInner(
     return { ok: true, output: hits.join('\n') || `No matches found for "${query}".` }
   }
 
-  if (name === 'patch_file') {
-    const rel = String(args.path || '').replace(/\\/g, '/').replace(/^\/+/, '').trim()
-    const replace = typeof args.replace === 'string' ? args.replace : ''
-    const search = typeof args.search === 'string' ? args.search : undefined
+  if (
+    name === 'patch_file' ||
+    name === 'write_file' ||
+    name === 'edit_file' ||
+    name === 'create_file' ||
+    name === 'save_file'
+  ) {
+    const rel = String(args.path || args.file || args.filePath || '')
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .trim()
+    const replaceValue =
+      typeof args.replace === 'string'
+        ? args.replace
+        : typeof args.content === 'string'
+          ? args.content
+          : typeof args.new_content === 'string'
+            ? args.new_content
+            : typeof args.new_string === 'string'
+              ? args.new_string
+              : typeof args.replacement === 'string'
+                ? args.replacement
+                : undefined
+    const searchValue =
+      name === 'write_file' || name === 'create_file' || name === 'save_file'
+        ? undefined
+        : typeof args.search === 'string'
+          ? args.search
+          : typeof args.old_string === 'string'
+            ? args.old_string
+            : typeof args.target === 'string'
+              ? args.target
+              : undefined
     const summary = String(args.summary || `Updated ${rel}`).slice(0, 180)
     if (!rel) return { ok: false, output: 'Missing required "path".' }
+    if (typeof replaceValue !== 'string') {
+      return { ok: false, output: 'Missing required "content" or "replace" string.' }
+    }
 
     const target = resolvePathInsideWorkspace(root, rel)
     let previousContent: string | null = null
@@ -317,7 +419,7 @@ async function executeAgentToolInner(
       previousContent = null
     }
 
-    const patched = applySearchReplace(previousContent ?? '', search, replace)
+    const patched = applySearchReplace(previousContent ?? '', searchValue, replaceValue)
     if (!patched.ok) {
       return { ok: false, output: patched.error }
     }
@@ -327,7 +429,7 @@ async function executeAgentToolInner(
 
     return {
       ok: true,
-      output: `Successfully patched ${rel} (${patched.nextContent.length} bytes).`,
+      output: `Successfully saved ${rel} to disk (${patched.nextContent.length} bytes).`,
       fileUpdated: {
         path: rel,
         summary,

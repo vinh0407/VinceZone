@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { applySearchReplace, executeAgentTool } from '../agent-tools'
+import { extractProposedPatches } from '../orchestrator'
 
 const tempDirs: string[] = []
 
@@ -88,6 +89,44 @@ describe('executeAgentTool', () => {
 
     const onDisk = await fs.readFile(path.join(root, 'src', 'hello.ts'), 'utf8')
     expect(onDisk).toContain('Welcome, ${name}!')
+  })
+
+  it('handles line-number prefixes copied from read_file and indentation shifts', () => {
+    const orig = 'export function greet(name: string) {\n  return `Hello, ${name}!`\n}\n'
+    const res = applySearchReplace(
+      orig,
+      '1: export function greet(name: string) {\n2:   return `Hello, ${name}!`',
+      'export function greet(name: string) {\n  return `Hi, ${name}!`',
+    )
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.nextContent).toContain('Hi, ${name}!')
+  })
+
+  it('supports write_file tool and saves directly to disk', async () => {
+    const root = await makeTempWorkspace()
+    const writeRes = await executeAgentTool(
+      'write_file',
+      { path: 'src/new-feature.ts', content: 'export const ready = true\n', summary: 'Create feature' },
+      root,
+    )
+    expect(writeRes.ok).toBe(true)
+    expect(writeRes.fileUpdated?.path).toBe('src/new-feature.ts')
+    const saved = await fs.readFile(path.join(root, 'src', 'new-feature.ts'), 'utf8')
+    expect(saved).toBe('export const ready = true\n')
+  })
+
+  it('extracts code edits from edit:, lang:path, lang path, and first-line comment headers', () => {
+    const reply = [
+      '```tsx:src/app/demo.tsx\nexport const A = 1\n```',
+      '```typescript src/lib/util.ts\nexport const B = 2\n```',
+      '```ts\n// src/lib/header.ts\nexport const C = 3\n```',
+    ].join('\n\n')
+    const patches = extractProposedPatches(reply)
+    expect(patches.map((p) => p.path)).toEqual([
+      'src/app/demo.tsx',
+      'src/lib/util.ts',
+      'src/lib/header.ts',
+    ])
   })
 
   it('blocks path traversal and unsafe shell commands', async () => {

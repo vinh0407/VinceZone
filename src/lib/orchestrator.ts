@@ -234,13 +234,47 @@ export function extractProposedPatches(
     })
   }
 
-  // 1) Fenced ```edit:path/to/file or ```file:path/to/file blocks
-  const editBlockMatches = raw.matchAll(/```(?:edit|file):([^\n`]+)\r?\n([\s\S]*?)```/gi)
-  for (const match of editBlockMatches) {
-    const targetPath = match[1]?.trim()
+  // 1) Fenced ```edit:path/to/file, ```file:path/to/file, ```tsx:src/app/page.tsx, or ```ts src/app/page.tsx
+  const fencedMatches = raw.matchAll(/```([^\n`]*)\r?\n([\s\S]*?)```/gi)
+  for (const match of fencedMatches) {
+    const header = (match[1] || '').trim()
     const content = match[2]
-    if (!targetPath || typeof content !== 'string') continue
-    pushPatch(targetPath, content, `Direct AI code edit for ${targetPath}`)
+    if (typeof content !== 'string' || !content.trim()) continue
+    if (/^baton-patch\b/i.test(header)) continue
+
+    let targetPath: string | null = null
+
+    // 1a. Explicit ```edit:path, ```file:path, ```tsx:path/to/file.tsx
+    const colonMatch = header.match(/^[a-z0-9_+-]+:([^\s`]+)$/i)
+    if (colonMatch?.[1] && /[./]/.test(colonMatch[1])) {
+      targetPath = colonMatch[1].trim()
+    }
+
+    // 1b. Space-separated ```tsx src/app/page.tsx or ```typescript path=src/foo.ts
+    if (!targetPath) {
+      const spaceMatch = header.match(/^[a-z0-9_+-]+\s+(?:path=|file=)?([^\s`]+)$/i)
+      if (spaceMatch?.[1] && /\.[a-z0-9]{1,8}$/i.test(spaceMatch[1])) {
+        targetPath = spaceMatch[1].trim()
+      }
+    }
+
+    // 1c. First-line comment header inside code fence: // src/app/page.tsx, # script.py, /* styles.css */, <!-- index.html -->
+    let bodyContent = content
+    if (!targetPath) {
+      const lines = content.split(/\r?\n/)
+      const firstLine = (lines[0] || '').trim()
+      const commentPathMatch = firstLine.match(
+        /^(?:\/\/|#|\/\*|<!--)\s*(?:file(?:path)?:?\s*)?([a-z0-9_./()[\]-]+\.[a-z0-9]{1,8})\s*(?:\*\/|-->)?$/i,
+      )
+      if (commentPathMatch?.[1]) {
+        targetPath = commentPathMatch[1].trim()
+        bodyContent = lines.slice(1).join('\n')
+      }
+    }
+
+    if (targetPath && bodyContent.trim()) {
+      pushPatch(targetPath, bodyContent, `Direct AI code edit for ${targetPath}`)
+    }
   }
 
   // 2) Legacy JSON ```baton-patch blocks

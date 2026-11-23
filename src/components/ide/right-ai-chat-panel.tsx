@@ -3,18 +3,25 @@
 import {
   ArrowRightLeft,
   Bot,
+  Check,
   Link2,
   Maximize2,
   Plus,
+  Search,
   Send,
-  Sparkles,
   Square,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
-import type { Agent, McpServerConfig, PluginConfig, WorkspaceFile } from './agent-types'
+import type {
+  Agent,
+  McpServerConfig,
+  PluginConfig,
+  ProviderConfig,
+  WorkspaceFile,
+} from './agent-types'
 import { ChatContextMenu } from './chat-context-menu'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import {
@@ -36,12 +43,14 @@ export function RightAiChatPanel({
   combos = [],
   mcpServers,
   plugins,
+  providers = [],
   width = 320,
   bridgeEnabled = true,
   bridgeMessages = [],
   focusSeq = 0,
   onToggleBridge,
   onRelayToAgent,
+  onChangeAgentModel,
   onSelectAgent,
   onDraft,
   onSend,
@@ -58,12 +67,14 @@ export function RightAiChatPanel({
   combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
+  providers?: ProviderConfig[]
   width?: number
   bridgeEnabled?: boolean
   bridgeMessages?: BridgeMessage[]
   focusSeq?: number
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
+  onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
   onSelectAgent: (id: string) => void
   onDraft: (id: string, value: string) => void
   onSend: (agent: Agent) => void
@@ -73,10 +84,14 @@ export function RightAiChatPanel({
 }) {
   const [contextOpen, setContextOpen] = useState(false)
   const [bridgeDrawerOpen, setBridgeDrawerOpen] = useState(false)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const [modelFilter, setModelFilter] = useState('')
   const [relayTargetId, setRelayTargetId] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const agent = agents.find((item) => item.id === selectedAgentId) ?? agents[0]
+  const pmFallback =
+    agents.find((item) => item.roleId === 'pm' || item.id === 'pm') ?? agents[0]
+  const agent = agents.find((item) => item.id === selectedAgentId) ?? pmFallback
   const peers = useMemo(
     () => agents.filter((item) => item.id !== agent?.id),
     [agents, agent?.id],
@@ -90,6 +105,27 @@ export function RightAiChatPanel({
         : [],
     [combos, mcpServers, plugins, skills, slashQuery],
   )
+
+  const providerModelChoices = useMemo(() => {
+    const q = modelFilter.trim().toLowerCase()
+    const list: Array<{ providerId: string; providerName: string; model: string }> = []
+    for (const p of providers) {
+      const models = (p.models || p.model || '')
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+      for (const m of models) {
+        if (
+          !q ||
+          m.toLowerCase().includes(q) ||
+          (p.name || p.id).toLowerCase().includes(q)
+        ) {
+          list.push({ providerId: p.id, providerName: p.name || p.id, model: m })
+        }
+      }
+    }
+    return list
+  }, [modelFilter, providers])
 
   useEffect(() => {
     if (focusSeq > 0) {
@@ -118,13 +154,26 @@ export function RightAiChatPanel({
       className="flex shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818]"
     >
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#2b2b2b] px-3">
-        <div className="flex items-center gap-1.5">
-          {agent.roleId === 'pm' ? (
-            <Sparkles size={13} className="text-[#e5e5e5]" />
-          ) : (
-            <Bot size={13} className="text-[#d4d4d4]" />
-          )}
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#cccccc]">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setModelPickerOpen((prev) => !prev)
+              setBridgeDrawerOpen(false)
+            }}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 transition ${
+              modelPickerOpen
+                ? 'bg-[#e5e5e5] text-[#111111]'
+                : 'border border-[#333333] bg-[#222222] text-white hover:border-[#666666] hover:bg-[#2c2c2c]'
+            }`}
+            title="Nhấp vào hình robot để đổi Model / Provider cho Agent này"
+          >
+            <Bot size={13} />
+            <span className="max-w-[96px] truncate font-mono text-[9px] font-medium">
+              {agent.model}
+            </span>
+          </button>
+          <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#cccccc]">
             AI Agent Chat
           </span>
         </div>
@@ -141,6 +190,75 @@ export function RightAiChatPanel({
           </button>
         </div>
       </div>
+
+      {modelPickerOpen && (
+        <div className="border-b border-[#333333] bg-[#141414] p-2">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-white">
+              <Bot size={11} /> Đổi Model cho {agent.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setModelPickerOpen(false)}
+              className="mini-button"
+              title="Đóng"
+            >
+              <X size={11} />
+            </button>
+          </div>
+          <div className="mb-1.5 flex items-center gap-1.5 rounded border border-[#2f2f2f] bg-[#101010] px-2 py-1">
+            <Search size={11} className="shrink-0 text-[#737373]" />
+            <input
+              autoFocus
+              value={modelFilter}
+              onChange={(e) => setModelFilter(e.target.value)}
+              placeholder="Tìm model hoặc OmniRoute combo…"
+              className="min-w-0 flex-1 bg-transparent text-[10px] text-white outline-none placeholder:text-[#666666]"
+            />
+          </div>
+          <div className="max-h-44 space-y-0.5 overflow-y-auto">
+            {providerModelChoices.length === 0 ? (
+              <p className="px-2 py-2 text-[10px] text-[#737373]">
+                Không tìm thấy model phù hợp. Mở Settings → Providers để đồng bộ.
+              </p>
+            ) : (
+              providerModelChoices.map((choice) => {
+                const isSelected =
+                  agent.model === choice.model &&
+                  (!agent.providerId || agent.providerId === choice.providerId)
+                return (
+                  <button
+                    key={`${choice.providerId}:${choice.model}`}
+                    type="button"
+                    onClick={() => {
+                      onChangeAgentModel?.(agent.id, choice.providerId, choice.model)
+                      setModelPickerOpen(false)
+                      setModelFilter('')
+                    }}
+                    className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-[10px] transition ${
+                      isSelected
+                        ? 'bg-[#2e2e2e] font-semibold text-white'
+                        : 'text-[#cccccc] hover:bg-[#222222] hover:text-white'
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {isSelected ? (
+                        <Check size={10} className="shrink-0 text-white" />
+                      ) : (
+                        <span className="inline-block size-2.5 shrink-0" />
+                      )}
+                      <span className="truncate font-mono">{choice.model}</span>
+                    </span>
+                    <span className="shrink-0 text-[9px] text-[#7a7a7a]">
+                      {choice.providerName}
+                    </span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="border-b border-[#2b2b2b] bg-[#141414] p-2.5">
         <label className="block text-[9px] font-medium uppercase tracking-wider text-[#858585]">

@@ -1050,6 +1050,7 @@ export function useOrchestration({
         let pending = ''
         let realUsage: ParsedChatChunk['usage']
         const toolActivityLines: string[] = []
+        const toolSavedMessages: Message[] = []
         const queuedToolHandoffs: Array<{ toRole: string; message: string; files?: string[] }> = []
 
         const handleParsedChunk = (parsed: ParsedChatChunk) => {
@@ -1059,13 +1060,22 @@ export function useOrchestration({
               const targetHint =
                 ev.args?.to_role || ev.args?.path || ev.args?.query || ev.args?.command || ''
               toolActivityLines.push(`> tool: ${ev.name}${targetHint ? `(${targetHint})` : ''}`)
-              setAiActivity(ev.name === 'patch_file' ? 'editing' : 'reading')
+              setAiActivity(
+                ev.name === 'patch_file' || ev.name === 'write_file' ? 'editing' : 'reading',
+              )
             } else if (ev.type === 'file.updated' && ev.path && typeof ev.content === 'string') {
-              onApplyDirectEdit?.({
+              const outcome = onApplyDirectEdit?.({
                 path: ev.path,
                 content: ev.content,
-                summary: ev.summary || `Tool patch ${ev.path}`,
+                summary: ev.summary || `Saved ${ev.path}`,
                 agent,
+              })
+              toolSavedMessages.push({
+                id: uid(),
+                role: 'tool',
+                change: true,
+                codeSnippet: ev.content.slice(0, 220),
+                text: `Edited & saved ${ev.path}${outcome?.revisionId ? ` (${outcome.revisionId})` : ''} directly to disk.`,
               })
             } else if (ev.type === 'agent.handoff' && ev.toRole && ev.message) {
               queuedToolHandoffs.push({
@@ -1174,6 +1184,14 @@ export function useOrchestration({
           })
         }
 
+        const finalText =
+          result.trim() ||
+          (toolSavedMessages.length > 0
+            ? `Updated and saved ${toolSavedMessages.length} file(s) to disk.`
+            : toolActivityLines.length > 0
+              ? toolActivityLines.join('\n')
+              : 'The provider returned an empty response.')
+
         updateAgent(agent.id, (current) => ({
           ...current,
           status: 'idle',
@@ -1183,10 +1201,11 @@ export function useOrchestration({
                 ? {
                     ...message,
                     id: uid(),
-                    text: result || 'The provider returned an empty response.',
+                    text: finalText,
                   }
                 : message,
             ),
+            ...toolSavedMessages,
             ...editMessages,
           ],
         }))

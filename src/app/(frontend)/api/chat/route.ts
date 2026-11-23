@@ -103,7 +103,7 @@ export async function POST(request: Request) {
           let totalPromptTokens = 0
           let totalCompletionTokens = 0
 
-          for (let round = 0; round < 6; round++) {
+          for (let round = 0; round < 8; round++) {
             const upstream = await fetch(endpoint, {
               method: 'POST',
               headers: authHeaders,
