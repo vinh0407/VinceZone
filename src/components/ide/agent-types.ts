@@ -1,6 +1,9 @@
+import type { CommandRank } from '@/lib/command-hierarchy'
 import type { EditRevision } from '@/lib/edit-memory'
 import type { WorkspaceFileNode } from '@/lib/file-tree'
 import type { VinceZoneRoleId } from '@/lib/vincezone-protocol'
+
+export type { CommandRank }
 
 export type WorkspaceFile = WorkspaceFileNode
 export type WorkspaceMode = 'ide' | 'agents' | 'android' | 'web'
@@ -22,6 +25,7 @@ export type Agent = {
   name: string
   role: string
   roleId?: VinceZoneRoleId
+  commandRank?: CommandRank
   soul?: string
   mission?: string
   memory?: string

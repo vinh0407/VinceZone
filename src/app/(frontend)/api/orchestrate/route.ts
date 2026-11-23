@@ -41,6 +41,8 @@ type Limits = {
 type RequestBody = {
   provider?: Provider
   coordinatorId?: string
+  captainId?: string
+  viceCaptainId?: string | null
   agents?: OrchestratorAgent[]
   instruction?: string
   workspaceRoot?: string
@@ -320,7 +322,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { provider, coordinatorId, instruction, project, projectMemory, workspaceRoot } = body
+  const { provider, coordinatorId, captainId, viceCaptainId, instruction, project, projectMemory, workspaceRoot } = body
   const agents = (body.agents ?? []).slice(0, 24)
   const topologyMode =
     body.topology?.mode === 'peer' || body.topology?.mode === 'dual-coordinator'
@@ -340,8 +342,14 @@ export async function POST(request: Request) {
       : topologyMode === 'dual-coordinator'
         ? topologyAgents.slice(0, 2)
         : topologyAgents.slice(0, 1)
+  const explicitCommanderId = coordinatorId || captainId
   const coordinator =
-    coordinatorCandidates.find((agent) => agent.id === coordinatorId) ?? coordinatorCandidates[0]
+    topologyAgents.find((agent) => agent.id === explicitCommanderId) ??
+    coordinatorCandidates[0]
+  const viceCaptain =
+    viceCaptainId && viceCaptainId !== coordinator?.id
+      ? topologyAgents.find((agent) => agent.id === viceCaptainId) ?? null
+      : null
 
   const isLocalReq = isLoopbackRequest(request)
   if (!provider?.baseUrl || !provider.model || !coordinator || !instruction?.trim()) {
@@ -385,20 +393,15 @@ export async function POST(request: Request) {
     requireApproval: Boolean(body.limits?.requireApproval),
     assignmentMode: body.limits?.assignmentMode === 'manual' ? 'manual' : 'automatic',
   }
-  const planners =
-    topologyMode === 'peer'
+  const planners = viceCaptain
+    ? [coordinator, viceCaptain]
+    : topologyMode === 'peer'
       ? topologyAgents
-      : topologyMode === 'dual-coordinator'
-        ? topologyAgents.slice(0, 2)
-        : topologyAgents.slice(0, 1)
+      : [coordinator]
   const workers =
     limits.maxDepth === 0
       ? []
-      : topologyMode === 'peer'
-        ? topologyAgents
-        : topologyMode === 'dual-coordinator'
-          ? topologyAgents.slice(2)
-          : topologyAgents.slice(1)
+      : topologyAgents.filter((agent) => agent.id !== coordinator.id)
 
   const files = (project?.files ?? []).slice(0, 80)
   const fileMap = new Map(files.map((file) => [file.path, file.content]))
@@ -458,11 +461,13 @@ export async function POST(request: Request) {
         } else {
           emit('coordinator.response.started', { agentId: coordinator.id })
 
-          // Autonomous Multi-Agent Discussion Round (runs in ALL topologies including default @PM!)
-          const discussionParticipants =
-            topologyMode !== 'coordinator' && planners.length > 1
-              ? planners
-              : selectDiscussionSpecialists(instruction, workers)
+          // Autonomous Team Analysis & Discussion:
+          // - If a Vice Captain (Đội phó) is assigned, Captain consults Vice Captain + relevant specialists first.
+          // - If only 1 Captain (no Vice Captain), Captain directly consults the relevant team members.
+          const selectedSpecialists = selectDiscussionSpecialists(instruction, workers)
+          const discussionParticipants = viceCaptain
+            ? [viceCaptain, ...selectedSpecialists.filter((s) => s.id !== viceCaptain.id)].slice(0, 3)
+            : selectedSpecialists
 
           if (discussionParticipants.length > 0) {
             const planningConcurrency = Math.max(
@@ -557,18 +562,26 @@ export async function POST(request: Request) {
             })
             .join('\n')
 
+          const commandStructureNote = viceCaptain
+            ? `Command Structure: Team Captain (Đội trưởng) = ${coordinator.name}; Vice Captain (Đội phó) = ${viceCaptain.name} (supports planning & execution).`
+            : `Command Structure: Solo Team Captain (Đội trưởng duy nhất, không cần Đội phó) = ${coordinator.name}. You directly analyze, plan, and dispatch executable prompts to every required teammate.`
+
           const planRaw = await complete(
             endpoint,
             provider,
             [
               {
                 role: 'system',
-                content: `You are ${coordinator.name}, the central Project Manager (PM) & Commander for VinceZone Studio.
+                content: `You are ${coordinator.name}, the assigned TEAM CAPTAIN (Đội trưởng) commanding the entire AI engineering team in VinceZone Studio.
+${commandStructureNote}
 ${buildVinceZoneCoordinatorRules('')}
-Review the team discussion and assign clear, non-overlapping specialist tasks whenever code edits, bug fixes, analysis, or verification are requested.
-Every coding/fixing request MUST assign at least 1 specialist task to the right owner (e.g. @FE, @BE, @ARCH, @QA) so they actually modify & save files using tools!
-Return ONLY JSON: {"summary":"...","tasks":[{"id":"TASK-001","title":"...","description":"...","assigneeId":"exact id","dependencies":[],"relevantFiles":["exact known path"],"expectedOutput":"...","constraints":[],"completionCriteria":[]}]}.
-Available specialists:
+Your mission as Team Captain:
+1. Analyze the user's goal and full project context deeply.
+2. Design a complete, step-by-step execution plan for the whole team.
+3. For EACH task, write \`description\` as a COMPLETE, SELF-CONTAINED PROMPT that you (the Captain) are sending directly to that teammate on the user's behalf — specifying exact files to inspect/edit, concrete technical instructions, integration contracts, and verification steps so the team completes the project end-to-end without the user manually prompting each agent.
+4. Every coding/feature/fix request MUST assign concrete tasks to the right team members so they execute real tool edits (\`patch_file\` / \`write_file\`) and save files to disk.
+Return ONLY JSON: {"summary":"...","tasks":[{"id":"TASK-001","title":"...","description":"Direct executable prompt from Team Captain to this teammate...","assigneeId":"exact id","dependencies":[],"relevantFiles":["exact known path"],"expectedOutput":"...","constraints":[],"completionCriteria":[]}]}.
+Available team members:
 ${roster || '(none)'}
 Known project files: ${[...paths].join(', ')}
 Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concurrent tasks ${limits.maxConcurrentTasks}.`,

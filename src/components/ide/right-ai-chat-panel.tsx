@@ -4,16 +4,19 @@ import {
   ArrowRightLeft,
   Bot,
   Check,
+  Crown,
   Link2,
   Maximize2,
   Plus,
   Search,
   Send,
+  Shield,
   Square,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
+import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type {
   Agent,
@@ -54,6 +57,8 @@ export function RightAiChatPanel({
   focusSeq = 0,
   onApproveCommand,
   onRejectCommand,
+  onAssignCaptain,
+  onToggleViceCaptain,
   onToggleBridge,
   onRelayToAgent,
   onChangeAgentModel,
@@ -81,6 +86,8 @@ export function RightAiChatPanel({
   focusSeq?: number
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
+  onAssignCaptain?: (agentId: string) => void
+  onToggleViceCaptain?: (agentId: string) => void
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -98,9 +105,11 @@ export function RightAiChatPanel({
   const [relayTargetId, setRelayTargetId] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const pmFallback =
-    agents.find((item) => item.roleId === 'pm' || item.id === 'pm') ?? agents[0]
-  const agent = agents.find((item) => item.id === selectedAgentId) ?? pmFallback
+  const captainAgent = getCaptainAgent(agents)
+  const viceAgent = getViceCaptainAgent(agents)
+  const agent = agents.find((item) => item.id === selectedAgentId) ?? captainAgent ?? agents[0]
+  const isCaptain = Boolean(agent && captainAgent?.id === agent.id)
+  const isVice = Boolean(agent && viceAgent?.id === agent.id)
   const peers = useMemo(
     () => agents.filter((item) => item.id !== agent?.id),
     [agents, agent?.id],
@@ -278,12 +287,64 @@ export function RightAiChatPanel({
           onChange={(event) => onSelectAgent(event.target.value)}
           className="mt-1 w-full rounded border border-[#333333] bg-[#1c1c1c] px-2 py-1.5 text-[11px] text-white outline-none focus:border-[#737373]"
         >
-          {agents.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} {item.roleId ? `(@${item.roleId.toUpperCase()})` : ''} · {item.model}
-            </option>
-          ))}
+          {agents.map((item) => {
+            const rankTag =
+              captainAgent?.id === item.id
+                ? ' [Đội trưởng]'
+                : viceAgent?.id === item.id
+                  ? ' [Đội phó]'
+                  : ''
+            return (
+              <option key={item.id} value={item.id}>
+                {item.name}
+                {rankTag} {item.roleId ? `(@${item.roleId.toUpperCase()})` : ''} · {item.model}
+              </option>
+            )
+          })}
         </select>
+
+        {/* Captain / Optional Vice Captain Quick Assignment Buttons */}
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => onAssignCaptain?.(agent.id)}
+            className={`flex items-center justify-center gap-1 rounded border px-2 py-1 text-[9.5px] font-semibold transition ${
+              isCaptain
+                ? 'border-[#6b5629] bg-[#2e2614] text-[#f0d394]'
+                : 'border-[#333333] bg-[#1a1a1a] text-[#a3a3a3] hover:border-[#6b5629] hover:text-[#f0d394]'
+            }`}
+            title="Gán Agent này làm Đội trưởng (ra lệnh, lên kế hoạch & tự gửi prompt cho cả nhóm)"
+          >
+            <Crown size={10} /> {isCaptain ? 'Đang là Đội trưởng' : 'Gán Đội trưởng'}
+          </button>
+          <button
+            type="button"
+            disabled={isCaptain}
+            onClick={() => onToggleViceCaptain?.(agent.id)}
+            className={`flex items-center justify-center gap-1 rounded border px-2 py-1 text-[9.5px] font-semibold transition disabled:opacity-30 ${
+              isVice
+                ? 'border-[#2e5770] bg-[#152733] text-[#9cdcfe]'
+                : 'border-[#333333] bg-[#1a1a1a] text-[#a3a3a3] hover:border-[#2e5770] hover:text-[#9cdcfe]'
+            }`}
+            title={
+              isCaptain
+                ? 'Đội trưởng không cần kiêm Đội phó'
+                : isVice
+                  ? 'Bấm để Bỏ Đội phó (chỉ giữ 1 Đội trưởng)'
+                  : 'Gán Agent này làm Đội phó (tùy chọn)'
+            }
+          >
+            <Shield size={10} /> {isVice ? 'Bỏ Đội phó' : 'Gán Đội phó'}
+          </button>
+        </div>
+        {isCaptain && peers.length > 0 && (
+          <p className="mt-1.5 flex items-center gap-1 text-[9px] text-[#e5cb8d]">
+            <Crown size={9} className="shrink-0" />
+            <span>
+              Đội trưởng sẽ tự phân tích, lên kế hoạch &amp; gửi prompt cho {peers.length} thành viên
+            </span>
+          </p>
+        )}
 
         {/* Multi-Agent Communication Bridge Bar */}
         <div className="mt-2 flex items-center justify-between gap-1.5 rounded border border-[#2b2b2b] bg-[#181818] px-2 py-1">

@@ -4,6 +4,12 @@ import { Bot, Smartphone } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOrchestration } from '@/hooks/use-orchestration'
 import type { BridgeMessage } from '@/lib/agent-bridge'
+import {
+  assignCaptain,
+  clearViceCaptain,
+  getCaptainAgent,
+  toggleViceCaptain,
+} from '@/lib/command-hierarchy'
 import type { DebugSnapshot } from '@/lib/debugger-runtime'
 import {
   createEditRevision,
@@ -112,6 +118,7 @@ function cloneProjectSession(session: ProjectSessionData): ProjectSessionData {
 
 function findPmAgentId(list: Agent[]): string {
   return (
+    getCaptainAgent(list)?.id ??
     list.find((item) => item.roleId === 'pm' || item.id === 'pm')?.id ??
     list[0]?.id ??
     'pm'
@@ -2146,6 +2153,19 @@ export function IDEWorkspace() {
     [],
   )
 
+  const handleAssignCaptain = useCallback((agentId: string) => {
+    setAgents((current) => assignCaptain(current, agentId))
+    setRightChatAgentId(agentId)
+  }, [])
+
+  const handleToggleViceCaptain = useCallback((agentId: string) => {
+    setAgents((current) => toggleViceCaptain(current, agentId))
+  }, [])
+
+  const handleClearViceCaptain = useCallback(() => {
+    setAgents((current) => clearViceCaptain(current))
+  }, [])
+
   const handleSendSelectionToChat = useCallback(
     (payload: { path: string; startLine: number; endLine: number; snippet: string }) => {
       const targetId = rightChatAgentId || findPmAgentId(agents)
@@ -2887,6 +2907,8 @@ export function IDEWorkspace() {
                     focusSeq={chatFocusSeq}
                     onApproveCommand={(id) => void handleApproveCommand(id)}
                     onRejectCommand={handleRejectCommand}
+                    onAssignCaptain={handleAssignCaptain}
+                    onToggleViceCaptain={handleToggleViceCaptain}
                     onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
                     onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
                     onChangeAgentModel={handleChangeAgentModel}
@@ -2979,6 +3001,9 @@ export function IDEWorkspace() {
             providers={providers}
             onApproveCommand={(id) => void handleApproveCommand(id)}
             onRejectCommand={handleRejectCommand}
+            onAssignCaptain={handleAssignCaptain}
+            onToggleViceCaptain={handleToggleViceCaptain}
+            onClearViceCaptain={handleClearViceCaptain}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

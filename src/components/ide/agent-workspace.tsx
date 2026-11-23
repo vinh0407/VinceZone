@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Code2,
   Copy,
+  Crown,
   FileCode2,
   GitCompareArrows,
   GripVertical,
@@ -22,6 +23,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  Shield,
   ShieldAlert,
   Sparkles,
   Square,
@@ -30,6 +32,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
+import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import { ChatContextMenu } from './chat-context-menu'
 import { CommandApprovalList } from './command-approval-card'
@@ -82,6 +85,9 @@ export function AgentWorkspace({
   providers = [],
   onApproveCommand,
   onRejectCommand,
+  onAssignCaptain,
+  onToggleViceCaptain,
+  onClearViceCaptain,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -113,6 +119,9 @@ export function AgentWorkspace({
   providers?: ProviderConfig[]
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
+  onAssignCaptain?: (agentId: string) => void
+  onToggleViceCaptain?: (agentId: string) => void
+  onClearViceCaptain?: () => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -203,6 +212,8 @@ export function AgentWorkspace({
 
   const gridPlan = computeAgentGridPlan(agentsWithMainFirst.length, workspace.layout)
   const isSolo = gridPlan.kind === 'single'
+  const captainAgent = getCaptainAgent(agents)
+  const viceAgent = getViceCaptainAgent(agents)
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
 
   const swapPanels = (targetId: string) => {
@@ -244,6 +255,10 @@ export function AgentWorkspace({
       mcpServers={mcpServers}
       plugins={plugins}
       providers={providers}
+      isCaptain={captainAgent?.id === agent.id}
+      isViceCaptain={viceAgent?.id === agent.id}
+      onAssignCaptain={() => onAssignCaptain?.(agent.id)}
+      onToggleViceCaptain={() => onToggleViceCaptain?.(agent.id)}
       commandApprovals={commandApprovals.filter((c) => c.agentId === agent.id)}
       onApproveCommand={onApproveCommand}
       onRejectCommand={onRejectCommand}
@@ -304,6 +319,43 @@ export function AgentWorkspace({
               }`}
             >
               {tasks.filter((task) => task.status === 'completed').length}/{tasks.length} tasks
+            </span>
+          )}
+          {captainAgent && (
+            <span
+              className={`flex items-center gap-1 rounded border border-[#5e4d26] bg-[#262013] font-medium text-[#f0d394] ${
+                isSolo ? 'px-2.5 py-0.5 text-[11.5px]' : 'px-2 py-0.5 text-[10px]'
+              }`}
+              title="Đội trưởng sẽ phân tích, lên kế hoạch và tự gửi prompt cho cả nhóm"
+            >
+              <Crown size={isSolo ? 13 : 10} /> Đội trưởng: {captainAgent.name}
+            </span>
+          )}
+          {viceAgent ? (
+            <span
+              className={`flex items-center gap-1 rounded border border-[#2a4a5e] bg-[#14222c] font-medium text-[#9cdcfe] ${
+                isSolo ? 'px-2.5 py-0.5 text-[11.5px]' : 'px-2 py-0.5 text-[10px]'
+              }`}
+            >
+              <Shield size={isSolo ? 13 : 10} /> Đội phó: {viceAgent.name}
+              {onClearViceCaptain && (
+                <button
+                  type="button"
+                  onClick={onClearViceCaptain}
+                  title="Bỏ Đội phó (chỉ giữ 1 Đội trưởng)"
+                  className="ml-0.5 rounded p-0.5 hover:bg-white/10 hover:text-white"
+                >
+                  <X size={isSolo ? 11 : 9} />
+                </button>
+              )}
+            </span>
+          ) : (
+            <span
+              className={`rounded border border-[#2b2b2b] bg-[#141414] text-[#7a7a7a] ${
+                isSolo ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[9.5px]'
+              }`}
+            >
+              Không có Đội phó
             </span>
           )}
         </div>
@@ -566,6 +618,8 @@ function EmptyAgents({ onCreate }: { onCreate: () => void }) {
 function AgentPanel({
   agent,
   isSolo = false,
+  isCaptain = false,
+  isViceCaptain = false,
   topologyRole,
   isSendingMail,
   justReceivedMail,
@@ -578,6 +632,8 @@ function AgentPanel({
   commandApprovals = [],
   onApproveCommand,
   onRejectCommand,
+  onAssignCaptain,
+  onToggleViceCaptain,
   peers,
   view,
   draft,
@@ -598,6 +654,8 @@ function AgentPanel({
 }: {
   agent: Agent
   isSolo?: boolean
+  isCaptain?: boolean
+  isViceCaptain?: boolean
   topologyRole: 'Peer' | 'Planner' | 'Coordinator' | 'Worker'
   isSendingMail: boolean
   justReceivedMail: boolean
@@ -610,6 +668,8 @@ function AgentPanel({
   commandApprovals?: CommandApprovalItem[]
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
+  onAssignCaptain?: () => void
+  onToggleViceCaptain?: () => void
   peers: Agent[]
   view: AgentView
   draft: string
@@ -714,7 +774,23 @@ function AgentPanel({
                   @{agent.roleId}
                 </span>
               )}
-              {topologyRole !== 'Worker' && (
+              {isCaptain ? (
+                <span
+                  className={`flex shrink-0 items-center gap-1 rounded border border-[#5e4d26] bg-[#2a2313] font-semibold uppercase text-[#f0d394] ${
+                    isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1.5 py-0.5 text-[8px]'
+                  }`}
+                >
+                  <Crown size={isSolo ? 11 : 8} /> Đội trưởng
+                </span>
+              ) : isViceCaptain ? (
+                <span
+                  className={`flex shrink-0 items-center gap-1 rounded border border-[#2a4a5e] bg-[#14222c] font-semibold uppercase text-[#9cdcfe] ${
+                    isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1.5 py-0.5 text-[8px]'
+                  }`}
+                >
+                  <Shield size={isSolo ? 11 : 8} /> Đội phó
+                </span>
+              ) : topologyRole !== 'Worker' ? (
                 <span
                   className={`rounded bg-[#333333] uppercase text-[#e5e5e5] ${
                     isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1 py-0.5 text-[7px]'
@@ -722,7 +798,7 @@ function AgentPanel({
                 >
                   {topologyRole}
                 </span>
-              )}
+              ) : null}
             </div>
             <p
               className={`truncate text-[#8f8f8f] ${
@@ -734,6 +810,41 @@ function AgentPanel({
           </div>
         </div>
         <div className={`flex items-center ${isSolo ? 'gap-1.5' : 'gap-0.5'}`}>
+          <button
+            type="button"
+            className={`${headerBtnClass} ${
+              isCaptain
+                ? '!bg-[#352b15] !text-[#f0d394] ring-1 ring-[#6b5629]'
+                : 'hover:!text-[#f0d394]'
+            }`}
+            title={
+              isCaptain
+                ? 'Đang là Đội trưởng (tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm)'
+                : 'Gán làm Đội trưởng'
+            }
+            onClick={onAssignCaptain}
+          >
+            <Crown size={headerIconSize} />
+          </button>
+          <button
+            type="button"
+            disabled={isCaptain}
+            className={`${headerBtnClass} disabled:opacity-25 ${
+              isViceCaptain
+                ? '!bg-[#172b38] !text-[#9cdcfe] ring-1 ring-[#2e5770]'
+                : 'hover:!text-[#9cdcfe]'
+            }`}
+            title={
+              isCaptain
+                ? 'Đội trưởng không cần kiêm Đội phó'
+                : isViceCaptain
+                  ? 'Bấm để Bỏ Đội phó (chỉ giữ 1 Đội trưởng)'
+                  : 'Gán làm Đội phó (tùy chọn)'
+            }
+            onClick={onToggleViceCaptain}
+          >
+            <Shield size={headerIconSize} />
+          </button>
           <button
             className={`agent-panel-optional ${headerBtnClass}`}
             title="Edit role, Soul, Mission, Memory & Model"
@@ -1137,6 +1248,19 @@ function AgentPanel({
               }}
             />
           )}
+          {isCaptain && peers.length > 0 && (
+            <div
+              className={`flex items-center gap-1.5 border-b border-[#2a2417] bg-[#1a1710] text-[#e5cb8d] ${
+                isSolo ? 'px-4 py-1.5 text-[12px]' : 'px-2.5 py-1 text-[9px]'
+              }`}
+            >
+              <Crown size={isSolo ? 13 : 10} className="shrink-0" />
+              <span className="truncate">
+                Chế độ Đội trưởng: tự phân tích, lên kế hoạch &amp; gửi prompt cho cả nhóm (
+                {peers.length} thành viên)
+              </span>
+            </div>
+          )}
           <HighlightedChatTextarea
             textareaRef={textareaRef}
             value={effectiveDraft}
@@ -1144,7 +1268,11 @@ function AgentPanel({
             rows={isSolo ? 3 : 2}
             size={isSolo ? 'lg' : 'sm'}
             mono={Boolean(agent.composingPrompt)}
-            placeholder={`Message ${agent.name}… Type / for skills, MCP & plugins`}
+            placeholder={
+              isCaptain && peers.length > 0
+                ? `Ra lệnh cho Đội trưởng ${agent.name}… Đội trưởng sẽ tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm`
+                : `Message ${agent.name}… Type / for skills, MCP & plugins`
+            }
             onChange={(nextValue) => {
               onDraft(nextValue)
               setSlashIndex(0)

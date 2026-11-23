@@ -28,6 +28,11 @@ import {
   type BridgeMessageKind,
 } from '@/lib/agent-bridge'
 import { estimateCostUsd, estimateTokens } from '@/lib/agent-layout'
+import {
+  buildCommandOrder,
+  getCaptainAgent,
+  getViceCaptainAgent,
+} from '@/lib/command-hierarchy'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
 import { hashText } from '@/lib/file-tree'
 import {
@@ -893,6 +898,9 @@ export function useOrchestration({
       }
 
       setAiActivity('reading')
+      const captain = getCaptainAgent(agentsRef.current)
+      const viceCaptain = getViceCaptainAgent(agentsRef.current)
+      const commandOrder = buildCommandOrder(agentsRef.current)
       try {
         const response = await fetch('/api/orchestrate', {
           method: 'POST',
@@ -901,6 +909,8 @@ export function useOrchestration({
           body: JSON.stringify({
             provider: activeProvider,
             coordinatorId: coordinator.id,
+            captainId: captain?.id ?? coordinator.id,
+            viceCaptainId: viceCaptain?.id ?? null,
             workspaceRoot,
             agents: agentsRef.current.map(({ id, name, role, model, soul, mission, memory }) => ({
               id,
@@ -918,7 +928,10 @@ export function useOrchestration({
               files: selectCompactWorkspaceFiles(files, activeFile?.path, instruction),
             },
             limits: appSettings.delegation,
-            topology,
+            topology: {
+              mode: viceCaptain ? 'dual-coordinator' : topology.mode,
+              orderedAgentIds: commandOrder,
+            },
             mcpServers: appSettings.mcpServers,
             ...(approvalResume
               ? {
@@ -1072,13 +1085,10 @@ export function useOrchestration({
       }
 
       const activeProvider = resolveProviderForAgent(agent)
-      const topology = readSavedTopology(agentsRef.current)
-      const autonomousAgentIds =
-        topology.mode === 'peer'
-          ? topology.orderedAgentIds
-          : topology.mode === 'dual-coordinator'
-            ? topology.orderedAgentIds.slice(0, 2)
-            : topology.orderedAgentIds.slice(0, 1)
+      const captain = getCaptainAgent(agentsRef.current)
+      const viceCaptain = getViceCaptainAgent(agentsRef.current)
+      const isCaptainOrVice =
+        agent.id === captain?.id || (Boolean(viceCaptain) && agent.id === viceCaptain?.id)
 
       const isShortGreeting =
         text.length < 18 &&
@@ -1094,7 +1104,7 @@ export function useOrchestration({
         !delegated &&
         !isShortGreeting &&
         agentsRef.current.length > 1 &&
-        autonomousAgentIds.includes(agent.id) &&
+        isCaptainOrVice &&
         providerReady
       ) {
         setDrafts((current) => ({ ...current, [agent.id]: '' }))
