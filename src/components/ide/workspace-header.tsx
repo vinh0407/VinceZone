@@ -247,18 +247,17 @@ export function WorkspaceHeader({
           checked: workspaceMode === 'web',
           onSelect: () => onSelectMode('web'),
         },
-        {
-          label: 'Craft Studio (323 Tools)',
-          checked: workspaceMode === 'craft',
-          onSelect: () => onSelectMode('craft'),
-        },
       ],
     },
     {
       id: 'go',
       label: 'Go',
       items: [
-        { label: 'Go to File / Symbol…', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        {
+          label: 'Go to File / Symbol…',
+          shortcut: 'Ctrl+P',
+          onSelect: () => (onOpenQuickOpen ? onOpenQuickOpen() : onOpenSearch()),
+        },
         { type: 'separator' },
         { label: 'Next Editor Tab', onSelect: () => onCycleTab(1) },
         { label: 'Previous Editor Tab', onSelect: () => onCycleTab(-1) },
@@ -308,11 +307,10 @@ export function WorkspaceHeader({
       id: 'help',
       label: 'Help',
       items: [
-        { label: 'Preview Agent Mail Animation', onSelect: onPreviewMail },
         { label: 'Settings & CLI Integrations', onSelect: onOpenSettings },
         { type: 'separator' },
         {
-          label: 'VinceZone Studio v2.0.0 · localhost:40704',
+          label: 'VinceZone Studio v2.2.0 · Local In-Process',
           disabled: true,
           onSelect: () => {},
         },

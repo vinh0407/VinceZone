@@ -111,7 +111,6 @@ export function AgentWorkspace({
 }) {
   const [workspace, setWorkspace] = useState<AgentWorkspaceState>(defaultWorkspace)
   const [draggedId, setDraggedId] = useState('')
-  const [mailLogOpen, setMailLogOpen] = useState(false)
   const [replayTrigger, setReplayTrigger] = useState(0)
   const [flightActivity, setFlightActivity] = useState<{
     sendingIds: string[]
@@ -270,19 +269,6 @@ export function AgentWorkspace({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              onPreviewMailExchange(
-                workspace.layout,
-                agentsWithMainFirst.map((agent) => agent.id),
-              )
-            }}
-            disabled={agents.length < 2}
-            className="flex items-center gap-1.5 rounded border border-[#454545] bg-[#262626] px-2.5 py-1 text-[11px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-30"
-            title="Watch Commander type prompts & exchange code packets with other agents"
-          >
-            <Code2 size={11} /> Preview code exchange
-          </button>
           {communicationEvents.some((event) => event.recipientId) && (
             <button
               onClick={() => setReplayTrigger((count) => count + 1)}
@@ -292,16 +278,6 @@ export function AgentWorkspace({
               <RotateCcw size={11} /> Replay
             </button>
           )}
-          <button
-            onClick={() => setMailLogOpen((prev) => !prev)}
-            className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] ${
-              mailLogOpen
-                ? 'border-[#737373] bg-[#2f2f2f] text-white'
-                : 'border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white'
-            }`}
-          >
-            <History size={11} /> Mail log ({communicationEvents.length})
-          </button>
           {pendingPatchCount > 0 && (
             <button
               onClick={() => onDiff()}
@@ -389,45 +365,6 @@ export function AgentWorkspace({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {mailLogOpen && (
-        <div className="max-h-36 shrink-0 overflow-y-auto border-b border-[#2b2b2b] bg-[#141414] px-4 py-2">
-          <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-wider text-[#858585]">
-            <span>Agent Mail &amp; Code Exchange Timeline</span>
-            <span>All deliveries synced from runtime events</span>
-          </div>
-          {communicationEvents.length === 0 ? (
-            <p className="text-[10px] text-[#737373]">No inter-agent exchanges recorded yet.</p>
-          ) : (
-            <div className="space-y-1">
-              {[...communicationEvents].reverse().slice(0, 20).map((event) => {
-                const sender = agents.find((a) => a.id === event.senderId)?.name || event.senderId
-                const recipient =
-                  agents.find((a) => a.id === event.recipientId)?.name || event.recipientId
-                return (
-                  <div
-                    key={event.id}
-                    className="flex items-center gap-2 rounded border border-[#2b2b2b] bg-[#1a1a1a] px-2 py-1 text-[10px]"
-                  >
-                    {event.kind === 'code' ? (
-                      <Code2 size={10} className="text-white" />
-                    ) : (
-                      <Mail size={10} className="text-[#a3a3a3]" />
-                    )}
-                    <span className="shrink-0 font-mono text-[9px] text-[#6e6e6e]">
-                      {event.timestamp.slice(11, 19)}
-                    </span>
-                    <span className="shrink-0 text-[#e5e5e5]">
-                      {sender} → {recipient}
-                    </span>
-                    <span className="truncate text-[#9a9a9a]">{event.description}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
       )}
 

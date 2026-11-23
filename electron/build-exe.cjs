@@ -185,20 +185,25 @@ async function main() {
   const electronDist = resolveElectronDist()
   console.log('Using Electron runtime:', electronDist)
 
-  // Clean old output directory
-  if (fs.existsSync(OUT_DIR)) {
-    fs.rmSync(OUT_DIR, { recursive: true, force: true })
-  }
+  // Clean or reuse output directory gracefully (avoids EPERM if Explorer is open inside OUT_DIR)
   fs.mkdirSync(OUT_DIR, { recursive: true })
+  const hasExistingRuntime = fs.existsSync(EXE_PATH)
 
-  // 1. Copy Electron runtime
-  fs.cpSync(electronDist, OUT_DIR, { recursive: true, force: true })
+  if (!hasExistingRuntime) {
+    // 1. Copy Electron runtime
+    fs.cpSync(electronDist, OUT_DIR, { recursive: true, force: true })
 
-  // 2. Rename electron.exe -> VinceZone Studio.exe and remove default_app.asar
-  fs.renameSync(path.join(OUT_DIR, 'electron.exe'), EXE_PATH)
-  const defaultAsar = path.join(OUT_DIR, 'resources', 'default_app.asar')
-  if (fs.existsSync(defaultAsar)) {
-    fs.rmSync(defaultAsar, { force: true })
+    // 2. Rename electron.exe -> VinceZone Studio.exe and remove default_app.asar
+    fs.renameSync(path.join(OUT_DIR, 'electron.exe'), EXE_PATH)
+    const defaultAsar = path.join(OUT_DIR, 'resources', 'default_app.asar')
+    if (fs.existsSync(defaultAsar)) {
+      fs.rmSync(defaultAsar, { force: true })
+    }
+  }
+
+  // Clean previous resources/app cleanly before repopulating
+  if (fs.existsSync(APP_DIR)) {
+    fs.rmSync(APP_DIR, { recursive: true, force: true })
   }
 
   // 3. Assemble resources/app/
@@ -237,8 +242,10 @@ async function main() {
   // 4. Verify the packaged resources/app actually boots Next.js in-process with 0 missing modules
   await verifyPackagedRuntime()
 
-  // 5. Embed VinceAuto icon & Windows app metadata into VinceZone Studio.exe
-  await patchExeIconAndMetadata()
+  // 5. Embed VinceAuto icon & Windows app metadata into VinceZone Studio.exe (when freshly created)
+  if (!hasExistingRuntime) {
+    await patchExeIconAndMetadata()
+  }
 
   // 6. Remove legacy localhost launchers (.bat, .vbs, .lnk, .zip)
   removeLegacyLocalhostFiles()
