@@ -124,8 +124,8 @@ export function StatusBar({
       }`}
     >
       <div className="flex items-center gap-2.5">
-        <span className="flex items-center gap-1 rounded bg-[#222222] px-1.5 py-0.5 font-medium text-[#f0f0f0]">
-          <Monitor size={11} />
+        <span className="flex items-center gap-1 rounded border border-[#c9a24d]/30 bg-[#c9a24d]/10 px-1.5 py-0.5 font-medium text-[#e6cfa0]">
+          <Monitor size={11} className="text-[#c9a24d]" />
           {isDesktop ? 'VinceZone Local App' : 'VinceZone Local'}
         </span>
 
@@ -142,9 +142,9 @@ export function StatusBar({
                 ? `Active Git branch: ${gitBranch} (click to switch)`
                 : `Git branch: ${gitBranch}`
             }
-            className="flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-[#2a2a2a] hover:text-white"
+            className="flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-[#2a2720] hover:text-[#f0d89d]"
           >
-            <GitBranch size={11} />
+            <GitBranch size={11} className="text-[#c9a24d]" />
             <span className="max-w-36 truncate font-mono">{gitBranch}</span>
             {dirtyCount > 0 && <span>*({dirtyCount})</span>}
             {(gitAhead > 0 || gitBehind > 0) && (

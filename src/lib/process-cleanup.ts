@@ -1,9 +1,11 @@
+import type { ChildProcess } from 'node:child_process'
 import { stopDebugSession } from './debugger-runtime'
 import { shutdownMcpPool } from './mcp-client'
 import { killAllTerminalSessions } from './terminal-sessions'
 
 const globalCleanup = globalThis as typeof globalThis & {
   __vincezoneCleanupRegistered?: boolean
+  __vincezoneAndroidProc?: ChildProcess | null
 }
 
 /**
@@ -28,6 +30,12 @@ export function cleanupAllRuntimeProcesses(): {
   }
   try {
     shutdownMcpPool()
+  } catch {
+    // ignore
+  }
+  try {
+    globalCleanup.__vincezoneAndroidProc?.kill()
+    globalCleanup.__vincezoneAndroidProc = null
   } catch {
     // ignore
   }

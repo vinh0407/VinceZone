@@ -42,6 +42,10 @@ import {
   selectCompactWorkspaceFiles,
 } from '@/lib/orchestrator'
 import {
+  buildInstantProjectSnapshot,
+  isReadOnlyAnalysisPrompt,
+} from '@/lib/project-snapshot'
+import {
   buildTeamCollaborationPrompt,
   inferRoleId,
   ROLE_TERRITORIES,
@@ -1110,6 +1114,7 @@ export function useOrchestration({
       const isShortGreeting =
         text.length < 18 &&
         /^(hi|hello|hey|yo|chào|xin chào|alo|test|ping|ok|thanks|cảm ơn)[\s!.?]*$/i.test(text)
+      const isFastAnalysis = isReadOnlyAnalysisPrompt(text)
 
       const isLocalLoopbackProvider = /localhost|127\.0\.0\.1|\[::1\]/i.test(
         activeProvider.baseUrl || '',
@@ -1120,6 +1125,7 @@ export function useOrchestration({
         !options?.forceDirectChat &&
         !delegated &&
         !isShortGreeting &&
+        !isFastAnalysis &&
         attachedImages.length === 0 &&
         agentsRef.current.length > 1 &&
         isCaptainOrVice &&
@@ -1182,13 +1188,18 @@ export function useOrchestration({
       const controller = new AbortController()
       aborters.current[agent.id] = controller
       const projectMemText = memoryNotes.map((n) => `- ${n.title}: ${n.content}`).join('\n')
+      const projectSnapshot = buildInstantProjectSnapshot(
+        filesRef.current,
+        projectName,
+        workspaceRoot,
+      )
       const compactContextFiles = selectCompactWorkspaceFiles(
-        files,
+        filesRef.current,
         activeFile?.path,
         text,
-        6,
-        8_000,
-        45_000,
+        isFastAnalysis ? 4 : 6,
+        isFastAnalysis ? 4_500 : 8_000,
+        isFastAnalysis ? 18_000 : 45_000,
       )
       const fileContextBlock = compactContextFiles.length
         ? compactContextFiles
@@ -1196,12 +1207,18 @@ export function useOrchestration({
             .join('\n\n')
         : 'No workspace files loaded.'
 
+      const fastAnalysisDirective = isFastAnalysis
+        ? 'FAST ANALYSIS MODE: Complete project snapshot (structure, dependencies, API routes, tests, README, and key files) is ALREADY provided below. Answer directly in ONE comprehensive, well-structured Markdown response (with headings, tables, bold highlights, and Mermaid/ASCII architecture diagram when helpful) WITHOUT wasting turns calling list_files/read_file unless strictly missing a specific detail.'
+        : ''
+
       const systemPrompt = [
         buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        fastAnalysisDirective,
         bridgeEnabled
           ? buildBridgeContextPrompt(agent, agentsRef.current, bridgeMessagesRef.current)
           : '',
         slashResolved.promptBlock,
+        projectSnapshot,
         `Workspace (${projectName}) relevant files:\n${fileContextBlock}`,
       ]
         .filter(Boolean)
@@ -1227,9 +1244,10 @@ export function useOrchestration({
           body: JSON.stringify({
             ...activeProvider,
             model: agent.model || activeProvider.model,
-            enableTools: true,
+            enableTools: !isFastAnalysis,
+            fastAnalysis: isFastAnalysis,
             workspaceRoot,
-            mcpServers: appSettings.mcpServers,
+            mcpServers: isFastAnalysis ? [] : appSettings.mcpServers,
             messages: [
               { role: 'system', content: systemPrompt },
               ...compactedHistory,

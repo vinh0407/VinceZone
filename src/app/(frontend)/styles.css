@@ -5,6 +5,16 @@
   --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', ui-monospace, monospace;
 }
 
+:root {
+  --vz-gold: #c9a24d;
+  --vz-gold-bright: #ddb968;
+  --vz-gold-dim: #8f6f2e;
+  --vz-gold-text: #e6cfa0;
+  --vz-gold-soft: rgba(201, 162, 77, 0.1);
+  --vz-gold-border: rgba(201, 162, 77, 0.3);
+  --vz-gold-glow: rgba(201, 162, 77, 0.22);
+}
+
 /* Offline-first Theme Support: Dark Modern (default), Light, and High Contrast */
 [data-theme='light'] {
   filter: invert(0.92) hue-rotate(180deg);
@@ -51,35 +61,36 @@
   }
 
   ::selection {
-    background: rgba(255, 255, 255, 0.18);
-    color: #ffffff;
+    background: rgba(201, 162, 77, 0.26);
+    color: #fff8e7;
   }
 }
 
 @layer components {
   .icon-button {
-    @apply grid size-7 place-items-center rounded text-[#9a9a9a] transition hover:bg-[#2a2a2a] hover:text-white;
+    @apply grid size-7 place-items-center rounded text-[#9a9a9a] transition hover:bg-[#2a2720] hover:text-[#e6cfa0];
   }
 
   .mini-button {
-    @apply grid size-5 place-items-center rounded text-[#9a9a9a] transition hover:bg-[#2a2a2a] hover:text-white;
+    @apply grid size-5 place-items-center rounded text-[#9a9a9a] transition hover:bg-[#2a2720] hover:text-[#e6cfa0];
   }
 
   .toolbar-button {
-    @apply flex h-6 items-center gap-2 rounded border border-[#333333] bg-[#1f1f1f] px-2 text-[#d4d4d4] transition hover:bg-[#2a2a2a] hover:text-white;
+    @apply flex h-6 items-center gap-2 rounded border border-[#3a3324] bg-[#1f1d18] px-2 text-[#e0d4bc] transition hover:border-[#c9a24d]/45 hover:bg-[#2a261c] hover:text-[#f5e7c4];
   }
 
   .activity-button {
-    @apply relative grid size-12 place-items-center text-[#787878] transition hover:text-white;
+    @apply relative grid size-12 place-items-center text-[#7c786e] transition hover:text-[#e6cfa0];
   }
 
   .activity-button.active {
-    @apply text-white;
+    @apply text-[#ddb968];
   }
 
   .activity-button.active::before {
     content: '';
-    @apply absolute left-0 top-0 bottom-0 w-[2px] bg-[#e5e5e5];
+    @apply absolute left-0 top-0 bottom-0 w-[2px] bg-[#c9a24d];
+    box-shadow: 0 0 8px rgba(201, 162, 77, 0.5);
   }
 
   .vscode-menu-item {
@@ -114,7 +125,7 @@
 }
 
 .agent-orbit {
-  box-shadow: 0 0 0 0 rgba(229, 229, 229, 0.55);
+  box-shadow: 0 0 0 0 rgba(201, 162, 77, 0.55);
   animation: agent-orbit 1.5s ease-out infinite;
 }
 
@@ -124,7 +135,7 @@
 }
 
 .agent-panel-running {
-  box-shadow: inset 0 0 0 1px rgba(212, 212, 212, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 77, 0.34);
   animation: agent-panel-breathe 3s ease-in-out infinite;
 }
 

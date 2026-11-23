@@ -1512,7 +1512,9 @@ function AgentPanel({
                 className={`grid place-items-center text-[#111111] transition disabled:opacity-20 ${
                   isSolo ? 'size-9 rounded-lg' : 'size-5 rounded'
                 } ${
-                  agent.composingPrompt ? 'scale-110 bg-white shadow' : 'bg-[#e5e5e5] hover:bg-white'
+                  agent.composingPrompt
+                    ? 'scale-110 bg-[#ddb968] shadow-[0_0_12px_rgba(201,162,77,0.45)]'
+                    : 'bg-gradient-to-b from-[#d1ab59] to-[#a98336] hover:from-[#e0bc6c] hover:to-[#bc9542]'
                 }`}
               >
                 <Send size={isSolo ? 16 : 10} />

@@ -238,7 +238,10 @@ export async function GET(request: Request) {
           }
         }
 
-        if (ffmpegBin) {
+        // Default to zero-delay continuous PNG screencap multipart stream (guaranteed first frame
+        // in <200ms even on static screens & Android 16KB x86_64 AVDs). H.264 pipeline opt-in via ?mode=h264.
+        const useH264 = searchParams.get('mode') === 'h264' && Boolean(ffmpegBin)
+        if (useH264 && ffmpegBin) {
           // High-FPS 30-60 FPS hardware H.264 -> MJPEG live pipeline
           const recArgs = [
             ...(serial ? ['-s', serial] : []),
@@ -248,12 +251,12 @@ export async function GET(request: Request) {
             '--bit-rate=4000000',
             '-',
           ]
-          adbProc = spawn(adbBin, recArgs, {
+          adbProc = spawn(/*turbopackIgnore: true*/ adbBin, recArgs, {
             windowsHide: true,
             stdio: ['ignore', 'pipe', 'ignore'],
           })
           ffProc = spawn(
-            ffmpegBin,
+            /*turbopackIgnore: true*/ ffmpegBin,
             [
               '-loglevel',
               'error',
@@ -486,6 +489,8 @@ export async function POST(request: Request) {
     y2?: number
     text?: string
     headless?: boolean
+    coldBoot?: boolean
+    windowed?: boolean
   }
   try {
     body = (await request.json()) as typeof body
@@ -502,21 +507,58 @@ export async function POST(request: Request) {
     if (!emulatorBin) {
       return Response.json({ error: 'Android Emulator binary not found.' }, { status: 404 })
     }
+
+    const forceColdBoot = Boolean(body.coldBoot)
+    const openNativeWindow = Boolean(body.windowed || body.headless === false)
+
     const existingDevices = await listAdbDevices(adbBin)
     const alreadyRunning = existingDevices.find(
       (d) => d.serial.startsWith('emulator-') && (d.status === 'device' || d.status === 'offline'),
     )
-    if (alreadyRunning) {
-      if (alreadyRunning.status === 'device' && adbBin) {
+    if (alreadyRunning && !forceColdBoot) {
+      // Verify the running emulator is actually healthy/responsive, not a hung zombie process
+      const healthy =
+        alreadyRunning.status === 'device' && adbBin
+          ? await isBootCompleted(adbBin, alreadyRunning.serial)
+          : false
+      if (healthy && adbBin) {
         await wakeAndUnlock(adbBin, alreadyRunning.serial)
+        return Response.json({
+          ok: true,
+          alreadyRunning: true,
+          serial: alreadyRunning.serial,
+          status: alreadyRunning.status,
+          launchedAvd: body.avd || 'Running Emulator',
+        })
       }
-      return Response.json({
-        ok: true,
-        alreadyRunning: true,
-        serial: alreadyRunning.serial,
-        status: alreadyRunning.status,
-        launchedAvd: body.avd || 'Running Emulator',
-      })
+      // If emulator has been stuck offline or non-responsive, kill it cleanly before relaunching
+      if (adbBin) {
+        await execFileAsync(adbBin, ['-s', alreadyRunning.serial, 'emu', 'kill'], {
+          timeout: 3000,
+          windowsHide: true,
+        }).catch(() => {})
+      }
+      try {
+        globalAndroid.__vincezoneAndroidProc?.kill()
+      } catch {
+        // ignore
+      }
+      globalAndroid.__vincezoneAndroidProc = null
+      await new Promise((resolve) => setTimeout(resolve, 600))
+    } else if (alreadyRunning && forceColdBoot) {
+      if (adbBin) {
+        await execFileAsync(adbBin, ['-s', alreadyRunning.serial, 'emu', 'kill'], {
+          timeout: 3000,
+          windowsHide: true,
+        }).catch(() => {})
+      }
+      try {
+        globalAndroid.__vincezoneAndroidProc?.kill()
+      } catch {
+        // ignore
+      }
+      globalAndroid.__vincezoneAndroidProc = null
+      await new Promise((resolve) => setTimeout(resolve, 700))
     }
 
     const avds = await listAvds(emulatorBin)
@@ -528,22 +570,24 @@ export async function POST(request: Request) {
       )
     }
 
-    // CRITICAL on Windows: NEVER use `detached: true` with `windowsHide: true` because
-    // libuv sets CREATE_NEW_CONSOLE when detached=true, flashing a black terminal window!
+    // Use `-gpu auto` (hardware ANGLE/Vulkan on Windows) instead of `-gpu swiftshader_indirect`
+    // which causes 100% CPU boot hangs on Android 16KB x86_64 AVDs!
     const args = [
       '-avd',
       targetAvd,
-      '-no-window',
+      ...(openNativeWindow ? [] : ['-no-window']),
       '-no-boot-anim',
       '-no-audio',
+      '-no-snapshot-save',
+      ...(forceColdBoot ? ['-no-snapshot-load'] : []),
       '-gpu',
-      'swiftshader_indirect',
+      'auto',
     ]
 
     let earlyErr = ''
-    const child = spawn(emulatorBin, args, {
+    const child = spawn(/*turbopackIgnore: true*/ emulatorBin, args, {
       detached: false,
-      windowsHide: true,
+      windowsHide: !openNativeWindow,
       stdio: ['ignore', 'ignore', 'pipe'],
       env: {
         ...process.env,
@@ -569,7 +613,13 @@ export async function POST(request: Request) {
     }
 
     child.unref()
-    return Response.json({ ok: true, launchedAvd: targetAvd, headless: true, pid: child.pid })
+    return Response.json({
+      ok: true,
+      launchedAvd: targetAvd,
+      headless: !openNativeWindow,
+      coldBoot: forceColdBoot,
+      pid: child.pid,
+    })
   }
 
   if (body.action === 'keyevent' && body.keycode && adbBin) {

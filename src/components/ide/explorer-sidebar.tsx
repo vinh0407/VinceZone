@@ -461,8 +461,8 @@ export function ExplorerSidebar({
           compactMode ? 'py-[3px]' : 'py-1'
         } ${
           activePath === item.path
-            ? 'bg-[#2c2c2c] text-white'
-            : 'text-[#cccccc] hover:bg-[#222222]'
+            ? 'border-l-2 border-[#c9a24d] bg-[#c9a24d]/12 text-[#f5e7c4]'
+            : 'text-[#cccccc] hover:bg-[#24211b]'
         }`}
       >
         <button

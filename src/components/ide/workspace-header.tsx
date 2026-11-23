@@ -339,9 +339,9 @@ export function WorkspaceHeader({
           <img
             src="/logo.png"
             alt="VinceZone"
-            className="size-5 rounded border border-[#2f2f2f] object-cover"
+            className="size-5 rounded border border-[#c9a24d]/45 object-cover shadow-[0_0_8px_rgba(201,162,77,0.2)]"
           />
-          <span className="hidden text-[12px] font-semibold tracking-tight text-white sm:inline">
+          <span className="hidden text-[12px] font-semibold tracking-tight text-[#e6cfa0] sm:inline">
             VinceZone
           </span>
         </div>
@@ -441,13 +441,16 @@ export function WorkspaceHeader({
               key={project.id}
               onClick={() => onSwitchProject(project.id)}
               title={project.rootPath || project.name}
-              className={`group flex h-6 shrink-0 items-center gap-1.5 rounded px-2 text-[11px] ${
+              className={`group flex h-6 shrink-0 items-center gap-1.5 rounded px-2 text-[11px] transition ${
                 activeProjectId === project.id
-                  ? 'bg-[#2a2d2e] text-white'
-                  : 'text-[#9d9d9d] hover:bg-[#2a2d2e]/60 hover:text-white'
+                  ? 'border border-[#c9a24d]/35 bg-[#c9a24d]/12 text-[#f0d89d]'
+                  : 'text-[#9d9d9d] hover:bg-[#2a2720]/70 hover:text-[#e6cfa0]'
               }`}
             >
-              <FolderOpen size={12} className="text-[#a3a3a3]" />
+              <FolderOpen
+                size={12}
+                className={activeProjectId === project.id ? 'text-[#c9a24d]' : 'text-[#8e887b]'}
+              />
               <span className="max-w-28 truncate">{project.name}</span>
               {projects.length > 1 && (
                 <X
@@ -486,9 +489,9 @@ export function WorkspaceHeader({
       <button
         onClick={() => (onOpenQuickOpen ? onOpenQuickOpen() : onOpenSearch())}
         title="Quick Open File (Ctrl+P) or Command Palette (Ctrl+Shift+P)"
-        className="titlebar-no-drag mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
+        className="titlebar-no-drag mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3a3427] bg-[#1e1d19] px-3 text-[11px] text-[#a39c8d] transition hover:border-[#c9a24d]/50 hover:bg-[#26231b] hover:text-[#f0d89d] md:flex"
       >
-        <Search size={12} className="shrink-0 text-[#9d9d9d]" />
+        <Search size={12} className="shrink-0 text-[#c9a24d]/80" />
         <span className="truncate">
           {activeProject?.name || 'VinceZone Studio'}
           {activeRootPath ? ` — ${activeRootPath}` : ''}
@@ -513,7 +516,7 @@ export function WorkspaceHeader({
 
         <button
           onClick={onRun}
-          className="flex h-6 items-center gap-1 rounded bg-[#e5e5e5] px-2 text-[11px] font-medium text-[#111111] hover:bg-white"
+          className="flex h-6 items-center gap-1 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] px-2.5 text-[11px] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.22)] transition hover:from-[#e0bc6c] hover:to-[#bc9542]"
           title="Run test suite"
         >
           {runState === 'running' ? <Square size={10} fill="currentColor" /> : <Play size={11} />}

@@ -160,13 +160,15 @@ export function AndroidEmulator({
     }
   }, [booting, refreshStatus])
 
-  // Auto-stream live Android screen: prefer smooth MJPEG stream, fallback to snapshot polling
+  // Auto-stream live Android screen: immediately grab an initial snapshot so screen never sits black,
+  // and poll smoothly whenever multipart MJPEG stream isn't active.
   useEffect(() => {
-    if (phoneMode !== 'android' || !autoStream || !selectedSerial || useMjpegStream) return
+    if (phoneMode !== 'android' || !autoStream || !selectedSerial) return
     void captureScreen()
-    const timer = window.setInterval(() => void captureScreen(), 420)
+    if (useMjpegStream && status?.bootCompleted) return
+    const timer = window.setInterval(() => void captureScreen(), 500)
     return () => window.clearInterval(timer)
-  }, [autoStream, captureScreen, phoneMode, selectedSerial, useMjpegStream])
+  }, [autoStream, captureScreen, phoneMode, selectedSerial, status?.bootCompleted, useMjpegStream])
 
   const refreshLogcat = useCallback(async () => {
     if (!selectedSerial) return
@@ -288,7 +290,7 @@ export function AndroidEmulator({
     }
   }
 
-  const handleLaunchAndroidOnScreen = () => {
+  const handleLaunchAndroidOnScreen = (opts?: { coldBoot?: boolean; windowed?: boolean }) => {
     setPhoneMode('android')
     const avd = selectedAvd || status?.avds[0]
     if (!avd) {
@@ -298,9 +300,21 @@ export function AndroidEmulator({
       return
     }
     setBooting(true)
+    setUseMjpegStream(true)
+    setStreamNonce((n) => n + 1)
     void sendAction(
-      { action: 'launch', avd, headless: true },
-      `Booting ${avd} directly on phone screen…`,
+      {
+        action: 'launch',
+        avd,
+        headless: !opts?.windowed,
+        coldBoot: Boolean(opts?.coldBoot),
+        windowed: Boolean(opts?.windowed),
+      },
+      opts?.windowed
+        ? `Opening ${avd} in native Android window…`
+        : opts?.coldBoot
+          ? `Cold-restarting ${avd} with hardware GPU…`
+          : `Booting ${avd} directly on phone screen…`,
     )
   }
 
@@ -390,8 +404,8 @@ export function AndroidEmulator({
       : 'h-[580px] w-[290px]'
 
   const mjpegSrc =
-    phoneMode === 'android' && autoStream && selectedSerial && useMjpegStream
-      ? `/api/android?action=stream&serial=${encodeURIComponent(selectedSerial)}&fps=30&n=${streamNonce}`
+    phoneMode === 'android' && autoStream && selectedSerial && useMjpegStream && status?.bootCompleted
+      ? `/api/android?action=stream&serial=${encodeURIComponent(selectedSerial)}&n=${streamNonce}`
       : null
 
   const liveAndroidSrc = mjpegSrc || screenUrl
@@ -497,8 +511,26 @@ export function AndroidEmulator({
                         : `No Android AVD found for ${projectName}. Switch to Live App to preview directly on this phone.`}
                 </p>
                 {booting ? (
-                  <div className="mt-4 h-1 w-32 overflow-hidden rounded-full bg-[#2a2a2a]">
-                    <div className="h-full w-1/2 animate-pulse rounded-full bg-[#e5e5e5]" />
+                  <div className="mt-4 flex flex-col items-center gap-2.5">
+                    <div className="h-1 w-32 overflow-hidden rounded-full bg-[#2a2a2a]">
+                      <div className="h-full w-1/2 animate-pulse rounded-full bg-[#c9a24d]" />
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleLaunchAndroidOnScreen({ coldBoot: true })}
+                        className="rounded-full border border-[#c9a24d]/40 bg-[#c9a24d]/10 px-3 py-1 text-[9.5px] text-[#e2c275] hover:bg-[#c9a24d]/20"
+                      >
+                        Cold Restart AVD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLaunchAndroidOnScreen({ windowed: true })}
+                        className="rounded-full border border-[#3d3d3d] bg-[#222222] px-3 py-1 text-[9.5px] text-[#d4d4d4] hover:bg-[#2f2f2f]"
+                      >
+                        Open Native Window
+                      </button>
+                    </div>
                   </div>
                 ) : selectedSerial ? (
                   <button
@@ -507,20 +539,29 @@ export function AndroidEmulator({
                       setAutoStream(true)
                       void captureScreen()
                     }}
-                    className="mt-4 rounded-full bg-[#e5e5e5] px-4 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-white"
+                    className="mt-4 rounded-full bg-[#c9a24d] px-4 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-[#ddb968]"
                   >
                     Connect Screen
                   </button>
                 ) : (
                   <div className="mt-4 flex flex-col gap-2">
                     {status?.avds.length ? (
-                      <button
-                        type="button"
-                        onClick={handleLaunchAndroidOnScreen}
-                        className="flex items-center justify-center gap-1.5 rounded-full bg-[#e5e5e5] px-4 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-white"
-                      >
-                        <Play size={10} /> Run {selectedAvd || status.avds[0]}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchAndroidOnScreen()}
+                          className="flex items-center justify-center gap-1.5 rounded-full bg-[#c9a24d] px-4 py-1.5 text-[10px] font-semibold text-[#111111] hover:bg-[#ddb968]"
+                        >
+                          <Play size={10} /> Run {selectedAvd || status.avds[0]}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchAndroidOnScreen({ windowed: true })}
+                          className="rounded-full border border-[#c9a24d]/35 bg-[#c9a24d]/10 px-4 py-1 text-[9.5px] text-[#e2c275] hover:bg-[#c9a24d]/20"
+                        >
+                          Launch Native Emulator Window
+                        </button>
+                      </>
                     ) : null}
                     <button
                       type="button"
@@ -854,7 +895,7 @@ export function AndroidEmulator({
               </select>
               <button
                 type="button"
-                onClick={handleLaunchAndroidOnScreen}
+                onClick={() => handleLaunchAndroidOnScreen()}
                 disabled={booting}
                 className="flex shrink-0 items-center gap-1 rounded bg-[#e5e5e5] px-2 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-40"
               >
@@ -954,7 +995,7 @@ export function AndroidEmulator({
               </select>
               <button
                 type="button"
-                onClick={handleLaunchAndroidOnScreen}
+                onClick={() => handleLaunchAndroidOnScreen()}
                 disabled={booting}
                 className="flex h-7 items-center gap-1.5 rounded bg-[#e5e5e5] px-2.5 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-35"
               >

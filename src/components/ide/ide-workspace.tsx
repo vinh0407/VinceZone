@@ -3206,12 +3206,12 @@ export function IDEWorkspace() {
                 title="AI Agent Chat (mặc định @PM)"
                 className={`relative grid size-8 place-items-center rounded transition ${
                   rightPanelMode === 'chat'
-                    ? 'bg-[#2a2a2a] text-white'
-                    : 'text-[#858585] hover:bg-[#222222] hover:text-white'
+                    ? 'bg-[#c9a24d]/15 text-[#ddb968]'
+                    : 'text-[#858585] hover:bg-[#25221b] hover:text-[#e6cfa0]'
                 }`}
               >
                 {rightPanelMode === 'chat' && (
-                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#e5e5e5]" />
+                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#c9a24d] shadow-[0_0_6px_rgba(201,162,77,0.5)]" />
                 )}
                 <Bot size={16} />
               </button>
@@ -3224,12 +3224,12 @@ export function IDEWorkspace() {
                 title="Demo giả lập điện thoại / Android trực tiếp"
                 className={`relative grid size-8 place-items-center rounded transition ${
                   rightPanelMode === 'phone'
-                    ? 'bg-[#2a2a2a] text-white'
-                    : 'text-[#858585] hover:bg-[#222222] hover:text-white'
+                    ? 'bg-[#c9a24d]/15 text-[#ddb968]'
+                    : 'text-[#858585] hover:bg-[#25221b] hover:text-[#e6cfa0]'
                 }`}
               >
                 {rightPanelMode === 'phone' && (
-                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#e5e5e5]" />
+                  <span className="absolute right-0 top-1 bottom-1 w-[2px] rounded-full bg-[#c9a24d] shadow-[0_0_6px_rgba(201,162,77,0.5)]" />
                 )}
                 <Smartphone size={16} />
               </button>

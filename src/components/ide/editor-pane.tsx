@@ -788,14 +788,14 @@ export function EditorPane({
                 }}
                 className={`group flex min-w-32 items-center gap-2 border-r border-[#2b2b2b] px-3 text-[12px] ${
                   isActive
-                    ? 'border-t-2 border-t-[#e5e5e5] bg-[#1e1e1e] text-white'
-                    : 'bg-[#181818] text-[#9d9d9d] hover:bg-[#1f1f1f]'
+                    ? 'border-t-2 border-t-[#c9a24d] bg-[#1e1e1e] text-[#f5e7c4]'
+                    : 'bg-[#181818] text-[#9d9d9d] hover:bg-[#201e1a] hover:text-[#e6cfa0]'
                 }`}
               >
                 {fileIcon(file)}
                 <span className="truncate">{file.name}</span>
                 {file.dirty ? (
-                  <span className="ml-auto size-2 rounded-full bg-white/80" />
+                  <span className="ml-auto size-2 rounded-full bg-[#c9a24d]" />
                 ) : (
                   <X
                     size={13}
@@ -830,8 +830,8 @@ export function EditorPane({
         <button
           className={`mx-1 flex h-6 items-center gap-1 rounded border px-2 text-[10px] transition ${
             inlineOpen
-              ? 'border-[#737373] bg-[#2a2a2a] text-white'
-              : 'border-[#333333] bg-[#1e1e1e] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white'
+              ? 'border-[#c9a24d]/60 bg-[#c9a24d]/15 text-[#f0d89d]'
+              : 'border-[#3a3324] bg-[#1e1c18] text-[#d6c9ae] hover:border-[#c9a24d]/45 hover:bg-[#29241a] hover:text-[#f5e7c4]'
           }`}
           onClick={() => {
             setInlineOpen((prev) => !prev)
@@ -840,7 +840,7 @@ export function EditorPane({
           disabled={!activeFile}
           title="Inline AI Edit (Ctrl+K)"
         >
-          <Sparkles size={11} />
+          <Sparkles size={11} className="text-[#c9a24d]" />
           <span>Inline AI</span>
           <kbd className="rounded bg-[#141414] px-1 font-mono text-[9px] text-[#858585]">Ctrl+K</kbd>
         </button>

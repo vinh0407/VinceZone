@@ -812,7 +812,7 @@ export function RightAiChatPanel({
               <button
                 onClick={triggerSend}
                 disabled={!draft.trim() && pendingImages.length === 0}
-                className="flex size-6 items-center justify-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-30"
+                className="flex size-6 items-center justify-center rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] text-[#111111] shadow-[0_1px_6px_rgba(201,162,77,0.25)] transition hover:from-[#e0bc6c] hover:to-[#bc9542] disabled:opacity-30"
                 title="Send message (Enter)"
               >
                 <Send size={11} />

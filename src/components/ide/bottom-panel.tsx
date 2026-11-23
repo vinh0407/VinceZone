@@ -174,8 +174,8 @@ export function BottomPanel({
               onClick={() => onSelectTab(tab.id)}
               className={
                 activeTab === tab.id
-                  ? 'border-b border-[#e5e5e5] text-white'
-                  : 'text-[#858585] hover:text-[#cccccc]'
+                  ? 'border-b-2 border-[#c9a24d] text-[#f0d89d]'
+                  : 'text-[#858585] hover:text-[#e6cfa0]'
               }
             >
               {tab.label}
