@@ -1,4 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { access } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,6 +10,16 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const execFileAsync = promisify(execFile)
+
+function findBinaryOnPath(name: string): string | null {
+  const binary = process.platform === 'win32' ? `${name}.exe` : name
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  for (const dir of dirs) {
+    const full = path.join(/*turbopackIgnore: true*/ dir, binary)
+    if (existsSync(full)) return full
+  }
+  return null
+}
 
 const globalAndroid = globalThis as typeof globalThis & {
   __vincezoneAndroidProc?: ChildProcess | null
@@ -136,7 +147,256 @@ export async function GET(request: Request) {
   ])
 
   const { searchParams } = new URL(request.url)
-  if (searchParams.get('action') === 'screenshot') {
+  const action = searchParams.get('action')
+
+  // P2-1: Smooth live MJPEG / continuous PNG multipart stream (30 FPS via screenrecord+ffmpeg when available,
+  // or zero-polling back-to-back screencap multipart stream otherwise)
+  if (action === 'stream') {
+    if (!adbBin) {
+      return Response.json({ error: 'ADB binary not found in Android SDK.' }, { status: 404 })
+    }
+    const serial = searchParams.get('serial')?.trim() || ''
+    const fps = Math.min(60, Math.max(10, Number(searchParams.get('fps')) || 30))
+    const ffmpegBin = findBinaryOnPath('ffmpeg')
+    const boundary = 'vzframe'
+    const encoder = new TextEncoder()
+
+    if (serial) {
+      globalAndroid.__vincezoneWokenSerials ??= new Set()
+      if (!globalAndroid.__vincezoneWokenSerials.has(serial)) {
+        const booted = await isBootCompleted(adbBin, serial)
+        if (booted) {
+          globalAndroid.__vincezoneWokenSerials.add(serial)
+          await wakeAndUnlock(adbBin, serial)
+        }
+      }
+    }
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        let closed = false
+        let adbProc: ChildProcess | null = null
+        let ffProc: ChildProcess | null = null
+
+        const cleanup = () => {
+          if (closed) return
+          closed = true
+          try {
+            adbProc?.kill()
+          } catch {
+            // ignore
+          }
+          try {
+            ffProc?.kill()
+          } catch {
+            // ignore
+          }
+          try {
+            controller.close()
+          } catch {
+            // ignore
+          }
+        }
+
+        request.signal.addEventListener('abort', cleanup)
+
+        const emitPart = (contentType: string, bytes: Uint8Array) => {
+          if (closed) return
+          try {
+            const header = encoder.encode(
+              `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Length: ${bytes.byteLength}\r\n\r\n`,
+            )
+            const footer = encoder.encode('\r\n')
+            controller.enqueue(header)
+            controller.enqueue(bytes)
+            controller.enqueue(footer)
+          } catch {
+            cleanup()
+          }
+        }
+
+        const startScreencapLoop = async () => {
+          const capArgs = serial
+            ? ['-s', serial, 'exec-out', 'screencap', '-p']
+            : ['exec-out', 'screencap', '-p']
+          while (!closed) {
+            try {
+              const { stdout } = await execFileAsync(adbBin, capArgs, {
+                encoding: 'buffer',
+                maxBuffer: 15 * 1024 * 1024,
+                timeout: 4500,
+                windowsHide: true,
+              })
+              if (closed) break
+              if (stdout && stdout.length > 64) {
+                emitPart('image/png', new Uint8Array(stdout))
+              }
+            } catch {
+              if (closed) break
+              await new Promise((r) => setTimeout(r, 300))
+            }
+          }
+        }
+
+        if (ffmpegBin) {
+          // High-FPS 30-60 FPS hardware H.264 -> MJPEG live pipeline
+          const recArgs = [
+            ...(serial ? ['-s', serial] : []),
+            'exec-out',
+            'screenrecord',
+            '--output-format=h264',
+            '--bit-rate=4000000',
+            '-',
+          ]
+          adbProc = spawn(adbBin, recArgs, {
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+          ffProc = spawn(
+            ffmpegBin,
+            [
+              '-loglevel',
+              'error',
+              '-f',
+              'h264',
+              '-i',
+              'pipe:0',
+              '-f',
+              'image2pipe',
+              '-vcodec',
+              'mjpeg',
+              '-q:v',
+              '6',
+              '-r',
+              String(fps),
+              'pipe:1',
+            ],
+            {
+              windowsHide: true,
+              stdio: ['pipe', 'pipe', 'ignore'],
+            },
+          )
+
+          adbProc.stdout?.pipe(ffProc.stdin!)
+
+          let frameBuf = Buffer.alloc(0)
+          let gotAnyFrame = false
+          const fallbackTimer = setTimeout(() => {
+            if (!gotAnyFrame && !closed) {
+              try {
+                adbProc?.kill()
+                ffProc?.kill()
+              } catch {
+                // ignore
+              }
+              void startScreencapLoop()
+            }
+          }, 2600)
+
+          ffProc.stdout?.on('data', (chunk: Buffer) => {
+            if (closed) return
+            frameBuf = Buffer.concat([frameBuf, chunk])
+            while (true) {
+              const soi = frameBuf.indexOf(Buffer.from([0xff, 0xd8]))
+              if (soi === -1) {
+                if (frameBuf.length > 512_000) frameBuf = Buffer.alloc(0)
+                break
+              }
+              const eoi = frameBuf.indexOf(Buffer.from([0xff, 0xd9]), soi + 2)
+              if (eoi === -1) break
+              const jpeg = frameBuf.subarray(soi, eoi + 2)
+              frameBuf = frameBuf.subarray(eoi + 2)
+              if (!gotAnyFrame) {
+                gotAnyFrame = true
+                clearTimeout(fallbackTimer)
+              }
+              emitPart('image/jpeg', new Uint8Array(jpeg))
+            }
+          })
+
+          ffProc.on('exit', () => {
+            clearTimeout(fallbackTimer)
+            if (!closed && !gotAnyFrame) {
+              void startScreencapLoop()
+            }
+          })
+        } else {
+          void startScreencapLoop()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': `multipart/x-mixed-replace; boundary=${boundary}`,
+        'Cache-Control': 'no-store, no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  }
+
+  // P2-1: Live ADB Logcat reader + crash detector
+  if (action === 'logcat') {
+    if (!adbBin) {
+      return Response.json({ error: 'ADB binary not found in Android SDK.' }, { status: 404 })
+    }
+    const serial = searchParams.get('serial')?.trim() || ''
+    const rawLevel = (searchParams.get('level') || 'I').toUpperCase()
+    const level = ['V', 'D', 'I', 'W', 'E', 'F'].includes(rawLevel) ? rawLevel : 'I'
+    const filter = (searchParams.get('filter') || '').trim().toLowerCase()
+    const maxLines = Math.min(300, Math.max(20, Number(searchParams.get('lines')) || 140))
+
+    const args = [
+      ...(serial ? ['-s', serial] : []),
+      'logcat',
+      '-d',
+      '-v',
+      'time',
+      '-t',
+      String(maxLines),
+      `*:${level}`,
+    ]
+    try {
+      const { stdout } = await execFileAsync(adbBin, args, {
+        timeout: 6000,
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+      })
+      let lines = stdout
+        .split(/\r?\n/)
+        .map((l) => l.trimEnd())
+        .filter(Boolean)
+      if (filter) {
+        lines = lines.filter((l) => l.toLowerCase().includes(filter))
+      }
+      const crashLines = lines.filter((l) =>
+        /FATAL EXCEPTION|AndroidRuntime|ANR in|SIGSEGV|Process.*has died/i.test(l),
+      )
+      return Response.json(
+        {
+          ok: true,
+          serial: serial || 'default',
+          level,
+          lines,
+          crashDetected: crashLines.length > 0,
+          crashSummary: crashLines.slice(-12).join('\n'),
+        },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    } catch (error) {
+      return Response.json(
+        {
+          ok: false,
+          lines: [],
+          crashDetected: false,
+          error: error instanceof Error ? error.message : 'Unable to read ADB logcat.',
+        },
+        { status: 500 },
+      )
+    }
+  }
+
+  if (action === 'screenshot') {
     if (!adbBin) {
       return Response.json({ error: 'ADB binary not found in Android SDK.' }, { status: 404 })
     }
@@ -321,6 +581,14 @@ export async function POST(request: Request) {
       'KEYCODE_WAKEUP',
       'KEYCODE_ENTER',
       'KEYCODE_DEL',
+      'KEYCODE_FORWARD_DEL',
+      'KEYCODE_TAB',
+      'KEYCODE_SPACE',
+      'KEYCODE_ESCAPE',
+      'KEYCODE_DPAD_UP',
+      'KEYCODE_DPAD_DOWN',
+      'KEYCODE_DPAD_LEFT',
+      'KEYCODE_DPAD_RIGHT',
     ])
     if (!allowedKeys.has(body.keycode)) {
       return Response.json({ error: 'Unsupported Android keycode.' }, { status: 400 })
@@ -334,6 +602,19 @@ export async function POST(request: Request) {
     } catch (error) {
       return Response.json(
         { error: error instanceof Error ? error.message : 'Failed to send keyevent.' },
+        { status: 500 },
+      )
+    }
+  }
+
+  if (body.action === 'clear-logcat' && adbBin) {
+    const args = body.serial ? ['-s', body.serial, 'logcat', '-c'] : ['logcat', '-c']
+    try {
+      await execFileAsync(adbBin, args, { timeout: 5000, windowsHide: true })
+      return Response.json({ ok: true })
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : 'Failed to clear logcat.' },
         { status: 500 },
       )
     }
@@ -386,8 +667,12 @@ export async function POST(request: Request) {
     }
   }
 
-  if (body.action === 'text' && typeof body.text === 'string' && body.text.trim() && adbBin) {
-    const safeText = body.text.replace(/[^a-zA-Z0-9._:@/-]/g, '%s').slice(0, 120)
+  if (body.action === 'text' && typeof body.text === 'string' && body.text.length > 0 && adbBin) {
+    const safeText = body.text
+      .slice(0, 120)
+      .replace(/ /g, '%s')
+      .replace(/[^a-zA-Z0-9%._:@/+=-]/g, '')
+    if (!safeText) return Response.json({ ok: true })
     const args = [
       ...(body.serial ? ['-s', body.serial] : []),
       'shell',

@@ -169,6 +169,47 @@ export function ProviderSettingsModal({
   const [omniCombos, setOmniCombos] = useState<DiscoveredOmniCombo[]>([])
   const [omniOnline, setOmniOnline] = useState<boolean | null>(null)
 
+  // P2-2 & P2-3: OS DPAPI Security status & Update Checker
+  const [dpapiActive, setDpapiActive] = useState<boolean | null>(null)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<{
+    currentVersion: string
+    latestVersion: string
+    updateAvailable: boolean
+    releaseUrl?: string
+    message?: string
+  } | null>(null)
+
+  useEffect(() => {
+    const secrets = window.vincezoneDesktop?.secrets
+    if (!secrets) {
+      setDpapiActive(false)
+      return
+    }
+    void secrets
+      .isAvailable()
+      .then((ok) => setDpapiActive(Boolean(ok)))
+      .catch(() => setDpapiActive(false))
+  }, [])
+
+  const checkForUpdates = async () => {
+    setUpdateChecking(true)
+    try {
+      const res = await fetch('/api/updates', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        currentVersion: string
+        latestVersion: string
+        updateAvailable: boolean
+        releaseUrl?: string
+        message?: string
+      }
+      setUpdateInfo(data)
+    } finally {
+      setUpdateChecking(false)
+    }
+  }
+
   // MCP add form + live tool tester
   const [mcpName, setMcpName] = useState('')
   const [mcpTransport, setMcpTransport] = useState<'stdio' | 'http'>('stdio')
@@ -692,6 +733,73 @@ export function ProviderSettingsModal({
                       {settings.editorMinimap ? 'VISIBLE' : 'HIDDEN'}
                     </span>
                   </button>
+                </div>
+
+                <div className="mt-4 space-y-2.5 rounded-lg border border-[#2c2c2c] bg-[#161616] p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-semibold text-white">
+                        Storage, OS Encryption &amp; Updates
+                      </p>
+                      <p className="mt-0.5 text-[9.5px] text-[#8f8f8f]">
+                        Chat, Memory &amp; Revisions saved durably to{' '}
+                        <code className="font-mono text-[#d4d4d4]">.vincezone/session-store.json</code>{' '}
+                        (no browser storage cap).
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded px-2 py-0.5 font-mono text-[9.5px] ${
+                        dpapiActive
+                          ? 'bg-[#1e3620] text-[#89d185]'
+                          : 'bg-[#262626] text-[#a3a3a3]'
+                      }`}
+                    >
+                      {dpapiActive
+                        ? 'API Keys: OS DPAPI Encrypted'
+                        : 'API Keys: RAM Session Only'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#252525] pt-2.5">
+                    <div className="text-[10px] text-[#a3a3a3]">
+                      {updateInfo ? (
+                        <>
+                          <span className="font-mono text-white">v{updateInfo.currentVersion}</span>
+                          {' · '}
+                          <span
+                            className={
+                              updateInfo.updateAvailable ? 'font-semibold text-[#89d185]' : ''
+                            }
+                          >
+                            {updateInfo.message}
+                          </span>
+                        </>
+                      ) : (
+                        <span>VinceZone Studio · GitHub Releases Updater</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {updateInfo?.updateAvailable && updateInfo.releaseUrl && (
+                        <a
+                          href={updateInfo.releaseUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded border border-[#525252] bg-[#2a2a2a] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#383838]"
+                        >
+                          Download v{updateInfo.latestVersion}
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        disabled={updateChecking}
+                        onClick={() => void checkForUpdates()}
+                        className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-2.5 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-40"
+                      >
+                        <RefreshCw size={10} className={updateChecking ? 'animate-spin' : ''} />
+                        {updateChecking ? 'Checking…' : 'Check for Updates'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </SettingsSection>
             )}

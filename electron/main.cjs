@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } = require('electron')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -244,6 +244,68 @@ ipcMain.handle('vincezone:openExternal', async (_event, targetUrl) => {
     return true
   }
   return false
+})
+
+// P2-2: OS-level API Key Encryption via Electron safeStorage (Windows DPAPI / macOS Keychain)
+function getSecretsVaultPath() {
+  return path.join(app.getPath('userData'), 'vincezone-secrets.enc.json')
+}
+
+ipcMain.handle('vincezone:secrets:isAvailable', () => {
+  try {
+    return Boolean(safeStorage && safeStorage.isEncryptionAvailable())
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle('vincezone:secrets:save', (_event, keyMap) => {
+  if (!keyMap || typeof keyMap !== 'object') return { ok: false, encrypted: false }
+  try {
+    if (!safeStorage || !safeStorage.isEncryptionAvailable()) {
+      return { ok: false, encrypted: false }
+    }
+    const encryptedEntries = {}
+    for (const [providerId, rawKey] of Object.entries(keyMap)) {
+      if (typeof rawKey === 'string' && rawKey.trim()) {
+        encryptedEntries[providerId] = safeStorage.encryptString(rawKey.trim()).toString('base64')
+      }
+    }
+    const vaultPath = getSecretsVaultPath()
+    fs.mkdirSync(path.dirname(vaultPath), { recursive: true })
+    const tmpPath = `${vaultPath}.${Date.now()}.tmp`
+    fs.writeFileSync(
+      tmpPath,
+      JSON.stringify({ version: 1, backend: 'electron-safeStorage-dpapi', keys: encryptedEntries }, null, 2),
+      { encoding: 'utf8', mode: 0o600 },
+    )
+    fs.renameSync(tmpPath, vaultPath)
+    return { ok: true, encrypted: true, count: Object.keys(encryptedEntries).length }
+  } catch {
+    return { ok: false, encrypted: false }
+  }
+})
+
+ipcMain.handle('vincezone:secrets:load', () => {
+  try {
+    if (!safeStorage || !safeStorage.isEncryptionAvailable()) return {}
+    const vaultPath = getSecretsVaultPath()
+    if (!fs.existsSync(vaultPath)) return {}
+    const parsed = JSON.parse(fs.readFileSync(vaultPath, 'utf8'))
+    const out = {}
+    for (const [providerId, cipherBase64] of Object.entries(parsed.keys || {})) {
+      if (typeof cipherBase64 === 'string' && cipherBase64) {
+        try {
+          out[providerId] = safeStorage.decryptString(Buffer.from(cipherBase64, 'base64'))
+        } catch {
+          // Skip key encrypted under another OS user profile
+        }
+      }
+    }
+    return out
+  } catch {
+    return {}
+  }
 })
 
 app.whenReady().then(createWindow)

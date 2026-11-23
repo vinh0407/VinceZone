@@ -48,7 +48,6 @@ import type {
 import { AgentWorkspace } from './agent-workspace'
 import { AndroidEmulator } from './android-emulator'
 import { BottomPanel } from './bottom-panel'
-import { CraftStudio } from './craft-studio'
 import { EditorPane } from './editor-pane'
 import { ExplorerSidebar } from './explorer-sidebar'
 import { AgentCreatorModal } from './modals/agent-creator-modal'
@@ -77,6 +76,12 @@ declare global {
       isDesktop: boolean
       port: number
       openDirectory: () => Promise<string | null>
+      openExternal?: (url: string) => Promise<boolean>
+      secrets?: {
+        isAvailable: () => Promise<boolean>
+        saveApiKeys: (keyMap: Record<string, string>) => Promise<{ ok: boolean; encrypted: boolean }>
+        loadApiKeys: () => Promise<Record<string, string>>
+      }
       onMenuAction: (cb: (payload: { action: string; folder?: string }) => void) => () => void
     }
   }
@@ -704,6 +709,127 @@ export function IDEWorkspace() {
     const timer = window.setTimeout(() => persistWorkspace(), 350)
     return () => window.clearTimeout(timer)
   }, [persistWorkspace])
+
+  // P2-2: Hydrate API keys from OS-level Electron safeStorage (Windows DPAPI) on startup
+  useEffect(() => {
+    const secrets = window.vincezoneDesktop?.secrets
+    if (!secrets) return
+    let active = true
+    void secrets
+      .loadApiKeys()
+      .then((keyMap) => {
+        if (!active || !keyMap || Object.keys(keyMap).length === 0) return
+        setProviders((current) =>
+          current.map((p) => (keyMap[p.id] ? { ...p, apiKey: keyMap[p.id] } : p)),
+        )
+        setSavedProvider((current) =>
+          keyMap[current.id] ? { ...current, apiKey: keyMap[current.id] } : current,
+        )
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // P2-2: Persist API keys encrypted via OS-level Electron safeStorage (Windows DPAPI)
+  useEffect(() => {
+    if (!hydratedRef.current) return
+    const secrets = window.vincezoneDesktop?.secrets
+    if (!secrets) return
+    const keyMap: Record<string, string> = {}
+    for (const p of providers) {
+      if (p.apiKey?.trim()) keyMap[p.id] = p.apiKey.trim()
+    }
+    if (savedProvider.apiKey?.trim()) keyMap[savedProvider.id] = savedProvider.apiKey.trim()
+    const timer = window.setTimeout(() => {
+      void secrets.saveApiKeys(keyMap).catch(() => {})
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [providers, savedProvider])
+
+  // P2-2: Load durable unlimited session from `<workspaceRoot>/.vincezone/session-store.json`
+  const loadedDiskSessionRootRef = useRef<string>('')
+  useEffect(() => {
+    const root = activeProject?.rootPath
+    if (!root || loadedDiskSessionRootRef.current === root) return
+    loadedDiskSessionRootRef.current = root
+    let cancelled = false
+    void fetch(`/api/session-store?root=${encodeURIComponent(root)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            ok?: boolean
+            exists?: boolean
+            session?: Partial<ProjectSessionData> & { usageRecords?: UsageRecord[] }
+          } | null,
+        ) => {
+          if (cancelled || !data?.ok || !data.exists || !data.session) return
+          const s = data.session
+          if (Array.isArray(s.agents) && s.agents.length > 0) setAgents(s.agents)
+          if (Array.isArray(s.agentTasks)) setAgentTasks(s.agentTasks)
+          if (Array.isArray(s.communicationEvents)) setCommunicationEvents(s.communicationEvents)
+          if (Array.isArray(s.proposedPatches)) setProposedPatches(s.proposedPatches)
+          if (Array.isArray(s.revisions)) setRevisions(s.revisions)
+          if (Array.isArray(s.memoryNotes) && s.memoryNotes.length > 0) setMemoryNotes(s.memoryNotes)
+          if (Array.isArray(s.usageRecords)) setUsageRecords(s.usageRecords)
+        },
+      )
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [activeProject?.rootPath])
+
+  // P2-2: Debounced durable write to `<workspaceRoot>/.vincezone/session-store.json` (no 5MB limit!)
+  useEffect(() => {
+    if (!hydratedRef.current || !activeProject?.rootPath) return
+    const root = activeProject.rootPath
+    const timer = window.setTimeout(() => {
+      void fetch('/api/session-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          root,
+          session: {
+            projectName: activeProject.name,
+            agents,
+            agentTasks,
+            communicationEvents,
+            proposedPatches,
+            revisions,
+            memoryNotes,
+            usageRecords,
+          },
+        }),
+      }).catch(() => {})
+    }, 1200)
+    return () => window.clearTimeout(timer)
+  }, [
+    activeProject?.name,
+    activeProject?.rootPath,
+    agentTasks,
+    agents,
+    communicationEvents,
+    memoryNotes,
+    proposedPatches,
+    revisions,
+    usageRecords,
+  ])
+
+  const handleSendLogcatToAi = useCallback(
+    (logcatText: string) => {
+      const targetId = rightChatAgentId || findPmAgentId(agents)
+      if (!targetId) return
+      setWorkspaceMode('ide')
+      setRightPanelMode('chat')
+      const prompt = `Analyze this Android ADB Logcat crash/error output, locate the root cause in the project, and fix it:\n\`\`\`log\n${logcatText.slice(0, 3500)}\n\`\`\``
+      setDrafts((current) => ({ ...current, [targetId]: prompt }))
+      setChatFocusSeq((n) => n + 1)
+    },
+    [agents, rightChatAgentId],
+  )
 
   const writeFileToDiskIfConnected = useCallback(
     async (filePath: string, content: string): Promise<boolean> => {
@@ -2600,6 +2726,7 @@ export function IDEWorkspace() {
                     rootPath={activeProject?.rootPath}
                     files={files}
                     activeFile={activeFile}
+                    onSendLogcatToAi={handleSendLogcatToAi}
                     onClose={() => setRightPanelMode(null)}
                   />
                 )}
@@ -2700,23 +2827,12 @@ export function IDEWorkspace() {
             rootPath={activeProject?.rootPath}
             files={files}
             activeFile={activeFile}
+            onSendLogcatToAi={handleSendLogcatToAi}
           />
-        ) : workspaceMode === 'web' ? (
+        ) : (
           <WebPreview
             projectName={activeProject?.name ?? 'VinceZone Studio'}
             rootPath={activeProject?.rootPath}
-          />
-        ) : (
-          <CraftStudio
-            projectName={activeProject?.name ?? 'VinceZone Studio'}
-            onSendToAgents={(summaryTitle, evidenceText, prompt) => {
-              addMemoryNote(summaryTitle, evidenceText)
-              const pmId = agents.find((a) => a.roleId === 'pm')?.id ?? agents[0]?.id
-              if (pmId) {
-                setDrafts((current) => ({ ...current, [pmId]: prompt }))
-              }
-              setWorkspaceMode('agents')
-            }}
           />
         )}
       </div>

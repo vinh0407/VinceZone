@@ -1,16 +1,21 @@
 'use client'
 
 import {
+  Bug,
   ChevronLeft,
   Globe,
   Home,
+  Keyboard,
   Play,
   Power,
   RefreshCw,
   RotateCw,
+  Send,
   Smartphone,
   Square,
   SquareStack,
+  Terminal,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -35,6 +40,7 @@ export function AndroidEmulator({
   activeFile,
   compact = false,
   width,
+  onSendLogcatToAi,
   onClose,
 }: {
   projectName: string
@@ -43,9 +49,10 @@ export function AndroidEmulator({
   activeFile?: WorkspaceFile
   compact?: boolean
   width?: number
+  onSendLogcatToAi?: (logcatText: string) => void
   onClose?: () => void
 }) {
-  const [phoneMode, setPhoneMode] = useState<'android' | 'app'>('android')
+  const [phoneMode, setPhoneMode] = useState<'android' | 'app' | 'logcat'>('android')
   const [status, setStatus] = useState<AndroidStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [booting, setBooting] = useState(false)
@@ -56,7 +63,20 @@ export function AndroidEmulator({
   const [landscape, setLandscape] = useState(false)
   const [screenUrl, setScreenUrl] = useState<string | null>(null)
   const [autoStream, setAutoStream] = useState(false)
+  const [useMjpegStream, setUseMjpegStream] = useState(true)
+  const [streamNonce, setStreamNonce] = useState(1)
+  const [phoneFocused, setPhoneFocused] = useState(false)
   const [notice, setNotice] = useState('')
+
+  // P2-1: Live ADB Logcat state
+  const [logcatLines, setLogcatLines] = useState<string[]>([])
+  const [logcatLevel, setLogcatLevel] = useState<'I' | 'W' | 'E'>('E')
+  const [logcatFilter, setLogcatFilter] = useState('')
+  const [logcatCrash, setLogcatCrash] = useState(false)
+  const [logcatLoading, setLogcatLoading] = useState(false)
+  const [logcatPanelOpen, setLogcatPanelOpen] = useState(false)
+  const textBufferRef = useRef('')
+  const textFlushTimerRef = useRef<number | null>(null)
 
   // Live App Preview state (runs directly inside the phone screen!)
   const [appUrl, setAppUrl] = useState('')
@@ -140,13 +160,89 @@ export function AndroidEmulator({
     }
   }, [booting, refreshStatus])
 
-  // Auto-stream live Android screen directly inside the phone bezel
+  // Auto-stream live Android screen: prefer smooth MJPEG stream, fallback to snapshot polling
   useEffect(() => {
-    if (phoneMode !== 'android' || !autoStream || !selectedSerial) return
+    if (phoneMode !== 'android' || !autoStream || !selectedSerial || useMjpegStream) return
     void captureScreen()
-    const timer = window.setInterval(() => void captureScreen(), 550)
+    const timer = window.setInterval(() => void captureScreen(), 420)
     return () => window.clearInterval(timer)
-  }, [autoStream, captureScreen, phoneMode, selectedSerial])
+  }, [autoStream, captureScreen, phoneMode, selectedSerial, useMjpegStream])
+
+  const refreshLogcat = useCallback(async () => {
+    if (!selectedSerial) return
+    setLogcatLoading(true)
+    try {
+      const params = new URLSearchParams({
+        action: 'logcat',
+        serial: selectedSerial,
+        level: logcatLevel,
+        lines: '140',
+      })
+      if (logcatFilter.trim()) params.set('filter', logcatFilter.trim())
+      const res = await fetch(`/api/android?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        lines?: string[]
+        crashDetected?: boolean
+      }
+      setLogcatLines(data.lines ?? [])
+      setLogcatCrash(Boolean(data.crashDetected))
+    } finally {
+      setLogcatLoading(false)
+    }
+  }, [logcatFilter, logcatLevel, selectedSerial])
+
+  useEffect(() => {
+    if (!selectedSerial || (phoneMode !== 'logcat' && !logcatPanelOpen)) return
+    void refreshLogcat()
+    const timer = window.setInterval(() => void refreshLogcat(), 2500)
+    return () => window.clearInterval(timer)
+  }, [logcatPanelOpen, phoneMode, refreshLogcat, selectedSerial])
+
+  // P2-1: Direct laptop keyboard input -> Android device when phone screen is focused
+  const handlePhoneKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (phoneMode !== 'android' || !selectedSerial) return
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+
+    const keyMap: Record<string, string> = {
+      Backspace: 'KEYCODE_DEL',
+      Delete: 'KEYCODE_FORWARD_DEL',
+      Enter: 'KEYCODE_ENTER',
+      Tab: 'KEYCODE_TAB',
+      Escape: 'KEYCODE_BACK',
+      ArrowUp: 'KEYCODE_DPAD_UP',
+      ArrowDown: 'KEYCODE_DPAD_DOWN',
+      ArrowLeft: 'KEYCODE_DPAD_LEFT',
+      ArrowRight: 'KEYCODE_DPAD_RIGHT',
+    }
+
+    const mappedKey = keyMap[event.key]
+    if (mappedKey) {
+      event.preventDefault()
+      void fetch('/api/android', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'keyevent', serial: selectedSerial, keycode: mappedKey }),
+      })
+      return
+    }
+
+    if (event.key.length === 1) {
+      event.preventDefault()
+      textBufferRef.current += event.key
+      if (textFlushTimerRef.current) window.clearTimeout(textFlushTimerRef.current)
+      textFlushTimerRef.current = window.setTimeout(() => {
+        const batch = textBufferRef.current
+        textBufferRef.current = ''
+        if (!batch) return
+        void fetch('/api/android', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'text', serial: selectedSerial, text: batch }),
+        })
+      }, 90)
+    }
+  }
 
   const sendAction = async (payload: Record<string, unknown>, successText: string) => {
     try {
@@ -293,12 +389,33 @@ export function AndroidEmulator({
       ? 'h-[290px] w-[580px]'
       : 'h-[580px] w-[290px]'
 
+  const mjpegSrc =
+    phoneMode === 'android' && autoStream && selectedSerial && useMjpegStream
+      ? `/api/android?action=stream&serial=${encodeURIComponent(selectedSerial)}&fps=30&n=${streamNonce}`
+      : null
+
+  const liveAndroidSrc = mjpegSrc || screenUrl
+
   const phoneScreenContent = (
     <div className="flex flex-col items-center">
-      <div className="rounded-[34px] border-[6px] border-[#2c2c2c] bg-black p-1 shadow-2xl shadow-black transition-all">
+      <div
+        tabIndex={0}
+        onFocus={() => setPhoneFocused(true)}
+        onBlur={() => setPhoneFocused(false)}
+        onKeyDown={handlePhoneKeyDown}
+        className={`rounded-[34px] border-[6px] bg-black p-1 shadow-2xl shadow-black outline-none transition-all ${
+          phoneFocused ? 'border-[#737373] ring-1 ring-white/30' : 'border-[#2c2c2c]'
+        }`}
+        title="Click vào màn hình điện thoại để gõ bàn phím máy tính trực tiếp vào Android"
+      >
         <div
           className={`relative overflow-hidden rounded-[26px] bg-[#111111] transition-all ${phoneWidthClass}`}
         >
+          {phoneFocused && phoneMode === 'android' && selectedSerial && (
+            <div className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-1 rounded-full bg-black/80 px-2 py-0.5 text-[9px] text-[#e5e5e5] ring-1 ring-white/20">
+              <Keyboard size={9} /> Keyboard Live
+            </div>
+          )}
           {phoneMode === 'app' ? (
             appUrl ? (
               <iframe
@@ -331,15 +448,24 @@ export function AndroidEmulator({
                 </button>
               </div>
             )
-          ) : screenUrl ? (
+          ) : liveAndroidSrc ? (
             <img
-              src={screenUrl}
+              src={liveAndroidSrc}
               alt="Live Android Device Screen"
               draggable={false}
-              onPointerDown={handleScreenPointerDown}
+              onError={() => {
+                if (useMjpegStream) {
+                  setUseMjpegStream(false)
+                  void captureScreen()
+                }
+              }}
+              onPointerDown={(e) => {
+                e.currentTarget.closest('[tabindex]')?.dispatchEvent(new Event('focus'))
+                handleScreenPointerDown(e)
+              }}
               onPointerUp={handleScreenPointerUp}
               className="h-full w-full cursor-pointer select-none bg-black object-contain"
-              title="Click to tap or drag to swipe directly on Android"
+              title="Click để chạm, kéo để vuốt, hoặc gõ bàn phím trực tiếp vào Android"
             />
           ) : (
             <>
@@ -534,6 +660,108 @@ export function AndroidEmulator({
     </div>
   )
 
+  const logcatView = (
+    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-[#2b2b2b] bg-[#121212]">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[#262626] bg-[#181818] px-2.5 py-1.5 text-[10px]">
+        <div className="flex items-center gap-1.5">
+          <Terminal size={11} className="text-[#d4d4d4]" />
+          <span className="font-semibold text-white">ADB Logcat</span>
+          {logcatCrash && (
+            <span className="flex items-center gap-1 rounded bg-[#4a1e1e] px-1.5 py-0.5 text-[9px] font-semibold text-[#f48771]">
+              <Bug size={9} /> CRASH
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {(['I', 'W', 'E'] as const).map((lvl) => (
+            <button
+              key={lvl}
+              type="button"
+              onClick={() => setLogcatLevel(lvl)}
+              className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${
+                logcatLevel === lvl
+                  ? 'bg-[#e5e5e5] font-semibold text-[#111111]'
+                  : 'bg-[#222222] text-[#a3a3a3] hover:text-white'
+              }`}
+            >
+              {lvl === 'I' ? 'All' : lvl === 'W' ? 'Warn+' : 'Error'}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => void refreshLogcat()}
+            className="mini-button"
+            title="Refresh Logcat"
+          >
+            <RefreshCw size={10} className={logcatLoading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            type="button"
+            disabled={!selectedSerial}
+            onClick={async () => {
+              await fetch('/api/android', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'clear-logcat', serial: selectedSerial }),
+              })
+              setLogcatLines([])
+              setLogcatCrash(false)
+            }}
+            className="mini-button disabled:opacity-30"
+            title="Clear Logcat"
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 border-b border-[#222222] px-2 py-1">
+        <input
+          value={logcatFilter}
+          onChange={(e) => setLogcatFilter(e.target.value)}
+          placeholder="Filter tag / package / exception…"
+          className="min-w-0 flex-1 rounded border border-[#2c2c2c] bg-[#0e0e0e] px-2 py-1 font-mono text-[10px] text-white outline-none focus:border-[#555555]"
+        />
+        {onSendLogcatToAi && (
+          <button
+            type="button"
+            disabled={logcatLines.length === 0}
+            onClick={() => {
+              const snippet = logcatLines.slice(-60).join('\n')
+              onSendLogcatToAi(snippet)
+              flashNotice('Sent Logcat to AI Agent')
+            }}
+            className="flex shrink-0 items-center gap-1 rounded bg-[#e5e5e5] px-2 py-1 text-[9.5px] font-semibold text-[#111111] hover:bg-white disabled:opacity-30"
+            title="Send Android Logcat / Crash stacktrace to AI Agent to fix automatically"
+          >
+            <Send size={9} /> Fix Crash with AI
+          </button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-2 font-mono text-[9.5px] leading-[1.5]">
+        {!selectedSerial ? (
+          <p className="text-[#737373]">Start an Android Emulator to inspect live ADB Logcat.</p>
+        ) : logcatLines.length === 0 ? (
+          <p className="text-[#737373]">No logcat lines matching level *:{logcatLevel}.</p>
+        ) : (
+          logcatLines.map((line, i) => {
+            const isErr = /FATAL EXCEPTION|AndroidRuntime|\bE\/|\bF\//.test(line)
+            const isWarn = /\bW\//.test(line)
+            return (
+              <div
+                key={i}
+                className={`whitespace-pre-wrap break-all ${
+                  isErr ? 'text-[#f48771]' : isWarn ? 'text-[#dcdcaa]' : 'text-[#b5b5b5]'
+                }`}
+              >
+                {line}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+
   if (compact) {
     return (
       <aside
@@ -566,7 +794,7 @@ export function AndroidEmulator({
 
         {/* Mode Switcher + Quick Run Bar */}
         <div className="space-y-1.5 border-b border-[#2b2b2b] bg-[#161616] p-2">
-          <div className="grid grid-cols-2 gap-1 rounded bg-[#101010] p-0.5 text-[10px]">
+          <div className="grid grid-cols-3 gap-1 rounded bg-[#101010] p-0.5 text-[10px]">
             <button
               type="button"
               onClick={() => setPhoneMode('android')}
@@ -588,6 +816,22 @@ export function AndroidEmulator({
               }`}
             >
               Live App
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPhoneMode('logcat')
+                void refreshLogcat()
+              }}
+              className={`rounded py-1 font-medium transition ${
+                phoneMode === 'logcat'
+                  ? 'bg-[#2a2a2a] text-white'
+                  : logcatCrash
+                    ? 'text-[#f48771] hover:text-white'
+                    : 'text-[#858585] hover:text-[#cccccc]'
+              }`}
+            >
+              Logcat{logcatCrash ? ' !' : ''}
             </button>
           </div>
 
@@ -646,7 +890,11 @@ export function AndroidEmulator({
         </div>
 
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,#1b1b1b_0,#0d0d0d_70%)] p-3">
-          {phoneScreenContent}
+          {phoneMode === 'logcat' ? (
+            <div className="flex h-full w-full flex-col">{logcatView}</div>
+          ) : (
+            phoneScreenContent
+          )}
         </div>
       </aside>
     )
@@ -737,7 +985,7 @@ export function AndroidEmulator({
       <div className="flex min-h-0 flex-1 items-center justify-center gap-8 overflow-auto bg-[radial-gradient(circle_at_center,#1b1b1b_0,#0d0d0d_65%)] p-6">
         {phoneScreenContent}
 
-        <div className="w-72 space-y-3">
+        <div className="flex w-96 flex-col gap-3">
           <div className="rounded-lg border border-[#2b2b2b] bg-[#181818] p-3 text-[10px] leading-4 text-[#a3a3a3]">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-[#e5e5e5]">Android SDK & Live Runner</p>
@@ -748,8 +996,31 @@ export function AndroidEmulator({
             <p>AVDs: {status?.avds.join(', ') || 'None'}</p>
             <p>Online devices: {status?.devices.length ?? 0}</p>
             <p className="mt-1 text-[9px] text-[#737373]">
-              Tap or drag directly on the phone display to interact with Android.
+              Stream: {useMjpegStream ? 'Live MJPEG/Multipart (30 FPS)' : 'Snapshot fallback'} · Click phone screen to type directly from keyboard.
             </p>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseMjpegStream((prev) => !prev)
+                  setStreamNonce((n) => n + 1)
+                }}
+                className="flex-1 rounded border border-[#333333] bg-[#1e1e1e] py-1 text-[9.5px] text-[#cccccc] hover:text-white"
+              >
+                {useMjpegStream ? 'Switch to Snapshot' : 'Enable 30 FPS Stream'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogcatPanelOpen((prev) => !prev)}
+                className={`flex-1 rounded border py-1 text-[9.5px] ${
+                  logcatPanelOpen
+                    ? 'border-[#555555] bg-[#2a2a2a] text-white'
+                    : 'border-[#333333] bg-[#1e1e1e] text-[#cccccc] hover:text-white'
+                }`}
+              >
+                {logcatPanelOpen ? 'Hide Logcat' : 'Show Logcat'}
+              </button>
+            </div>
             <button
               type="button"
               disabled={gradleRunning}
@@ -783,7 +1054,7 @@ export function AndroidEmulator({
                   setGradleRunning(false)
                 }
               }}
-              className="mt-2.5 w-full rounded border border-[#3c3c3c] bg-[#242424] py-1.5 text-[10px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-50"
+              className="mt-2 w-full rounded border border-[#3c3c3c] bg-[#242424] py-1.5 text-[10px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-50"
             >
               {gradleRunning ? 'Installing APK…' : 'Build & Install APK (gradlew)'}
             </button>
@@ -793,6 +1064,7 @@ export function AndroidEmulator({
               </pre>
             )}
           </div>
+          {logcatPanelOpen && <div className="flex h-72 flex-col">{logcatView}</div>}
         </div>
       </div>
     </section>

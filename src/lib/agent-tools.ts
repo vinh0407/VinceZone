@@ -378,6 +378,32 @@ export const AGENT_TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'read_android_logcat',
+      description:
+        'Read live Android ADB Logcat output and crash stacktraces (FATAL EXCEPTION / AndroidRuntime) from the running emulator or device to diagnose and fix Android bugs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          level: {
+            type: 'string',
+            enum: ['V', 'D', 'I', 'W', 'E'],
+            description: 'Minimum logcat priority level (default: E for errors/crashes).',
+          },
+          filter: {
+            type: 'string',
+            description: 'Optional substring filter (e.g. package name or tag).',
+          },
+          lines: {
+            type: 'number',
+            description: 'Max recent lines to return (default: 100).',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'read_team_bus',
       description:
         'Read recent inter-agent messages from the shared Multi-Agent Communication Bridge to see what teammates decided or changed.',
@@ -852,6 +878,46 @@ async function executeAgentToolInner(
         files: relatedFiles,
       },
     }
+  }
+
+  if (name === 'read_android_logcat') {
+    const rawLevel = String(args.level || 'E').toUpperCase()
+    const level = ['V', 'D', 'I', 'W', 'E', 'F'].includes(rawLevel) ? rawLevel : 'E'
+    const filter = String(args.filter || '').trim().toLowerCase()
+    const linesCount = Math.min(200, Math.max(20, Number(args.lines) || 100))
+
+    const osHome = process.env.USERPROFILE || process.env.HOME || ''
+    const ext = process.platform === 'win32' ? '.exe' : ''
+    const adbCandidates = [
+      process.env.ANDROID_HOME && path.join(process.env.ANDROID_HOME, 'platform-tools', `adb${ext}`),
+      process.env.ANDROID_SDK_ROOT &&
+        path.join(process.env.ANDROID_SDK_ROOT, 'platform-tools', `adb${ext}`),
+      osHome && path.join(osHome, 'AppData', 'Local', 'Android', 'Sdk', 'platform-tools', `adb${ext}`),
+      osHome && path.join(osHome, 'Library', 'Android', 'sdk', 'platform-tools', `adb${ext}`),
+      `adb${ext}`,
+    ].filter(Boolean) as string[]
+
+    let lastErr = 'ADB binary not found.'
+    for (const adbBin of adbCandidates) {
+      try {
+        const { stdout } = await execFileAsync(
+          adbBin,
+          ['logcat', '-d', '-v', 'time', '-t', String(linesCount), `*:${level}`],
+          { timeout: 6000, maxBuffer: 2 * 1024 * 1024, windowsHide: true },
+        )
+        let lines = stdout.split(/\r?\n/).filter(Boolean)
+        if (filter) lines = lines.filter((l) => l.toLowerCase().includes(filter))
+        return {
+          ok: true,
+          output:
+            lines.slice(-linesCount).join('\n').slice(0, 8_000) ||
+            `No Android logcat entries found at level *:${level}.`,
+        }
+      } catch (err) {
+        lastErr = err instanceof Error ? err.message : 'ADB logcat failed.'
+      }
+    }
+    return { ok: false, output: `Could not read Android logcat: ${lastErr}` }
   }
 
   if (name === 'read_team_bus') {

@@ -10,6 +10,7 @@
     "start": "next start --port 40704 --hostname 127.0.0.1",
     "desktop": "electron electron/main.cjs",
     "build:exe": "pnpm build && node electron/build-exe.cjs",
+    "build:installer": "pnpm build:exe && node electron/build-installer.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
