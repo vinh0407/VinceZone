@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  extractAgentHandoffs,
   extractJsonObject,
   extractProposedPatches,
   parsePlan,
   partitionNextBatch,
   sanitizeTaskGraph,
+  selectCompactWorkspaceFiles,
   type OrchestratorAgent,
   type PlannedTask,
 } from '@/lib/orchestrator'
@@ -109,5 +111,37 @@ describe('orchestrator pure utilities', () => {
     expect(patches).toHaveLength(1)
     expect(patches[0].path).toBe('src/app/page.tsx')
     expect(patches[0].summary).toBe('Update title')
+  })
+
+  it('extracts direct edit:<path> fenced blocks for reliable AI code editing', () => {
+    const reply = `Updated the page component:\n\`\`\`edit:src/app/page.tsx\nexport default function Page() {\n  return <h1>Fixed</h1>\n}\n\`\`\`\n`
+    const patches = extractProposedPatches(reply)
+    expect(patches).toHaveLength(1)
+    expect(patches[0].path).toBe('src/app/page.tsx')
+    expect(patches[0].content).toContain('<h1>Fixed</h1>')
+  })
+
+  it('extracts HANDOFF @ROLE directives for inter-agent collaboration', () => {
+    const agents = [
+      { id: 'fe', name: 'Frontend Engineer', role: 'UI', roleId: 'fe' },
+      { id: 'be', name: 'Backend Engineer', role: 'API', roleId: 'be' },
+      { id: 'qa', name: 'QA Engineer', role: 'Testing', roleId: 'qa' },
+    ]
+    const reply = `UI shell ready.\nHANDOFF @BE: Add POST /api/profile endpoint returning { ok, user }\nHANDOFF @QA: Verify form validation`
+    const handoffs = extractAgentHandoffs(reply, agents, 'fe')
+    expect(handoffs).toHaveLength(2)
+    expect(handoffs[0].targetAgentId).toBe('be')
+    expect(handoffs[1].targetAgentId).toBe('qa')
+  })
+
+  it('keeps orchestration file payload compact and excludes lockfiles', () => {
+    const files = [
+      { path: 'pnpm-lock.yaml', content: 'x'.repeat(200_000) },
+      { path: 'src/app/page.tsx', content: 'export default function Home() {}' },
+      { path: 'src/lib/helper.ts', content: 'export const ok = true' },
+    ]
+    const compact = selectCompactWorkspaceFiles(files, 'src/app/page.tsx', 'edit helper')
+    expect(compact.some((f) => f.path === 'pnpm-lock.yaml')).toBe(false)
+    expect(compact[0].path).toBe('src/app/page.tsx')
   })
 })

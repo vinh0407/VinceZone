@@ -10,6 +10,7 @@ import {
 import { resolveSafeProviderEndpoint } from '@/lib/provider-url'
 import { checkRateLimit, getClientKey } from '@/lib/rate-limit'
 import {
+  buildTeamCollaborationPrompt,
   buildVinceZoneCoordinatorRules,
   inferRoleId,
   ROLE_TERRITORIES,
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     )
   }
 
-  if (Number(request.headers.get('content-length') ?? 0) > 1_500_000) {
+  if (Number(request.headers.get('content-length') ?? 0) > 4_000_000) {
     return Response.json({ error: 'Request is too large.' }, { status: 413 })
   }
 
@@ -456,16 +457,16 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
                   [
                     {
                       role: 'system',
-                      content: `You are ${worker.name}, ${worker.role}. You are a worker, not the coordinator.
-${worker.soul ? `Soul / Principles: ${worker.soul}\n` : ''}${worker.mission ? `Mission: ${worker.mission}\n` : ''}${worker.memory ? `Agent Memory: ${worker.memory}\n` : ''}${projectMemory ? `Project Memory: ${projectMemory}\n` : ''}Complete only the assigned task. Do not invent access to tools or files. Report findings, proposed changes, blockers, and exact file references.
-When proposing concrete file edits, include a fenced \`\`\`baton-patch block with JSON: [{"path":"exact/file/path","summary":"brief description","content":"full updated file content"}].
-Sender: ${taskSender.id}
-Recipient: ${worker.id}
-Task ID: ${task.id}
-Expected output: ${task.expectedOutput}
-Constraints: ${task.constraints.join('; ') || 'none'}
-Dependencies: ${task.dependencies.join(', ') || 'none'}
-Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}`,
+                      content: `${buildTeamCollaborationPrompt(worker, topologyAgents, projectMemory)}
+
+Assigned Task Execution:
+- Sender: ${taskSender.id}
+- Recipient: ${worker.id}
+- Task ID: ${task.id}
+- Expected output: ${task.expectedOutput}
+- Constraints: ${task.constraints.join('; ') || 'none'}
+- Dependencies: ${task.dependencies.join(', ') || 'none'}
+- Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}`,
                     },
                     {
                       role: 'user',

@@ -58,7 +58,7 @@ export function StatusBar({
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1 rounded bg-[#222222] px-1.5 py-0.5 font-medium text-[#f0f0f0]">
           <Monitor size={11} />
-          {isDesktop ? 'VinceZone Desktop' : 'VinceZone Local'} :40704
+          {isDesktop ? 'VinceZone Local App' : 'VinceZone Local'}
         </span>
         <span className="flex items-center gap-1">
           <GitBranch size={11} /> main{dirtyCount > 0 ? `* (${dirtyCount})` : ''}

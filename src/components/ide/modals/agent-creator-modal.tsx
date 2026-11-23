@@ -1,85 +1,55 @@
 'use client'
 
-import { Bot, MessageSquare, Sparkles, TerminalSquare, X } from 'lucide-react'
+import { ArrowRight, Bot, MessageSquare, Sparkles, TerminalSquare, Users, X } from 'lucide-react'
 import { useState } from 'react'
-import type { VinceZoneRoleId } from '@/lib/vincezone-protocol'
+import {
+  CUSTOM_ROLE_META,
+  ROLE_TERRITORIES,
+  type VinceZoneRoleId,
+} from '@/lib/vincezone-protocol'
 import type { Agent, AgentView, ProviderConfig } from '../agent-types'
 import { Field } from './provider-settings-modal'
 
-type RolePreset = {
+type RolePresetItem = {
   id: VinceZoneRoleId
+  code: string
   label: string
+  title: string
+  position: string
+  receivesFrom: string[]
+  handsOffTo: string[]
   role: string
   soul: string
   mission: string
   memory: string
 }
 
-const ROLE_PRESETS: RolePreset[] = [
-  {
-    id: 'pm',
-    label: '@PM — Orchestrator',
-    role: 'Central Task Registry, decomposition & QA coordination',
-    soul: 'Decisive, structured, zero duplicate work, enforces verifiable handoffs.',
-    mission:
-      'Decompose goals into non-overlapping tasks with clear owners, dependencies, and acceptance criteria.',
-    memory: 'Always verify FE↔BE API contracts before dispatching UI integration tasks.',
-  },
-  {
-    id: 'arch',
-    label: '@ARCH — Architect',
-    role: 'System architecture, API contracts & docs',
-    soul: 'Minimalist, modular, protects long-term architectural clarity.',
-    mission: 'Define system boundaries, data schemas, and clean interfaces across modules.',
-    memory: 'Keep core logic pure in src/lib/ with unit test coverage.',
-  },
-  {
-    id: 'fe',
-    label: '@FE — Frontend',
-    role: 'React/Next.js UI components, design system & state',
-    soul: 'Craft-obsessed, monochrome VS Code ergonomics, zero visual clutter.',
-    mission: 'Build responsive, accessible interfaces strictly inside frontend component boundaries.',
-    memory: 'Never modify backend API routes directly; consume documented contracts.',
-  },
-  {
-    id: 'be',
-    label: '@BE — Backend',
-    role: 'Server routes, security guards, services & API contracts',
-    soul: 'Security-first, strict input validation, zero shortcuts on SSRF or auth.',
-    mission: 'Implement reliable server endpoints, local runtimes, and typed API contracts.',
-    memory: 'Primary owner of API contracts; guard local routes with loopback checks.',
-  },
-  {
-    id: 'db',
-    label: '@DB — Data & Schema',
-    role: 'Database schema, migrations, indexing & query performance',
-    soul: 'Data-integrity first, backwards-compatible migrations, strict typing.',
-    mission: 'Design durable schemas, access control rules, and safe data transitions.',
-    memory: 'Never drop fields or alter cardinality without verifying existing records.',
-  },
-  {
-    id: 'qa',
-    label: '@QA — Verification',
-    role: 'Unit tests, E2E verification & regression audits',
-    soul: 'Skeptical, evidence-driven, verifies every change with real commands.',
-    mission: 'Catch edge cases, write Vitest & Playwright checks, and block unverified merges.',
-    memory: 'Never mark work complete without passing tsc, vitest, and browser console checks.',
-  },
-  {
-    id: 'devops',
-    label: '@DEVOPS — Runtime',
-    role: 'Desktop Electron packaging, CI/CD, Docker & local tooling',
-    soul: 'Automate everything, reproducible builds, clean local startup.',
-    mission: 'Maintain Electron packaging, scripts, ports, and reliable deployment pipelines.',
-    memory: 'Keep localhost:40704 startup fast and clean on Windows & cross-platform.',
-  },
+const ROLE_PRESETS: RolePresetItem[] = [
+  ...(Object.values(ROLE_TERRITORIES).map((item) => ({
+    id: item.roleId,
+    code: item.code,
+    label: `@${item.code} — ${item.title}`,
+    title: item.title,
+    position: item.position,
+    receivesFrom: item.receivesFrom,
+    handsOffTo: item.handsOffTo,
+    role: item.summary,
+    soul: item.defaultSoul,
+    mission: item.defaultMission,
+    memory: item.defaultMemory,
+  })) as RolePresetItem[]),
   {
     id: 'custom',
-    label: '@CUSTOM — Specialist',
+    code: CUSTOM_ROLE_META.code,
+    label: `@${CUSTOM_ROLE_META.code} — ${CUSTOM_ROLE_META.title}`,
+    title: CUSTOM_ROLE_META.title,
+    position: CUSTOM_ROLE_META.position,
+    receivesFrom: CUSTOM_ROLE_META.receivesFrom,
+    handsOffTo: CUSTOM_ROLE_META.handsOffTo,
     role: 'Custom specialist coding agent',
-    soul: 'Focused, pragmatic, concise engineering communicator.',
-    mission: 'Deliver scoped, high-signal changes with minimal footprint.',
-    memory: 'Respect workspace conventions and attach evidence to every handoff.',
+    soul: CUSTOM_ROLE_META.defaultSoul,
+    mission: CUSTOM_ROLE_META.defaultMission,
+    memory: CUSTOM_ROLE_META.defaultMemory,
   },
 ]
 
@@ -124,7 +94,8 @@ export function AgentCreatorModal({
     providers[0]
 
   const initialPreset =
-    ROLE_PRESETS.find((preset) => preset.id === initialAgent?.roleId) ?? ROLE_PRESETS[7]
+    ROLE_PRESETS.find((preset) => preset.id === initialAgent?.roleId) ??
+    ROLE_PRESETS[ROLE_PRESETS.length - 1]
 
   const [name, setName] = useState(initialAgent?.name ?? '')
   const [roleId, setRoleId] = useState<VinceZoneRoleId>(initialAgent?.roleId ?? 'custom')
@@ -138,6 +109,7 @@ export function AgentCreatorModal({
   )
   const [view, setView] = useState<AgentView>(initialView)
 
+  const activePreset = ROLE_PRESETS.find((item) => item.id === roleId) ?? initialPreset
   const selectedProvider = providers.find((item) => item.id === providerId) ?? providers[0]
   const availableModels = parseModels(selectedProvider)
   const modelOptions =
@@ -151,8 +123,8 @@ export function AgentCreatorModal({
     setSoul(preset.soul)
     setMission(preset.mission)
     setMemory(preset.memory)
-    if (!initialAgent && !name.trim()) {
-      setName(preset.label.split('—')[1]?.trim() || 'Specialist Agent')
+    if (!initialAgent) {
+      setName(preset.title)
     }
   }
 
@@ -166,7 +138,7 @@ export function AgentCreatorModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
-      <section className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-[#333333] bg-[#141414] shadow-2xl">
+      <section className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#333333] bg-[#141414] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-4 py-3">
           <div className="flex items-center gap-2">
             {roleId === 'pm' ? (
@@ -179,7 +151,8 @@ export function AgentCreatorModal({
                 {initialAgent ? `Edit Agent — ${initialAgent.name}` : 'Create AI Agent'}
               </h2>
               <p className="mt-0.5 text-[10px] text-[#858585]">
-                Configure role persona (Soul, Mission, Memory), provider, and model.
+                14 specialized team roles with interlocking Soul, Mission & Role Memory for seamless
+                collaboration.
               </p>
             </div>
           </div>
@@ -194,11 +167,11 @@ export function AgentCreatorModal({
               label="Agent Name"
               value={name}
               onChange={setName}
-              placeholder="Backend Specialist"
+              placeholder={activePreset.title}
             />
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-                Role Preset
+                Role Preset (14 Roles)
               </span>
               <select
                 value={roleId}
@@ -212,6 +185,30 @@ export function AgentCreatorModal({
                 ))}
               </select>
             </label>
+          </div>
+
+          {/* Role Position & Collaboration Explanation Card */}
+          <div className="rounded-lg border border-[#2f2f2f] bg-[#181818] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
+                <Users size={12} className="text-[#cccccc]" />
+                Vị trí trong đội ngũ: @{activePreset.code} ({activePreset.title})
+              </div>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-4 text-[#bdbdbd]">{activePreset.position}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-[#9d9d9d]">
+              <span className="rounded bg-[#222222] px-1.5 py-0.5 font-mono text-[#d4d4d4]">
+                Nhận từ: {activePreset.receivesFrom.join(', ')}
+              </span>
+              <ArrowRight size={11} className="text-[#737373]" />
+              <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-white">
+                @{activePreset.code}
+              </span>
+              <ArrowRight size={11} className="text-[#737373]" />
+              <span className="rounded bg-[#222222] px-1.5 py-0.5 font-mono text-[#d4d4d4]">
+                Bàn giao cho: {activePreset.handsOffTo.join(', ')}
+              </span>
+            </div>
           </div>
 
           <Field
@@ -266,7 +263,7 @@ export function AgentCreatorModal({
 
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-              Soul (Personality, Communication Style & Principles)
+              Soul (Personality, Communication Style & Team Principles)
             </span>
             <textarea
               rows={2}
@@ -292,13 +289,13 @@ export function AgentCreatorModal({
 
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-              Role Memory (Persistent Rules, Constraints & Context)
+              Role Memory (Collaboration Handoff Rules & Persistent Constraints)
             </span>
             <textarea
               rows={2}
               value={memory}
               onChange={(event) => setMemory(event.target.value)}
-              placeholder="e.g. Always write Vitest specs before editing business logic..."
+              placeholder="e.g. Coordinate with @BE via HANDOFF @BE: before wiring UI..."
               className="w-full resize-none rounded-md border border-[#333333] bg-[#101010] px-3 py-2 text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
             />
           </label>
@@ -345,8 +342,8 @@ export function AgentCreatorModal({
             onClick={() =>
               onSave({
                 id: initialAgent?.id,
-                name: name.trim() || 'Specialist Agent',
-                role: role.trim() || 'Custom specialist coding agent',
+                name: name.trim() || activePreset.title,
+                role: role.trim() || activePreset.role,
                 roleId,
                 soul: soul.trim(),
                 mission: mission.trim(),

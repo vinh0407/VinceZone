@@ -20,6 +20,18 @@ import type {
 import { uid } from '@/components/ide/workspace-defaults'
 import { estimateCostUsd, estimateTokens } from '@/lib/agent-layout'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
+import { hashText } from '@/lib/file-tree'
+import {
+  extractAgentHandoffs,
+  extractProposedPatches,
+  selectCompactWorkspaceFiles,
+} from '@/lib/orchestrator'
+import {
+  buildTeamCollaborationPrompt,
+  inferRoleId,
+  ROLE_TERRITORIES,
+  validateTerritoryAccess,
+} from '@/lib/vincezone-protocol'
 
 function parseSSEChunk(chunk: string) {
   let output = ''
@@ -86,6 +98,7 @@ export function useOrchestration({
   setDrafts,
   setAiActivity,
   onRecordUsage,
+  onApplyDirectEdit,
   onPromptRollback,
 }: {
   agents: Agent[]
@@ -105,6 +118,12 @@ export function useOrchestration({
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   setAiActivity: React.Dispatch<React.SetStateAction<'idle' | 'reading' | 'editing'>>
   onRecordUsage: (record: UsageRecord) => void
+  onApplyDirectEdit?: (input: {
+    path: string
+    content: string
+    summary: string
+    agent: Agent
+  }) => { applied: boolean; revisionId?: string }
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
@@ -192,7 +211,34 @@ export function useOrchestration({
       }
       if (event.type === 'patch.proposed' && event.patch) {
         const patch = event.patch
-        setProposedPatches((current) => [patch, ...current.filter((item) => item.id !== patch.id)])
+        const sourceAgent = agentsRef.current.find((a) => a.id === patch.agentId)
+        let appliedRev: string | undefined
+        let nextStatus = patch.status
+
+        if (
+          appSettings.autoApplyTrusted &&
+          !patch.conflictWith &&
+          !patch.territoryViolation &&
+          sourceAgent &&
+          onApplyDirectEdit
+        ) {
+          const applied = onApplyDirectEdit({
+            path: patch.path,
+            content: patch.proposedContent,
+            summary: patch.summary,
+            agent: sourceAgent,
+          })
+          if (applied.applied) {
+            nextStatus = 'applied'
+            appliedRev = applied.revisionId
+          }
+        }
+
+        const storedPatch: ProposedPatch = { ...patch, status: nextStatus }
+        setProposedPatches((current) => [
+          storedPatch,
+          ...current.filter((item) => item.id !== patch.id),
+        ])
         updateAgent(patch.agentId, (current) => ({
           ...current,
           messages: [
@@ -203,7 +249,9 @@ export function useOrchestration({
               change: true,
               patchId: patch.id,
               codeSnippet: patch.proposedContent.slice(0, 220),
-              text: `Proposed edit for ${patch.path}: ${patch.summary}`,
+              text: appliedRev
+                ? `Applied edit to ${patch.path} (${appliedRev}): ${patch.summary}`
+                : `Proposed edit for ${patch.path}: ${patch.summary}`,
             },
           ],
         }))
@@ -215,7 +263,9 @@ export function useOrchestration({
           taskId: patch.taskId,
           label: `Code: ${patch.path.split('/').pop()}`,
           codeSnippet: patch.proposedContent.slice(0, 120),
-          description: `Code patch proposed for ${patch.path}`,
+          description: appliedRev
+            ? `Applied code patch to ${patch.path} (${appliedRev})`
+            : `Code patch proposed for ${patch.path}`,
         })
         return
       }
@@ -426,7 +476,9 @@ export function useOrchestration({
     },
     [
       animateCommanderTypeAndSend,
+      appSettings.autoApplyTrusted,
       appendCommunicationEvent,
+      onApplyDirectEdit,
       onRecordUsage,
       savedProvider.model,
       savedProvider.name,
@@ -496,7 +548,7 @@ export function useOrchestration({
             projectMemory,
             project: {
               name: projectName,
-              files: files.map(({ path, content }) => ({ path, content })),
+              files: selectCompactWorkspaceFiles(files, activeFile?.path, instruction),
             },
             limits: appSettings.delegation,
             topology,
@@ -571,7 +623,12 @@ export function useOrchestration({
   )
 
   const sendMessage = useCallback(
-    async (agent: Agent, delegatedText?: string, delegated = false) => {
+    async (
+      agent: Agent,
+      delegatedText?: string,
+      delegated = false,
+      options?: { forceDirectChat?: boolean; handoffDepth?: number },
+    ) => {
       const text = delegatedText?.trim() || drafts[agent.id]?.trim()
       if (!text) return
 
@@ -600,7 +657,18 @@ export function useOrchestration({
             ? topology.orderedAgentIds.slice(0, 2)
             : topology.orderedAgentIds.slice(0, 1)
 
-      if (!delegated && autonomousAgentIds.includes(agent.id) && activeProvider.apiKey) {
+      const isShortGreeting =
+        text.length < 18 &&
+        /^(hi|hello|hey|yo|chào|xin chào|alo|test|ping|ok|thanks|cảm ơn)[\s!.?]*$/i.test(text)
+
+      if (
+        !options?.forceDirectChat &&
+        !delegated &&
+        !isShortGreeting &&
+        agentsRef.current.length > 1 &&
+        autonomousAgentIds.includes(agent.id) &&
+        activeProvider.apiKey
+      ) {
         setDrafts((current) => ({ ...current, [agent.id]: '' }))
         setPendingApproval(null)
         await streamOrchestration(agent, text)
@@ -641,18 +709,24 @@ export function useOrchestration({
       const controller = new AbortController()
       aborters.current[agent.id] = controller
       const projectMemText = memoryNotes.map((n) => `- ${n.title}: ${n.content}`).join('\n')
+      const compactContextFiles = selectCompactWorkspaceFiles(
+        files,
+        activeFile?.path,
+        text,
+        6,
+        8_000,
+        45_000,
+      )
+      const fileContextBlock = compactContextFiles.length
+        ? compactContextFiles
+            .map((file) => `--- ${file.path}\n${file.content}`)
+            .join('\n\n')
+        : 'No workspace files loaded.'
+
       const systemPrompt = [
-        `You are ${agent.name}, ${agent.role}. Be concise.`,
-        agent.soul ? `Soul: ${agent.soul}` : '',
-        agent.mission ? `Mission: ${agent.mission}` : '',
-        agent.memory ? `Agent Memory: ${agent.memory}` : '',
-        projectMemText ? `Project Memory:\n${projectMemText}` : '',
-        activeFile
-          ? `Active file (${activeFile.path}):\n${activeFile.content.slice(0, 12000)}`
-          : 'No file open.',
-      ]
-        .filter(Boolean)
-        .join('\n')
+        buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        `Workspace (${projectName}) relevant files:\n${fileContextBlock}`,
+      ].join('\n\n')
 
       try {
         const response = await fetch('/api/chat', {
@@ -666,6 +740,7 @@ export function useOrchestration({
               { role: 'system', content: systemPrompt },
               ...agent.messages
                 .filter((message) => message.role !== 'tool')
+                .slice(-14)
                 .map((message) => ({
                   role: message.role === 'agent' ? 'user' : message.role,
                   content:
@@ -679,7 +754,7 @@ export function useOrchestration({
         })
         if (!response.ok || !response.body) {
           const error = await response.json().catch(() => ({ error: 'Provider request failed.' }))
-          throw new Error(error.error)
+          throw new Error(error.detail ? `${error.error} ${error.detail}` : error.error)
         }
 
         const reader = response.body.getReader()
@@ -716,15 +791,125 @@ export function useOrchestration({
           timestamp: new Date().toISOString(),
         })
 
+        // 1. Parse and apply direct AI code edits (```edit:path/to/file or ```baton-patch)
+        const extractedEdits = extractProposedPatches(result)
+        const editMessages: Message[] = []
+        const agentRoleId = agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)
+
+        for (const edit of extractedEdits) {
+          const territory = validateTerritoryAccess(agentRoleId, edit.path)
+          const existingFile = files.find((f) => f.path === edit.path)
+          const patchId = `patch-${uid()}`
+          let appliedStatus: 'applied' | 'pending' = 'pending'
+          let appliedRev: string | undefined
+
+          if (territory.allowed && appSettings.autoApplyTrusted && onApplyDirectEdit) {
+            setAiActivity('editing')
+            const outcome = onApplyDirectEdit({
+              path: edit.path,
+              content: edit.content,
+              summary: edit.summary,
+              agent,
+            })
+            if (outcome.applied) {
+              appliedStatus = 'applied'
+              appliedRev = outcome.revisionId
+            }
+          }
+
+          setProposedPatches((current) => [
+            {
+              id: patchId,
+              taskId: 'direct-chat',
+              agentId: agent.id,
+              agentName: agent.name,
+              roleCode: agentRoleId === 'custom' ? 'CUSTOM' : ROLE_TERRITORIES[agentRoleId].code,
+              path: edit.path,
+              summary: edit.summary,
+              originalContent: existingFile?.content ?? '',
+              proposedContent: edit.content,
+              baseHash: hashText(existingFile?.content ?? ''),
+              territoryViolation: territory.allowed ? undefined : territory.reason,
+              requiresApiContract: territory.requiresApiContract,
+              status: appliedStatus,
+              previousContent: existingFile?.content ?? null,
+              createdAt: new Date().toISOString(),
+            },
+            ...current,
+          ])
+
+          editMessages.push({
+            id: uid(),
+            role: 'tool',
+            change: true,
+            patchId,
+            codeSnippet: edit.content.slice(0, 220),
+            text:
+              appliedStatus === 'applied'
+                ? `Applied code edit to ${edit.path}${appliedRev ? ` (${appliedRev})` : ''} and saved to workspace.`
+                : !territory.allowed
+                  ? `Blocked by territory rule (${edit.path}): ${territory.reason}`
+                  : `Proposed edit for ${edit.path} — open Diff Review to apply.`,
+          })
+        }
+
         updateAgent(agent.id, (current) => ({
           ...current,
           status: 'idle',
-          messages: current.messages.map((message) =>
-            message.id === 'stream'
-              ? { ...message, id: uid(), text: result || 'The provider returned an empty response.' }
-              : message,
-          ),
+          messages: [
+            ...current.messages.map((message) =>
+              message.id === 'stream'
+                ? {
+                    ...message,
+                    id: uid(),
+                    text: result || 'The provider returned an empty response.',
+                  }
+                : message,
+            ),
+            ...editMessages,
+          ],
         }))
+
+        // 2. Execute live inter-agent handoffs (HANDOFF @ROLE: <instruction>)
+        const handoffDepth = options?.handoffDepth ?? 0
+        if (handoffDepth < 2 && result) {
+          const handoffs = extractAgentHandoffs(result, agentsRef.current, agent.id)
+          for (const handoff of handoffs) {
+            const targetAgent = agentsRef.current.find((a) => a.id === handoff.targetAgentId)
+            if (!targetAgent) continue
+            animateCommanderTypeAndSend(
+              agent.id,
+              `@${targetAgent.name}: ${handoff.message.slice(0, 110)}`,
+              () => {
+                appendCommunicationEvent({
+                  type: 'message.sent',
+                  kind: extractedEdits.length > 0 ? 'code' : 'delegation',
+                  senderId: agent.id,
+                  recipientId: targetAgent.id,
+                  label: extractedEdits.length > 0 ? 'Code Handoff' : 'Handoff',
+                  codeSnippet: extractedEdits[0]?.content.slice(0, 100),
+                  description: handoff.message,
+                })
+                updateAgent(targetAgent.id, (current) => ({
+                  ...current,
+                  messages: [
+                    ...current.messages,
+                    {
+                      id: uid(),
+                      role: 'agent',
+                      from: agent.name,
+                      text: handoff.message,
+                    },
+                  ],
+                }))
+                void sendMessage(targetAgent, handoff.message, true, {
+                  forceDirectChat: true,
+                  handoffDepth: handoffDepth + 1,
+                })
+              },
+            )
+          }
+        }
       } catch (error) {
         updateAgent(agent.id, (current) => ({
           ...current,
@@ -749,14 +934,21 @@ export function useOrchestration({
     },
     [
       activeFile,
+      animateCommanderTypeAndSend,
+      appSettings.autoApplyTrusted,
+      appendCommunicationEvent,
       drafts,
+      files,
       memoryNotes,
+      onApplyDirectEdit,
       onPromptRollback,
       onRecordUsage,
+      projectName,
       resolveProviderForAgent,
       setAiActivity,
       setDrafts,
       setPendingApproval,
+      setProposedPatches,
       streamOrchestration,
       updateAgent,
     ],

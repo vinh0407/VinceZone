@@ -24,13 +24,15 @@ type AndroidStatus = {
 
 export function AndroidEmulator({
   projectName,
-  onRunCommand,
+  rootPath,
 }: {
   projectName: string
-  onRunCommand: (command: string) => void
+  rootPath?: string
 }) {
   const [status, setStatus] = useState<AndroidStatus | null>(null)
   const [loading, setLoading] = useState(false)
+  const [gradleRunning, setGradleRunning] = useState(false)
+  const [gradleOutput, setGradleOutput] = useState('')
   const [selectedAvd, setSelectedAvd] = useState('')
   const [selectedSerial, setSelectedSerial] = useState('')
   const [landscape, setLandscape] = useState(false)
@@ -216,12 +218,24 @@ export function AndroidEmulator({
                     >
                       Start Live Mirror
                     </button>
+                  ) : status?.avds.length ? (
+                    <button
+                      onClick={() =>
+                        void sendAction(
+                          { action: 'launch', avd: selectedAvd || status.avds[0] },
+                          `Booting ${selectedAvd || status.avds[0]}...`,
+                        )
+                      }
+                      className="mt-5 rounded-full bg-[#e5e5e5] px-4 py-2 text-[10px] font-semibold text-[#111111] hover:bg-white"
+                    >
+                      Launch {selectedAvd || status.avds[0]}
+                    </button>
                   ) : (
                     <button
-                      onClick={() => onRunCommand('adb devices -l')}
+                      onClick={() => void refreshStatus()}
                       className="mt-5 rounded-full border border-[#404040] bg-[#242424] px-4 py-2 text-[10px] text-[#e5e5e5] hover:bg-[#333333]"
                     >
-                      Check ADB in Terminal
+                      Refresh ADB Status
                     </button>
                   )}
                 </div>
@@ -307,11 +321,40 @@ export function AndroidEmulator({
             <p>AVDs available: {status?.avds.length ?? 0}</p>
             <p>Online devices: {status?.devices.length ?? 0}</p>
             <button
-              onClick={() => onRunCommand('./gradlew installDebug')}
-              className="mt-2.5 w-full rounded border border-[#3c3c3c] bg-[#242424] py-1.5 text-[10px] text-[#e5e5e5] hover:bg-[#333333]"
+              disabled={gradleRunning}
+              onClick={async () => {
+                setGradleRunning(true)
+                setGradleOutput('')
+                try {
+                  const res = await fetch('/api/runner', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'run-silent',
+                      command: './gradlew installDebug',
+                      cwd: rootPath,
+                    }),
+                  })
+                  const data = (await res.json()) as {
+                    ok?: boolean
+                    stdout?: string
+                    stderr?: string
+                  }
+                  flashNotice(data.ok ? 'APK installed cleanly' : 'Gradle finished with errors')
+                  setGradleOutput((data.stdout || data.stderr || '').slice(-400))
+                } finally {
+                  setGradleRunning(false)
+                }
+              }}
+              className="mt-2.5 w-full rounded border border-[#3c3c3c] bg-[#242424] py-1.5 text-[10px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-50"
             >
-              Run Gradle installDebug
+              {gradleRunning ? 'Running Gradle silently…' : 'Run Gradle installDebug'}
             </button>
+            {gradleOutput && (
+              <pre className="mt-2 max-h-24 overflow-auto rounded bg-[#111111] p-2 font-mono text-[9px] text-[#bdbdbd]">
+                {gradleOutput}
+              </pre>
+            )}
           </div>
         </div>
       </div>

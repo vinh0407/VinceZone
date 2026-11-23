@@ -207,17 +207,44 @@ export function partitionNextBatch(
 }
 
 /**
- * Extract structured file change proposals from a worker's report.
- * Supports fenced ```baton-patch blocks containing either an array of changes
- * or {"changes": [...]}.
+ * Extract structured file change proposals from an agent's report or chat message.
+ * Supports BOTH:
+ * 1) Easy markdown fenced blocks: ```edit:src/path/to/file.tsx ... ``` or ```file:src/path/to/file.tsx ... ```
+ * 2) Legacy JSON fenced blocks: ```baton-patch { ... } ```
  */
 export function extractProposedPatches(
   raw: string,
   allowedPaths?: Set<string>,
 ): ProposedPatchInput[] {
   const patches: ProposedPatchInput[] = []
-  const matches = raw.matchAll(/```baton-patch\s*([\s\S]*?)```/gi)
+  const seenPaths = new Set<string>()
 
+  const pushPatch = (rawPath: string, content: string, summary: string) => {
+    const normalizedPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim()
+    if (!normalizedPath || normalizedPath.includes('..')) return
+    if (allowedPaths && allowedPaths.size > 0 && !allowedPaths.has(normalizedPath)) {
+      if (!/^[\w./()[\]-]+$/.test(normalizedPath)) return
+    }
+    if (seenPaths.has(normalizedPath)) return
+    seenPaths.add(normalizedPath)
+    patches.push({
+      path: normalizedPath,
+      summary: summary.slice(0, 200),
+      content,
+    })
+  }
+
+  // 1) Fenced ```edit:path/to/file or ```file:path/to/file blocks
+  const editBlockMatches = raw.matchAll(/```(?:edit|file):([^\n`]+)\r?\n([\s\S]*?)```/gi)
+  for (const match of editBlockMatches) {
+    const targetPath = match[1]?.trim()
+    const content = match[2]
+    if (!targetPath || typeof content !== 'string') continue
+    pushPatch(targetPath, content, `Direct AI code edit for ${targetPath}`)
+  }
+
+  // 2) Legacy JSON ```baton-patch blocks
+  const matches = raw.matchAll(/```baton-patch\s*([\s\S]*?)```/gi)
   for (const match of matches) {
     const body = match[1]?.trim()
     if (!body) continue
@@ -235,17 +262,7 @@ export function extractProposedPatches(
 
       for (const item of list) {
         if (!item || typeof item.path !== 'string' || typeof item.content !== 'string') continue
-        const normalizedPath = item.path.replace(/^\/+/, '').trim()
-        if (!normalizedPath || normalizedPath.includes('..')) continue
-        if (allowedPaths && allowedPaths.size > 0 && !allowedPaths.has(normalizedPath)) {
-          // Allow proposing new files only under relative project paths without traversal
-          if (!/^[\w./-]+$/.test(normalizedPath)) continue
-        }
-        patches.push({
-          path: normalizedPath,
-          summary: String(item.summary || 'Proposed file update').slice(0, 200),
-          content: item.content,
-        })
+        pushPatch(item.path, item.content, String(item.summary || 'Proposed file update'))
       }
     } catch {
       // Ignore malformed patch blocks without failing the worker report.
@@ -253,4 +270,103 @@ export function extractProposedPatches(
   }
 
   return patches
+}
+
+export type AgentHandoffDirective = {
+  targetAgentId: string
+  targetName: string
+  message: string
+}
+
+/**
+ * Parses `HANDOFF @ROLE_OR_NAME: <instruction>` directives from an agent's reply
+ * so agents can actively link and pass work to teammates.
+ */
+export function extractAgentHandoffs(
+  raw: string,
+  agents: Array<{ id: string; name: string; role: string; roleId?: string }>,
+  senderId: string,
+): AgentHandoffDirective[] {
+  const handoffs: AgentHandoffDirective[] = []
+  const lines = raw.split(/\r?\n/)
+  const seenTargets = new Set<string>()
+
+  for (const line of lines) {
+    const match = line.match(/^\s*(?:[-*]\s*)?HANDOFF\s+@([a-zA-Z0-9_-]+)\s*[:\-]\s*(.+)$/i)
+    if (!match) continue
+    const token = match[1].toLowerCase()
+    const message = match[2].trim()
+    if (!message) continue
+
+    const target = agents.find((agent) => {
+      if (agent.id === senderId) return false
+      const roleCode = (agent.roleId || '').toLowerCase()
+      return (
+        roleCode === token ||
+        agent.id.toLowerCase() === token ||
+        agent.name.toLowerCase().replace(/\s+/g, '') === token ||
+        agent.name.toLowerCase().startsWith(token)
+      )
+    })
+
+    if (target && !seenTargets.has(target.id)) {
+      seenTargets.add(target.id)
+      handoffs.push({
+        targetAgentId: target.id,
+        targetName: target.name,
+        message: message.slice(0, 800),
+      })
+    }
+  }
+
+  return handoffs.slice(0, 3)
+}
+
+const SKIP_CONTEXT_FILES = /(?:pnpm-lock\.yaml|package-lock\.json|yarn\.lock|\.min\.js|\.map)$/i
+
+/**
+ * Selects a compact, high-signal subset of workspace files so orchestration requests
+ * never exceed HTTP payload limits (fixes 413 "Request is too large").
+ */
+export function selectCompactWorkspaceFiles<T extends { path: string; content: string }>(
+  files: T[],
+  activePath?: string,
+  instruction = '',
+  maxFiles = 14,
+  maxBytesPerFile = 9_000,
+  maxTotalBytes = 110_000,
+): Array<{ path: string; content: string }> {
+  const lowerPrompt = instruction.toLowerCase()
+  const keywords = lowerPrompt
+    .split(/[^a-z0-9_./-]+/)
+    .filter((token) => token.length >= 3)
+
+  const scored = files
+    .filter((file) => !SKIP_CONTEXT_FILES.test(file.path))
+    .map((file) => {
+      let score = 0
+      const p = file.path.toLowerCase()
+      if (activePath && file.path === activePath) score += 100
+      if (lowerPrompt.includes(`@${p}`) || lowerPrompt.includes(p)) score += 90
+      if (p === 'package.json' || p === 'tsconfig.json' || p === 'readme.md') score += 20
+      for (const kw of keywords) {
+        if (p.includes(kw)) score += 18
+      }
+      if (p.startsWith('src/')) score += 5
+      return { file, score }
+    })
+    .sort((a, b) => b.score - a.score)
+
+  const selected: Array<{ path: string; content: string }> = []
+  let totalBytes = 0
+
+  for (const { file } of scored) {
+    if (selected.length >= maxFiles) break
+    const clipped = file.content.slice(0, maxBytesPerFile)
+    if (totalBytes + clipped.length > maxTotalBytes && selected.length > 0) continue
+    selected.push({ path: file.path, content: clipped })
+    totalBytes += clipped.length
+  }
+
+  return selected
 }

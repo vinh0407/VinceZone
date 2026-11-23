@@ -9,6 +9,7 @@ import {
   Play,
   RefreshCw,
   Smartphone,
+  Square,
   Tablet,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
@@ -43,10 +44,10 @@ function isLocalUrl(url: string) {
 
 export function WebPreview({
   projectName,
-  onRunCommand,
+  rootPath,
 }: {
   projectName: string
-  onRunCommand: (command: string) => void
+  rootPath?: string
 }) {
   const [urlInput, setUrlInput] = useState('http://localhost:3000')
   const [activeUrl, setActiveUrl] = useState('http://localhost:3000')
@@ -57,8 +58,23 @@ export function WebPreview({
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [serverRunning, setServerRunning] = useState(false)
+  const [serverStarting, setServerStarting] = useState(false)
+  const [serverStatusText, setServerStatusText] = useState('')
   const webviewRef = useRef<ElectronWebviewElement | null>(null)
   const initialWebviewSrcRef = useRef('http://localhost:3000')
+
+  useEffect(() => {
+    void fetch('/api/runner', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { running?: boolean; url?: string; command?: string } | null) => {
+        if (data?.running) {
+          setServerRunning(true)
+          if (data.url) setServerStatusText(data.command || data.url)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const desktop = window.vincezoneDesktop as
@@ -158,6 +174,54 @@ export function WebPreview({
     }
   }
 
+  const handleToggleWebServer = async () => {
+    setLoadError('')
+    if (serverRunning) {
+      setServerStarting(true)
+      try {
+        await fetch('/api/runner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stop-web', cwd: rootPath }),
+        })
+        setServerRunning(false)
+        setServerStatusText('')
+      } finally {
+        setServerStarting(false)
+      }
+      return
+    }
+
+    setServerStarting(true)
+    try {
+      const res = await fetch('/api/runner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start-web', cwd: rootPath }),
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        running?: boolean
+        url?: string
+        command?: string
+        error?: string
+      }
+      if (!res.ok || !data.ok) {
+        setLoadError(data.error || 'Failed to start web app in background.')
+        return
+      }
+      setServerRunning(Boolean(data.running))
+      setServerStatusText(data.command || 'Running')
+      if (data.url) {
+        navigate(data.url)
+      }
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to start web app.')
+    } finally {
+      setServerStarting(false)
+    }
+  }
+
   const showIframeHint = !useWebview && !isLocalUrl(activeUrl)
 
   return (
@@ -245,11 +309,28 @@ export function WebPreview({
             })}
           </div>
           <button
-            onClick={() => onRunCommand('pnpm dev')}
-            className="flex h-7 items-center gap-1.5 rounded bg-[#e5e5e5] px-2.5 text-[10px] font-semibold text-[#111111] hover:bg-white"
-            title="Start web project dev server in Terminal"
+            onClick={() => void handleToggleWebServer()}
+            disabled={serverStarting}
+            className={`flex h-7 items-center gap-1.5 rounded px-2.5 text-[10px] font-semibold transition disabled:opacity-50 ${
+              serverRunning
+                ? 'border border-[#525252] bg-[#262626] text-white hover:bg-[#333333]'
+                : 'bg-[#e5e5e5] text-[#111111] hover:bg-white'
+            }`}
+            title={
+              serverRunning
+                ? `Stop background server (${serverStatusText})`
+                : 'Start web project silently in background (no terminal popup)'
+            }
           >
-            <Play size={11} /> Start Web App
+            {serverRunning ? (
+              <>
+                <Square size={10} fill="currentColor" /> Stop Web App
+              </>
+            ) : (
+              <>
+                <Play size={11} /> {serverStarting ? 'Starting…' : 'Start Web App'}
+              </>
+            )}
           </button>
         </div>
       </div>

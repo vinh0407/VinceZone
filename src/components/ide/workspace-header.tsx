@@ -540,7 +540,7 @@ export function WorkspaceHeader({
           title="VinceZone Local Desktop Runtime"
         >
           <TerminalSquare size={10} />
-          {isDesktop ? 'Desktop' : 'Local'} :40704
+          {isDesktop ? 'Local App' : 'Local'}
         </span>
       </div>
     </header>

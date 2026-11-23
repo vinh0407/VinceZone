@@ -195,7 +195,7 @@ export const defaultAppSettings: AppSettings = {
   editorWordWrap: false,
   editorMinimap: true,
   maxConcurrentAgents: 6,
-  autoApplyTrusted: false,
+  autoApplyTrusted: true,
   allowTerminal: true,
   autoCaptureMemory: true,
   defaultCliTool: 'claude',

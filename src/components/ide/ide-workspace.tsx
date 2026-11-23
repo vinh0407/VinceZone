@@ -129,7 +129,7 @@ export function IDEWorkspace() {
     seq: number
   } | null>(null)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
-  const [terminalOpen, setTerminalOpen] = useState(true)
+  const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalMaximized, setTerminalMaximized] = useState(false)
   const [bottomPanel, setBottomPanel] = useState<
     'terminal' | 'problems' | 'output' | 'debug' | 'mail'
@@ -607,17 +607,21 @@ export function IDEWorkspace() {
   }, [activeProject?.rootPath, loadLocalDirectory])
 
   const runTerminalCommand = useCallback(
-    async (command: string) => {
-      setWorkspaceMode('ide')
-      setTerminalOpen(true)
-      setBottomPanel('terminal')
+    async (command: string, options?: { openTerminal?: boolean }) => {
+      const shouldOpen = options?.openTerminal ?? false
+      if (shouldOpen) {
+        setWorkspaceMode('ide')
+        setTerminalOpen(true)
+        setBottomPanel('terminal')
+      }
       setTerminalRunning(true)
       setRunState('running')
       try {
-        const response = await fetch('/api/terminal', {
+        const response = await fetch('/api/runner', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            action: 'run-silent',
             command,
             cwd: activeProject?.rootPath,
           }),
@@ -644,7 +648,7 @@ export function IDEWorkspace() {
             timestamp: new Date().toISOString(),
           },
         ])
-        setRunState('success')
+        setRunState(data.ok ? 'success' : 'idle')
       } catch (error) {
         setTerminalEntries((current) => [
           ...current.slice(-24),
@@ -653,7 +657,7 @@ export function IDEWorkspace() {
             command,
             cwd: activeProject?.rootPath || 'workspace',
             stdout: '',
-            stderr: error instanceof Error ? error.message : 'Terminal execution failed.',
+            stderr: error instanceof Error ? error.message : 'Background run failed.',
             exitCode: 1,
             durationMs: 0,
             timestamp: new Date().toISOString(),
@@ -712,6 +716,40 @@ export function IDEWorkspace() {
     }
   }, [])
 
+  const applyDirectAgentEdit = useCallback(
+    ({
+      path: targetPath,
+      content,
+      summary,
+      agent,
+    }: {
+      path: string
+      content: string
+      summary: string
+      agent: Agent
+    }) => {
+      const currentFiles = filesRef.current
+      const { nextFiles, previousContent } = applyPatchToFiles(currentFiles, targetPath, content)
+      const roleCode = (agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)).toUpperCase()
+      const nextRev = createEditRevision(sessionRef.current.revisions, {
+        path: targetPath,
+        actor: `${agent.name} (@${roleCode})`,
+        summary,
+        previousContent,
+        nextContent: content,
+      })
+      setRevisions((current) => [...current.slice(-39), nextRev])
+      setFiles(nextFiles)
+      filesRef.current = nextFiles
+      void writeFileToDiskIfConnected(targetPath, content)
+      setActivePath(targetPath)
+      setOpenPaths((current) => (current.includes(targetPath) ? current : [...current, targetPath]))
+      persistWorkspace({ files: nextFiles })
+      return { applied: true, revisionId: nextRev.id }
+    },
+    [persistWorkspace, writeFileToDiskIfConnected],
+  )
+
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
     useOrchestration({
       agents,
@@ -731,6 +769,7 @@ export function IDEWorkspace() {
       setDrafts,
       setAiActivity,
       onRecordUsage: handleRecordUsage,
+      onApplyDirectEdit: applyDirectAgentEdit,
       onPromptRollback: handlePromptRollback,
     })
 
@@ -1331,7 +1370,7 @@ export function IDEWorkspace() {
                 activeFilePath={activeFile?.path}
                 onSelectAgent={setRightChatAgentId}
                 onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-                onSend={sendMessage}
+                onSend={(agent) => void sendMessage(agent, undefined, false, { forceDirectChat: true })}
                 onPause={pauseAgent}
                 onOpenFullAgents={() => setWorkspaceMode('agents')}
                 onClose={() => setRightChatOpen(false)}
@@ -1371,12 +1410,12 @@ export function IDEWorkspace() {
         ) : workspaceMode === 'android' ? (
           <AndroidEmulator
             projectName={activeProject?.name ?? 'VinceZone Studio'}
-            onRunCommand={(cmd) => void runTerminalCommand(cmd)}
+            rootPath={activeProject?.rootPath}
           />
         ) : workspaceMode === 'web' ? (
           <WebPreview
             projectName={activeProject?.name ?? 'VinceZone Studio'}
-            onRunCommand={(cmd) => void runTerminalCommand(cmd)}
+            rootPath={activeProject?.rootPath}
           />
         ) : (
           <CraftStudio

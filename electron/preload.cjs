@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron')
+const isPackaged = require('electron').app.isPackaged
 
 contextBridge.exposeInMainWorld('vincezoneDesktop', {
   isDesktop: true,
+  isPackaged,
   webviewSupported: true,
   port: Number(process.env.PORT || 40704),
   openDirectory: () => ipcRenderer.invoke('vincezone:openDirectory'),
