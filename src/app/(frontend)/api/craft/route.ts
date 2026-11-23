@@ -20,7 +20,8 @@ async function exists(filePath: string) {
 
 export async function resolveCraftCliBinary(): Promise<string | null> {
   const exeName = process.platform === 'win32' ? 'craft-anything-cli.exe' : 'craft-anything-cli'
-  const toolsDir = path.join(process.cwd(), 'tools', 'craft-anything')
+  const workspaceRoot = process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
+  const toolsDir = path.join(workspaceRoot, 'tools', 'craft-anything')
 
   const direct = path.join(toolsDir, exeName)
   if (await exists(direct)) return direct

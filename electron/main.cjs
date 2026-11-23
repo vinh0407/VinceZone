@@ -1,132 +1,35 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron')
-const fs = require('node:fs')
-const net = require('node:net')
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } = require('electron')
 const path = require('node:path')
-const { execFileSync, spawn } = require('node:child_process')
+const { createInProcessNextHandler } = require('./in-process-bridge.cjs')
 
-const PREFERRED_PORT = Number(process.env.PORT || 40704)
-let activePort = PREFERRED_PORT
+const APP_ORIGIN = 'vincezone://studio'
 let mainWindow = null
-let serverChild = null
+
+// Register custom local protocol BEFORE app.whenReady() — ZERO TCP ports, ZERO localhost!
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'vincezone',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      allowServiceWorkers: false,
+    },
+  },
+])
 
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.vincezone.studio')
 }
 
 process.on('uncaughtException', (err) => {
-  console.error('[VinceZone Desktop] UncaughtException:', err.message || err)
+  console.error('[VinceZone Local App] UncaughtException:', err.message || err)
 })
 process.on('unhandledRejection', (reason) => {
-  console.error('[VinceZone Desktop] UnhandledRejection:', reason)
+  console.error('[VinceZone Local App] UnhandledRejection:', reason)
 })
-
-function findAvailablePort(preferred) {
-  return new Promise((resolve) => {
-    const tester = net.createServer()
-    tester.once('error', () => {
-      const fallback = net.createServer()
-      fallback.listen(0, '127.0.0.1', () => {
-        const addr = fallback.address()
-        const port = typeof addr === 'object' && addr ? addr.port : 40705
-        fallback.close(() => resolve(port))
-      })
-    })
-    tester.once('listening', () => {
-      tester.close(() => resolve(preferred))
-    })
-    tester.listen(preferred, '127.0.0.1')
-  })
-}
-
-async function isVinceZoneReady(port) {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 1200)
-    const res = await fetch(`http://127.0.0.1:${port}/api/vz-ping`, { signal: controller.signal })
-    clearTimeout(timer)
-    if (!res.ok) return false
-    const data = await res.json()
-    return data && data.app === 'vincezone'
-  } catch {
-    return false
-  }
-}
-
-function resolveNodeBinary() {
-  if (process.platform === 'win32') {
-    try {
-      const out = execFileSync('where.exe', ['node.exe'], {
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: 3000,
-      })
-      const first = out
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find((line) => line.toLowerCase().endsWith('node.exe'))
-      if (first) return first
-    } catch {
-      // Fallback to bundled Electron Node
-    }
-  }
-  return process.execPath
-}
-
-async function ensureEmbeddedRuntime() {
-  // Reuse already-running VinceZone runtime on preferred port if present
-  if (await isVinceZoneReady(PREFERRED_PORT)) {
-    activePort = PREFERRED_PORT
-    return true
-  }
-
-  activePort = await findAvailablePort(PREFERRED_PORT)
-  const projectRoot = path.resolve(__dirname, '..')
-  const standaloneServer = path.join(projectRoot, '.next', 'standalone', 'server.js')
-  const nodeBin = resolveNodeBinary()
-  const useElectronAsNode = nodeBin === process.execPath
-
-  // Prefer self-contained production standalone bundle (boots silently in < 300ms, no dev server needed)
-  if (fs.existsSync(standaloneServer) && process.env.VINCEZONE_DEV !== '1') {
-    serverChild = spawn(nodeBin, [standaloneServer], {
-      cwd: projectRoot,
-      env: {
-        ...process.env,
-        NODE_ENV: 'production',
-        HOSTNAME: '127.0.0.1',
-        PORT: String(activePort),
-        VINCEZONE_WORKSPACE_ROOT: projectRoot,
-        NEXT_PUBLIC_SITE_URL: `http://127.0.0.1:${activePort}`,
-        ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-      },
-      stdio: 'ignore',
-      windowsHide: true,
-    })
-  } else {
-    const nextBin = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
-    serverChild = spawn(
-      nodeBin,
-      [nextBin, 'dev', '--port', String(activePort), '--hostname', '127.0.0.1'],
-      {
-        cwd: projectRoot,
-        env: {
-          ...process.env,
-          PORT: String(activePort),
-          NEXT_PUBLIC_SITE_URL: `http://127.0.0.1:${activePort}`,
-          ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-        },
-        stdio: 'ignore',
-        windowsHide: true,
-      },
-    )
-  }
-
-  const deadline = Date.now() + 45_000
-  while (Date.now() < deadline) {
-    if (await isVinceZoneReady(activePort)) return true
-    await new Promise((resolve) => setTimeout(resolve, 250))
-  }
-  return false
-}
 
 function buildNativeMenu(win) {
   const send = (action, extra = {}) => {
@@ -205,7 +108,27 @@ function buildNativeMenu(win) {
 }
 
 async function createWindow() {
-  const ready = await ensureEmbeddedRuntime()
+  const projectRoot = path.resolve(__dirname, '..')
+  let inProcessHandler = null
+  let bootError = ''
+
+  try {
+    inProcessHandler = await createInProcessNextHandler(projectRoot)
+    protocol.handle('vincezone', async (request) => {
+      try {
+        return await inProcessHandler(request)
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Local runtime request failed.',
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+    })
+  } catch (err) {
+    bootError = err instanceof Error ? err.message : String(err)
+  }
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -250,14 +173,15 @@ async function createWindow() {
 
   buildNativeMenu(mainWindow)
 
-  if (ready) {
-    await mainWindow.loadURL(`http://127.0.0.1:${activePort}`)
+  if (inProcessHandler) {
+    await mainWindow.loadURL(`${APP_ORIGIN}/`)
   } else {
     await mainWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
         `<body style="background:#181818;color:#cccccc;font-family:Segoe UI,sans-serif;padding:40px">
-          <h2 style="color:#fff">VinceZone Studio failed to initialize its local runtime</h2>
-          <p>Run <code>pnpm build</code> inside <code>c:\\VisualStudio\\V-IDE</code> and reopen VinceZone Studio.</p>
+          <h2 style="color:#fff">VinceZone Studio Local Runtime Error</h2>
+          <pre style="background:#111;padding:12px;border-radius:8px;color:#f48771">${bootError}</pre>
+          <p>Run <code>pnpm build</code> once to prepare the local bundle.</p>
         </body>`,
       )}`,
     )
@@ -287,16 +211,6 @@ ipcMain.handle('vincezone:openExternal', async (_event, targetUrl) => {
 app.whenReady().then(createWindow)
 
 app.on('window-all-closed', () => {
-  if (serverChild && !serverChild.killed && serverChild.pid) {
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/PID', String(serverChild.pid), '/T', '/F'], {
-        windowsHide: true,
-        stdio: 'ignore',
-      })
-    } else {
-      serverChild.kill()
-    }
-  }
   if (process.platform !== 'darwin') app.quit()
 })
 
