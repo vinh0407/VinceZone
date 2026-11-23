@@ -24,6 +24,18 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.vincezone.studio')
 }
 
+const gotSingleLock = app.requestSingleInstanceLock()
+if (!gotSingleLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 process.on('uncaughtException', (err) => {
   console.error('[VinceZone Local App] UncaughtException:', err.message || err)
 })
@@ -149,7 +161,7 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
       webviewTag: true,
     },
   })
