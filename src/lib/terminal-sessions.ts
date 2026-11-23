@@ -116,9 +116,12 @@ export function createTerminalSession(options?: { cwd?: string; title?: string }
     env: {
       ...process.env,
       TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
       FORCE_COLOR: '1',
       CLICOLOR_FORCE: '1',
       PYTHONUNBUFFERED: '1',
+      COLUMNS: '120',
+      LINES: '30',
     },
   })
 
@@ -204,6 +207,17 @@ export function interruptTerminalSession(id: string): boolean {
   session.history = (session.history + marker).slice(-MAX_HISTORY_CHARS)
   for (const listener of session.listeners) {
     listener({ type: 'output', data: marker })
+  }
+  return true
+}
+
+export function resizeTerminalSession(id: string, cols: number, rows: number): boolean {
+  const session = getStore().get(id)
+  if (!session || !session.alive || !session.proc.stdin?.writable) return false
+  const c = Math.max(40, Math.min(300, Math.round(cols) || 120))
+  const r = Math.max(10, Math.min(120, Math.round(rows) || 30))
+  if (session.shell === 'bash') {
+    session.proc.stdin.write(`export COLUMNS=${c} LINES=${r}\n`)
   }
   return true
 }

@@ -1,4 +1,5 @@
 import {
+  attachNodeDebugSession,
   controlDebugSession,
   type DebugBreakpoint,
   evaluateDebugExpression,
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
     targetFile?: string
     breakpoints?: DebugBreakpoint[]
     expression?: string
+    port?: number
+    wsUrl?: string
   }
   try {
     body = (await request.json()) as typeof body
@@ -71,6 +74,15 @@ export async function POST(request: Request) {
     if (body.action === 'evaluate' && typeof body.expression === 'string') {
       const outcome = await evaluateDebugExpression(body.expression.trim())
       return Response.json({ ok: outcome.ok, result: outcome.result, debug: getDebugSnapshot() })
+    }
+
+    if (body.action === 'attach') {
+      const snapshot = await attachNodeDebugSession({
+        cwd: body.cwd || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd(),
+        port: body.port,
+        wsUrl: body.wsUrl,
+      })
+      return Response.json({ ok: true, debug: snapshot })
     }
 
     if (body.action === 'stop') {

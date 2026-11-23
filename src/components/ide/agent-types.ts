@@ -9,15 +9,31 @@ export type WorkspaceFile = WorkspaceFileNode
 export type WorkspaceMode = 'ide' | 'agents' | 'android' | 'web'
 export type SidePanel = 'explorer' | 'search' | 'git' | 'revisions' | 'memory'
 
+export type ChatImageAttachment = {
+  id: string
+  name: string
+  mimeType: string
+  dataUrl: string
+}
+
 export type Message = {
   id: string
   role: 'user' | 'assistant' | 'tool' | 'agent'
   text: string
+  images?: ChatImageAttachment[]
   change?: boolean
   patchId?: string
   from?: string
   codeSnippet?: string
   typing?: boolean
+}
+
+export type ChatThreadSnapshot = {
+  id: string
+  title: string
+  updatedAt: string
+  messageCount: number
+  agents: Agent[]
 }
 
 export type Agent = {
@@ -200,6 +216,8 @@ export type ProjectSessionData = {
   proposedPatches: ProposedPatch[]
   revisions: EditRevision[]
   memoryNotes: MemoryNote[]
+  chatThreads?: ChatThreadSnapshot[]
+  activeThreadId?: string
 }
 
 export type ProjectTab = {

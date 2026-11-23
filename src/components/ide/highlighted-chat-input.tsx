@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, type RefObject, useMemo, useRef } from 'react'
+import { type ClipboardEvent, type KeyboardEvent, type RefObject, useMemo, useRef } from 'react'
 
 type HighlightSegment = {
   text: string
@@ -91,6 +91,7 @@ export function HighlightedChatTextarea({
   mono = false,
   onChange,
   onKeyDown,
+  onPasteImages,
 }: {
   textareaRef?: RefObject<HTMLTextAreaElement | null>
   value: string
@@ -101,6 +102,7 @@ export function HighlightedChatTextarea({
   mono?: boolean
   onChange: (next: string) => void
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
+  onPasteImages?: (files: File[]) => void
 }) {
   const backdropRef = useRef<HTMLDivElement>(null)
   const segments = useMemo(() => tokenizeChatHighlights(value), [value])
@@ -175,6 +177,20 @@ export function HighlightedChatTextarea({
         }}
         onScroll={(event) => syncScroll(event.currentTarget)}
         onKeyDown={onKeyDown}
+        onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+          if (!onPasteImages) return
+          const imageFiles: File[] = []
+          for (const item of Array.from(event.clipboardData?.items ?? [])) {
+            if (item.type.startsWith('image/')) {
+              const f = item.getAsFile()
+              if (f) imageFiles.push(f)
+            }
+          }
+          if (imageFiles.length > 0) {
+            event.preventDefault()
+            onPasteImages(imageFiles)
+          }
+        }}
         className={`relative z-10 block w-full resize-none bg-transparent ${typography} text-transparent caret-white outline-none selection:bg-white/25 placeholder:text-[#666666]`}
       />
     </div>

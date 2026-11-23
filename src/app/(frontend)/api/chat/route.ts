@@ -12,9 +12,13 @@ import { streamCompletionWithTools } from '@/lib/stream-tools'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string | null
+  content: string | ChatContentPart[] | null
   tool_call_id?: string
   tool_calls?: Array<{
     id: string
@@ -49,8 +53,8 @@ export async function POST(request: Request) {
     )
   }
 
-  if (Number(request.headers.get('content-length') ?? 0) > 2_000_000) {
-    return Response.json({ error: 'Request is too large.' }, { status: 413 })
+  if (Number(request.headers.get('content-length') ?? 0) > 12_000_000) {
+    return Response.json({ error: 'Request is too large (max 12MB including images).' }, { status: 413 })
   }
 
   let body: ChatRequest

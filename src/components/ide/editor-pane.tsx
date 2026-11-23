@@ -89,12 +89,14 @@ export function EditorPane({
   breakpoints = {},
   debugActiveLocation = null,
   hunkReview = null,
+  gitDiffView = null,
   onToggleBreakpoint,
   onNavigateToFile,
   onHunkDecision,
   onAcceptAllHunks,
   onRejectAllHunks,
   onDismissHunkReview,
+  onCloseGitDiff,
   onOpenExplorer,
   onSelectTab,
   onCloseTab,
@@ -127,12 +129,14 @@ export function EditorPane({
   breakpoints?: Record<string, number[]>
   debugActiveLocation?: { path: string; line: number } | null
   hunkReview?: InlineHunkReview | null
+  gitDiffView?: { path: string; original: string; modified: string; language: string } | null
   onToggleBreakpoint?: (path: string, line: number) => void
   onNavigateToFile?: (path: string, line: number) => void
   onHunkDecision?: (path: string, hunkId: string, decision: 'accepted' | 'rejected') => void
   onAcceptAllHunks?: (path: string) => void
   onRejectAllHunks?: (path: string) => void
   onDismissHunkReview?: (path: string) => void
+  onCloseGitDiff?: () => void
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
@@ -1174,13 +1178,45 @@ export function EditorPane({
         </div>
       )}
 
+      {gitDiffView && (
+        <div className="flex shrink-0 items-center justify-between border-b border-[#3a3a3a] bg-[#16181c] px-3 py-1.5 text-[11px]">
+          <span className="flex items-center gap-1.5 text-[#e5e5e5]">
+            <GitCompareArrows size={12} className="text-[#9cdcfe]" />
+            Git Side-by-Side Diff · <code className="font-mono text-[#9cdcfe]">HEAD</code> vs{' '}
+            <strong className="font-mono text-white">{gitDiffView.path}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={onCloseGitDiff}
+            className="flex items-center gap-1 rounded border border-[#444444] bg-[#222222] px-2 py-0.5 text-[10px] text-[#cccccc] hover:text-white"
+          >
+            <X size={11} /> Close Diff
+          </button>
+        </div>
+      )}
+
       <div
         className={`relative flex min-h-0 flex-1 overflow-hidden bg-[#1e1e1e] ${
           aiActivity !== 'idle' ? 'ring-1 ring-inset ring-white/25' : ''
         }`}
       >
         <div className="relative min-w-0 flex-1">
-          {inlineDiff && activeFile && inlineDiff.path === activeFile.path ? (
+          {gitDiffView ? (
+            <DiffEditor
+              original={gitDiffView.original}
+              modified={gitDiffView.modified}
+              language={gitDiffView.language}
+              theme="vs-dark"
+              options={{
+                automaticLayout: true,
+                renderSideBySide: true,
+                readOnly: true,
+                fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                fontSize,
+                minimap: { enabled: false },
+              }}
+            />
+          ) : inlineDiff && activeFile && inlineDiff.path === activeFile.path ? (
             <DiffEditor
               original={inlineDiff.original}
               modified={inlineDiff.proposed}

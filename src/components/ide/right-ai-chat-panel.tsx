@@ -5,8 +5,11 @@ import {
   Bot,
   Check,
   Crown,
+  History,
+  ImagePlus,
   Link2,
   Maximize2,
+  MessageSquarePlus,
   Plus,
   Search,
   Send,
@@ -17,9 +20,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
+import { extractImagesFromFileList } from '@/lib/image-attachment'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type {
   Agent,
+  ChatImageAttachment,
+  ChatThreadSnapshot,
   CommandApprovalItem,
   McpServerConfig,
   PluginConfig,
@@ -54,11 +60,14 @@ export function RightAiChatPanel({
   bridgeEnabled = true,
   bridgeMessages = [],
   commandApprovals = [],
+  chatThreads = [],
   focusSeq = 0,
   onApproveCommand,
   onRejectCommand,
   onAssignCaptain,
   onToggleViceCaptain,
+  onNewThread,
+  onSelectThread,
   onToggleBridge,
   onRelayToAgent,
   onChangeAgentModel,
@@ -83,28 +92,50 @@ export function RightAiChatPanel({
   bridgeEnabled?: boolean
   bridgeMessages?: BridgeMessage[]
   commandApprovals?: CommandApprovalItem[]
+  chatThreads?: ChatThreadSnapshot[]
   focusSeq?: number
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
   onAssignCaptain?: (agentId: string) => void
   onToggleViceCaptain?: (agentId: string) => void
+  onNewThread?: () => void
+  onSelectThread?: (threadId: string) => void
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
   onSelectAgent: (id: string) => void
   onDraft: (id: string, value: string) => void
-  onSend: (agent: Agent) => void
+  onSend: (agent: Agent, images?: ChatImageAttachment[]) => void
   onPause: (agent: Agent) => void
   onOpenFullAgents: () => void
   onClose: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
   const [bridgeDrawerOpen, setBridgeDrawerOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
   const [modelFilter, setModelFilter] = useState('')
   const [relayTargetId, setRelayTargetId] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
+  const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([])
+  const [dragOver, setDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddImages = async (fileList: FileList | File[]) => {
+    const added = await extractImagesFromFileList(fileList)
+    if (added.length > 0) {
+      setPendingImages((prev) => [...prev, ...added].slice(0, 4))
+    }
+  }
+
+  const triggerSend = () => {
+    if (!agent) return
+    const imgs = pendingImages
+    if (!draft.trim() && imgs.length === 0) return
+    setPendingImages([])
+    onSend(agent, imgs.length > 0 ? imgs : undefined)
+  }
   const captainAgent = getCaptainAgent(agents)
   const viceAgent = getViceCaptainAgent(agents)
   const agent = agents.find((item) => item.id === selectedAgentId) ?? captainAgent ?? agents[0]
@@ -196,6 +227,26 @@ export function RightAiChatPanel({
           </span>
         </div>
         <div className="flex items-center gap-0.5">
+          {onNewThread && (
+            <button
+              type="button"
+              className="mini-button"
+              title="New Chat Thread (lưu đoạn chat cũ vào History)"
+              onClick={onNewThread}
+            >
+              <MessageSquarePlus size={12} />
+            </button>
+          )}
+          {onSelectThread && (
+            <button
+              type="button"
+              className={`mini-button ${historyOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
+              title={`Chat History (${chatThreads.length} threads)`}
+              onClick={() => setHistoryOpen((prev) => !prev)}
+            >
+              <History size={12} />
+            </button>
+          )}
           <button
             className="mini-button"
             title="Open Full Multi-Agent Control Center"
@@ -208,6 +259,45 @@ export function RightAiChatPanel({
           </button>
         </div>
       </div>
+
+      {historyOpen && (
+        <div className="max-h-44 overflow-y-auto border-b border-[#333333] bg-[#141414] p-2">
+          <div className="mb-1 flex items-center justify-between text-[9.5px] font-semibold uppercase text-[#a3a3a3]">
+            <span>Chat Threads ({chatThreads.length})</span>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(false)}
+              className="mini-button"
+            >
+              <X size={10} />
+            </button>
+          </div>
+          {chatThreads.length === 0 ? (
+            <p className="py-1.5 text-[10px] text-[#737373]">
+              Chưa có thread lưu trữ. Bấm + (New Chat) để tách cuộc trò chuyện mới.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {chatThreads.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectThread?.(t.id)
+                    setHistoryOpen(false)
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded border border-[#2a2a2a] bg-[#1a1a1a] px-2 py-1.5 text-left text-[10px] text-[#cccccc] hover:border-[#4a4a4a] hover:text-white"
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
+                  <span className="shrink-0 font-mono text-[8.5px] text-[#7a7a7a]">
+                    {t.messageCount} msgs
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {modelPickerOpen && (
         <div className="border-b border-[#333333] bg-[#141414] p-2">
@@ -477,6 +567,18 @@ export function RightAiChatPanel({
                   {message.from} → {agent.name}
                 </p>
               )}
+              {message.images && message.images.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {message.images.map((img) => (
+                    <img
+                      key={img.id}
+                      src={img.dataUrl}
+                      alt={img.name}
+                      className="max-h-28 max-w-[180px] rounded border border-[#444444] object-cover"
+                    />
+                  ))}
+                </div>
+              )}
               {message.text ? (
                 message.role === 'user' || message.role === 'tool' ? (
                   <HighlightedChatText text={message.text} />
@@ -530,7 +632,60 @@ export function RightAiChatPanel({
             </div>
           </div>
         )}
-        <div className="rounded-lg border border-[#333333] bg-[#141414] focus-within:border-[#737373]">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            if (e.dataTransfer?.files?.length) {
+              void handleAddImages(e.dataTransfer.files)
+            }
+          }}
+          className={`rounded-lg border bg-[#141414] transition focus-within:border-[#737373] ${
+            dragOver ? 'border-[#e5e5e5] ring-1 ring-white/30' : 'border-[#333333]'
+          }`}
+        >
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) void handleAddImages(e.target.files)
+              e.target.value = ''
+            }}
+          />
+          {pendingImages.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-b border-[#262626] p-2">
+              {pendingImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="group relative overflow-hidden rounded border border-[#444444] bg-[#101010]"
+                >
+                  <img
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className="h-12 w-16 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPendingImages((prev) => prev.filter((item) => item.id !== img.id))
+                    }
+                    className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-black/80 text-white hover:bg-black"
+                    title="Remove image"
+                  >
+                    <X size={9} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {slashQuery !== null && (
             <SlashCommandPopover
               query={slashQuery}
@@ -568,11 +723,12 @@ export function RightAiChatPanel({
             value={draft}
             rows={3}
             size="md"
-            placeholder={`Ask ${agent.name}… Type @BE/@FE/@QA to bridge or / for skills`}
+            placeholder={`Ask ${agent.name}… Ctrl+V dán ảnh Vision, @BE/@FE hoặc / skill`}
             onChange={(nextValue) => {
               onDraft(agent.id, nextValue)
               setSlashIndex(0)
             }}
+            onPasteImages={(imgs) => void handleAddImages(imgs)}
             onKeyDown={(event) => {
               if (slashQuery !== null && slashItems.length > 0) {
                 if (event.key === 'ArrowDown') {
@@ -602,7 +758,7 @@ export function RightAiChatPanel({
               }
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
-                onSend(agent)
+                triggerSend()
               }
             }}
           />
@@ -614,6 +770,14 @@ export function RightAiChatPanel({
                 title="Add Context"
               >
                 <Plus size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                className={`mini-button ${pendingImages.length > 0 ? 'bg-[#2e2e2e] text-white' : ''}`}
+                title="Đính kèm ảnh / Screenshot (hoặc dán Ctrl+V)"
+              >
+                <ImagePlus size={12} />
               </button>
               <button
                 onClick={() => {
@@ -646,8 +810,8 @@ export function RightAiChatPanel({
               </button>
             ) : (
               <button
-                onClick={() => onSend(agent)}
-                disabled={!draft.trim()}
+                onClick={triggerSend}
+                disabled={!draft.trim() && pendingImages.length === 0}
                 className="flex size-6 items-center justify-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-30"
                 title="Send message (Enter)"
               >

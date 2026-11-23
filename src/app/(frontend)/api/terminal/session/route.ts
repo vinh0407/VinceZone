@@ -5,6 +5,7 @@ import {
   interruptTerminalSession,
   killTerminalSession,
   listTerminalSessions,
+  resizeTerminalSession,
   type TerminalSessionListener,
   writeToTerminalSession,
 } from '@/lib/terminal-sessions'
@@ -101,7 +102,15 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Terminal sessions are restricted to localhost.' }, { status: 403 })
   }
 
-  let body: { action?: string; id?: string; cwd?: string; title?: string; data?: string }
+  let body: {
+    action?: string
+    id?: string
+    cwd?: string
+    title?: string
+    data?: string
+    cols?: number
+    rows?: number
+  }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -130,6 +139,11 @@ export async function POST(request: Request) {
   if (body.action === 'interrupt' && body.id) {
     const ok = interruptTerminalSession(body.id)
     return Response.json({ ok }, { status: ok ? 200 : 404 })
+  }
+
+  if (body.action === 'resize' && body.id) {
+    const ok = resizeTerminalSession(body.id, body.cols ?? 120, body.rows ?? 30)
+    return Response.json({ ok })
   }
 
   if (body.action === 'kill' && body.id) {

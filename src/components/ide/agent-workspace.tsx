@@ -11,6 +11,7 @@ import {
   GitCompareArrows,
   GripVertical,
   History,
+  ImagePlus,
   LayoutGrid,
   Mail,
   Maximize2,
@@ -33,6 +34,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
+import { extractImagesFromFileList } from '@/lib/image-attachment'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import { ChatContextMenu } from './chat-context-menu'
 import { CommandApprovalList } from './command-approval-card'
@@ -44,6 +46,8 @@ import type {
   AgentTask,
   AgentView,
   AgentWorkspaceState,
+  ChatImageAttachment,
+  ChatThreadSnapshot,
   CommandApprovalItem,
   CommunicationEvent,
   McpServerConfig,
@@ -78,6 +82,7 @@ export function AgentWorkspace({
   proposedPatches,
   pendingApproval,
   commandApprovals = [],
+  chatThreads = [],
   skills,
   combos = [],
   mcpServers,
@@ -88,6 +93,8 @@ export function AgentWorkspace({
   onAssignCaptain,
   onToggleViceCaptain,
   onClearViceCaptain,
+  onNewThread,
+  onSelectThread,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -112,6 +119,7 @@ export function AgentWorkspace({
   proposedPatches: ProposedPatch[]
   pendingApproval: PendingApprovalPlan | null
   commandApprovals?: CommandApprovalItem[]
+  chatThreads?: ChatThreadSnapshot[]
   skills: SkillIndexItem[]
   combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
@@ -122,12 +130,14 @@ export function AgentWorkspace({
   onAssignCaptain?: (agentId: string) => void
   onToggleViceCaptain?: (agentId: string) => void
   onClearViceCaptain?: () => void
+  onNewThread?: () => void
+  onSelectThread?: (threadId: string) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
   onView: (id: string, view: AgentView) => void
   onDraft: (id: string, value: string) => void
-  onSend: (agent: Agent) => void
+  onSend: (agent: Agent, images?: ChatImageAttachment[]) => void
   onRemove: (id: string) => void
   onDuplicate: (agent: Agent) => void
   onDelegate: (sourceId: string, targetId: string, prompt: string) => void
@@ -145,6 +155,7 @@ export function AgentWorkspace({
     arrivedIds: string[]
   }>({ sendingIds: [], arrivedIds: [] })
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([])
+  const [threadsOpen, setThreadsOpen] = useState(false)
   const gridHostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -271,7 +282,7 @@ export function AgentWorkspace({
       onChangeModel={(providerId, model) => onChangeAgentModel?.(agent.id, providerId, model)}
       onView={(view) => onView(agent.id, view)}
       onDraft={(value) => onDraft(agent.id, value)}
-      onSend={() => onSend(agent)}
+      onSend={(images) => onSend(agent, images)}
       onClose={() => onRemove(agent.id)}
       onDuplicate={() => onDuplicate(agent)}
       onDelegate={(targetId, prompt) => onDelegate(agent.id, targetId, prompt)}
@@ -391,6 +402,52 @@ export function AgentWorkspace({
               { id: 'focus1', label: '1:6 PM' },
             ]}
           />
+          {onNewThread && (
+            <button
+              type="button"
+              onClick={onNewThread}
+              className={`flex items-center gap-1 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
+                isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
+              }`}
+              title="Bắt đầu cuộc trò chuyện mới (lưu thread hiện tại vào lịch sử)"
+            >
+              <Plus size={isSolo ? 14 : 11} /> New Chat
+            </button>
+          )}
+          {onSelectThread && chatThreads.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setThreadsOpen((prev) => !prev)}
+                className={`flex items-center gap-1 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
+                  isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
+                }`}
+                title="Xem lịch sử các đoạn chat cũ của dự án này"
+              >
+                <History size={isSolo ? 14 : 11} /> History ({chatThreads.length})
+              </button>
+              {threadsOpen && (
+                <div className="absolute right-0 top-full z-40 mt-1 w-64 rounded-lg border border-[#3a3a3a] bg-[#161616] p-1.5 shadow-2xl">
+                  {chatThreads.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectThread(t.id)
+                        setThreadsOpen(false)
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-[11px] text-[#cccccc] hover:bg-[#262626] hover:text-white"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      <span className="shrink-0 font-mono text-[9px] text-[#7a7a7a]">
+                        {t.messageCount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={onCreate}
             className={`flex items-center gap-1.5 rounded bg-[#e5e5e5] font-medium text-[#111111] hover:bg-white ${
@@ -679,7 +736,7 @@ function AgentPanel({
   onChangeModel?: (providerId: string, model: string) => void
   onView: (view: AgentView) => void
   onDraft: (value: string) => void
-  onSend: () => void
+  onSend: (images?: ChatImageAttachment[]) => void
   onClose: () => void
   onDuplicate: () => void
   onDelegate: (targetId: string, prompt: string) => void
@@ -694,7 +751,23 @@ function AgentPanel({
   const [slashIndex, setSlashIndex] = useState(0)
   const [delegateTarget, setDelegateTarget] = useState(peers[0]?.id ?? '')
   const [delegatePrompt, setDelegatePrompt] = useState('')
+  const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddImages = async (fileList: FileList | File[]) => {
+    const added = await extractImagesFromFileList(fileList)
+    if (added.length > 0) {
+      setPendingImages((prev) => [...prev, ...added].slice(0, 4))
+    }
+  }
+
+  const triggerSend = () => {
+    const imgs = pendingImages
+    if (!effectiveDraft.trim() && imgs.length === 0) return
+    setPendingImages([])
+    onSend(imgs.length > 0 ? imgs : undefined)
+  }
   useEffect(() => {
     if (!peers.some((peer) => peer.id === delegateTarget)) setDelegateTarget(peers[0]?.id ?? '')
   }, [delegateTarget, peers])
@@ -1118,6 +1191,20 @@ function AgentPanel({
                         </span>
                       </div>
                     )}
+                    {message.images && message.images.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {message.images.map((img) => (
+                          <img
+                            key={img.id}
+                            src={img.dataUrl}
+                            alt={img.name}
+                            className={`rounded border border-[#444444] object-cover ${
+                              isSolo ? 'max-h-48 max-w-[280px]' : 'max-h-24 max-w-[160px]'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
                     {message.text ? (
                       message.role === 'user' ? (
                         <HighlightedChatText text={message.text} />
@@ -1261,6 +1348,42 @@ function AgentPanel({
               </span>
             </div>
           )}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) void handleAddImages(e.target.files)
+              e.target.value = ''
+            }}
+          />
+          {pendingImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-b border-[#262626] p-2">
+              {pendingImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative overflow-hidden rounded border border-[#444444] bg-[#101010]"
+                >
+                  <img
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className={isSolo ? 'h-16 w-24 object-cover' : 'h-11 w-14 object-cover'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPendingImages((prev) => prev.filter((item) => item.id !== img.id))
+                    }
+                    className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-black/80 text-white"
+                  >
+                    <X size={9} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <HighlightedChatTextarea
             textareaRef={textareaRef}
             value={effectiveDraft}
@@ -1270,13 +1393,14 @@ function AgentPanel({
             mono={Boolean(agent.composingPrompt)}
             placeholder={
               isCaptain && peers.length > 0
-                ? `Ra lệnh cho Đội trưởng ${agent.name}… Đội trưởng sẽ tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm`
-                : `Message ${agent.name}… Type / for skills, MCP & plugins`
+                ? `Ra lệnh cho Đội trưởng ${agent.name}… (Ctrl+V dán ảnh Vision) — Đội trưởng sẽ tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm`
+                : `Message ${agent.name}… Ctrl+V dán ảnh Vision hoặc / cho skills`
             }
             onChange={(nextValue) => {
               onDraft(nextValue)
               setSlashIndex(0)
             }}
+            onPasteImages={(imgs) => void handleAddImages(imgs)}
             onKeyDown={(event) => {
               if (slashQuery !== null && slashItems.length > 0) {
                 if (event.key === 'ArrowDown') {
@@ -1306,7 +1430,7 @@ function AgentPanel({
               }
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
-                onSend()
+                triggerSend()
               }
             }}
           />
@@ -1329,6 +1453,18 @@ function AgentPanel({
                 }}
               >
                 <Plus size={isSolo ? 18 : 11} />
+              </button>
+              <button
+                type="button"
+                className={`${
+                  isSolo
+                    ? 'grid size-9 place-items-center rounded-md text-[#b3b3b3] transition hover:bg-[#2a2a2a] hover:text-white'
+                    : 'mini-button'
+                } ${pendingImages.length > 0 ? 'bg-[#2e2e2e] text-white' : ''}`}
+                title="Đính kèm ảnh / Screenshot (hoặc Ctrl+V)"
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <ImagePlus size={isSolo ? 17 : 11} />
               </button>
               <button
                 className={`${
@@ -1371,8 +1507,8 @@ function AgentPanel({
               </button>
             ) : (
               <button
-                onClick={onSend}
-                disabled={!effectiveDraft.trim()}
+                onClick={triggerSend}
+                disabled={!effectiveDraft.trim() && pendingImages.length === 0}
                 className={`grid place-items-center text-[#111111] transition disabled:opacity-20 ${
                   isSolo ? 'size-9 rounded-lg' : 'size-5 rounded'
                 } ${

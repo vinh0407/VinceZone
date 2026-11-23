@@ -55,7 +55,20 @@ type PendingCdp = {
   reject: (err: Error) => void
 }
 
+function resolvePythonExecutable(): string {
+  const candidates = process.platform === 'win32' ? ['python.exe', 'py.exe'] : ['python3', 'python']
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  for (const bin of candidates) {
+    for (const dir of dirs) {
+      const full = path.join(/*turbopackIgnore: true*/ dir, bin)
+      if (existsSync(full)) return full
+    }
+  }
+  return process.platform === 'win32' ? 'python' : 'python3'
+}
+
 type ManagedDebugger = {
+  runtimeKind: 'node-cdp' | 'python-pdb'
   proc: ChildProcess | null
   ws: WebSocket | null
   cwd: string
@@ -70,6 +83,8 @@ type ManagedDebugger = {
   error: string | null
   breakpointIds: string[]
   varsPromise: Promise<void> | null
+  pdbBuffer: string
+  pdbWaiters: Array<(chunk: string) => void>
 }
 
 const globalDebug = globalThis as typeof globalThis & {
@@ -267,6 +282,17 @@ export async function startDebugSession(options: {
   const cwd = path.resolve(options.cwd || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd())
   const absTarget = resolvePathInsideWorkspace(cwd, options.targetFile)
   const lower = absTarget.toLowerCase()
+
+  // 2C: Python real interactive debugger via built-in `python -u -m pdb`
+  if (lower.endsWith('.py')) {
+    return startPythonDebugSession({
+      cwd,
+      absTarget,
+      targetFile: options.targetFile.replace(/\\/g, '/'),
+      breakpoints: options.breakpoints ?? [],
+    })
+  }
+
   const isTs = lower.endsWith('.ts') || lower.endsWith('.mts') || lower.endsWith('.cts')
 
   const nodeArgs = [
@@ -284,6 +310,7 @@ export async function startDebugSession(options: {
   })
 
   const dbg: ManagedDebugger = {
+    runtimeKind: 'node-cdp',
     proc,
     ws: null,
     cwd,
@@ -298,6 +325,8 @@ export async function startDebugSession(options: {
     error: null,
     breakpointIds: [],
     varsPromise: null,
+    pdbBuffer: '',
+    pdbWaiters: [],
   }
   globalDebug.__vincezoneDebugger = dbg
 
@@ -432,6 +461,20 @@ export async function controlDebugSession(
   const dbg = globalDebug.__vincezoneDebugger
   if (!dbg) return getDebugSnapshot()
 
+  if (dbg.runtimeKind === 'python-pdb') {
+    const cmdMap = { resume: 'c', stepOver: 'n', stepInto: 's', stepOut: 'r' } as const
+    try {
+      const out = await sendPdbCommand(dbg, cmdMap[action])
+      parsePdbLocation(dbg, out)
+      if (dbg.status === 'paused') {
+        await refreshPdbState(dbg)
+      }
+    } catch (err) {
+      dbg.error = err instanceof Error ? err.message : String(err)
+    }
+    return getDebugSnapshot()
+  }
+
   const methodMap = {
     resume: 'Debugger.resume',
     stepOver: 'Debugger.stepOver',
@@ -452,7 +495,20 @@ export async function controlDebugSession(
 
 export async function updateLiveBreakpoints(breakpoints: DebugBreakpoint[]) {
   const dbg = globalDebug.__vincezoneDebugger
-  if (!dbg || !dbg.ws || dbg.ws.readyState !== WebSocket.OPEN) return
+  if (!dbg) return
+  if (dbg.runtimeKind === 'python-pdb') {
+    await sendPdbCommand(dbg, 'cl').catch(() => {})
+    for (const bp of breakpoints) {
+      try {
+        const abs = resolvePathInsideWorkspace(dbg.cwd, bp.path)
+        await sendPdbCommand(dbg, `b ${abs}:${bp.line}`)
+      } catch {
+        // ignore invalid path
+      }
+    }
+    return
+  }
+  if (!dbg.ws || dbg.ws.readyState !== WebSocket.OPEN) return
   await applyBreakpointsToSession(dbg, breakpoints)
 }
 
@@ -461,8 +517,21 @@ export async function evaluateDebugExpression(expression: string): Promise<{
   result: string
 }> {
   const dbg = globalDebug.__vincezoneDebugger
-  if (!dbg || dbg.status !== 'paused' || !dbg.callFrames[0]) {
+  if (!dbg || dbg.status !== 'paused') {
     return { ok: false, result: 'Debugger must be paused at a frame to evaluate expressions.' }
+  }
+  if (dbg.runtimeKind === 'python-pdb') {
+    try {
+      const raw = await sendPdbCommand(dbg, `p ${expression}`)
+      const clean = raw.replace(/\(Pdb\)\s*$/m, '').trim()
+      dbg.consoleLines.push(`> ${expression} => ${clean}`)
+      return { ok: !clean.startsWith('***'), result: clean || 'None' }
+    } catch (err) {
+      return { ok: false, result: err instanceof Error ? err.message : 'Python evaluation failed.' }
+    }
+  }
+  if (!dbg.callFrames[0]) {
+    return { ok: false, result: 'No active call frame available.' }
   }
   try {
     const res = (await sendCdp(dbg, 'Debugger.evaluateOnCallFrame', {
@@ -485,4 +554,262 @@ export async function evaluateDebugExpression(expression: string): Promise<{
   } catch (err) {
     return { ok: false, result: err instanceof Error ? err.message : 'Evaluation failed.' }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 2C: Python Interactive Debugger (`python -u -m pdb`) + Node Attach Inspector
+// ---------------------------------------------------------------------------
+
+function sendPdbCommand(dbg: ManagedDebugger, command: string, timeoutMs = 4000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!dbg.proc || dbg.proc.killed || dbg.proc.exitCode !== null) {
+      reject(new Error('Python debugger process is not running.'))
+      return
+    }
+    let collected = ''
+    const timer = setTimeout(() => {
+      dbg.pdbWaiters = dbg.pdbWaiters.filter((w) => w !== onChunk)
+      resolve(collected)
+    }, timeoutMs)
+
+    const onChunk = (chunk: string) => {
+      collected += chunk
+      if (collected.includes('(Pdb) ') || collected.includes('The program finished')) {
+        clearTimeout(timer)
+        dbg.pdbWaiters = dbg.pdbWaiters.filter((w) => w !== onChunk)
+        resolve(collected)
+      }
+    }
+    dbg.pdbWaiters.push(onChunk)
+    dbg.proc.stdin?.write(`${command}\n`)
+  })
+}
+
+function parsePdbLocation(dbg: ManagedDebugger, output: string) {
+  if (output.includes('The program finished')) {
+    dbg.status = 'exited'
+    dbg.callFrames = []
+    dbg.variables = []
+    return
+  }
+  const locMatch = output.match(/>\s+(.+?)\((\d+)\)([^(<\r\n]*)/)
+  if (locMatch) {
+    const rawFile = locMatch[1].trim()
+    const line = Number(locMatch[2]) || 1
+    const fnName = (locMatch[3] || '').replace(/\(\)$/, '').trim() || '<module>'
+    const rel = path.relative(dbg.cwd, rawFile).replace(/\\/g, '/')
+    const displayPath = rel && !rel.startsWith('..') ? rel : dbg.targetFile
+    dbg.status = 'paused'
+    dbg.callFrames = [
+      {
+        callFrameId: 'py-frame-0',
+        functionName: fnName,
+        path: displayPath,
+        line,
+        column: 1,
+      },
+    ]
+  }
+}
+
+async function refreshPdbState(dbg: ManagedDebugger) {
+  try {
+    const localsOut = await sendPdbCommand(
+      dbg,
+      `import json as _vzj; print('__VZLOCALS__' + _vzj.dumps({k: [type(v).__name__, repr(v)[:100]] for k, v in locals().items() if not k.startswith('__') and k != '_vzj'}))`,
+      2500,
+    )
+    const m = localsOut.match(/__VZLOCALS__(\{.*\})/)
+    if (m) {
+      const parsed = JSON.parse(m[1]) as Record<string, [string, string]>
+      dbg.variables = Object.entries(parsed)
+        .slice(0, 30)
+        .map(([name, [type, value]]) => ({ name, type, value }))
+    }
+  } catch {
+    // ignore unserializable locals
+  }
+}
+
+async function startPythonDebugSession(options: {
+  cwd: string
+  absTarget: string
+  targetFile: string
+  breakpoints: DebugBreakpoint[]
+}): Promise<DebugSnapshot> {
+  const pyBin = resolvePythonExecutable()
+  const proc = spawn(pyBin, ['-u', '-m', 'pdb', options.absTarget], {
+    cwd: options.cwd,
+    windowsHide: true,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+  })
+
+  const dbg: ManagedDebugger = {
+    runtimeKind: 'python-pdb',
+    proc,
+    ws: null,
+    cwd: options.cwd,
+    targetFile: options.targetFile,
+    status: 'starting',
+    nextMsgId: 1,
+    pending: new Map(),
+    scriptUrls: new Map(),
+    callFrames: [],
+    variables: [],
+    consoleLines: [`[Python Debugger] Launching ${options.targetFile} via pdb…`],
+    error: null,
+    breakpointIds: [],
+    varsPromise: null,
+    pdbBuffer: '',
+    pdbWaiters: [],
+  }
+  globalDebug.__vincezoneDebugger = dbg
+
+  const handleData = (chunk: Buffer, prefix = '') => {
+    const text = chunk.toString('utf8')
+    for (const waiter of [...dbg.pdbWaiters]) waiter(text)
+    for (const line of text.split(/\r?\n/).filter(Boolean)) {
+      if (line.includes('__VZLOCALS__')) continue
+      dbg.consoleLines.push(`${prefix}${line.slice(0, 280)}`)
+      if (dbg.consoleLines.length > 100) dbg.consoleLines.shift()
+    }
+  }
+
+  proc.stdout?.on('data', (c: Buffer) => handleData(c, ''))
+  proc.stderr?.on('data', (c: Buffer) => handleData(c, '[stderr] '))
+  proc.on('exit', (code) => {
+    dbg.status = 'exited'
+    dbg.callFrames = []
+    dbg.variables = []
+    dbg.consoleLines.push(`[Python Debugger] Exited with code ${code ?? 0}`)
+  })
+
+  // Wait for initial `(Pdb) ` prompt
+  const initialOut = await new Promise<string>((resolve) => {
+    let buf = ''
+    const timer = setTimeout(() => {
+      dbg.pdbWaiters = dbg.pdbWaiters.filter((w) => w !== onChunk)
+      resolve(buf)
+    }, 4500)
+    const onChunk = (c: string) => {
+      buf += c
+      if (buf.includes('(Pdb) ')) {
+        clearTimeout(timer)
+        dbg.pdbWaiters = dbg.pdbWaiters.filter((w) => w !== onChunk)
+        resolve(buf)
+      }
+    }
+    dbg.pdbWaiters.push(onChunk)
+  })
+
+  parsePdbLocation(dbg, initialOut)
+  for (const bp of options.breakpoints) {
+    try {
+      const abs = resolvePathInsideWorkspace(options.cwd, bp.path)
+      await sendPdbCommand(dbg, `b ${abs}:${bp.line}`)
+    } catch {
+      // ignore invalid bp
+    }
+  }
+  if (dbg.status === 'paused') {
+    await refreshPdbState(dbg)
+  }
+  return getDebugSnapshot()
+}
+
+/**
+ * Attaches to an already-running Node.js V8 Inspector on a local port (e.g. 9229).
+ */
+export async function attachNodeDebugSession(options: {
+  cwd: string
+  port?: number
+  wsUrl?: string
+}): Promise<DebugSnapshot> {
+  stopDebugSession()
+  const cwd = path.resolve(options.cwd || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd())
+  let wsUrl = options.wsUrl?.trim() || ''
+  if (!wsUrl) {
+    const port = Math.min(65535, Math.max(1024, Number(options.port) || 9229))
+    const res = await fetch(`http://127.0.0.1:${port}/json/list`, { cache: 'no-store' })
+    if (!res.ok) throw new Error(`No Node inspector found on 127.0.0.1:${port}`)
+    const targets = (await res.json()) as Array<{ webSocketDebuggerUrl?: string; title?: string }>
+    wsUrl = targets.find((t) => t.webSocketDebuggerUrl)?.webSocketDebuggerUrl || ''
+    if (!wsUrl) throw new Error(`Inspector on port ${port} has no WebSocket target.`)
+  }
+
+  const dbg: ManagedDebugger = {
+    runtimeKind: 'node-cdp',
+    proc: null,
+    ws: null,
+    cwd,
+    targetFile: `attach:${wsUrl}`,
+    status: 'running',
+    nextMsgId: 1,
+    pending: new Map(),
+    scriptUrls: new Map(),
+    callFrames: [],
+    variables: [],
+    consoleLines: [`[Debugger] Attached to running V8 Inspector (${wsUrl})`],
+    error: null,
+    breakpointIds: [],
+    varsPromise: null,
+    pdbBuffer: '',
+    pdbWaiters: [],
+  }
+  globalDebug.__vincezoneDebugger = dbg
+
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(wsUrl)
+    dbg.ws = ws
+    ws.addEventListener('open', () => resolve())
+    ws.addEventListener('error', () => reject(new Error('Failed to attach to Inspector WebSocket.')))
+    ws.addEventListener('message', (event) => {
+      try {
+        const msg = JSON.parse(String(event.data)) as {
+          id?: number
+          result?: unknown
+          error?: { message?: string }
+          method?: string
+          params?: Record<string, unknown>
+        }
+        if (typeof msg.id === 'number') {
+          const waiter = dbg.pending.get(msg.id)
+          if (waiter) {
+            dbg.pending.delete(msg.id)
+            if (msg.error) waiter.reject(new Error(msg.error.message || 'CDP error'))
+            else waiter.resolve(msg.result)
+          }
+          return
+        }
+        if (msg.method === 'Debugger.paused' && msg.params) {
+          dbg.status = 'paused'
+          const rawFrames =
+            (msg.params.callFrames as Array<{
+              callFrameId: string
+              functionName?: string
+              url?: string
+              location?: { scriptId?: string; lineNumber?: number; columnNumber?: number }
+              scopeChain?: Array<{ type?: string; object?: { objectId?: string } }>
+            }>) ?? []
+          dbg.callFrames = rawFrames.slice(0, 15).map((f) => ({
+            callFrameId: f.callFrameId,
+            functionName: f.functionName || '(top-level)',
+            path: normalizeScriptPath(f.url || '', dbg.cwd),
+            line: (f.location?.lineNumber ?? 0) + 1,
+            column: (f.location?.columnNumber ?? 0) + 1,
+          }))
+          dbg.varsPromise = populateTopFrameVariables(dbg, rawFrames)
+        } else if (msg.method === 'Debugger.resumed') {
+          dbg.status = 'running'
+        }
+      } catch {
+        // ignore
+      }
+    })
+  })
+
+  await sendCdp(dbg, 'Debugger.enable')
+  await sendCdp(dbg, 'Runtime.enable')
+  return getDebugSnapshot()
 }

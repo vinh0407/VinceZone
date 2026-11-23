@@ -1,16 +1,19 @@
 'use client'
 
 import {
+  Archive,
   Brain,
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
   FilePlus,
   Folder,
   FolderOpen,
   FolderPlus,
   GitBranch,
   GitCommitHorizontal,
+  GitCompareArrows,
   History,
   Minus,
   MoreHorizontal,
@@ -20,6 +23,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -76,6 +80,8 @@ export function ExplorerSidebar({
   onOpenSettings,
   onOpenAgents,
   onOpenDiff,
+  onOpenGitDiff,
+  provider,
 }: {
   sidePanel: SidePanel
   width?: number
@@ -111,16 +117,87 @@ export function ExplorerSidebar({
   onOpenSettings: () => void
   onOpenAgents: () => void
   onOpenDiff: () => void
+  onOpenGitDiff?: (path: string) => void
+  provider?: { baseUrl?: string; apiKey?: string; model?: string }
 }) {
   const tree = useMemo(() => buildFileTree(files), [files])
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false)
   const [searchRegex, setSearchRegex] = useState(false)
+  const [searchIncludeGlob, setSearchIncludeGlob] = useState('')
+  const [searchExcludeGlob, setSearchExcludeGlob] = useState('')
+  const [diskSearchResults, setDiskSearchResults] = useState<
+    Array<{ path: string; name: string; line: number; preview: string }> | null
+  >(null)
+  const [diskSearchStats, setDiskSearchStats] = useState<{ scanned: number; loading: boolean }>({
+    scanned: 0,
+    loading: false,
+  })
   const [replaceText, setReplaceText] = useState('')
   const [replaceFeedback, setReplaceFeedback] = useState('')
   const [collapsedSearchFiles, setCollapsedSearchFiles] = useState<Record<string, boolean>>({})
   const [expandedMemoryAgents, setExpandedMemoryAgents] = useState<Record<string, boolean>>({})
 
-  const searchMatches = useMemo(() => {
+  // 2A: Disk Search API across all 5,000 files (including lazy files!) when workspace is on disk
+  useEffect(() => {
+    if (sidePanel !== 'search') return
+    const q = searchQuery.trim()
+    if (!q || !rootPath) {
+      setDiskSearchResults(null)
+      setDiskSearchStats({ scanned: 0, loading: false })
+      return
+    }
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setDiskSearchStats((prev) => ({ ...prev, loading: true }))
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            action: 'search',
+            root: rootPath,
+            query: q,
+            caseSensitive: searchCaseSensitive,
+            regex: searchRegex,
+            includeGlob: searchIncludeGlob,
+            excludeGlob: searchExcludeGlob,
+          }),
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          ok?: boolean
+          matches?: Array<{ path: string; line: number; preview: string }>
+          totalFilesScanned?: number
+        }
+        if (data.ok && Array.isArray(data.matches)) {
+          setDiskSearchResults(
+            data.matches.map((m) => ({
+              ...m,
+              name: m.path.split('/').pop() || m.path,
+            })),
+          )
+          setDiskSearchStats({ scanned: data.totalFilesScanned ?? 0, loading: false })
+        }
+      } catch {
+        setDiskSearchStats((prev) => ({ ...prev, loading: false }))
+      }
+    }, 240)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [
+    rootPath,
+    searchCaseSensitive,
+    searchExcludeGlob,
+    searchIncludeGlob,
+    searchQuery,
+    searchRegex,
+    sidePanel,
+  ])
+
+  const memorySearchMatches = useMemo(() => {
     const q = searchQuery.trim()
     if (!q) return []
     if (!searchCaseSensitive && !searchRegex) {
@@ -158,6 +235,8 @@ export function ExplorerSidebar({
     return matches
   }, [files, searchCaseSensitive, searchQuery, searchRegex])
 
+  const searchMatches = diskSearchResults ?? memorySearchMatches
+
   const groupedSearchMatches = useMemo(() => {
     const map = new Map<
       string,
@@ -183,12 +262,22 @@ export function ExplorerSidebar({
   const [gitStatus, setGitStatus] = useState<{
     isRepo: boolean
     branch: string
+    branches?: string[]
+    stashes?: Array<{ ref: string; message: string }>
+    conflicts?: string[]
     ahead: number
     behind: number
-    changes: Array<{ path: string; indexStatus: string; worktreeStatus: string; staged: boolean }>
+    changes: Array<{
+      path: string
+      indexStatus: string
+      worktreeStatus: string
+      staged: boolean
+      conflicted?: boolean
+    }>
     commits: Array<{ hash: string; subject: string; author: string; relativeTime: string }>
     error?: string
   } | null>(null)
+  const [aiCommitLoading, setAiCommitLoading] = useState(false)
 
   const loadGitStatus = useCallback(async () => {
     setGitLoading(true)
@@ -232,8 +321,21 @@ export function ExplorerSidebar({
 
   const runGitAction = useCallback(
     async (
-      action: 'stage' | 'stage-all' | 'unstage' | 'commit' | 'push' | 'discard',
-      extra?: { path?: string; message?: string },
+      action:
+        | 'stage'
+        | 'stage-all'
+        | 'unstage'
+        | 'commit'
+        | 'push'
+        | 'pull'
+        | 'fetch'
+        | 'checkout'
+        | 'create-branch'
+        | 'stash-push'
+        | 'stash-pop'
+        | 'resolve-conflict'
+        | 'discard',
+      extra?: { path?: string; message?: string; branch?: string; strategy?: 'ours' | 'theirs' | 'both' },
     ) => {
       setGitBusyAction(true)
       setGitFeedback(null)
@@ -253,12 +355,18 @@ export function ExplorerSidebar({
             text:
               action === 'commit'
                 ? 'Committed cleanly.'
-                : action === 'push'
-                  ? data.output || 'Pushed to remote.'
-                  : `${action} succeeded.`,
+                : data.output || `${action} succeeded.`,
           })
           await loadGitStatus()
-          if (action === 'discard') onRefresh()
+          if (
+            action === 'discard' ||
+            action === 'pull' ||
+            action === 'checkout' ||
+            action === 'stash-pop' ||
+            action === 'resolve-conflict'
+          ) {
+            onRefresh()
+          }
         }
       } catch (error) {
         setGitFeedback({
@@ -492,7 +600,34 @@ export function ExplorerSidebar({
                 <button
                   type="button"
                   disabled={!searchQuery.trim() || searchMatches.length === 0}
-                  onClick={() => {
+                  onClick={async () => {
+                    if (rootPath) {
+                      const res = await fetch('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'replace',
+                          root: rootPath,
+                          query: searchQuery,
+                          replacement: replaceText,
+                          caseSensitive: searchCaseSensitive,
+                          regex: searchRegex,
+                          includeGlob: searchIncludeGlob,
+                          excludeGlob: searchExcludeGlob,
+                        }),
+                      }).catch(() => null)
+                      if (res?.ok) {
+                        const data = (await res.json()) as {
+                          filesUpdated?: number
+                          occurrences?: number
+                        }
+                        setReplaceFeedback(
+                          `Disk replaced ${data.occurrences ?? 0} match(es) in ${data.filesUpdated ?? 0} file(s).`,
+                        )
+                        onRefresh()
+                        return
+                      }
+                    }
                     const outcome = onReplaceInFiles(searchQuery, replaceText, {
                       caseSensitive: searchCaseSensitive,
                       regex: searchRegex,
@@ -502,10 +637,26 @@ export function ExplorerSidebar({
                     )
                   }}
                   className="shrink-0 rounded bg-[#e5e5e5] px-2 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-35"
-                  title="Replace all matches across workspace (auto-records REV-xxx)"
+                  title="Replace all matches across workspace (including lazy disk files)"
                 >
                   Replace All
                 </button>
+              </div>
+            )}
+            {rootPath && (
+              <div className="grid grid-cols-2 gap-1">
+                <input
+                  value={searchIncludeGlob}
+                  onChange={(e) => setSearchIncludeGlob(e.target.value)}
+                  placeholder="Include (*.ts)"
+                  className="min-w-0 rounded border border-[#2c2c2c] bg-[#121212] px-1.5 py-1 font-mono text-[9.5px] text-[#cccccc] outline-none placeholder:text-[#666666] focus:border-[#555555]"
+                />
+                <input
+                  value={searchExcludeGlob}
+                  onChange={(e) => setSearchExcludeGlob(e.target.value)}
+                  placeholder="Exclude (*.test.ts)"
+                  className="min-w-0 rounded border border-[#2c2c2c] bg-[#121212] px-1.5 py-1 font-mono text-[9.5px] text-[#cccccc] outline-none placeholder:text-[#666666] focus:border-[#555555]"
+                />
               </div>
             )}
             {replaceFeedback && (
@@ -518,8 +669,10 @@ export function ExplorerSidebar({
           <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
             {!searchQuery.trim() ? (
               <p className="text-[11px] leading-4 text-[#858585]">
-                Search &amp; Replace across {files.length} workspace file{files.length === 1 ? '' : 's'}.
+                Disk Search &amp; Replace across {files.length} workspace file{files.length === 1 ? '' : 's'} (including lazy files).
               </p>
+            ) : diskSearchStats.loading ? (
+              <p className="text-[11px] text-[#a3a3a3]">Scanning workspace disk…</p>
             ) : groupedSearchMatches.length === 0 ? (
               <p className="text-[11px] text-[#858585]">
                 No matches for &ldquo;{searchQuery}&rdquo;.
@@ -529,6 +682,7 @@ export function ExplorerSidebar({
                 <p className="mb-1.5 text-[10px] text-[#858585]">
                   {searchMatches.length} result{searchMatches.length === 1 ? '' : 's'} in{' '}
                   {groupedSearchMatches.length} file{groupedSearchMatches.length === 1 ? '' : 's'}
+                  {diskSearchStats.scanned > 0 ? ` · ${diskSearchStats.scanned} disk files` : ''}
                 </p>
                 {groupedSearchMatches.map((group) => {
                   const collapsed = Boolean(collapsedSearchFiles[group.path])
@@ -581,12 +735,44 @@ export function ExplorerSidebar({
       {sidePanel === 'git' && (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-y border-[#2b2b2b] p-2.5">
           <div className="mb-2 flex items-center justify-between gap-1.5">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#e5e5e5]">
-              <GitBranch size={12} />
-              <span className="truncate font-mono">{gitStatus?.branch || 'git'}</span>
-            </span>
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <GitBranch size={12} className="shrink-0 text-[#d4d4d4]" />
+              {gitStatus?.branches && gitStatus.branches.length > 0 ? (
+                <select
+                  value={gitStatus.branch}
+                  disabled={gitBusyAction}
+                  onChange={(e) => void runGitAction('checkout', { branch: e.target.value })}
+                  className="min-w-0 flex-1 truncate rounded border border-[#333333] bg-[#141414] px-1.5 py-0.5 font-mono text-[10px] text-[#e5e5e5] outline-none"
+                  title="Switch Git branch"
+                >
+                  {gitStatus.branches.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="truncate font-mono text-[11px] font-semibold text-[#e5e5e5]">
+                  {gitStatus?.branch || 'git'}
+                </span>
+              )}
+              {gitStatus?.isRepo && (
+                <button
+                  type="button"
+                  disabled={gitBusyAction}
+                  onClick={() => {
+                    const name = window.prompt('Create & switch to new branch:', 'feat/')
+                    if (name?.trim()) void runGitAction('create-branch', { branch: name.trim() })
+                  }}
+                  className="mini-button shrink-0"
+                  title="Create new branch (git checkout -b)"
+                >
+                  <Plus size={11} />
+                </button>
+              )}
+            </div>
             {gitStatus?.isRepo && (
-              <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#a3a3a3]">
+              <span className="shrink-0 rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#a3a3a3]">
                 ↑{gitStatus.ahead} ↓{gitStatus.behind}
               </span>
             )}
@@ -602,7 +788,7 @@ export function ExplorerSidebar({
                   placeholder="Commit message (e.g. feat: upgrade editor)…"
                   className="w-full resize-none rounded border border-[#333333] bg-[#1b1b1b] px-2 py-1 text-[11px] text-white outline-none placeholder:text-[#6e6e6e] focus:border-[#737373]"
                 />
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1">
                   <button
                     type="button"
                     disabled={gitBusyAction || !gitCommitMessage.trim()}
@@ -613,12 +799,81 @@ export function ExplorerSidebar({
                   </button>
                   <button
                     type="button"
+                    disabled={aiCommitLoading}
+                    onClick={async () => {
+                      setAiCommitLoading(true)
+                      try {
+                        const res = await fetch('/api/git', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'ai-commit-message',
+                            root: rootPath,
+                            baseUrl: provider?.baseUrl,
+                            apiKey: provider?.apiKey,
+                            model: provider?.model,
+                          }),
+                        })
+                        const data = (await res.json()) as {
+                          ok?: boolean
+                          message?: string
+                          error?: string
+                        }
+                        if (data.ok && data.message) {
+                          setGitCommitMessage(data.message)
+                          setGitFeedback({ ok: true, text: 'AI generated commit message.' })
+                        } else {
+                          setGitFeedback({
+                            ok: false,
+                            text: data.error || 'Could not generate commit message.',
+                          })
+                        }
+                      } finally {
+                        setAiCommitLoading(false)
+                      }
+                    }}
+                    className="flex items-center gap-1 rounded border border-[#3a3a3a] bg-[#222222] px-2 py-1 text-[10px] text-[#e5e5e5] hover:bg-[#2d2d2d] disabled:opacity-35"
+                    title="AI tạo Commit Message tự động từ git diff"
+                  >
+                    <Sparkles size={10} className={aiCommitLoading ? 'animate-spin' : ''} /> AI
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  <button
+                    type="button"
+                    disabled={gitBusyAction}
+                    onClick={() => void runGitAction('pull')}
+                    className="flex items-center justify-center gap-1 rounded border border-[#333333] bg-[#1e1e1e] py-1 text-[9.5px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white disabled:opacity-35"
+                    title="git pull --ff-only"
+                  >
+                    <Download size={10} /> Pull
+                  </button>
+                  <button
+                    type="button"
                     disabled={gitBusyAction}
                     onClick={() => void runGitAction('push')}
-                    className="flex items-center justify-center gap-1 rounded border border-[#3a3a3a] bg-[#222222] px-2 py-1 text-[10px] text-[#e5e5e5] hover:bg-[#2d2d2d] disabled:opacity-35"
+                    className="flex items-center justify-center gap-1 rounded border border-[#333333] bg-[#1e1e1e] py-1 text-[9.5px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white disabled:opacity-35"
                     title="git push"
                   >
-                    <Upload size={11} /> Push
+                    <Upload size={10} /> Push
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gitBusyAction}
+                    onClick={() => void runGitAction('stash-push')}
+                    className="flex items-center justify-center gap-1 rounded border border-[#333333] bg-[#1e1e1e] py-1 text-[9.5px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white disabled:opacity-35"
+                    title="git stash push"
+                  >
+                    <Archive size={10} /> Stash
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gitBusyAction || !(gitStatus.stashes?.length)}
+                    onClick={() => void runGitAction('stash-pop')}
+                    className="flex items-center justify-center gap-1 rounded border border-[#333333] bg-[#1e1e1e] py-1 text-[9.5px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white disabled:opacity-30"
+                    title={`git stash pop (${gitStatus.stashes?.length ?? 0} stashed)`}
+                  >
+                    Pop{gitStatus.stashes?.length ? ` (${gitStatus.stashes.length})` : ''}
                   </button>
                 </div>
                 {gitFeedback && (
@@ -633,6 +888,46 @@ export function ExplorerSidebar({
                   </p>
                 )}
               </div>
+
+              {gitStatus.conflicts && gitStatus.conflicts.length > 0 && (
+                <div className="mb-3 rounded border border-[#6e2e2e] bg-[#241414] p-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#f48771]">
+                    Merge Conflicts ({gitStatus.conflicts.length})
+                  </p>
+                  <div className="space-y-1.5">
+                    {gitStatus.conflicts.map((cPath) => (
+                      <div key={cPath} className="rounded bg-[#181010] p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpenFile(cPath)}
+                          className="block w-full truncate text-left font-mono text-[10px] text-white hover:underline"
+                        >
+                          {cPath}
+                        </button>
+                        <div className="mt-1 grid grid-cols-3 gap-1">
+                          {(['ours', 'theirs', 'both'] as const).map((strategy) => (
+                            <button
+                              key={strategy}
+                              type="button"
+                              disabled={gitBusyAction}
+                              onClick={() =>
+                                void runGitAction('resolve-conflict', { path: cPath, strategy })
+                              }
+                              className="rounded border border-[#444444] bg-[#262626] py-0.5 text-[9px] font-medium capitalize text-[#e5e5e5] hover:bg-[#383838]"
+                            >
+                              {strategy === 'ours'
+                                ? 'Current'
+                                : strategy === 'theirs'
+                                  ? 'Incoming'
+                                  : 'Both'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {(() => {
                 const staged = gitStatus.changes.filter((item) => item.staged)
@@ -661,11 +956,24 @@ export function ExplorerSidebar({
                             >
                               <button
                                 type="button"
-                                onClick={() => onOpenFile(item.path)}
+                                onClick={() =>
+                                  onOpenGitDiff ? onOpenGitDiff(item.path) : onOpenFile(item.path)
+                                }
                                 className="min-w-0 flex-1 truncate text-left font-mono text-[10px]"
+                                title="Mở Monaco Side-by-Side Diff (HEAD vs hiện tại)"
                               >
                                 {item.path}
                               </button>
+                              {onOpenGitDiff && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenGitDiff(item.path)}
+                                  className="rounded p-0.5 text-[#858585] hover:bg-[#333333] hover:text-white"
+                                  title="Side-by-Side Diff"
+                                >
+                                  <GitCompareArrows size={10} />
+                                </button>
+                              )}
                               <span className="font-mono text-[9px] text-[#a3a3a3]">
                                 {item.indexStatus}
                               </span>
@@ -709,11 +1017,24 @@ export function ExplorerSidebar({
                             >
                               <button
                                 type="button"
-                                onClick={() => onOpenFile(item.path)}
+                                onClick={() =>
+                                  onOpenGitDiff ? onOpenGitDiff(item.path) : onOpenFile(item.path)
+                                }
                                 className="min-w-0 flex-1 truncate text-left font-mono text-[10px]"
+                                title="Mở Monaco Side-by-Side Diff (HEAD vs hiện tại)"
                               >
                                 {item.path}
                               </button>
+                              {onOpenGitDiff && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenGitDiff(item.path)}
+                                  className="rounded p-0.5 text-[#858585] hover:bg-[#333333] hover:text-white"
+                                  title="Side-by-Side Diff"
+                                >
+                                  <GitCompareArrows size={10} />
+                                </button>
+                              )}
                               <span className="font-mono text-[9px] text-[#e2c08d]">
                                 {item.worktreeStatus === '?' ? 'U' : item.worktreeStatus || 'M'}
                               </span>

@@ -6,6 +6,7 @@ import type {
   AgentLayout,
   AgentTask,
   AppSettings,
+  ChatImageAttachment,
   CommandApprovalItem,
   CommunicationEvent,
   MailKind,
@@ -33,6 +34,7 @@ import {
   getCaptainAgent,
   getViceCaptainAgent,
 } from '@/lib/command-hierarchy'
+import { buildCompactedHistory } from '@/lib/context-compact'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
 import { hashText } from '@/lib/file-tree'
 import {
@@ -1011,10 +1013,19 @@ export function useOrchestration({
       agent: Agent,
       delegatedText?: string,
       delegated = false,
-      options?: { forceDirectChat?: boolean; handoffDepth?: number; replyToAgentId?: string },
+      options?: {
+        forceDirectChat?: boolean
+        handoffDepth?: number
+        replyToAgentId?: string
+        images?: ChatImageAttachment[]
+      },
     ) => {
-      const text = delegatedText?.trim() || drafts[agent.id]?.trim()
-      if (!text) return
+      const attachedImages = options?.images ?? []
+      const text =
+        delegatedText?.trim() ||
+        drafts[agent.id]?.trim() ||
+        (attachedImages.length > 0 ? 'Phân tích hình ảnh đính kèm này và đề xuất/thực hiện chỉnh sửa.' : '')
+      if (!text && attachedImages.length === 0) return
 
       if (!delegated && onPromptRollback && parseRollbackPrompt(text)) {
         const rollbackOutcome = onPromptRollback(text)
@@ -1103,6 +1114,7 @@ export function useOrchestration({
         !options?.forceDirectChat &&
         !delegated &&
         !isShortGreeting &&
+        attachedImages.length === 0 &&
         agentsRef.current.length > 1 &&
         isCaptainOrVice &&
         providerReady
@@ -1113,7 +1125,12 @@ export function useOrchestration({
         return
       }
 
-      const userMessage: Message = { id: uid(), role: 'user', text }
+      const userMessage: Message = {
+        id: uid(),
+        role: 'user',
+        text,
+        ...(attachedImages.length > 0 ? { images: attachedImages } : {}),
+      }
       setAiActivity('reading')
       if (!delegated) setDrafts((current) => ({ ...current, [agent.id]: '' }))
       const slashResolved = await resolveSlashContext(text)
@@ -1182,6 +1199,18 @@ export function useOrchestration({
         .filter(Boolean)
         .join('\n\n')
 
+      const { apiMessages: compactedHistory } = buildCompactedHistory(agent.messages, 14)
+      const userOutgoingContent =
+        attachedImages.length > 0
+          ? [
+              { type: 'text' as const, text },
+              ...attachedImages.slice(0, 4).map((img) => ({
+                type: 'image_url' as const,
+                image_url: { url: img.dataUrl },
+              })),
+            ]
+          : text
+
       try {
         const response = await fetch('/api/chat', {
           method: 'POST',
@@ -1195,17 +1224,8 @@ export function useOrchestration({
             mcpServers: appSettings.mcpServers,
             messages: [
               { role: 'system', content: systemPrompt },
-              ...agent.messages
-                .filter((message) => message.role !== 'tool')
-                .slice(-14)
-                .map((message) => ({
-                  role: message.role === 'agent' ? 'user' : message.role,
-                  content:
-                    message.role === 'agent'
-                      ? `Delegated by ${message.from ?? 'another agent'}: ${message.text}`
-                      : message.text,
-                })),
-              { role: 'user', content: text },
+              ...compactedHistory,
+              { role: 'user', content: userOutgoingContent },
             ],
           }),
         })

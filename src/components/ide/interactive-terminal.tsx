@@ -253,6 +253,16 @@ export function InteractiveTerminal({
       }
     })
 
+    const resizeDisposable = term.onResize(({ cols, rows }) => {
+      const sid = activeTabRef.current
+      if (!sid) return
+      void fetch('/api/terminal/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resize', id: sid, cols, rows }),
+      }).catch(() => {})
+    })
+
     const observer = new ResizeObserver(() => {
       try {
         fit.fit()
@@ -264,6 +274,7 @@ export function InteractiveTerminal({
 
     return () => {
       dataDisposable.dispose()
+      resizeDisposable.dispose()
       observer.disconnect()
       term.dispose()
       termRef.current = null

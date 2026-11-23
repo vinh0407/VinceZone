@@ -36,6 +36,8 @@ import type {
   AgentTask,
   AgentView,
   AppSettings,
+  ChatImageAttachment,
+  ChatThreadSnapshot,
   CommandApprovalItem,
   CommunicationEvent,
   InlineHunkReview,
@@ -106,13 +108,23 @@ function cloneProjectSession(session: ProjectSessionData): ProjectSessionData {
   return {
     agents: session.agents.map((a) => ({
       ...a,
-      messages: a.messages.map((m) => ({ ...m })),
+      messages: a.messages.map((m) => ({
+        ...m,
+        images: m.images ? m.images.map((img) => ({ ...img })) : undefined,
+      })),
     })),
     agentTasks: session.agentTasks.map((t) => ({ ...t })),
     communicationEvents: session.communicationEvents.map((e) => ({ ...e })),
     proposedPatches: session.proposedPatches.map((p) => ({ ...p })),
     revisions: session.revisions.map((r) => ({ ...r })),
     memoryNotes: session.memoryNotes.map((n) => ({ ...n })),
+    chatThreads: (session.chatThreads ?? []).map((t) => ({
+      ...t,
+      agents: t.agents.map((a) => ({
+        ...a,
+        messages: a.messages.map((m) => ({ ...m })),
+      })),
+    })),
   }
 }
 
@@ -147,6 +159,7 @@ function createFreshSession(projectName: string): ProjectSessionData {
     proposedPatches: [],
     revisions: [],
     memoryNotes: defaultMemoryNotes.map((note) => ({ ...note, id: `${note.id}-${uid()}` })),
+    chatThreads: [],
   }
 }
 
@@ -198,6 +211,26 @@ export function IDEWorkspace() {
   const [debugSnapshot, setDebugSnapshot] = useState<DebugSnapshot | null>(null)
   const [commandApprovals, setCommandApprovals] = useState<CommandApprovalItem[]>([])
   const [hunkReviews, setHunkReviews] = useState<Record<string, InlineHunkReview>>({})
+  const [chatThreads, setChatThreads] = useState<ChatThreadSnapshot[]>([])
+  const [gitDiffView, setGitDiffView] = useState<{
+    path: string
+    original: string
+    modified: string
+    language: string
+  } | null>(null)
+  const sendMessageRef = useRef<
+    ((
+      agent: Agent,
+      delegatedText?: string,
+      delegated?: boolean,
+      options?: {
+        forceDirectChat?: boolean
+        handoffDepth?: number
+        replyToAgentId?: string
+        images?: ChatImageAttachment[]
+      },
+    ) => Promise<void>) | null
+  >(null)
   const [pendingTerminalCmd, setPendingTerminalCmd] = useState<{
     command: string
     seq: number
@@ -245,6 +278,7 @@ export function IDEWorkspace() {
     proposedPatches,
     revisions,
     memoryNotes,
+    chatThreads,
   })
   sessionRef.current = {
     agents,
@@ -253,6 +287,7 @@ export function IDEWorkspace() {
     proposedPatches,
     revisions,
     memoryNotes,
+    chatThreads,
   }
 
   const activeProjectIdRef = useRef(activeProjectId)
@@ -287,6 +322,7 @@ export function IDEWorkspace() {
             proposedPatches: sessionData.proposedPatches,
             revisions: sessionData.revisions,
             memoryNotes: sessionData.memoryNotes,
+            chatThreads: sessionData.chatThreads ?? [],
           },
         }),
       }).catch(() => {})
@@ -325,6 +361,7 @@ export function IDEWorkspace() {
       proposedPatches: cloned.proposedPatches ?? [],
       revisions: cloned.revisions ?? [],
       memoryNotes: cloned.memoryNotes?.length ? cloned.memoryNotes : defaultMemoryNotes,
+      chatThreads: cloned.chatThreads ?? [],
     }
     sessionRef.current = normalizedSession
     setAgents(nextAgents)
@@ -333,6 +370,7 @@ export function IDEWorkspace() {
     setProposedPatches(normalizedSession.proposedPatches)
     setRevisions(normalizedSession.revisions)
     setMemoryNotes(normalizedSession.memoryNotes)
+    setChatThreads(normalizedSession.chatThreads ?? [])
     setPendingApproval(null)
     setDrafts({})
     setBridgeMessages([])
@@ -404,6 +442,7 @@ export function IDEWorkspace() {
               memoryNotes: diskSession.memoryNotes?.length
                 ? diskSession.memoryNotes
                 : defaultMemoryNotes,
+              chatThreads: diskSession.chatThreads ?? [],
             }
           } else if (existingTarget?.session?.agents?.length && !isSameProject) {
             nextTargetSession = cloneProjectSession(existingTarget.session)
@@ -791,6 +830,7 @@ export function IDEWorkspace() {
           proposedPatches: proposedPatches.slice(0, 40),
           revisions: (overrides?.revisions ?? revisions).slice(-30),
           memoryNotes: overrides?.memoryNotes ?? memoryNotes,
+          chatThreads: chatThreads.slice(0, 20),
         }
       const nextProjects = (overrides?.projects ?? projects).map((project) =>
         project.id === nextActiveId
@@ -848,6 +888,7 @@ export function IDEWorkspace() {
       agentTasks,
       agents,
       appSettings,
+      chatThreads,
       communicationEvents,
       files,
       memoryNotes,
@@ -928,6 +969,7 @@ export function IDEWorkspace() {
             revisions,
             memoryNotes,
             usageRecords,
+            chatThreads,
           },
         }),
       }).catch(() => {})
@@ -938,6 +980,7 @@ export function IDEWorkspace() {
     activeProject?.rootPath,
     agentTasks,
     agents,
+    chatThreads,
     communicationEvents,
     memoryNotes,
     proposedPatches,
@@ -1352,6 +1395,17 @@ export function IDEWorkspace() {
               : a,
           ),
         )
+        // 1B: Automatically resume the AI agent loop with the command's real execution output!
+        const targetAgent = agents.find((a) => a.id === target.agentId) ?? agents[0]
+        if (targetAgent && sendMessageRef.current) {
+          const exitCode = data.exitCode ?? (ok ? 0 : 1)
+          const continuation = `The user approved and executed your shell command:\n\`${target.command}\`\nExit code: ${exitCode}\nOutput:\n\`\`\`\n${outText.slice(0, 2800)}\n\`\`\`\nContinue directly with the remaining implementation/fix based on this output.`
+          window.setTimeout(() => {
+            void sendMessageRef.current?.(targetAgent, continuation, true, {
+              forceDirectChat: true,
+            })
+          }, 120)
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Execution failed.'
         setCommandApprovals((current) =>
@@ -1361,38 +1415,172 @@ export function IDEWorkspace() {
         )
       }
     },
-    [activeProject?.rootPath, commandApprovals],
+    [activeProject?.rootPath, agents, commandApprovals],
   )
 
-  const handleRejectCommand = useCallback((id: string) => {
-    const target = commandApprovals.find((item) => item.id === id)
-    setCommandApprovals((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, status: 'rejected', output: 'Denied by user.' }
-          : item,
-      ),
-    )
-    if (target) {
-      setAgents((current) =>
-        current.map((a) =>
-          a.id === target.agentId
-            ? {
-                ...a,
-                messages: [
-                  ...a.messages,
-                  {
-                    id: uid(),
-                    role: 'tool',
-                    text: `User denied shell command: \`${target.command}\`.`,
-                  },
-                ],
-              }
-            : a,
+  const handleRejectCommand = useCallback(
+    (id: string) => {
+      const target = commandApprovals.find((item) => item.id === id)
+      setCommandApprovals((current) =>
+        current.map((item) =>
+          item.id === id
+            ? { ...item, status: 'rejected', output: 'Denied by user.' }
+            : item,
         ),
       )
+      if (target) {
+        setAgents((current) =>
+          current.map((a) =>
+            a.id === target.agentId
+              ? {
+                  ...a,
+                  messages: [
+                    ...a.messages,
+                    {
+                      id: uid(),
+                      role: 'tool',
+                      text: `User denied shell command: \`${target.command}\`.`,
+                    },
+                  ],
+                }
+              : a,
+          ),
+        )
+        const targetAgent = agents.find((a) => a.id === target.agentId) ?? agents[0]
+        if (targetAgent && sendMessageRef.current) {
+          const notice = `The user DENIED executing shell command \`${target.command}\`. Respect this decision and proceed with a safe alternative or explain next steps without re-requesting the denied command.`
+          window.setTimeout(() => {
+            void sendMessageRef.current?.(targetAgent, notice, true, { forceDirectChat: true })
+          }, 120)
+        }
+      }
+    },
+    [agents, commandApprovals],
+  )
+
+  // 1C: Multi-Thread Chat History per Project (New Chat + Switch Thread)
+  const handleNewChatThread = useCallback(() => {
+    const projectLabel = activeProject?.name ?? 'VinceZone Studio'
+    const currentAgents = sessionRef.current.agents
+    const totalMsgs = currentAgents.reduce(
+      (sum, a) => sum + a.messages.filter((m) => m.role === 'user').length,
+      0,
+    )
+    if (totalMsgs > 0) {
+      const firstUserMsg =
+        currentAgents
+          .flatMap((a) => a.messages)
+          .find((m) => m.role === 'user' && m.text.trim())?.text || 'Chat Session'
+      const snapshot: ChatThreadSnapshot = {
+        id: `thread-${uid()}`,
+        title: firstUserMsg.replace(/\s+/g, ' ').trim().slice(0, 56),
+        updatedAt: new Date().toISOString(),
+        messageCount: currentAgents.reduce((sum, a) => sum + a.messages.length, 0),
+        agents: currentAgents.map((a) => ({
+          ...a,
+          messages: a.messages.map((m) => ({ ...m })),
+        })),
+      }
+      setChatThreads((prev) => [snapshot, ...prev].slice(0, 20))
     }
-  }, [commandApprovals])
+
+    // Preserve team roles/models/Captain/Vice while starting clean conversation threads
+    const resetAgents = currentAgents.map((a, idx) => ({
+      ...a,
+      status: 'idle' as const,
+      currentTask: undefined,
+      composingPrompt: undefined,
+      messages:
+        idx === 0
+          ? [
+              {
+                id: uid(),
+                role: 'assistant' as const,
+                text: `[${projectLabel}] New chat thread started. Previous conversation saved to History.`,
+              },
+            ]
+          : [],
+    }))
+    setAgents(resetAgents)
+    setDrafts({})
+    setCommandApprovals([])
+    setPendingApproval(null)
+  }, [activeProject?.name])
+
+  const handleSelectChatThread = useCallback(
+    (threadId: string) => {
+      const target = chatThreads.find((t) => t.id === threadId)
+      if (!target) return
+      const currentAgents = sessionRef.current.agents
+      const currentHasUser = currentAgents.some((a) => a.messages.some((m) => m.role === 'user'))
+      const archivedCurrent: ChatThreadSnapshot | null = currentHasUser
+        ? {
+            id: `thread-${uid()}`,
+            title: (
+              currentAgents
+                .flatMap((a) => a.messages)
+                .find((m) => m.role === 'user' && m.text.trim())?.text || 'Previous Thread'
+            )
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 56),
+            updatedAt: new Date().toISOString(),
+            messageCount: currentAgents.reduce((sum, a) => sum + a.messages.length, 0),
+            agents: currentAgents.map((a) => ({
+              ...a,
+              messages: a.messages.map((m) => ({ ...m })),
+            })),
+          }
+        : null
+
+      setChatThreads((prev) => [
+        ...(archivedCurrent ? [archivedCurrent] : []),
+        ...prev.filter((t) => t.id !== threadId),
+      ].slice(0, 20))
+      setAgents(target.agents.map((a) => ({ ...a, messages: a.messages.map((m) => ({ ...m })) })))
+      setDrafts({})
+    },
+    [chatThreads],
+  )
+
+  // 2B: Open Monaco Side-by-Side Git Diff (HEAD vs current working tree)
+  const handleOpenGitDiff = useCallback(
+    async (filePath: string) => {
+      try {
+        const res = await fetch('/api/git', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'file-diff-contents',
+            root: activeProject?.rootPath,
+            path: filePath,
+          }),
+        })
+        if (!res.ok) {
+          openFile(filePath)
+          return
+        }
+        const data = (await res.json()) as {
+          ok?: boolean
+          path?: string
+          original?: string
+          modified?: string
+        }
+        if (data.ok) {
+          setWorkspaceMode('ide')
+          setGitDiffView({
+            path: data.path || filePath,
+            original: data.original ?? '',
+            modified: data.modified ?? '',
+            language: inferLanguage(filePath),
+          })
+        }
+      } catch {
+        openFile(filePath)
+      }
+    },
+    [activeProject?.rootPath],
+  )
 
   // P1-4: Per-Hunk Inline Diff selective Accept / Reject handlers
   const handleHunkDecision = useCallback(
@@ -1495,6 +1683,7 @@ export function IDEWorkspace() {
       onCommandApproval: handleCommandApprovalRequest,
       onPromptRollback: handlePromptRollback,
     })
+  sendMessageRef.current = sendMessage
 
   const updateFile = (content = '') => {
     if (!activePath) return
@@ -1733,6 +1922,7 @@ export function IDEWorkspace() {
               memoryNotes: diskSession.memoryNotes?.length
                 ? diskSession.memoryNotes
                 : defaultMemoryNotes,
+              chatThreads: diskSession.chatThreads ?? [],
             }
             hydrateSession(hydrated)
           }
@@ -2514,13 +2704,13 @@ export function IDEWorkspace() {
     setDebugLine(Math.max(1, cursor.line || 1))
     setDebugState('starting')
 
-    // Real V8 Inspector CDP Debugging for Node JS/TS scripts
-    const isNodeDebuggable =
+    // Real V8 Inspector CDP Debugging for Node JS/TS + Python interactive `pdb` Debugging for `.py`
+    const isLiveDebuggable =
       Boolean(currentFile) &&
-      (/\.(js|mjs|cjs|mts|cts)$/i.test(lowerPath) ||
+      (/\.(js|mjs|cjs|mts|cts|py)$/i.test(lowerPath) ||
         (lowerPath.endsWith('.ts') && !lowerPath.endsWith('.d.ts') && !lowerPath.endsWith('.tsx')))
 
-    if (isNodeDebuggable && currentFile) {
+    if (isLiveDebuggable && currentFile) {
       try {
         const res = await fetch('/api/debug', {
           method: 'POST',
@@ -2766,6 +2956,8 @@ export function IDEWorkspace() {
                   onOpenSettings={() => setSettingsOpen(true)}
                   onOpenAgents={() => setWorkspaceMode('agents')}
                   onOpenDiff={() => setDiffModalState({ open: true })}
+                  onOpenGitDiff={(path) => void handleOpenGitDiff(path)}
+                  provider={savedProvider}
                 />
                 <div
                   data-resize="explorer"
@@ -2798,12 +2990,14 @@ export function IDEWorkspace() {
                 breakpoints={breakpoints}
                 debugActiveLocation={debugSnapshot?.activeLocation ?? null}
                 hunkReview={activePath ? (hunkReviews[activePath] ?? null) : null}
+                gitDiffView={gitDiffView}
                 onToggleBreakpoint={toggleBreakpoint}
                 onNavigateToFile={(targetPath, line) => openFile(targetPath, line)}
                 onHunkDecision={handleHunkDecision}
                 onAcceptAllHunks={handleAcceptAllHunks}
                 onRejectAllHunks={handleRejectAllHunks}
                 onDismissHunkReview={handleDismissHunkReview}
+                onCloseGitDiff={() => setGitDiffView(null)}
                 provider={savedProvider}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
@@ -2904,17 +3098,22 @@ export function IDEWorkspace() {
                     bridgeEnabled={bridgeEnabled}
                     bridgeMessages={bridgeMessages}
                     commandApprovals={commandApprovals}
+                    chatThreads={chatThreads}
                     focusSeq={chatFocusSeq}
                     onApproveCommand={(id) => void handleApproveCommand(id)}
                     onRejectCommand={handleRejectCommand}
                     onAssignCaptain={handleAssignCaptain}
                     onToggleViceCaptain={handleToggleViceCaptain}
+                    onNewThread={handleNewChatThread}
+                    onSelectThread={handleSelectChatThread}
                     onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
                     onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
                     onChangeAgentModel={handleChangeAgentModel}
                     onSelectAgent={setRightChatAgentId}
                     onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-                    onSend={(agent) => void sendMessage(agent)}
+                    onSend={(agent, images) =>
+                      void sendMessage(agent, undefined, false, { images })
+                    }
                     onPause={pauseAgent}
                     onOpenFullAgents={() => setWorkspaceMode('agents')}
                     onClose={() => setRightPanelMode(null)}
@@ -2994,6 +3193,7 @@ export function IDEWorkspace() {
             proposedPatches={proposedPatches}
             pendingApproval={pendingApproval}
             commandApprovals={commandApprovals}
+            chatThreads={chatThreads}
             skills={availableSkills}
             combos={availableCombos}
             mcpServers={appSettings.mcpServers}
@@ -3004,6 +3204,8 @@ export function IDEWorkspace() {
             onAssignCaptain={handleAssignCaptain}
             onToggleViceCaptain={handleToggleViceCaptain}
             onClearViceCaptain={handleClearViceCaptain}
+            onNewThread={handleNewChatThread}
+            onSelectThread={handleSelectChatThread}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)
@@ -3015,7 +3217,9 @@ export function IDEWorkspace() {
             onChangeAgentModel={handleChangeAgentModel}
             onView={(id, view) => setAgentViews((current) => ({ ...current, [id]: view }))}
             onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-            onSend={sendMessage}
+            onSend={(agent, images) =>
+              void sendMessage(agent, undefined, false, { images })
+            }
             onRemove={(id) => setAgents((current) => current.filter((agent) => agent.id !== id))}
             onDuplicate={duplicateAgent}
             onDelegate={delegateAgent}
