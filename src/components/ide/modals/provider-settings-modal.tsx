@@ -28,6 +28,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   AppSettings,
+  AppTheme,
   CliDetectionResult,
   McpServerConfig,
   MemoryNote,
@@ -35,6 +36,7 @@ import type {
   UsageRecord,
 } from '../agent-types'
 import { uid } from '../workspace-defaults'
+import { searchSettingsEntries } from './settings-search'
 
 type SettingsTab =
   | 'general'
@@ -135,6 +137,8 @@ export function ProviderSettingsModal({
   const [providers, setProviders] = useState<ProviderConfig[]>(initialProviders)
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
   const [tab, setTab] = useState<SettingsTab>('general')
+  const [settingsQuery, setSettingsQuery] = useState('')
+  const quickSettingMatches = useMemo(() => searchSettingsEntries(settingsQuery), [settingsQuery])
 
   // CLI state
   const [cliDetection, setCliDetection] = useState<CliDetectionResult | null>(null)
@@ -629,32 +633,100 @@ export function ProviderSettingsModal({
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <nav className="w-48 shrink-0 space-y-0.5 overflow-y-auto border-r border-[#2b2b2b] bg-[#161616] p-2">
-            {tabs.map((item) => {
-              const Icon = item.icon
-              return (
+          <nav className="flex w-52 shrink-0 flex-col border-r border-[#2b2b2b] bg-[#161616] p-2">
+            <div className="mb-2 flex items-center gap-1.5 rounded-md border border-[#333333] bg-[#121212] px-2 py-1">
+              <Search size={12} className="shrink-0 text-[#737373]" />
+              <input
+                type="text"
+                value={settingsQuery}
+                onChange={(e) => setSettingsQuery(e.target.value)}
+                placeholder="Search settings…"
+                className="min-w-0 flex-1 bg-transparent text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666]"
+              />
+              {settingsQuery && (
                 <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] transition ${
-                    tab === item.id
-                      ? 'bg-[#2a2a2a] font-medium text-white'
-                      : 'text-[#8e8e8e] hover:bg-[#222222] hover:text-[#e5e5e5]'
-                  }`}
+                  type="button"
+                  onClick={() => setSettingsQuery('')}
+                  className="text-[#737373] hover:text-white"
                 >
-                  <Icon size={14} className="shrink-0" />
-                  <span className="truncate">{item.label}</span>
+                  <X size={11} />
                 </button>
-              )
-            })}
+              )}
+            </div>
+            {quickSettingMatches.length > 0 && (
+              <div className="mb-2 space-y-0.5 rounded-md border border-[#2f2f2f] bg-[#121212] p-1">
+                <div className="px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#737373]">
+                  Quick Jump ({quickSettingMatches.length})
+                </div>
+                {quickSettingMatches.slice(0, 6).map((match) => (
+                  <button
+                    key={`${match.tab}-${match.label}`}
+                    type="button"
+                    onClick={() => {
+                      setTab(match.tab)
+                      setSettingsQuery('')
+                    }}
+                    className="block w-full truncate rounded px-1.5 py-1 text-left text-[10px] text-[#d4d4d4] hover:bg-[#262626] hover:text-white"
+                  >
+                    {match.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1 space-y-0.5 overflow-y-auto">
+              {tabs.map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setTab(item.id)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] transition ${
+                      tab === item.id
+                        ? 'bg-[#2a2a2a] font-medium text-white'
+                        : 'text-[#8e8e8e] hover:bg-[#222222] hover:text-[#e5e5e5]'
+                    }`}
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto p-5">
             {tab === 'general' && (
               <SettingsSection
                 title="Workspace & Editor"
-                description="Control Auto-Save timing, session restoration, and Monaco Editor ergonomics."
+                description="Control Theme, Auto-Save timing, session restoration, and Monaco Editor ergonomics."
               >
+                <div className="rounded-lg border border-[#2c2c2c] bg-[#181818] p-3">
+                  <span className="text-[10px] font-medium text-[#d4d4d4]">
+                    Color Theme (Offline-First)
+                  </span>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 'dark', label: 'Dark Modern' },
+                        { id: 'light', label: 'Light' },
+                        { id: 'high-contrast', label: 'High Contrast' },
+                      ] as Array<{ id: AppTheme; label: string }>
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSettings({ ...settings, theme: opt.id })}
+                        className={`rounded-md border px-2 py-1.5 text-[11px] font-medium transition ${
+                          (settings.theme ?? 'dark') === opt.id
+                            ? 'border-[#e5e5e5] bg-[#2c2c2c] text-white'
+                            : 'border-[#333333] bg-[#121212] text-[#9a9a9a] hover:text-white'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Toggle
                   label="Auto-Save editor changes"
                   description="Automatically flush edits to local disk and create Edit Memory snapshots."

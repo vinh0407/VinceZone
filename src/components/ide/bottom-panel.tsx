@@ -10,6 +10,8 @@ import {
   Mail,
   Maximize2,
   Play,
+  Plus,
+  Plug,
   RotateCcw,
   Square,
   StepForward,
@@ -56,12 +58,16 @@ export function BottomPanel({
   onSelectTab,
   onOpenFile,
   onStartDebug,
+  onAttachDebug,
   onContinueDebug,
   onStepOverDebug,
   onStepIntoDebug,
   onStepOutDebug,
   onStopDebug,
   onEvaluateDebug,
+  watchResults = [],
+  onAddWatch,
+  onRemoveWatch,
 }: {
   open: boolean
   maximized: boolean
@@ -90,12 +96,16 @@ export function BottomPanel({
   onSelectTab: (tab: 'terminal' | 'problems' | 'output' | 'debug' | 'mail') => void
   onOpenFile: (path: string, line?: number) => void
   onStartDebug: () => void
+  onAttachDebug?: (port: number) => Promise<void>
   onContinueDebug: () => void
   onStepOverDebug: () => void
   onStepIntoDebug?: () => void
   onStepOutDebug?: () => void
   onStopDebug: () => void
   onEvaluateDebug?: (expression: string) => Promise<void>
+  watchResults?: Array<{ expr: string; value: string; ok: boolean }>
+  onAddWatch?: (expression: string) => void
+  onRemoveWatch?: (expression: string) => void
 }) {
   const quickScripts = useMemo(() => {
     const pkgFile = files.find((f) => f.path === 'package.json' || f.name === 'package.json')
@@ -391,9 +401,13 @@ export function BottomPanel({
             debugLine={debugLine}
             snapshot={debugSnapshot}
             breakpoints={breakpoints}
+            watchResults={watchResults}
             onOpenFile={onOpenFile}
             onStart={onStartDebug}
+            onAttach={onAttachDebug}
             onEvaluate={onEvaluateDebug}
+            onAddWatch={onAddWatch}
+            onRemoveWatch={onRemoveWatch}
           />
         )}
       </div>
@@ -407,38 +421,75 @@ function DebugConsole({
   debugLine,
   snapshot,
   breakpoints,
+  watchResults = [],
   onOpenFile,
   onStart,
+  onAttach,
   onEvaluate,
+  onAddWatch,
+  onRemoveWatch,
 }: {
   state: 'idle' | 'starting' | 'paused' | 'running'
   fileName: string
   debugLine: number
   snapshot?: DebugSnapshot | null
   breakpoints: Record<string, number[]>
+  watchResults?: Array<{ expr: string; value: string; ok: boolean }>
   onOpenFile: (path: string, line?: number) => void
   onStart: () => void
+  onAttach?: (port: number) => Promise<void>
   onEvaluate?: (expression: string) => Promise<void>
+  onAddWatch?: (expression: string) => void
+  onRemoveWatch?: (expression: string) => void
 }) {
   const [evalInput, setEvalInput] = useState('')
+  const [attachPort, setAttachPort] = useState('9229')
+  const [watchInput, setWatchInput] = useState('')
   const bpList = Object.entries(breakpoints).flatMap(([bpPath, lines]) =>
     lines.map((line) => ({ path: bpPath, line })),
   )
 
   if (state === 'idle' && !snapshot?.consoleLines.length) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-[11px] text-[#858585]">
+      <div className="flex h-full flex-col items-center justify-center gap-2.5 px-4 text-[11px] text-[#858585]">
         <div className="flex items-center gap-2">
           <Bug size={15} className="text-[#cccccc]" />
-          <span>Click left gutter in Editor to set Breakpoints, then start V8 Inspector.</span>
+          <span>Click left gutter in Editor to set Breakpoints, then launch Node/Python Debugger or Attach.</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <button
             onClick={onStart}
             className="rounded bg-[#e5e5e5] px-3 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white"
           >
             Start Real Debugger ({fileName.split('/').pop()})
           </button>
+          {onAttach && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const port = Number(attachPort) || 9229
+                void onAttach(port)
+              }}
+              className="flex items-center gap-1 rounded border border-[#3a3a3a] bg-[#141414] px-1.5 py-0.5"
+            >
+              <Plug size={10} className="text-[#9cdcfe]" />
+              <input
+                type="number"
+                min={1024}
+                max={65535}
+                value={attachPort}
+                onChange={(e) => setAttachPort(e.target.value)}
+                className="w-14 bg-transparent font-mono text-[10px] text-[#e5e5e5] outline-none"
+                title="V8 Inspector Port (e.g. 9229)"
+              />
+              <button
+                type="submit"
+                className="rounded bg-[#2a2a2a] px-2 py-0.5 text-[10px] font-medium text-[#e5e5e5] hover:bg-[#3a3a3a]"
+              >
+                Attach
+              </button>
+            </form>
+          )}
           {bpList.length > 0 && (
             <span className="font-mono text-[10px] text-[#cccccc]">
               {bpList.length} breakpoint(s) ready
@@ -468,6 +519,58 @@ function DebugConsole({
           <p className="text-[10px] text-[#666666]">
             {state === 'paused' ? 'No local variables in scope' : 'Waiting for pause…'}
           </p>
+        )}
+
+        <p className="mb-1 mt-3 font-sans text-[9.5px] font-semibold uppercase tracking-wider text-[#858585]">
+          Watch ({watchResults.length})
+        </p>
+        {onAddWatch && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const trimmed = watchInput.trim()
+              if (!trimmed) return
+              setWatchInput('')
+              onAddWatch(trimmed)
+            }}
+            className="mb-1.5 flex items-center gap-1 rounded border border-[#333333] bg-[#141414] px-1.5 py-0.5"
+          >
+            <input
+              type="text"
+              value={watchInput}
+              onChange={(e) => setWatchInput(e.target.value)}
+              placeholder="Add expression…"
+              className="min-w-0 flex-1 bg-transparent font-mono text-[10px] text-[#e5e5e5] outline-none placeholder:text-[#666666]"
+            />
+            <button type="submit" disabled={!watchInput.trim()} className="mini-button disabled:opacity-30">
+              <Plus size={10} />
+            </button>
+          </form>
+        )}
+        {watchResults.length > 0 && (
+          <div className="space-y-0.5 text-[#cccccc]">
+            {watchResults.map((w) => (
+              <div
+                key={w.expr}
+                className="group flex items-center justify-between gap-1 rounded px-1 py-0.5 hover:bg-[#222222]"
+                title={`${w.expr} => ${w.value}`}
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-[#9cdcfe]">{w.expr}</span>:{' '}
+                  <span className={w.ok ? 'text-[#4ec9b0]' : 'text-[#858585]'}>{w.value}</span>
+                </span>
+                {onRemoveWatch && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveWatch(w.expr)}
+                    className="hidden text-[#858585] hover:text-[#f48771] group-hover:inline-flex"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
         <p className="mb-1 mt-3 font-sans text-[9.5px] font-semibold uppercase tracking-wider text-[#858585]">

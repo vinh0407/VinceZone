@@ -38,6 +38,7 @@ import type {
   SidePanel,
   WorkspaceFile,
 } from './agent-types'
+import { ContextMenu, type ContextMenuItem } from './context-menu'
 import { fileIcon } from './workspace-defaults'
 
 const statusStyles: Record<AgentTask['status'], { dot: string; label: string }> = {
@@ -81,6 +82,11 @@ export function ExplorerSidebar({
   onOpenAgents,
   onOpenDiff,
   onOpenGitDiff,
+  onCopyRelativePath,
+  onAddFileToChat,
+  onRevealInExplorer,
+  onGitBranchChanged,
+  onRequestConfirm,
   provider,
 }: {
   sidePanel: SidePanel
@@ -118,6 +124,17 @@ export function ExplorerSidebar({
   onOpenAgents: () => void
   onOpenDiff: () => void
   onOpenGitDiff?: (path: string) => void
+  onCopyRelativePath?: (path: string) => void
+  onAddFileToChat?: (path: string) => void
+  onRevealInExplorer?: (path: string) => void
+  onGitBranchChanged?: (branch: string, branches: string[]) => void
+  onRequestConfirm?: (opts: {
+    title: string
+    description?: string
+    confirmLabel?: string
+    danger?: boolean
+    onConfirm: () => void
+  }) => void
   provider?: { baseUrl?: string; apiKey?: string; model?: string }
 }) {
   const tree = useMemo(() => buildFileTree(files), [files])
@@ -136,6 +153,14 @@ export function ExplorerSidebar({
   const [replaceFeedback, setReplaceFeedback] = useState('')
   const [collapsedSearchFiles, setCollapsedSearchFiles] = useState<Record<string, boolean>>({})
   const [expandedMemoryAgents, setExpandedMemoryAgents] = useState<Record<string, boolean>>({})
+  const [treeContextMenu, setTreeContextMenu] = useState<{
+    x: number
+    y: number
+    path: string
+    isFolder: boolean
+  } | null>(null)
+  const [newBranchOpen, setNewBranchOpen] = useState(false)
+  const [newBranchName, setNewBranchName] = useState('feat/')
 
   // 2A: Disk Search API across all 5,000 files (including lazy files!) when workspace is on disk
   useEffect(() => {
@@ -298,6 +323,9 @@ export function ExplorerSidebar({
       }
       const data = await response.json()
       setGitStatus(data)
+      if (data?.isRepo && data.branch) {
+        onGitBranchChanged?.(data.branch, data.branches ?? [])
+      }
     } catch (error) {
       setGitStatus({
         isRepo: false,
@@ -391,6 +419,15 @@ export function ExplorerSidebar({
         <div key={item.path}>
           <button
             onClick={() => onToggleGroup(item.path)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setTreeContextMenu({
+                x: event.clientX,
+                y: event.clientY,
+                path: item.path,
+                isFolder: true,
+              })
+            }}
             style={{ paddingLeft: `${indentPx}px` }}
             className="flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-[12px] text-[#cccccc] hover:bg-[#2a2d2e]"
           >
@@ -410,6 +447,15 @@ export function ExplorerSidebar({
     return (
       <div
         key={item.path}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          setTreeContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            path: item.path,
+            isFolder: false,
+          })
+        }}
         style={{ paddingLeft: `${indentPx + 14}px` }}
         className={`group flex w-full items-center gap-1 pr-1.5 text-[12px] ${
           compactMode ? 'py-[3px]' : 'py-1'
@@ -761,8 +807,8 @@ export function ExplorerSidebar({
                   type="button"
                   disabled={gitBusyAction}
                   onClick={() => {
-                    const name = window.prompt('Create & switch to new branch:', 'feat/')
-                    if (name?.trim()) void runGitAction('create-branch', { branch: name.trim() })
+                    setNewBranchName('feat/')
+                    setNewBranchOpen((prev) => !prev)
                   }}
                   className="mini-button shrink-0"
                   title="Create new branch (git checkout -b)"
@@ -777,6 +823,45 @@ export function ExplorerSidebar({
               </span>
             )}
           </div>
+
+          {newBranchOpen && gitStatus?.isRepo && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const trimmed = newBranchName.trim()
+                if (!trimmed) return
+                setNewBranchOpen(false)
+                void runGitAction('create-branch', { branch: trimmed })
+              }}
+              className="mb-2 flex items-center gap-1 rounded border border-[#3e3e3e] bg-[#141414] p-1"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={newBranchName}
+                onChange={(e) => setNewBranchName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setNewBranchOpen(false)
+                }}
+                placeholder="feat/new-branch"
+                className="min-w-0 flex-1 bg-transparent px-1 font-mono text-[10px] text-white outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!newBranchName.trim()}
+                className="rounded bg-[#e5e5e5] px-1.5 py-0.5 text-[10px] font-medium text-[#111111] hover:bg-white disabled:opacity-40"
+              >
+                Create
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewBranchOpen(false)}
+                className="mini-button"
+              >
+                <X size={10} />
+              </button>
+            </form>
+          )}
 
           {gitStatus?.isRepo ? (
             <>
@@ -1052,7 +1137,16 @@ export function ExplorerSidebar({
                                   type="button"
                                   disabled={gitBusyAction}
                                   onClick={() => {
-                                    if (window.confirm(`Discard uncommitted changes in ${item.path}?`)) {
+                                    if (onRequestConfirm) {
+                                      onRequestConfirm({
+                                        title: 'Discard Uncommitted Changes',
+                                        description: `Revert all local changes in "${item.path}"? This cannot be undone.`,
+                                        confirmLabel: 'Discard',
+                                        danger: true,
+                                        onConfirm: () =>
+                                          void runGitAction('discard', { path: item.path }),
+                                      })
+                                    } else {
                                       void runGitAction('discard', { path: item.path })
                                     }
                                   }}
@@ -1368,6 +1462,62 @@ export function ExplorerSidebar({
             </div>
           )}
         </div>
+      )}
+
+      {treeContextMenu && (
+        <ContextMenu
+          x={treeContextMenu.x}
+          y={treeContextMenu.y}
+          onClose={() => setTreeContextMenu(null)}
+          items={
+            [
+              ...(onCreateFile
+                ? [{ label: 'New File…', shortcut: 'Ctrl+N', onSelect: () => onCreateFile() }]
+                : []),
+              ...(onCreateFolder
+                ? [{ label: 'New Folder…', onSelect: () => onCreateFolder() }]
+                : []),
+              { type: 'separator' },
+              ...(!treeContextMenu.isFolder && onRenameFile
+                ? [{ label: 'Rename…', onSelect: () => onRenameFile(treeContextMenu.path) }]
+                : []),
+              ...(!treeContextMenu.isFolder && onDeleteFile
+                ? [
+                    {
+                      label: 'Delete',
+                      danger: true,
+                      onSelect: () => onDeleteFile(treeContextMenu.path),
+                    },
+                  ]
+                : []),
+              { type: 'separator' },
+              ...(onCopyRelativePath
+                ? [
+                    {
+                      label: 'Copy Relative Path',
+                      onSelect: () => onCopyRelativePath(treeContextMenu.path),
+                    },
+                  ]
+                : []),
+              ...(!treeContextMenu.isFolder && onAddFileToChat
+                ? [
+                    {
+                      label: 'Add to AI Chat (@file)',
+                      onSelect: () => onAddFileToChat(treeContextMenu.path),
+                    },
+                  ]
+                : []),
+              ...(rootPath && onRevealInExplorer
+                ? [
+                    {
+                      label: 'Reveal in File Explorer',
+                      onSelect: () => onRevealInExplorer(treeContextMenu.path),
+                    },
+                  ]
+                : []),
+            ] satisfies ContextMenuItem[]
+          }
+        />
       )}
     </aside>
   )

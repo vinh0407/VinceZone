@@ -228,7 +228,10 @@ export type ProjectTab = {
   session?: ProjectSessionData
 }
 
+export type AppTheme = 'dark' | 'light' | 'high-contrast'
+
 export type AppSettings = {
+  theme?: AppTheme
   autoSave: boolean
   autoSaveDelayMs: number
   confirmDangerousTools: boolean

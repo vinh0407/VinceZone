@@ -6,7 +6,9 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Code2,
   Columns2,
+  Eye,
   GitCompareArrows,
   MessageSquarePlus,
   PanelLeftOpen,
@@ -18,7 +20,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeDiffHunks } from '@/lib/hunk-diff'
 import { extractProposedPatches } from '@/lib/orchestrator'
-import type { InlineHunkReview, ProviderConfig, WorkspaceFile } from './agent-types'
+import type { AppTheme, InlineHunkReview, ProviderConfig, WorkspaceFile } from './agent-types'
+import { MarkdownReply } from './markdown-reply'
 import type { EditorDiagnostic } from './status-bar'
 import { fileIcon } from './workspace-defaults'
 
@@ -83,6 +86,7 @@ export function EditorPane({
   fontSize = 13,
   wordWrap = false,
   minimap = true,
+  theme = 'dark',
   provider,
   revealRequest,
   formatSeq = 0,
@@ -123,6 +127,7 @@ export function EditorPane({
   fontSize?: number
   wordWrap?: boolean
   minimap?: boolean
+  theme?: AppTheme
   provider?: ProviderConfig
   revealRequest: { path: string; line: number; seq: number } | null
   formatSeq?: number
@@ -173,8 +178,21 @@ export function EditorPane({
     snippet: string
   } | null>(null)
 
-  // Tab context menu state
+  // Tab context menu state + Media/Markdown preview state
   const [tabMenu, setTabMenu] = useState<{ path: string; x: number; y: number } | null>(null)
+  const [previewMode, setPreviewMode] = useState(false)
+  const [imageZoomActual, setImageZoomActual] = useState(false)
+  const monacoTheme =
+    theme === 'light' ? 'vs' : theme === 'high-contrast' ? 'hc-black' : 'vs-dark'
+  const isBinaryImageFile = Boolean(
+    activeFile &&
+      (activeFile.language === 'image' || /\.(png|jpe?g|gif|webp|ico)$/i.test(activeFile.name)),
+  )
+
+  useEffect(() => {
+    setPreviewMode(false)
+    setImageZoomActual(false)
+  }, [activeFile?.path])
 
   // Ctrl+K Inline AI Edit state + AI Tab Ghost-Text state + Breakpoint decorations
   const [aiTabEnabled, setAiTabEnabled] = useState(true)
@@ -904,6 +922,22 @@ export function EditorPane({
           >
             Copy Relative Path
           </button>
+          {onSendSelectionToChat && (
+            <button
+              className="block w-full px-3 py-1.5 text-left hover:bg-[#2a2a2a] hover:text-white"
+              onClick={() => {
+                onSendSelectionToChat({
+                  path: tabMenu.path,
+                  startLine: 1,
+                  endLine: 1,
+                  snippet: '',
+                })
+                setTabMenu(null)
+              }}
+            >
+              Add to AI Chat (@file)
+            </button>
+          )}
         </div>
       )}
 
@@ -919,24 +953,42 @@ export function EditorPane({
             </span>
           ))}
         </div>
-        {selectionInfo && onSendSelectionToChat && activeFile && (
-          <button
-            type="button"
-            onClick={() =>
-              onSendSelectionToChat({
-                path: activeFile.path,
-                startLine: selectionInfo.startLine,
-                endLine: selectionInfo.endLine,
-                snippet: selectionInfo.snippet,
-              })
-            }
-            className="flex shrink-0 items-center gap-1 rounded bg-[#2a2a2a] px-2 py-0.5 text-[10px] font-medium text-white hover:bg-[#3a3a3a]"
-            title="Send selected lines to AI Agent Chat (Ctrl+L)"
-          >
-            <MessageSquarePlus size={10} />
-            Add L{selectionInfo.startLine}-{selectionInfo.endLine} to Chat (Ctrl+L)
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {activeFile &&
+            (/\.(md|mdx|svg)$/i.test(activeFile.name)) && (
+              <button
+                type="button"
+                onClick={() => setPreviewMode((prev) => !prev)}
+                className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition ${
+                  previewMode
+                    ? 'bg-[#e5e5e5] text-[#111111]'
+                    : 'bg-[#2a2a2a] text-[#d4d4d4] hover:bg-[#3a3a3a] hover:text-white'
+                }`}
+                title={previewMode ? 'Switch back to Code Editor' : 'Preview Markdown / SVG'}
+              >
+                {previewMode ? <Code2 size={11} /> : <Eye size={11} />}
+                {previewMode ? 'Code' : 'Preview'}
+              </button>
+            )}
+          {selectionInfo && onSendSelectionToChat && activeFile && (
+            <button
+              type="button"
+              onClick={() =>
+                onSendSelectionToChat({
+                  path: activeFile.path,
+                  startLine: selectionInfo.startLine,
+                  endLine: selectionInfo.endLine,
+                  snippet: selectionInfo.snippet,
+                })
+              }
+              className="flex shrink-0 items-center gap-1 rounded bg-[#2a2a2a] px-2 py-0.5 text-[10px] font-medium text-white hover:bg-[#3a3a3a]"
+              title="Send selected lines to AI Agent Chat (Ctrl+L)"
+            >
+              <MessageSquarePlus size={10} />
+              Add L{selectionInfo.startLine}-{selectionInfo.endLine} to Chat (Ctrl+L)
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cursor-style Ctrl+K Inline AI Edit Bar */}
@@ -1206,12 +1258,12 @@ export function EditorPane({
               original={gitDiffView.original}
               modified={gitDiffView.modified}
               language={gitDiffView.language}
-              theme="vs-dark"
+              theme={monacoTheme}
               options={{
                 automaticLayout: true,
                 renderSideBySide: true,
                 readOnly: true,
-                fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, monospace",
                 fontSize,
                 minimap: { enabled: false },
               }}
@@ -1221,16 +1273,65 @@ export function EditorPane({
               original={inlineDiff.original}
               modified={inlineDiff.proposed}
               language={activeFile.language}
-              theme="vs-dark"
+              theme={monacoTheme}
               options={{
                 automaticLayout: true,
                 renderSideBySide: true,
                 readOnly: true,
-                fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, monospace",
                 fontSize,
                 minimap: { enabled: false },
               }}
             />
+          ) : activeFile && isBinaryImageFile ? (
+            <div className="flex h-full flex-col overflow-hidden bg-[#141414]">
+              <div className="flex items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-4 py-1.5 text-[11px] text-[#a3a3a3]">
+                <span className="font-mono text-[#e5e5e5]">{activeFile.path}</span>
+                <div className="flex items-center gap-2">
+                  {activeFile.size ? (
+                    <span className="font-mono text-[10px]">
+                      {(activeFile.size / 1024).toFixed(1)} KB
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setImageZoomActual((prev) => !prev)}
+                    className="rounded border border-[#3a3a3a] bg-[#222222] px-2 py-0.5 text-[10px] text-[#e5e5e5] hover:bg-[#303030]"
+                  >
+                    {imageZoomActual ? 'Fit to Viewport' : '100% Actual Size'}
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-1 items-center justify-center overflow-auto bg-[radial-gradient(#2c2c2c_1px,transparent_1px)] [background-size:14px_14px] p-6">
+                {workspaceRoot ? (
+                  <img
+                    src={`/api/workspace?action=raw&root=${encodeURIComponent(workspaceRoot)}&path=${encodeURIComponent(activeFile.path)}`}
+                    alt={activeFile.name}
+                    className={
+                      imageZoomActual
+                        ? 'max-w-none rounded border border-[#333333] shadow-2xl'
+                        : 'max-h-full max-w-full rounded border border-[#333333] object-contain shadow-2xl'
+                    }
+                  />
+                ) : (
+                  <p className="text-[12px] text-[#858585]">Open a local workspace folder to preview images.</p>
+                )}
+              </div>
+            </div>
+          ) : activeFile && previewMode && /\.(md|mdx)$/i.test(activeFile.name) ? (
+            <div className="h-full overflow-y-auto bg-[#181818] px-8 py-6">
+              <div className="mx-auto max-w-3xl">
+                <MarkdownReply text={activeFile.content || '*Empty Markdown file*'} />
+              </div>
+            </div>
+          ) : activeFile && previewMode && /\.svg$/i.test(activeFile.name) ? (
+            <div className="flex h-full items-center justify-center overflow-auto bg-[radial-gradient(#2c2c2c_1px,transparent_1px)] [background-size:14px_14px] p-8">
+              <img
+                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(activeFile.content || '')}`}
+                alt={activeFile.name}
+                className="max-h-full max-w-full rounded border border-[#333333] bg-white/5 p-4 object-contain shadow-2xl"
+              />
+            </div>
           ) : activeFile ? (
             <Editor
               path={`file:///${activeFile.path.replace(/^\/+/, '')}`}
@@ -1238,7 +1339,7 @@ export function EditorPane({
               value={activeFile.content}
               onChange={onUpdateFile}
               onMount={handleEditorMount}
-              theme="vs-dark"
+              theme={monacoTheme}
               options={{
                 automaticLayout: true,
                 glyphMargin: true,
@@ -1298,10 +1399,10 @@ export function EditorPane({
                 onChange={(val) => {
                   if (typeof val === 'string') onUpdateFileByPath?.(splitFile.path, val)
                 }}
-                theme="vs-dark"
+                theme={monacoTheme}
                 options={{
                   automaticLayout: true,
-                  fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                  fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, monospace",
                   fontSize,
                   lineHeight: Math.round(fontSize * 1.55),
                   minimap: { enabled: false },

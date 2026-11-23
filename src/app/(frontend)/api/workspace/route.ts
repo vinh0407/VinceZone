@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process'
 import { watch as fsWatch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -25,8 +26,20 @@ const IGNORED_DIRS = new Set([
   'VinceZone Studio',
 ])
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|ico)$/i
+
+const IMAGE_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+}
+
 const BINARY_EXT =
-  /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|zip|tar|gz|pdf|exe|dll|so|dylib|mp4|mp3|wav|sqlite|db|lock)$/i
+  /\.(woff2?|ttf|eot|zip|tar|gz|pdf|exe|dll|so|dylib|mp4|mp3|wav|sqlite|db|lock)$/i
 
 const MAX_FILES = 5000
 const EAGER_CONTENT_LIMIT = 100
@@ -79,10 +92,24 @@ async function scanWorkspaceDir(
       )
     } else if (entry.isFile()) {
       if (BINARY_EXT.test(entry.name)) continue
-      const absPath = path.join(currentDir, entry.name)
+      const absPath = path.join(/*turbopackIgnore: true*/ currentDir, entry.name)
       try {
         const info = await stat(absPath)
         const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/')
+        if (IMAGE_EXT.test(entry.name)) {
+          if (info.size <= 10_000_000) {
+            results.push({
+              name: entry.name,
+              path: relPath,
+              content: '',
+              language: 'image',
+              dirty: false,
+              lazy: true,
+              size: info.size,
+            })
+          }
+          continue
+        }
         const shouldLoadEagerly =
           eagerCounter.count < EAGER_CONTENT_LIMIT && info.size <= MAX_EAGER_BYTES
 
@@ -138,6 +165,36 @@ export async function GET(request: Request) {
     }
   } catch {
     return Response.json({ error: 'Workspace directory does not exist.' }, { status: 404 })
+  }
+
+  // Action: serve raw image / SVG bytes for inline Editor media preview
+  if (action === 'raw') {
+    const relPath = searchParams.get('path')?.trim() || ''
+    if (!relPath) {
+      return Response.json({ error: 'File path is required.' }, { status: 400 })
+    }
+    try {
+      const target = resolvePathInsideWorkspace(resolvedRoot, relPath)
+      const info = await stat(target)
+      if (!info.isFile() || info.size > 10_000_000) {
+        return Response.json({ error: 'Preview file unavailable or >10MB.' }, { status: 413 })
+      }
+      const ext = path.extname(target).toLowerCase()
+      const mime = IMAGE_MIME[ext] || 'application/octet-stream'
+      const bytes = await readFile(target)
+      return new Response(new Uint8Array(bytes), {
+        status: 200,
+        headers: {
+          'Content-Type': mime,
+          'Cache-Control': 'no-store',
+        },
+      })
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : 'Unable to read raw file.' },
+        { status: 404 },
+      )
+    }
   }
 
   // Action: lazy-read a single file on demand
@@ -356,6 +413,20 @@ export async function POST(request: Request) {
       const target = resolvePathInsideWorkspace(root, body.path)
       await rm(target, { recursive: true, force: true })
       return Response.json({ ok: true, path: body.path })
+    }
+
+    if (body.action === 'reveal') {
+      const target = body.path
+        ? resolvePathInsideWorkspace(root, body.path)
+        : path.resolve(/*turbopackIgnore: true*/ root)
+      if (process.platform === 'win32') {
+        execFile('explorer.exe', [`/select,${target}`], { windowsHide: true }, () => {})
+      } else if (process.platform === 'darwin') {
+        execFile('open', ['-R', target], () => {})
+      } else {
+        execFile('xdg-open', [path.dirname(target)], () => {})
+      }
+      return Response.json({ ok: true, path: target })
     }
   } catch (error) {
     return Response.json(

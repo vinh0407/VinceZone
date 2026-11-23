@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  Bot,
   Bug,
   Check,
   FolderOpen,
@@ -12,7 +11,6 @@ import {
   Play,
   Plus,
   Search,
-  Settings,
   Square,
   TerminalSquare,
   X,
@@ -84,6 +82,7 @@ export function WorkspaceHeader({
   onOpenQuickOpen,
   onOpenDiff,
   onOpenSettings,
+  onOpenShortcuts,
   onPreviewMail,
 }: {
   projects: ProjectTab[]
@@ -132,6 +131,7 @@ export function WorkspaceHeader({
   onOpenQuickOpen?: () => void
   onOpenDiff: () => void
   onOpenSettings: () => void
+  onOpenShortcuts?: () => void
   onPreviewMail: () => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -307,7 +307,16 @@ export function WorkspaceHeader({
       id: 'help',
       label: 'Help',
       items: [
-        { label: 'Settings & CLI Integrations', onSelect: onOpenSettings },
+        ...(onOpenShortcuts
+          ? [
+              {
+                label: 'Keyboard Shortcuts Cheatsheet',
+                shortcut: 'Ctrl+K Ctrl+S',
+                onSelect: onOpenShortcuts,
+              },
+            ]
+          : []),
+        { label: 'Settings & CLI Integrations', shortcut: 'Ctrl+,', onSelect: onOpenSettings },
         { type: 'separator' },
         {
           label: 'VinceZone Studio v2.2.0 · Local In-Process',
@@ -401,9 +410,32 @@ export function WorkspaceHeader({
           })}
         </div>
 
-        <div className="mx-1 hidden h-3.5 w-px bg-[#2b2b2b] lg:block" />
+        <div className="mx-1 hidden h-3.5 w-px bg-[#2b2b2b] md:block" />
 
-        <div className="hidden max-w-[20vw] items-center gap-1 overflow-x-auto xl:flex">
+        {/* Always-accessible Project Switcher: compact dropdown < 1280px, full tabs >= 1280px */}
+        <div className="flex items-center gap-1 xl:hidden">
+          <select
+            value={activeProjectId}
+            onChange={(e) => onSwitchProject(e.target.value)}
+            title="Switch active project"
+            className="h-6 max-w-36 truncate rounded border border-[#333333] bg-[#222222] px-1.5 text-[11px] text-[#e5e5e5] outline-none"
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={onOpenLocalDirectory}
+            className="icon-button !size-6 shrink-0"
+            title="Open local folder on disk"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+
+        <div className="hidden max-w-[22vw] items-center gap-1 overflow-x-auto xl:flex">
           {projects.map((project) => (
             <button
               key={project.id}
@@ -523,16 +555,6 @@ export function WorkspaceHeader({
           title="Toggle Right AI Agent Chat"
         >
           <PanelRight size={14} />
-        </button>
-        <button
-          onClick={onToggleAgents}
-          className={`icon-button !size-6 ${workspaceMode === 'agents' ? 'bg-[#333333] text-white' : ''}`}
-          title="Toggle VinceZone Multi-Agent Control Center"
-        >
-          <Bot size={14} />
-        </button>
-        <button className="icon-button !size-6" title="Settings" onClick={onOpenSettings}>
-          <Settings size={14} />
         </button>
 
         <span

@@ -2,7 +2,10 @@
 
 import { Bot, Smartphone } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useDebugger } from '@/hooks/use-debugger'
+import { useGitStatus } from '@/hooks/use-git-status'
 import { useOrchestration } from '@/hooks/use-orchestration'
+import { useToast } from '@/hooks/use-toast'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import {
   assignCaptain,
@@ -36,6 +39,7 @@ import type {
   AgentTask,
   AgentView,
   AppSettings,
+  AppTheme,
   ChatImageAttachment,
   ChatThreadSnapshot,
   CommandApprovalItem,
@@ -61,10 +65,13 @@ import { ExplorerSidebar } from './explorer-sidebar'
 import { AgentCreatorModal } from './modals/agent-creator-modal'
 import { CommandPaletteModal, type PaletteAction } from './modals/command-palette-modal'
 import { DiffReviewModal } from './modals/diff-review-modal'
+import { InlineDialogModal, type DialogRequest } from './modals/inline-dialog-modal'
 import { ProviderSettingsModal } from './modals/provider-settings-modal'
+import { ShortcutsModal } from './modals/shortcuts-modal'
 import { RightAiChatPanel } from './right-ai-chat-panel'
 import type { SkillComboItem, SkillIndexItem } from './slash-command-popover'
 import { StatusBar, type EditorDiagnostic } from './status-bar'
+import { ToastStack } from './toast-stack'
 import { WebPreview } from './web-preview'
 import {
   createSeedAgents,
@@ -205,13 +212,12 @@ export function IDEWorkspace() {
     'terminal' | 'problems' | 'output' | 'debug' | 'mail'
   >('terminal')
   const [runState, setRunState] = useState<'idle' | 'running' | 'success'>('idle')
-  const [debugState, setDebugState] = useState<'idle' | 'starting' | 'paused' | 'running'>('idle')
-  const [debugLine, setDebugLine] = useState(5)
-  const [breakpoints, setBreakpoints] = useState<Record<string, number[]>>({})
-  const [debugSnapshot, setDebugSnapshot] = useState<DebugSnapshot | null>(null)
   const [commandApprovals, setCommandApprovals] = useState<CommandApprovalItem[]>([])
   const [hunkReviews, setHunkReviews] = useState<Record<string, InlineHunkReview>>({})
   const [chatThreads, setChatThreads] = useState<ChatThreadSnapshot[]>([])
+  const [dialogRequest, setDialogRequest] = useState<DialogRequest | null>(null)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const { toasts, pushToast, dismissToast } = useToast()
   const [gitDiffView, setGitDiffView] = useState<{
     path: string
     original: string
@@ -1107,17 +1113,29 @@ export function IDEWorkspace() {
       }
       return
     }
-    const typed = window.prompt(
-      'Enter absolute local directory path to open (or cancel to pick files in browser):',
-      activeProject?.rootPath || '',
-    )
-    if (typed && typed.trim()) {
-      const ok = await loadLocalDirectory(typed.trim(), false)
-      if (!ok) fileInputRef.current?.click()
-    } else {
-      fileInputRef.current?.click()
-    }
-  }, [activeProject?.rootPath, loadLocalDirectory])
+    setDialogRequest({
+      kind: 'prompt',
+      title: 'Open Local Folder',
+      description: 'Enter an absolute local directory path to open as your active workspace:',
+      placeholder: 'C:\\path\\to\\project',
+      initialValue: activeProject?.rootPath || '',
+      confirmLabel: 'Open Folder',
+      onConfirm: (typed) => {
+        void loadLocalDirectory(typed, false).then((ok) => {
+          if (!ok) {
+            pushToast({
+              title: 'Could not open folder',
+              detail: 'Falling back to browser folder picker.',
+              variant: 'error',
+            })
+            fileInputRef.current?.click()
+          } else {
+            pushToast({ title: 'Workspace opened', detail: typed, variant: 'success' })
+          }
+        })
+      },
+    })
+  }, [activeProject?.rootPath, loadLocalDirectory, pushToast])
 
   const runTerminalCommand = useCallback(
     async (command: string, options?: { openTerminal?: boolean }) => {
@@ -1188,11 +1206,22 @@ export function IDEWorkspace() {
     [activeProject?.rootPath],
   )
 
-  // Global developer keyboard shortcuts + Electron native menu listener
+  // Global developer keyboard shortcuts + Ctrl+K Ctrl+S chord + Electron native menu listener
   useEffect(() => {
+    let chordKAt = 0
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey
       const key = event.key.toLowerCase()
+
+      if (mod && !event.shiftKey && key === 's' && Date.now() - chordKAt < 1400) {
+        event.preventDefault()
+        chordKAt = 0
+        setShortcutsOpen((prev) => !prev)
+        return
+      }
+      if (mod && !event.shiftKey && key === 'k') {
+        chordKAt = Date.now()
+      }
 
       if (mod && event.shiftKey && key === 'p') {
         event.preventDefault()
@@ -1748,6 +1777,7 @@ export function IDEWorkspace() {
       persistWorkspace({ files: next })
       return next
     })
+    pushToast({ title: `Saved ${target.name}`, detail: target.path, variant: 'success' })
   }
 
   // P0-2: Real-time File Watcher SSE (auto-syncs external git pull, CLI edits, created/deleted files)
@@ -1842,9 +1872,14 @@ export function IDEWorkspace() {
       setRevealRequest((current) => ({ path, line, seq: (current?.seq ?? 0) + 1 }))
     }
 
-    // P0-2: Lazy-load file content on demand for large workspaces (> 100 files)
+    // P0-2: Lazy-load text file content on demand (skip binary images rendered via Image Viewer)
     const target = filesRef.current.find((f) => f.path === path)
-    if (target?.lazy && activeProject?.rootPath) {
+    if (
+      target?.lazy &&
+      target.language !== 'image' &&
+      !/\.(png|jpe?g|gif|webp|ico)$/i.test(target.name) &&
+      activeProject?.rootPath
+    ) {
       void fetch(
         `/api/workspace?action=read&root=${encodeURIComponent(activeProject.rootPath)}&path=${encodeURIComponent(path)}`,
         { cache: 'no-store' },
@@ -2163,95 +2198,143 @@ export function IDEWorkspace() {
   }
 
   const createNewFile = async () => {
-    const fileName = window.prompt('New file path (relative to workspace):', 'src/untitled.ts')
-    const clean = fileName?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
-    if (!clean) return
-    if (files.some((item) => item.path === clean)) {
-      openFile(clean)
-      return
-    }
-    const name = clean.split('/').pop() || clean
-    const created: WorkspaceFile = {
-      name,
-      path: clean,
-      content: '',
-      language: inferLanguage(name),
-      dirty: false,
-    }
-    await writeFileToDiskIfConnected(clean, '')
-    setFiles((current) => [...current, created])
-    openFile(clean)
+    setDialogRequest({
+      kind: 'prompt',
+      title: 'New File',
+      description: 'Relative path inside the current workspace:',
+      placeholder: 'src/untitled.ts',
+      initialValue: 'src/untitled.ts',
+      confirmLabel: 'Create File',
+      onConfirm: (fileName) => {
+        const clean = fileName.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+        if (!clean) return
+        if (filesRef.current.some((item) => item.path === clean)) {
+          openFile(clean)
+          return
+        }
+        const name = clean.split('/').pop() || clean
+        const created: WorkspaceFile = {
+          name,
+          path: clean,
+          content: '',
+          language: inferLanguage(name),
+          dirty: false,
+        }
+        void writeFileToDiskIfConnected(clean, '')
+        setFiles((current) => [...current, created])
+        openFile(clean)
+        pushToast({ title: 'Created file', detail: clean, variant: 'success' })
+      },
+    })
   }
 
   const createNewFolder = async () => {
-    const folderName = window.prompt('New folder path (relative to workspace):', 'src/new-module')
-    const clean = folderName?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
-    if (!clean) return
-    if (activeProject?.rootPath) {
-      await fetch('/api/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create-folder',
-          root: activeProject.rootPath,
-          path: clean,
-        }),
-      }).catch(() => {})
-      await loadLocalDirectory(activeProject.rootPath, true)
-    }
+    setDialogRequest({
+      kind: 'prompt',
+      title: 'New Folder',
+      description: 'Relative folder path inside the current workspace:',
+      placeholder: 'src/new-module',
+      initialValue: 'src/new-module',
+      confirmLabel: 'Create Folder',
+      onConfirm: (folderName) => {
+        const clean = folderName.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+        if (!clean || !activeProject?.rootPath) return
+        void fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create-folder',
+            root: activeProject.rootPath,
+            path: clean,
+          }),
+        })
+          .then(() => {
+            pushToast({ title: 'Created folder', detail: clean, variant: 'success' })
+            return loadLocalDirectory(activeProject.rootPath, true)
+          })
+          .catch(() => {})
+      },
+    })
   }
 
   const renameWorkspaceFile = async (oldPath: string) => {
-    const nextInput = window.prompt('Rename file to (relative path):', oldPath)
-    const nextPath = nextInput?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
-    if (!nextPath || nextPath === oldPath) return
-    if (activeProject?.rootPath) {
-      const response = await fetch('/api/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'rename',
-          root: activeProject.rootPath,
-          path: oldPath,
-          newPath: nextPath,
-        }),
-      }).catch(() => null)
-      if (response && !response.ok) return
-    }
-    const nextName = nextPath.split('/').pop() || nextPath
-    setFiles((current) =>
-      current.map((file) =>
-        file.path === oldPath
-          ? { ...file, path: nextPath, name: nextName, language: inferLanguage(nextName) }
-          : file,
-      ),
-    )
-    setOpenPaths((current) => current.map((item) => (item === oldPath ? nextPath : item)))
-    if (activePath === oldPath) setActivePath(nextPath)
+    setDialogRequest({
+      kind: 'prompt',
+      title: 'Rename File',
+      description: `Rename "${oldPath}" to:`,
+      placeholder: oldPath,
+      initialValue: oldPath,
+      confirmLabel: 'Rename',
+      onConfirm: (nextInput) => {
+        const nextPath = nextInput.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+        if (!nextPath || nextPath === oldPath) return
+        void (async () => {
+          if (activeProject?.rootPath) {
+            const response = await fetch('/api/workspace', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'rename',
+                root: activeProject.rootPath,
+                path: oldPath,
+                newPath: nextPath,
+              }),
+            }).catch(() => null)
+            if (response && !response.ok) {
+              pushToast({ title: 'Rename failed', detail: oldPath, variant: 'error' })
+              return
+            }
+          }
+          const nextName = nextPath.split('/').pop() || nextPath
+          setFiles((current) =>
+            current.map((file) =>
+              file.path === oldPath
+                ? { ...file, path: nextPath, name: nextName, language: inferLanguage(nextName) }
+                : file,
+            ),
+          )
+          setOpenPaths((current) => current.map((item) => (item === oldPath ? nextPath : item)))
+          if (activePath === oldPath) setActivePath(nextPath)
+          pushToast({ title: 'Renamed file', detail: `${oldPath} → ${nextPath}`, variant: 'success' })
+        })()
+      },
+    })
   }
 
   const deleteWorkspaceFile = async (targetPath: string) => {
-    if (!window.confirm(`Delete "${targetPath}" from workspace${activeProject?.rootPath ? ' and disk' : ''}?`)) {
-      return
-    }
-    if (activeProject?.rootPath) {
-      const response = await fetch('/api/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete',
-          root: activeProject.rootPath,
-          path: targetPath,
-        }),
-      }).catch(() => null)
-      if (response && !response.ok) return
-    }
-    setFiles((current) => current.filter((file) => file.path !== targetPath))
-    setOpenPaths((current) => current.filter((item) => item !== targetPath))
-    if (activePath === targetPath) {
-      const remaining = openPaths.filter((item) => item !== targetPath)
-      setActivePath(remaining[remaining.length - 1] ?? '')
-    }
+    setDialogRequest({
+      kind: 'confirm',
+      title: 'Delete File',
+      description: `Delete "${targetPath}" from workspace${activeProject?.rootPath ? ' and local disk' : ''}?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => {
+        void (async () => {
+          if (activeProject?.rootPath) {
+            const response = await fetch('/api/workspace', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'delete',
+                root: activeProject.rootPath,
+                path: targetPath,
+              }),
+            }).catch(() => null)
+            if (response && !response.ok) {
+              pushToast({ title: 'Delete failed', detail: targetPath, variant: 'error' })
+              return
+            }
+          }
+          setFiles((current) => current.filter((file) => file.path !== targetPath))
+          setOpenPaths((current) => current.filter((item) => item !== targetPath))
+          if (activePath === targetPath) {
+            const remaining = openPaths.filter((item) => item !== targetPath)
+            setActivePath(remaining[remaining.length - 1] ?? '')
+          }
+          pushToast({ title: 'Deleted file', detail: targetPath, variant: 'info' })
+        })()
+      },
+    })
   }
 
   const handleAcceptInlineEdit = useCallback(
@@ -2517,6 +2600,24 @@ export function IDEWorkspace() {
         run: () => void runTerminalCommand('pnpm test', { openTerminal: true }),
       },
       {
+        id: 'open-shortcuts',
+        category: 'Preferences',
+        label: 'Keyboard Shortcuts Cheatsheet',
+        shortcut: 'Ctrl+K Ctrl+S',
+        run: () => setShortcutsOpen(true),
+      },
+      {
+        id: 'cycle-theme',
+        category: 'Preferences',
+        label: `Cycle Color Theme (${appSettings.theme ?? 'dark'})`,
+        run: () => {
+          const order: AppTheme[] = ['dark', 'light', 'high-contrast']
+          const next = order[(order.indexOf(appSettings.theme ?? 'dark') + 1) % order.length]
+          setAppSettings((cur) => ({ ...cur, theme: next }))
+          pushToast({ title: `Theme: ${next}`, variant: 'info' })
+        },
+      },
+      {
         id: 'open-settings',
         category: 'Preferences',
         label: 'Open VinceZone Settings',
@@ -2528,6 +2629,8 @@ export function IDEWorkspace() {
       activePath,
       appSettings.editorMinimap,
       appSettings.editorWordWrap,
+      appSettings.theme,
+      pushToast,
       runTerminalCommand,
       splitPath,
       toggleZenMode,
@@ -2551,6 +2654,10 @@ export function IDEWorkspace() {
       const next = current.map((file) => ({ ...file, dirty: false }))
       persistWorkspace({ files: next })
       return next
+    })
+    pushToast({
+      title: dirtyList.length > 0 ? `Saved ${dirtyList.length} file(s)` : 'All files already saved',
+      variant: 'success',
     })
   }
 
@@ -2599,192 +2706,87 @@ export function IDEWorkspace() {
     await runTerminalCommand(hasPnpmLock ? 'pnpm test' : 'npm test', { openTerminal: true })
   }, [activePath, runTerminalCommand])
 
-  const flattenBreakpoints = useCallback((map: Record<string, number[]>) => {
-    return Object.entries(map).flatMap(([bpPath, lines]) =>
-      lines.map((line) => ({ path: bpPath, line })),
-    )
+  // Extracted domain hooks: Live Git Status (StatusBar + Explorer) & Multi-Language Debugger (Node CDP / Python pdb / Attach / Watch)
+  const { gitSummary, syncBranchFromSidebar, switchGitBranch } = useGitStatus(
+    activeProject?.rootPath,
+    pushToast,
+    () => {
+      if (activeProject?.rootPath) void loadLocalDirectory(activeProject.rootPath, true)
+    },
+  )
+
+  const handleOpenDebugLocation = useCallback((locPath: string, locLine: number) => {
+    setActivePath(locPath)
+    setOpenPaths((current) => (current.includes(locPath) ? current : [...current, locPath]))
+    setRevealRequest((prev) => ({ path: locPath, line: locLine, seq: (prev?.seq ?? 0) + 1 }))
   }, [])
 
-  const applyDebugSnapshot = useCallback((snap: DebugSnapshot) => {
-    setDebugSnapshot(snap)
-    if (snap.status === 'paused') {
-      setDebugState('paused')
-      if (snap.activeLocation) {
-        setDebugLine(snap.activeLocation.line)
-        setActivePath(snap.activeLocation.path)
-        setOpenPaths((current) =>
-          current.includes(snap.activeLocation!.path)
-            ? current
-            : [...current, snap.activeLocation!.path],
-        )
-        setRevealRequest((prev) => ({
-          path: snap.activeLocation!.path,
-          line: snap.activeLocation!.line,
-          seq: (prev?.seq ?? 0) + 1,
-        }))
-      }
-    } else if (snap.status === 'running' || snap.status === 'starting') {
-      setDebugState(snap.status)
-    } else {
-      setDebugState('idle')
-    }
-  }, [])
-
-  const toggleBreakpoint = useCallback(
-    (filePath: string, line: number) => {
-      setBreakpoints((current) => {
-        const existing = current[filePath] ?? []
-        const nextLines = existing.includes(line)
-          ? existing.filter((l) => l !== line)
-          : [...existing, line].sort((a, b) => a - b)
-        const nextMap = { ...current }
-        if (nextLines.length === 0) delete nextMap[filePath]
-        else nextMap[filePath] = nextLines
-
-        if (debugState !== 'idle') {
-          void fetch('/api/debug', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'setBreakpoints',
-              breakpoints: flattenBreakpoints(nextMap),
-            }),
-          }).catch(() => {})
-        }
-        return nextMap
-      })
-    },
-    [debugState, flattenBreakpoints],
-  )
-
-  const controlDebugger = useCallback(
-    async (action: 'resume' | 'stepOver' | 'stepInto' | 'stepOut' | 'stop') => {
-      try {
-        const res = await fetch('/api/debug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action }),
-        })
-        const data = (await res.json()) as { debug?: DebugSnapshot }
-        if (data.debug) applyDebugSnapshot(data.debug)
-        else if (action === 'stop') {
-          setDebugState('idle')
-          setDebugSnapshot(null)
-        }
-      } catch {
-        if (action === 'stop') setDebugState('idle')
-      }
-    },
-    [applyDebugSnapshot],
-  )
-
-  const evaluateInDebugger = useCallback(
-    async (expression: string) => {
-      try {
-        const res = await fetch('/api/debug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'evaluate', expression }),
-        })
-        const data = (await res.json()) as { debug?: DebugSnapshot }
-        if (data.debug) setDebugSnapshot(data.debug)
-      } catch {
-        // ignore
-      }
-    },
-    [],
-  )
-
-  const debugProject = useCallback(async () => {
+  const handleOpenDebugPanel = useCallback(() => {
     setWorkspaceMode('ide')
     setTerminalOpen(true)
     setBottomPanel('debug')
-    const currentFile = filesRef.current.find((f) => f.path === activePath)
-    const lowerPath = currentFile?.path.toLowerCase() || ''
-    setDebugLine(Math.max(1, cursor.line || 1))
-    setDebugState('starting')
+  }, [])
 
-    // Real V8 Inspector CDP Debugging for Node JS/TS + Python interactive `pdb` Debugging for `.py`
-    const isLiveDebuggable =
-      Boolean(currentFile) &&
-      (/\.(js|mjs|cjs|mts|cts|py)$/i.test(lowerPath) ||
-        (lowerPath.endsWith('.ts') && !lowerPath.endsWith('.d.ts') && !lowerPath.endsWith('.tsx')))
+  const {
+    debugState,
+    debugLine,
+    breakpoints,
+    debugSnapshot,
+    watchResults,
+    toggleBreakpoint,
+    controlDebugger,
+    evaluateInDebugger,
+    attachDebugger,
+    debugProject,
+    addWatchExpression,
+    removeWatchExpression,
+  } = useDebugger({
+    rootPath: activeProject?.rootPath,
+    activePath,
+    cursorLine: cursor.line,
+    filesRef,
+    onOpenDebugLocation: handleOpenDebugLocation,
+    onOpenDebugPanel: handleOpenDebugPanel,
+    onNotify: pushToast,
+  })
 
-    if (isLiveDebuggable && currentFile) {
-      try {
-        const res = await fetch('/api/debug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'start',
-            cwd: activeProject?.rootPath,
-            targetFile: currentFile.path,
-            breakpoints: flattenBreakpoints(breakpoints),
-          }),
-        })
-        const data = (await res.json()) as { ok?: boolean; debug?: DebugSnapshot; error?: string }
-        if (data.debug) {
-          applyDebugSnapshot(data.debug)
-          return
-        }
-      } catch {
-        // Fall through to diagnostic mode if CDP spawn fails
-      }
-    }
+  const appTheme: AppTheme = appSettings.theme ?? 'dark'
+  const cycleAppTheme = useCallback(() => {
+    const order: AppTheme[] = ['dark', 'light', 'high-contrast']
+    const next = order[(order.indexOf(appTheme) + 1) % order.length]
+    setAppSettings((current) => ({ ...current, theme: next }))
+    pushToast({ title: `Color Theme: ${next}`, variant: 'info' })
+  }, [appTheme, pushToast])
 
-    // Fallback for React TSX / Python / full-project static verification
-    const cmd = lowerPath.endsWith('.py')
-      ? `python -m py_compile "${currentFile!.path}"`
-      : 'pnpm exec tsc --noEmit'
-
-    try {
-      const response = await fetch('/api/runner', {
+  const handleRevealInExplorer = useCallback(
+    (relPath: string) => {
+      if (!activeProject?.rootPath) return
+      void fetch('/api/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'run-silent',
-          command: cmd,
-          cwd: activeProject?.rootPath,
-        }),
+        body: JSON.stringify({ action: 'reveal', root: activeProject.rootPath, path: relPath }),
       })
-      const data = (await response.json()) as {
-        ok?: boolean
-        stdout?: string
-        stderr?: string
-        error?: string
-      }
-      const lines = [
-        `[Debugger] Static inspect (${cmd})`,
-        ...(data.stdout ? data.stdout.split(/\r?\n/) : []),
-        ...(data.stderr ? data.stderr.split(/\r?\n/).map((l) => `[stderr] ${l}`) : []),
-        ...(data.ok ? ['✓ Zero errors found. Open a .js/.ts script to attach live V8 Inspector.'] : []),
-      ].filter(Boolean)
-      setDebugSnapshot({
-        status: 'paused',
-        targetFile: currentFile?.path ?? null,
-        cwd: activeProject?.rootPath ?? null,
-        pid: null,
-        activeLocation: currentFile ? { path: currentFile.path, line: Math.max(1, cursor.line) } : null,
-        callFrames: currentFile
-          ? [
-              {
-                callFrameId: 'static-0',
-                functionName: '(diagnostic check)',
-                path: currentFile.path,
-                line: Math.max(1, cursor.line),
-                column: 1,
-              },
-            ]
-          : [],
-        variables: [],
-        consoleLines: lines,
-        error: data.error || null,
-      })
-      setDebugState('paused')
-    } catch {
-      setDebugState('idle')
-    }
-  }, [activePath, activeProject?.rootPath, applyDebugSnapshot, breakpoints, cursor.line, flattenBreakpoints])
+        .then(() => pushToast({ title: 'Revealed in File Explorer', detail: relPath, variant: 'info' }))
+        .catch(() => {})
+    },
+    [activeProject?.rootPath, pushToast],
+  )
+
+  const handleAddFileToChat = useCallback(
+    (relPath: string) => {
+      const targetId = rightChatAgentId || findPmAgentId(agents)
+      if (!targetId) return
+      setWorkspaceMode('ide')
+      setRightPanelMode('chat')
+      setDrafts((current) => ({
+        ...current,
+        [targetId]: `${current[targetId] ? `${current[targetId]} ` : ''}@${relPath} `,
+      }))
+      setChatFocusSeq((n) => n + 1)
+      pushToast({ title: 'Added file to AI Chat', detail: `@${relPath}`, variant: 'info' })
+    },
+    [agents, pushToast, rightChatAgentId],
+  )
 
   const dirtyCount = files.filter((file) => file.dirty).length
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
@@ -2793,7 +2795,10 @@ export function IDEWorkspace() {
   ).length
 
   return (
-    <main className="flex h-dvh min-h-[680px] flex-col overflow-hidden bg-[#1e1e1e] text-[#cccccc]">
+    <main
+      data-theme={appTheme}
+      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#1e1e1e] text-[#cccccc]"
+    >
       <WorkspaceHeader
         projects={projects}
         activeProjectId={activeProjectId}
@@ -2825,11 +2830,15 @@ export function IDEWorkspace() {
         onCopyActivePath={() => {
           if (activeFile?.path && navigator.clipboard) {
             void navigator.clipboard.writeText(activeFile.path)
+            pushToast({ title: 'Copied path', detail: activeFile.path, variant: 'info' })
           }
         }}
         onUndoLatestRevision={() => {
           const latest = revisions[revisions.length - 1]
-          if (latest) restoreRevisionById(latest.id)
+          if (latest) {
+            restoreRevisionById(latest.id)
+            pushToast({ title: `Restored ${latest.id}`, detail: latest.path, variant: 'success' })
+          }
         }}
         onToggleAutoSave={() =>
           setAppSettings((current) => ({ ...current, autoSave: !current.autoSave }))
@@ -2877,6 +2886,7 @@ export function IDEWorkspace() {
         onOpenQuickOpen={() => setPaletteMode('files')}
         onOpenDiff={() => setDiffModalState({ open: true })}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
         onPreviewMail={() => {
           setWorkspaceMode('agents')
           window.setTimeout(() => {
@@ -2957,6 +2967,14 @@ export function IDEWorkspace() {
                   onOpenAgents={() => setWorkspaceMode('agents')}
                   onOpenDiff={() => setDiffModalState({ open: true })}
                   onOpenGitDiff={(path) => void handleOpenGitDiff(path)}
+                  onCopyRelativePath={(relPath) => {
+                    void navigator.clipboard?.writeText(relPath)
+                    pushToast({ title: 'Copied relative path', detail: relPath, variant: 'info' })
+                  }}
+                  onAddFileToChat={handleAddFileToChat}
+                  onRevealInExplorer={handleRevealInExplorer}
+                  onGitBranchChanged={syncBranchFromSidebar}
+                  onRequestConfirm={(opts) => setDialogRequest({ kind: 'confirm', ...opts })}
                   provider={savedProvider}
                 />
                 <div
@@ -2985,6 +3003,7 @@ export function IDEWorkspace() {
                 fontSize={appSettings.editorFontSize}
                 wordWrap={appSettings.editorWordWrap}
                 minimap={appSettings.editorMinimap}
+                theme={appTheme}
                 revealRequest={revealRequest}
                 formatSeq={formatSeq}
                 breakpoints={breakpoints}
@@ -3055,12 +3074,16 @@ export function IDEWorkspace() {
                 onSelectTab={setBottomPanel}
                 onOpenFile={openFile}
                 onStartDebug={() => void debugProject()}
+                onAttachDebug={attachDebugger}
                 onContinueDebug={() => void controlDebugger('resume')}
                 onStepOverDebug={() => void controlDebugger('stepOver')}
                 onStepIntoDebug={() => void controlDebugger('stepInto')}
                 onStepOutDebug={() => void controlDebugger('stepOut')}
                 onStopDebug={() => void controlDebugger('stop')}
                 onEvaluateDebug={evaluateInDebugger}
+                watchResults={watchResults}
+                onAddWatch={addWatchExpression}
+                onRemoveWatch={removeWatchExpression}
               />
             </section>
 
@@ -3255,6 +3278,14 @@ export function IDEWorkspace() {
         debugActive={debugState === 'paused' || debugState === 'running'}
         isDesktop={isDesktop}
         bridgeCount={bridgeMessages.length}
+        gitBranch={gitSummary.branch}
+        gitBranches={gitSummary.branches}
+        gitAhead={gitSummary.ahead}
+        gitBehind={gitSummary.behind}
+        theme={appTheme}
+        onSwitchGitBranch={(branch) => void switchGitBranch(branch)}
+        onCycleTheme={cycleAppTheme}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
         onOpenProblems={() => {
           setWorkspaceMode('ide')
           setTerminalOpen(true)
@@ -3331,6 +3362,10 @@ export function IDEWorkspace() {
           onClose={() => setDiffModalState({ open: false })}
         />
       )}
+
+      <InlineDialogModal dialog={dialogRequest} onClose={() => setDialogRequest(null)} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </main>
   )
 }
