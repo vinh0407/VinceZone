@@ -319,9 +319,13 @@ export function WorkspaceHeader({
   ]
 
   return (
-    <header className="relative z-40 flex h-[35px] shrink-0 select-none items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-2 text-[#cccccc]">
+    <header
+      className={`titlebar-drag relative z-40 flex h-[35px] shrink-0 select-none items-center justify-between border-b border-[#2b2b2b] bg-[#181818] pl-2 text-[#cccccc] ${
+        isDesktop ? 'pr-[142px]' : 'pr-2'
+      }`}
+    >
       {/* Left: VS Code Menu Bar with real dropdown options + Workspace Switcher */}
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="titlebar-no-drag flex min-w-0 items-center gap-1">
         <div className="flex items-center gap-1.5 pr-1.5">
           <img
             src="/logo.png"
@@ -450,7 +454,7 @@ export function WorkspaceHeader({
       <button
         onClick={onOpenSearch}
         title="Search files & code (Ctrl+K)"
-        className="mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
+        className="titlebar-no-drag mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
       >
         <Search size={12} className="shrink-0 text-[#9d9d9d]" />
         <span className="truncate">
@@ -463,7 +467,7 @@ export function WorkspaceHeader({
       </button>
 
       {/* Right: Quick Actions + VS Code Layout Controls */}
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="titlebar-no-drag flex shrink-0 items-center gap-1">
         {pendingPatchCount > 0 && (
           <button
             onClick={onOpenDiff}

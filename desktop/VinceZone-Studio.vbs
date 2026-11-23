@@ -1,6 +1,7 @@
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
-rootDir = fso.GetParentFolderName(WScript.ScriptFullName)
+desktopDir = fso.GetParentFolderName(WScript.ScriptFullName)
+rootDir = fso.GetParentFolderName(desktopDir)
 shell.CurrentDirectory = rootDir
 
 electronExe = rootDir & "\node_modules\electron\dist\electron.exe"

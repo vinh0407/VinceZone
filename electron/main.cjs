@@ -159,9 +159,15 @@ async function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     title: 'VinceZone Studio',
-    icon: path.join(__dirname, 'icon.ico'),
+    icon: path.join(__dirname, 'vincezone-logo.ico'),
     autoHideMenuBar: true,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#181818',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#181818',
+      symbolColor: '#cccccc',
+      height: 35,
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
