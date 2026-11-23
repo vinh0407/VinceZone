@@ -15,7 +15,12 @@ import {
   normalizeImportedPath,
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
-import { inferRoleId, type VinceZoneRoleId } from '@/lib/vincezone-protocol'
+import {
+  getRoleBlueprint,
+  inferRoleId,
+  ROLE_INTELLIGENCE_VERSION,
+  type VinceZoneRoleId,
+} from '@/lib/vincezone-protocol'
 import { ActivityBar } from './activity-bar'
 import type {
   Agent,
@@ -314,6 +319,7 @@ export function IDEWorkspace() {
     if (rawSaved) {
       try {
         const parsed = JSON.parse(rawSaved) as {
+          roleIntelligenceVersion?: number
           files?: WorkspaceFile[]
           provider?: ProviderConfig
           providers?: ProviderConfig[]
@@ -327,6 +333,25 @@ export function IDEWorkspace() {
           revisions?: EditRevision[]
           memoryNotes?: MemoryNote[]
           usageRecords?: UsageRecord[]
+        }
+
+        const needsBlueprintUpgrade = parsed.roleIntelligenceVersion !== ROLE_INTELLIGENCE_VERSION
+        const upgradeAgentBlueprint = (agent: Agent): Agent => {
+          const roleId = agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)
+          const blueprint = getRoleBlueprint(roleId)
+          const upgradeSoul = needsBlueprintUpgrade && (!agent.soul || agent.soul.length < 360)
+          const upgradeMission =
+            needsBlueprintUpgrade && (!agent.mission || agent.mission.length < 320)
+          const upgradeMemory =
+            needsBlueprintUpgrade && (!agent.memory || agent.memory.length < 300)
+          return {
+            ...agent,
+            roleId,
+            role: upgradeMission ? blueprint.summary : agent.role,
+            soul: upgradeSoul ? blueprint.defaultSoul : agent.soul,
+            mission: upgradeMission ? blueprint.defaultMission : agent.mission,
+            memory: upgradeMemory ? blueprint.defaultMemory : agent.memory,
+          }
         }
 
         if (parsed.settings) {
@@ -360,23 +385,37 @@ export function IDEWorkspace() {
           )
         }
         if (parsed.projects?.length) {
-          setProjects(parsed.projects)
+          setProjects(
+            parsed.projects.map((project) =>
+              project.session?.agents?.length
+                ? {
+                    ...project,
+                    session: {
+                      ...project.session,
+                      agents: project.session.agents.map(upgradeAgentBlueprint),
+                    },
+                  }
+                : project,
+            ),
+          )
           if (parsed.activeProjectId) {
             setActiveProjectId(parsed.activeProjectId)
           }
         }
         if (parsed.agents?.length) {
           restoredAgents = true
-          const normalized = parsed.agents.map((agent) => ({
-            ...agent,
-            roleId: agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`),
-            status:
-              agent.status === 'running' || agent.status === 'reviewing'
-                ? ('paused' as const)
-                : agent.status,
-            currentTask: undefined,
-            composingPrompt: undefined,
-          }))
+          const normalized = parsed.agents.map((agent) => {
+            const upgraded = upgradeAgentBlueprint(agent)
+            return {
+              ...upgraded,
+              status:
+                upgraded.status === 'running' || upgraded.status === 'reviewing'
+                  ? ('paused' as const)
+                  : upgraded.status,
+              currentTask: undefined,
+              composingPrompt: undefined,
+            }
+          })
           setAgents(normalized)
           setRightChatAgentId(normalized[0]?.id ?? 'pm')
         }
@@ -589,6 +628,7 @@ export function IDEWorkspace() {
         window.localStorage.setItem(
           WORKSPACE_STORAGE_KEY,
           JSON.stringify({
+            roleIntelligenceVersion: ROLE_INTELLIGENCE_VERSION,
             files: nextFiles.slice(0, 30),
             projects: nextProjects.map((project) => ({
               id: project.id,

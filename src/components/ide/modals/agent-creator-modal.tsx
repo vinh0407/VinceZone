@@ -1,6 +1,15 @@
 'use client'
 
-import { ArrowRight, Bot, MessageSquare, Sparkles, TerminalSquare, Users, X } from 'lucide-react'
+import {
+  ArrowRight,
+  Bot,
+  MessageSquare,
+  RotateCcw,
+  Sparkles,
+  TerminalSquare,
+  Users,
+  X,
+} from 'lucide-react'
 import { useState } from 'react'
 import {
   CUSTOM_ROLE_META,
@@ -52,7 +61,7 @@ const ROLE_PRESETS: RolePresetItem[] = [
     handsOffTo: CUSTOM_ROLE_META.handsOffTo,
     recommendedModel: CUSTOM_ROLE_META.recommendedModel,
     defaultSkills: CUSTOM_ROLE_META.defaultSkills,
-    role: 'Custom specialist coding agent',
+    role: CUSTOM_ROLE_META.summary,
     soul: CUSTOM_ROLE_META.defaultSoul,
     mission: CUSTOM_ROLE_META.defaultMission,
     memory: CUSTOM_ROLE_META.defaultMemory,
@@ -147,7 +156,7 @@ export function AgentCreatorModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
-      <section className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#333333] bg-[#141414] shadow-2xl">
+      <section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#333333] bg-[#141414] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-4 py-3">
           <div className="flex items-center gap-2">
             {roleId === 'pm' ? (
@@ -198,11 +207,27 @@ export function AgentCreatorModal({
 
           {/* Role Position & Collaboration Explanation Card */}
           <div className="rounded-lg border border-[#2f2f2f] bg-[#181818] p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
                 <Users size={12} className="text-[#cccccc]" />
                 Vị trí trong đội ngũ: @{activePreset.code} ({activePreset.title})
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRole(activePreset.role)
+                  setSoul(activePreset.soul)
+                  setMission(activePreset.mission)
+                  setMemory(activePreset.memory)
+                  if (availableModels.includes(activePreset.recommendedModel)) {
+                    setModel(activePreset.recommendedModel)
+                  }
+                }}
+                className="flex items-center gap-1 rounded border border-[#3a3a3a] bg-[#222222] px-2 py-0.5 text-[10px] text-[#d4d4d4] hover:border-[#737373] hover:text-white"
+                title="Reload full v5 Soul, Mission & Role Memory blueprint for this role"
+              >
+                <RotateCcw size={10} /> Load Full Blueprint
+              </button>
             </div>
             <p className="mt-1.5 text-[11px] leading-4 text-[#bdbdbd]">{activePreset.position}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-[#9d9d9d]">
@@ -217,7 +242,23 @@ export function AgentCreatorModal({
               <span className="rounded bg-[#222222] px-1.5 py-0.5 font-mono text-[#d4d4d4]">
                 Bàn giao cho: {activePreset.handsOffTo.join(', ')}
               </span>
+              <span className="ml-auto rounded border border-[#333333] bg-[#141414] px-1.5 py-0.5 font-mono text-[9px] text-[#cccccc]">
+                Combo: {activePreset.recommendedModel}
+              </span>
             </div>
+            {activePreset.defaultSkills.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1 text-[9px] text-[#9d9d9d]">
+                <span className="font-medium text-[#b5b5b5]">Skills:</span>
+                {activePreset.defaultSkills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded border border-[#2d2d2d] bg-[#141414] px-1.5 py-0.5 font-mono text-[#cccccc]"
+                  >
+                    /{skill}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <Field
@@ -271,41 +312,50 @@ export function AgentCreatorModal({
           </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-              Soul (Personality, Communication Style & Team Principles)
-            </span>
+            <div className="mb-1.5 flex items-center justify-between text-[10px] font-medium text-[#9d9d9d]">
+              <span>Soul (Expert Reasoning, Principles & Role Mindset)</span>
+              <span className="font-mono text-[9px] text-[#737373]">
+                {soul.length.toLocaleString()} chars
+              </span>
+            </div>
             <textarea
-              rows={2}
+              rows={7}
               value={soul}
               onChange={(event) => setSoul(event.target.value)}
-              placeholder="e.g. Direct, thorough, prefers small surgical diffs..."
-              className="w-full resize-none rounded-md border border-[#333333] bg-[#101010] px-3 py-2 text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
+              placeholder="Detailed role soul, reasoning disciplines, and decision standards..."
+              className="w-full resize-y rounded-md border border-[#333333] bg-[#101010] px-3 py-2 font-mono text-[11px] leading-5 text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-              Mission (Primary Objective & Ownership Boundaries)
-            </span>
+            <div className="mb-1.5 flex items-center justify-between text-[10px] font-medium text-[#9d9d9d]">
+              <span>Mission (Primary Objectives, Scope & Deliverables)</span>
+              <span className="font-mono text-[9px] text-[#737373]">
+                {mission.length.toLocaleString()} chars
+              </span>
+            </div>
             <textarea
-              rows={2}
+              rows={6}
               value={mission}
               onChange={(event) => setMission(event.target.value)}
-              placeholder="e.g. Own backend API endpoints and keep strict contract parity..."
-              className="w-full resize-none rounded-md border border-[#333333] bg-[#101010] px-3 py-2 text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
+              placeholder="Detailed responsibilities, orchestration duties, and verification deliverables..."
+              className="w-full resize-y rounded-md border border-[#333333] bg-[#101010] px-3 py-2 font-mono text-[11px] leading-5 text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium text-[#9d9d9d]">
-              Role Memory (Collaboration Handoff Rules & Persistent Constraints)
-            </span>
+            <div className="mb-1.5 flex items-center justify-between text-[10px] font-medium text-[#9d9d9d]">
+              <span>Role Memory (Persistent Constraints, Territory & Handoff Rules)</span>
+              <span className="font-mono text-[9px] text-[#737373]">
+                {memory.length.toLocaleString()} chars
+              </span>
+            </div>
             <textarea
-              rows={2}
+              rows={5}
               value={memory}
               onChange={(event) => setMemory(event.target.value)}
-              placeholder="e.g. Coordinate with @BE via HANDOFF @BE: before wiring UI..."
-              className="w-full resize-none rounded-md border border-[#333333] bg-[#101010] px-3 py-2 text-[11px] text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
+              placeholder="Persistent guardrails, territory rules, and inter-agent handoff standards..."
+              className="w-full resize-y rounded-md border border-[#333333] bg-[#101010] px-3 py-2 font-mono text-[11px] leading-5 text-[#e5e5e5] outline-none placeholder:text-[#666666] focus:border-[#737373]"
             />
           </label>
 

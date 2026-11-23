@@ -118,6 +118,7 @@ export function ExplorerSidebar({
   const [replaceText, setReplaceText] = useState('')
   const [replaceFeedback, setReplaceFeedback] = useState('')
   const [collapsedSearchFiles, setCollapsedSearchFiles] = useState<Record<string, boolean>>({})
+  const [expandedMemoryAgents, setExpandedMemoryAgents] = useState<Record<string, boolean>>({})
 
   const searchMatches = useMemo(() => {
     const q = searchQuery.trim()
@@ -871,26 +872,63 @@ export function ExplorerSidebar({
               <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#858585]">
                 Agent Role Memory
               </p>
-              {agents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className="mb-1.5 rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[10px]"
-                >
-                  <p className="font-semibold text-[#d4d4d4]">
-                    {agent.name} {agent.roleId ? `(@${agent.roleId.toUpperCase()})` : ''}
-                  </p>
-                  {agent.mission && (
-                    <p className="mt-0.5 text-[#8f8f8f]">
-                      <span className="text-[#bbbbbb]">Mission:</span> {agent.mission}
-                    </p>
-                  )}
-                  {agent.memory && (
-                    <p className="mt-0.5 text-[#8f8f8f]">
-                      <span className="text-[#bbbbbb]">Memory:</span> {agent.memory}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {agents.map((agent) => {
+                const isExpanded = Boolean(expandedMemoryAgents[agent.id])
+                return (
+                  <div
+                    key={agent.id}
+                    className="mb-1.5 rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[10px]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedMemoryAgents((prev) => ({
+                          ...prev,
+                          [agent.id]: !prev[agent.id],
+                        }))
+                      }
+                      className="flex w-full items-center justify-between gap-1 text-left"
+                    >
+                      <span className="truncate font-semibold text-[#d4d4d4]">
+                        {agent.name} {agent.roleId ? `(@${agent.roleId.toUpperCase()})` : ''}
+                      </span>
+                      <span className="shrink-0 font-mono text-[8px] uppercase text-[#737373]">
+                        {isExpanded ? 'Collapse' : 'Expand'}
+                      </span>
+                    </button>
+                    {agent.soul && (
+                      <p
+                        className={`mt-1 text-[#8f8f8f] ${
+                          isExpanded ? 'whitespace-pre-wrap leading-4' : 'line-clamp-2'
+                        }`}
+                      >
+                        <span className="font-medium text-[#bbbbbb]">Soul:</span>{' '}
+                        {isExpanded ? `\n${agent.soul}` : agent.soul.split('\n')[0]}
+                      </p>
+                    )}
+                    {agent.mission && (
+                      <p
+                        className={`mt-1 text-[#8f8f8f] ${
+                          isExpanded ? 'whitespace-pre-wrap leading-4' : 'line-clamp-2'
+                        }`}
+                      >
+                        <span className="font-medium text-[#bbbbbb]">Mission:</span>{' '}
+                        {isExpanded ? `\n${agent.mission}` : agent.mission.split('\n')[0]}
+                      </p>
+                    )}
+                    {agent.memory && (
+                      <p
+                        className={`mt-1 text-[#8f8f8f] ${
+                          isExpanded ? 'whitespace-pre-wrap leading-4' : 'line-clamp-2'
+                        }`}
+                      >
+                        <span className="font-medium text-[#bbbbbb]">Role Memory:</span>{' '}
+                        {isExpanded ? `\n${agent.memory}` : agent.memory.split('\n')[0]}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

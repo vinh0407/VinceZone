@@ -256,12 +256,12 @@ export function RightAiChatPanel({
           <div className="mt-2 space-y-0.5 text-[10px] leading-4 text-[#8f8f8f]">
             {agent.mission && (
               <p className="truncate" title={agent.mission}>
-                <span className="text-[#cccccc]">Mission:</span> {agent.mission}
+                <span className="text-[#cccccc]">Mission:</span> {agent.mission.split('\n')[0]}
               </p>
             )}
             {agent.soul && (
               <p className="truncate" title={agent.soul}>
-                <span className="text-[#cccccc]">Soul:</span> {agent.soul}
+                <span className="text-[#cccccc]">Soul:</span> {agent.soul.split('\n')[0]}
               </p>
             )}
           </div>
