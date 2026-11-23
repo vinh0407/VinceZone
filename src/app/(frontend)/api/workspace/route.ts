@@ -85,7 +85,8 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const requestedRoot = searchParams.get('root')?.trim() || process.cwd()
+  const requestedRoot =
+    searchParams.get('root')?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
   const resolvedRoot = path.resolve(requestedRoot)
 
   try {

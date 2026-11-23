@@ -94,6 +94,7 @@ async function ensureEmbeddedRuntime() {
         NODE_ENV: 'production',
         HOSTNAME: '127.0.0.1',
         PORT: String(activePort),
+        VINCEZONE_WORKSPACE_ROOT: projectRoot,
         NEXT_PUBLIC_SITE_URL: `http://127.0.0.1:${activePort}`,
         ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
       },
