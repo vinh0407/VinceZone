@@ -167,7 +167,25 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webviewTag: true,
     },
+  })
+
+  // Harden embedded <webview> guest tabs (Web Project Preview browser)
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    if (!/^https?:\/\//i.test(params.src || '')) {
+      event.preventDefault()
+    }
+  })
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
   })
 
   buildNativeMenu(mainWindow)
@@ -196,6 +214,14 @@ ipcMain.handle('vincezone:openDirectory', async () => {
     properties: ['openDirectory'],
   })
   return result.canceled ? null : result.filePaths[0] || null
+})
+
+ipcMain.handle('vincezone:openExternal', async (_event, targetUrl) => {
+  if (typeof targetUrl === 'string' && /^https?:\/\//i.test(targetUrl)) {
+    await shell.openExternal(targetUrl)
+    return true
+  }
+  return false
 })
 
 app.whenReady().then(createWindow)
