@@ -125,10 +125,63 @@ export function ProviderSettingsModal({
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillSearch, setSkillSearch] = useState('')
 
-  // MCP add form
+  // MCP add form + live tool tester
   const [mcpName, setMcpName] = useState('')
   const [mcpTransport, setMcpTransport] = useState<'stdio' | 'http'>('stdio')
   const [mcpEndpoint, setMcpEndpoint] = useState('')
+  const [mcpTestState, setMcpTestState] = useState<
+    Record<
+      string,
+      {
+        loading: boolean
+        ok?: boolean
+        tools?: Array<{ name: string; description?: string }>
+        error?: string
+      }
+    >
+  >({})
+
+  const testMcpServer = useCallback(
+    async (server: McpServerConfig) => {
+      setMcpTestState((current) => ({ ...current, [server.id]: { loading: true } }))
+      try {
+        const response = await fetch('/api/mcp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'list-tools',
+            transport: server.transport,
+            endpoint: server.endpoint,
+            cwd: rootPath,
+          }),
+        })
+        const data = (await response.json()) as {
+          ok?: boolean
+          tools?: Array<{ name: string; description?: string }>
+          error?: string
+        }
+        setMcpTestState((current) => ({
+          ...current,
+          [server.id]: {
+            loading: false,
+            ok: Boolean(response.ok && data.ok),
+            tools: data.tools ?? [],
+            error: data.error,
+          },
+        }))
+      } catch (error) {
+        setMcpTestState((current) => ({
+          ...current,
+          [server.id]: {
+            loading: false,
+            ok: false,
+            error: error instanceof Error ? error.message : 'MCP handshake failed.',
+          },
+        }))
+      }
+    },
+    [rootPath],
+  )
 
   // Memory add form
   const [memTitle, setMemTitle] = useState('')
@@ -890,55 +943,109 @@ export function ProviderSettingsModal({
                 description="Register stdio or HTTP MCP servers that agents can use for browser automation, docs, and workspace tools."
               >
                 <div className="space-y-2">
-                  {settings.mcpServers.map((server) => (
-                    <div
-                      key={server.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-[#2c2c2c] bg-[#181818] p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-white">{server.name}</span>
-                          <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] uppercase text-[#a3a3a3]">
-                            {server.transport}
-                          </span>
+                  {settings.mcpServers.map((server) => {
+                    const testResult = mcpTestState[server.id]
+                    return (
+                      <div
+                        key={server.id}
+                        className="rounded-lg border border-[#2c2c2c] bg-[#181818] p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-white">
+                                {server.name}
+                              </span>
+                              <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] uppercase text-[#a3a3a3]">
+                                {server.transport}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate font-mono text-[10px] text-[#858585]">
+                              {server.endpoint}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={Boolean(testResult?.loading)}
+                            onClick={() => void testMcpServer(server)}
+                            className="flex items-center gap-1 rounded border border-[#3a3a3a] bg-[#222222] px-2 py-1 text-[10px] text-[#d4d4d4] hover:bg-[#2c2c2c] disabled:opacity-40"
+                            title="Run live JSON-RPC initialize + tools/list"
+                          >
+                            <RefreshCw
+                              size={10}
+                              className={testResult?.loading ? 'animate-spin' : ''}
+                            />
+                            Test / Tools
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                mcpServers: settings.mcpServers.map((item) =>
+                                  item.id === server.id
+                                    ? { ...item, enabled: !item.enabled }
+                                    : item,
+                                ),
+                              })
+                            }
+                            className={`rounded px-2 py-1 text-[10px] font-medium ${
+                              server.enabled
+                                ? 'bg-[#e5e5e5] text-[#111111]'
+                                : 'border border-[#3a3a3a] bg-[#141414] text-[#858585]'
+                            }`}
+                          >
+                            {server.enabled ? 'Enabled' : 'Disabled'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                mcpServers: settings.mcpServers.filter(
+                                  (item) => item.id !== server.id,
+                                ),
+                              })
+                            }
+                            className="icon-button !size-7 text-[#858585] hover:text-[#f48771]"
+                            title="Remove MCP server"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </div>
-                        <p className="mt-1 truncate font-mono text-[10px] text-[#858585]">
-                          {server.endpoint}
-                        </p>
+                        {testResult && !testResult.loading && (
+                          <div
+                            className={`mt-2 rounded border px-2.5 py-1.5 text-[10px] ${
+                              testResult.ok
+                                ? 'border-[#333333] bg-[#121212] text-[#d4d4d4]'
+                                : 'border-[#5a2a2a] bg-[#2a1414] text-[#f48771]'
+                            }`}
+                          >
+                            {testResult.ok ? (
+                              <div>
+                                <p className="font-semibold text-white">
+                                  Connected — {testResult.tools?.length ?? 0} tool(s) discovered
+                                </p>
+                                {testResult.tools && testResult.tools.length > 0 && (
+                                  <p className="mt-1 font-mono text-[9px] text-[#9d9d9d]">
+                                    {testResult.tools
+                                      .slice(0, 12)
+                                      .map((t) => t.name)
+                                      .join(', ')}
+                                    {testResult.tools.length > 12
+                                      ? ` (+${testResult.tools.length - 12} more)`
+                                      : ''}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span>{testResult.error || 'Unable to connect to MCP server.'}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            mcpServers: settings.mcpServers.map((item) =>
-                              item.id === server.id ? { ...item, enabled: !item.enabled } : item,
-                            ),
-                          })
-                        }
-                        className={`rounded px-2 py-1 text-[10px] font-medium ${
-                          server.enabled
-                            ? 'bg-[#e5e5e5] text-[#111111]'
-                            : 'border border-[#3a3a3a] bg-[#141414] text-[#858585]'
-                        }`}
-                      >
-                        {server.enabled ? 'Enabled' : 'Disabled'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            mcpServers: settings.mcpServers.filter((item) => item.id !== server.id),
-                          })
-                        }
-                        className="icon-button !size-7 text-[#858585] hover:text-[#f48771]"
-                        title="Remove MCP server"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 <div className="space-y-2.5 rounded-lg border border-[#2c2c2c] bg-[#181818] p-3">

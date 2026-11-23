@@ -684,7 +684,7 @@ export function IDEWorkspace() {
   // Global keyboard shortcuts + Electron native menu listener
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault()
         setWorkspaceMode('ide')
         setSidePanel('search')
@@ -766,6 +766,7 @@ export function IDEWorkspace() {
       files,
       activeFile,
       projectName: activeProject?.name ?? 'VinceZone Studio',
+      workspaceRoot: activeProject?.rootPath,
       memoryNotes,
       providers,
       savedProvider,
@@ -1094,7 +1095,7 @@ export function IDEWorkspace() {
     setAgentViews((current) => ({ ...current, [id]: current[source.id] ?? 'chat' }))
   }
 
-  const createNewFile = () => {
+  const createNewFile = async () => {
     const fileName = window.prompt('New file path (relative to workspace):', 'src/untitled.ts')
     const clean = fileName?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
     if (!clean) return
@@ -1108,11 +1109,102 @@ export function IDEWorkspace() {
       path: clean,
       content: '',
       language: inferLanguage(name),
-      dirty: true,
+      dirty: false,
     }
+    await writeFileToDiskIfConnected(clean, '')
     setFiles((current) => [...current, created])
     openFile(clean)
   }
+
+  const createNewFolder = async () => {
+    const folderName = window.prompt('New folder path (relative to workspace):', 'src/new-module')
+    const clean = folderName?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+    if (!clean) return
+    if (activeProject?.rootPath) {
+      await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create-folder',
+          root: activeProject.rootPath,
+          path: clean,
+        }),
+      }).catch(() => {})
+      await loadLocalDirectory(activeProject.rootPath, true)
+    }
+  }
+
+  const renameWorkspaceFile = async (oldPath: string) => {
+    const nextInput = window.prompt('Rename file to (relative path):', oldPath)
+    const nextPath = nextInput?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+    if (!nextPath || nextPath === oldPath) return
+    if (activeProject?.rootPath) {
+      const response = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'rename',
+          root: activeProject.rootPath,
+          path: oldPath,
+          nextPath,
+        }),
+      }).catch(() => null)
+      if (response && !response.ok) return
+    }
+    const nextName = nextPath.split('/').pop() || nextPath
+    setFiles((current) =>
+      current.map((file) =>
+        file.path === oldPath
+          ? { ...file, path: nextPath, name: nextName, language: inferLanguage(nextName) }
+          : file,
+      ),
+    )
+    setOpenPaths((current) => current.map((item) => (item === oldPath ? nextPath : item)))
+    if (activePath === oldPath) setActivePath(nextPath)
+  }
+
+  const deleteWorkspaceFile = async (targetPath: string) => {
+    if (!window.confirm(`Delete "${targetPath}" from workspace${activeProject?.rootPath ? ' and disk' : ''}?`)) {
+      return
+    }
+    if (activeProject?.rootPath) {
+      const response = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          root: activeProject.rootPath,
+          path: targetPath,
+        }),
+      }).catch(() => null)
+      if (response && !response.ok) return
+    }
+    setFiles((current) => current.filter((file) => file.path !== targetPath))
+    setOpenPaths((current) => current.filter((item) => item !== targetPath))
+    if (activePath === targetPath) {
+      const remaining = openPaths.filter((item) => item !== targetPath)
+      setActivePath(remaining[remaining.length - 1] ?? '')
+    }
+  }
+
+  const handleAcceptInlineEdit = useCallback(
+    (targetPath: string, nextContent: string, summary: string) => {
+      const currentFiles = filesRef.current
+      const { nextFiles, previousContent } = applyPatchToFiles(currentFiles, targetPath, nextContent)
+      recordRevision({
+        path: targetPath,
+        actor: 'Inline AI (Ctrl+K)',
+        summary,
+        previousContent,
+        nextContent,
+      })
+      void writeFileToDiskIfConnected(targetPath, nextContent)
+      setFiles(nextFiles)
+      filesRef.current = nextFiles
+      persistWorkspace({ files: nextFiles })
+    },
+    [persistWorkspace, recordRevision, writeFileToDiskIfConnected],
+  )
 
   const saveAllFiles = () => {
     const dirtyList = files.filter((file) => file.dirty)
@@ -1180,7 +1272,7 @@ export function IDEWorkspace() {
         onCloseProject={closeProject}
         onImportFolder={importFolder}
         onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
-        onNewFile={createNewFile}
+        onNewFile={() => void createNewFile()}
         onSaveFile={saveFile}
         onSaveAll={saveAllFiles}
         onCloseActiveTab={() => {
@@ -1299,6 +1391,10 @@ export function IDEWorkspace() {
                 }
                 onOpenFile={openFile}
                 onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
+                onCreateFile={() => void createNewFile()}
+                onCreateFolder={() => void createNewFolder()}
+                onRenameFile={(path) => void renameWorkspaceFile(path)}
+                onDeleteFile={(path) => void deleteWorkspaceFile(path)}
                 onRestoreRevision={(revId) => {
                   restoreRevisionById(revId)
                 }}
@@ -1329,11 +1425,13 @@ export function IDEWorkspace() {
                 wordWrap={appSettings.editorWordWrap}
                 minimap={appSettings.editorMinimap}
                 revealRequest={revealRequest}
+                provider={savedProvider}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
                 onCloseTab={closeTab}
                 onUpdateFile={updateFile}
                 onSaveFile={saveFile}
+                onAcceptInlineEdit={handleAcceptInlineEdit}
                 onCursorChange={setCursor}
               />
 

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { inferLanguage } from '@/lib/file-tree'
 import { isLoopbackRequest, resolvePathInsideWorkspace } from '@/lib/local-guard'
@@ -120,34 +120,66 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { action?: string; root?: string; path?: string; content?: string }
+  let body: {
+    action?: string
+    root?: string
+    path?: string
+    newPath?: string
+    content?: string
+  }
   try {
-    body = (await request.json()) as {
-      action?: string
-      root?: string
-      path?: string
-      content?: string
-    }
+    body = (await request.json()) as typeof body
   } catch {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const root = body.root?.trim() || process.cwd()
-  if (body.action === 'write') {
-    if (!body.path || typeof body.content !== 'string') {
-      return Response.json({ error: 'File path and content are required.' }, { status: 400 })
-    }
-    try {
+  const root =
+    body.root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
+
+  try {
+    if (body.action === 'write') {
+      if (!body.path || typeof body.content !== 'string') {
+        return Response.json({ error: 'File path and content are required.' }, { status: 400 })
+      }
       const target = resolvePathInsideWorkspace(root, body.path)
       await mkdir(path.dirname(target), { recursive: true })
       await writeFile(target, body.content, 'utf8')
       return Response.json({ ok: true, path: body.path })
-    } catch (error) {
-      return Response.json(
-        { error: error instanceof Error ? error.message : 'Failed to write file.' },
-        { status: 400 },
-      )
     }
+
+    if (body.action === 'create-folder') {
+      if (!body.path) {
+        return Response.json({ error: 'Folder path is required.' }, { status: 400 })
+      }
+      const target = resolvePathInsideWorkspace(root, body.path)
+      await mkdir(target, { recursive: true })
+      return Response.json({ ok: true, path: body.path })
+    }
+
+    if (body.action === 'rename') {
+      if (!body.path || !body.newPath) {
+        return Response.json({ error: 'Source path and newPath are required.' }, { status: 400 })
+      }
+      const from = resolvePathInsideWorkspace(root, body.path)
+      const to = resolvePathInsideWorkspace(root, body.newPath)
+      await mkdir(path.dirname(to), { recursive: true })
+      await rename(from, to)
+      return Response.json({ ok: true, path: body.newPath })
+    }
+
+    if (body.action === 'delete') {
+      if (!body.path) {
+        return Response.json({ error: 'Path to delete is required.' }, { status: 400 })
+      }
+      const target = resolvePathInsideWorkspace(root, body.path)
+      await rm(target, { recursive: true, force: true })
+      return Response.json({ ok: true, path: body.path })
+    }
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Workspace file operation failed.' },
+      { status: 400 },
+    )
   }
 
   return Response.json({ error: 'Unsupported workspace action.' }, { status: 400 })

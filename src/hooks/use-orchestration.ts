@@ -34,20 +34,58 @@ import {
   validateTerritoryAccess,
 } from '@/lib/vincezone-protocol'
 
-function parseSSEChunk(chunk: string) {
-  let output = ''
+type ParsedChatChunk = {
+  text: string
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number }
+  events: Array<{
+    type: string
+    name?: string
+    args?: Record<string, unknown>
+    ok?: boolean
+    preview?: string
+    path?: string
+    summary?: string
+    content?: string
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+  }>
+}
+
+function parseSSEChunk(chunk: string): ParsedChatChunk {
+  let text = ''
+  let usage: ParsedChatChunk['usage']
+  const events: ParsedChatChunk['events'] = []
+
   for (const line of chunk.split('\n')) {
     if (!line.startsWith('data:')) continue
     const value = line.slice(5).trim()
     if (!value || value === '[DONE]') continue
     try {
       const data = JSON.parse(value)
-      output += data.choices?.[0]?.delta?.content ?? ''
+      if (data.vincezone_event) {
+        events.push(data.vincezone_event)
+        if (data.vincezone_event.type === 'usage') {
+          usage = {
+            promptTokens: data.vincezone_event.promptTokens ?? 0,
+            completionTokens: data.vincezone_event.completionTokens ?? 0,
+            totalTokens: data.vincezone_event.totalTokens ?? 0,
+          }
+        }
+      }
+      if (data.usage?.total_tokens) {
+        usage = {
+          promptTokens: data.usage.prompt_tokens ?? 0,
+          completionTokens: data.usage.completion_tokens ?? 0,
+          totalTokens: data.usage.total_tokens ?? 0,
+        }
+      }
+      text += data.choices?.[0]?.delta?.content ?? ''
     } catch {
       // Partial SSE frame completed by the next chunk.
     }
   }
-  return output
+  return { text, usage, events }
 }
 
 function readSavedTopology(agents: Agent[]) {
@@ -86,6 +124,7 @@ export function useOrchestration({
   files,
   activeFile,
   projectName,
+  workspaceRoot,
   memoryNotes,
   providers,
   savedProvider,
@@ -106,6 +145,7 @@ export function useOrchestration({
   files: WorkspaceFile[]
   activeFile?: WorkspaceFile
   projectName: string
+  workspaceRoot?: string
   memoryNotes: MemoryNote[]
   providers: ProviderConfig[]
   savedProvider: ProviderConfig
@@ -845,6 +885,8 @@ export function useOrchestration({
           body: JSON.stringify({
             ...activeProvider,
             model: agent.model || activeProvider.model,
+            enableTools: true,
+            workspaceRoot,
             messages: [
               { role: 'system', content: systemPrompt },
               ...agent.messages
@@ -870,24 +912,50 @@ export function useOrchestration({
         const decoder = new TextDecoder()
         let result = ''
         let pending = ''
+        let realUsage: ParsedChatChunk['usage']
+        const toolActivityLines: string[] = []
+
+        const handleParsedChunk = (parsed: ParsedChatChunk) => {
+          if (parsed.usage) realUsage = parsed.usage
+          for (const ev of parsed.events) {
+            if (ev.type === 'tool.call' && ev.name) {
+              const targetHint = ev.args?.path || ev.args?.query || ev.args?.command || ''
+              toolActivityLines.push(`> tool: ${ev.name}${targetHint ? `(${targetHint})` : ''}`)
+              setAiActivity(ev.name === 'patch_file' ? 'editing' : 'reading')
+            } else if (ev.type === 'file.updated' && ev.path && typeof ev.content === 'string') {
+              onApplyDirectEdit?.({
+                path: ev.path,
+                content: ev.content,
+                summary: ev.summary || `Tool patch ${ev.path}`,
+                agent,
+              })
+            }
+          }
+          if (parsed.text) result += parsed.text
+          const liveDisplay = [
+            toolActivityLines.length ? `${toolActivityLines.join('\n')}\n\n` : '',
+            result,
+          ].join('')
+          updateAgent(agent.id, (current) => ({
+            ...current,
+            messages: current.messages.map((message) =>
+              message.id === 'stream' ? { ...message, text: liveDisplay } : message,
+            ),
+          }))
+        }
+
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
           pending += decoder.decode(value, { stream: true })
           const frames = pending.split('\n\n')
           pending = frames.pop() ?? ''
-          result += parseSSEChunk(frames.join('\n\n'))
-          updateAgent(agent.id, (current) => ({
-            ...current,
-            messages: current.messages.map((message) =>
-              message.id === 'stream' ? { ...message, text: result } : message,
-            ),
-          }))
+          handleParsedChunk(parseSSEChunk(frames.join('\n\n')))
         }
-        if (pending) result += parseSSEChunk(pending)
+        if (pending) handleParsedChunk(parseSSEChunk(pending))
 
-        const promptTokens = estimateTokens(`${systemPrompt}\n${text}`)
-        const completionTokens = estimateTokens(result)
+        const promptTokens = realUsage?.promptTokens || estimateTokens(`${systemPrompt}\n${text}`)
+        const completionTokens = realUsage?.completionTokens || estimateTokens(result)
         onRecordUsage({
           id: uid(),
           providerName: activeProvider.name,
@@ -895,7 +963,7 @@ export function useOrchestration({
           agentName: agent.name,
           promptTokens,
           completionTokens,
-          totalTokens: promptTokens + completionTokens,
+          totalTokens: realUsage?.totalTokens || promptTokens + completionTokens,
           estimatedCostUsd: estimateCostUsd(promptTokens, completionTokens),
           timestamp: new Date().toISOString(),
         })

@@ -1,4 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } = require('electron')
+const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const { createInProcessNextHandler } = require('./in-process-bridge.cjs')
 
@@ -119,13 +121,37 @@ function buildNativeMenu(win) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function resolveDefaultWorkspace(appRoot) {
+  if (process.env.VINCEZONE_WORKSPACE_ROOT && fs.existsSync(process.env.VINCEZONE_WORKSPACE_ROOT)) {
+    return process.env.VINCEZONE_WORKSPACE_ROOT
+  }
+  if (!app.isPackaged) {
+    return appRoot
+  }
+  // If packaged inside <repo>/desktop/VinceZone Studio/resources/app, open <repo> by default
+  const candidateRepo = path.resolve(appRoot, '..', '..', '..', '..')
+  if (
+    fs.existsSync(path.join(candidateRepo, 'package.json')) ||
+    fs.existsSync(path.join(candidateRepo, '.git'))
+  ) {
+    return candidateRepo
+  }
+  // If placed directly in a folder alongside a workspace, check cwd or fall back to user home
+  const cwd = process.cwd()
+  if (cwd && !cwd.toLowerCase().includes('resources\\app') && fs.existsSync(path.join(cwd, 'package.json'))) {
+    return cwd
+  }
+  return os.homedir()
+}
+
 async function createWindow() {
-  const projectRoot = path.resolve(__dirname, '..')
+  const appRoot = path.resolve(__dirname, '..')
+  const defaultWorkspaceRoot = resolveDefaultWorkspace(appRoot)
   let inProcessHandler = null
   let bootError = ''
 
   try {
-    inProcessHandler = await createInProcessNextHandler(projectRoot)
+    inProcessHandler = await createInProcessNextHandler(appRoot, defaultWorkspaceRoot)
     protocol.handle('vincezone', async (request) => {
       try {
         return await inProcessHandler(request)

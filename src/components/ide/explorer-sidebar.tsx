@@ -2,21 +2,29 @@
 
 import {
   Brain,
+  Check,
   ChevronDown,
   ChevronRight,
+  FilePlus,
   Folder,
   FolderOpen,
+  FolderPlus,
+  GitBranch,
+  GitCommitHorizontal,
   History,
+  Minus,
   MoreHorizontal,
   PanelLeftClose,
+  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
   Search,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildFileTree, searchWorkspaceFiles, type FileTreeItem } from '@/lib/file-tree'
 import type {
   Agent,
@@ -54,6 +62,10 @@ export function ExplorerSidebar({
   onToggleGroup,
   onOpenFile,
   onOpenLocalDirectory,
+  onCreateFile,
+  onCreateFolder,
+  onRenameFile,
+  onDeleteFile,
   onRestoreRevision,
   onAddMemoryNote,
   onDeleteMemoryNote,
@@ -79,6 +91,10 @@ export function ExplorerSidebar({
   onToggleGroup: (key: string) => void
   onOpenFile: (path: string, line?: number) => void
   onOpenLocalDirectory: () => void
+  onCreateFile?: () => void
+  onCreateFolder?: () => void
+  onRenameFile?: (path: string) => void
+  onDeleteFile?: (path: string) => void
   onRestoreRevision: (revisionId: string) => void
   onAddMemoryNote: (title: string, content: string) => void
   onDeleteMemoryNote: (id: string) => void
@@ -97,6 +113,103 @@ export function ExplorerSidebar({
   const [showAllTasks, setShowAllTasks] = useState(false)
   const [memTitle, setMemTitle] = useState('')
   const [memContent, setMemContent] = useState('')
+
+  // Real Git GUI state
+  const [gitLoading, setGitLoading] = useState(false)
+  const [gitBusyAction, setGitBusyAction] = useState(false)
+  const [gitCommitMessage, setGitCommitMessage] = useState('')
+  const [gitFeedback, setGitFeedback] = useState<{ ok: boolean; text: string } | null>(null)
+  const [gitStatus, setGitStatus] = useState<{
+    isRepo: boolean
+    branch: string
+    ahead: number
+    behind: number
+    changes: Array<{ path: string; indexStatus: string; worktreeStatus: string; staged: boolean }>
+    commits: Array<{ hash: string; subject: string; author: string; relativeTime: string }>
+    error?: string
+  } | null>(null)
+
+  const loadGitStatus = useCallback(async () => {
+    setGitLoading(true)
+    try {
+      const query = rootPath ? `?root=${encodeURIComponent(rootPath)}` : ''
+      const response = await fetch(`/api/git${query}`, { cache: 'no-store' })
+      if (!response.ok) {
+        setGitStatus({
+          isRepo: false,
+          branch: 'detached',
+          ahead: 0,
+          behind: 0,
+          changes: [],
+          commits: [],
+          error: `Git API HTTP ${response.status}`,
+        })
+        return
+      }
+      const data = await response.json()
+      setGitStatus(data)
+    } catch (error) {
+      setGitStatus({
+        isRepo: false,
+        branch: 'detached',
+        ahead: 0,
+        behind: 0,
+        changes: [],
+        commits: [],
+        error: error instanceof Error ? error.message : 'Unable to reach /api/git.',
+      })
+    } finally {
+      setGitLoading(false)
+    }
+  }, [rootPath])
+
+  useEffect(() => {
+    if (sidePanel === 'git') {
+      void loadGitStatus()
+    }
+  }, [sidePanel, loadGitStatus])
+
+  const runGitAction = useCallback(
+    async (
+      action: 'stage' | 'stage-all' | 'unstage' | 'commit' | 'push' | 'discard',
+      extra?: { path?: string; message?: string },
+    ) => {
+      setGitBusyAction(true)
+      setGitFeedback(null)
+      try {
+        const response = await fetch('/api/git', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, root: rootPath, ...extra }),
+        })
+        const data = (await response.json()) as { ok?: boolean; output?: string; error?: string }
+        if (!response.ok || !data.ok) {
+          setGitFeedback({ ok: false, text: data.error || `Git ${action} failed.` })
+        } else {
+          if (action === 'commit') setGitCommitMessage('')
+          setGitFeedback({
+            ok: true,
+            text:
+              action === 'commit'
+                ? 'Committed cleanly.'
+                : action === 'push'
+                  ? data.output || 'Pushed to remote.'
+                  : `${action} succeeded.`,
+          })
+          await loadGitStatus()
+          if (action === 'discard') onRefresh()
+        }
+      } catch (error) {
+        setGitFeedback({
+          ok: false,
+          text: error instanceof Error ? error.message : 'Git action failed.',
+        })
+      } finally {
+        setGitBusyAction(false)
+      }
+    },
+    [loadGitStatus, onRefresh, rootPath],
+  )
 
   const visibleTasks = showAllTasks ? agentTasks : agentTasks.slice(-4)
   const completedCount = agentTasks.filter((task) => task.status === 'completed').length
@@ -126,11 +239,10 @@ export function ExplorerSidebar({
     }
 
     return (
-      <button
+      <div
         key={item.path}
-        onClick={() => onOpenFile(item.path)}
         style={{ paddingLeft: `${indentPx + 14}px` }}
-        className={`flex w-full items-center gap-1.5 pr-2 text-left text-[12px] ${
+        className={`group flex w-full items-center gap-1 pr-1.5 text-[12px] ${
           compactMode ? 'py-[3px]' : 'py-1'
         } ${
           activePath === item.path
@@ -138,12 +250,45 @@ export function ExplorerSidebar({
             : 'text-[#cccccc] hover:bg-[#222222]'
         }`}
       >
-        {fileIcon(item.file)}
-        <span className="truncate">{item.name}</span>
-        {item.file.dirty && (
-          <span className="ml-auto font-mono text-[10px] font-semibold text-[#e5e5e5]">M</span>
-        )}
-      </button>
+        <button
+          onClick={() => onOpenFile(item.path)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          {fileIcon(item.file)}
+          <span className="truncate">{item.name}</span>
+        </button>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          {onRenameFile && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRenameFile(item.path)
+              }}
+              className="hidden rounded p-0.5 text-[#858585] hover:bg-[#333333] hover:text-white group-hover:inline-flex"
+              title="Rename file"
+            >
+              <Pencil size={11} />
+            </button>
+          )}
+          {onDeleteFile && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onDeleteFile(item.path)
+              }}
+              className="hidden rounded p-0.5 text-[#858585] hover:bg-[#333333] hover:text-[#f48771] group-hover:inline-flex"
+              title="Delete file"
+            >
+              <Trash2 size={11} />
+            </button>
+          )}
+          {item.file.dirty && (
+            <span className="pl-0.5 font-mono text-[10px] font-semibold text-[#e5e5e5]">M</span>
+          )}
+        </div>
+      </div>
     )
   }
 
@@ -163,16 +308,35 @@ export function ExplorerSidebar({
         </span>
         <div className="flex gap-0.5">
           {sidePanel === 'explorer' && (
-            <button
-              className="mini-button"
-              title="Open Local Folder from Disk"
-              onClick={onOpenLocalDirectory}
-            >
-              <FolderOpen size={13} />
-            </button>
+            <>
+              {onCreateFile && (
+                <button className="mini-button" title="New File" onClick={onCreateFile}>
+                  <FilePlus size={12} />
+                </button>
+              )}
+              {onCreateFolder && (
+                <button className="mini-button" title="New Folder" onClick={onCreateFolder}>
+                  <FolderPlus size={12} />
+                </button>
+              )}
+              <button
+                className="mini-button"
+                title="Open Local Folder from Disk"
+                onClick={onOpenLocalDirectory}
+              >
+                <FolderOpen size={13} />
+              </button>
+            </>
           )}
-          <button className="mini-button" title="Refresh from Disk" onClick={onRefresh}>
-            <RefreshCw size={12} />
+          <button
+            className="mini-button"
+            title={sidePanel === 'git' ? 'Refresh Git Status' : 'Refresh from Disk'}
+            onClick={() => {
+              if (sidePanel === 'git') void loadGitStatus()
+              else onRefresh()
+            }}
+          >
+            <RefreshCw size={12} className={sidePanel === 'git' && gitLoading ? 'animate-spin' : ''} />
           </button>
           <button className="mini-button" title="Collapse Side Bar" onClick={onCollapse}>
             <PanelLeftClose size={13} />
@@ -266,30 +430,231 @@ export function ExplorerSidebar({
       )}
 
       {sidePanel === 'git' && (
-        <div className="min-h-0 flex-1 overflow-y-auto border-y border-[#2b2b2b] p-3">
-          <div className="mb-3 flex items-center justify-between text-[11px] font-medium text-[#cccccc]">
-            <span>Changes</span>
-            <span className="rounded bg-[#2a2d2e] px-1.5 py-0.5 text-[10px] text-[#cccccc]">
-              {dirtyFiles.length}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-y border-[#2b2b2b] p-2.5">
+          <div className="mb-2 flex items-center justify-between gap-1.5">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#e5e5e5]">
+              <GitBranch size={12} />
+              <span className="truncate font-mono">{gitStatus?.branch || 'git'}</span>
             </span>
+            {gitStatus?.isRepo && (
+              <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#a3a3a3]">
+                ↑{gitStatus.ahead} ↓{gitStatus.behind}
+              </span>
+            )}
           </div>
-          {dirtyFiles.length ? (
-            <div className="space-y-0.5">
-              {dirtyFiles.map((file) => (
-                <button
-                  key={file.path}
-                  onClick={() => onOpenFile(file.path)}
-                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-[#cccccc] hover:bg-[#2a2d2e]"
-                >
-                  {fileIcon(file)}
-                  <span className="truncate">{file.path}</span>
-                  <span className="ml-auto font-mono text-[#e2c08d]">M</span>
-                </button>
-              ))}
-            </div>
+
+          {gitStatus?.isRepo ? (
+            <>
+              <div className="mb-2.5 space-y-1.5 rounded border border-[#2b2b2b] bg-[#141414] p-2">
+                <textarea
+                  rows={2}
+                  value={gitCommitMessage}
+                  onChange={(event) => setGitCommitMessage(event.target.value)}
+                  placeholder="Commit message (e.g. feat: upgrade editor)…"
+                  className="w-full resize-none rounded border border-[#333333] bg-[#1b1b1b] px-2 py-1 text-[11px] text-white outline-none placeholder:text-[#6e6e6e] focus:border-[#737373]"
+                />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={gitBusyAction || !gitCommitMessage.trim()}
+                    onClick={() => void runGitAction('commit', { message: gitCommitMessage.trim() })}
+                    className="flex flex-1 items-center justify-center gap-1 rounded bg-[#e5e5e5] py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-35"
+                  >
+                    <Check size={11} /> Commit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gitBusyAction}
+                    onClick={() => void runGitAction('push')}
+                    className="flex items-center justify-center gap-1 rounded border border-[#3a3a3a] bg-[#222222] px-2 py-1 text-[10px] text-[#e5e5e5] hover:bg-[#2d2d2d] disabled:opacity-35"
+                    title="git push"
+                  >
+                    <Upload size={11} /> Push
+                  </button>
+                </div>
+                {gitFeedback && (
+                  <p
+                    className={`rounded px-1.5 py-1 text-[10px] ${
+                      gitFeedback.ok
+                        ? 'bg-[#1f1f1f] text-[#e5e5e5]'
+                        : 'bg-[#2a1414] text-[#f48771]'
+                    }`}
+                  >
+                    {gitFeedback.text}
+                  </p>
+                )}
+              </div>
+
+              {(() => {
+                const staged = gitStatus.changes.filter((item) => item.staged)
+                const unstaged = gitStatus.changes.filter(
+                  (item) =>
+                    !item.staged ||
+                    (item.worktreeStatus && item.worktreeStatus !== ' ' && item.worktreeStatus !== '?'),
+                )
+                return (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
+                        <span>Staged Changes</span>
+                        <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#d4d4d4]">
+                          {staged.length}
+                        </span>
+                      </div>
+                      {staged.length === 0 ? (
+                        <p className="text-[10px] text-[#737373]">No staged files.</p>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {staged.map((item) => (
+                            <div
+                              key={`staged-${item.path}`}
+                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[#e5e5e5] hover:bg-[#222222]"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => onOpenFile(item.path)}
+                                className="min-w-0 flex-1 truncate text-left font-mono text-[10px]"
+                              >
+                                {item.path}
+                              </button>
+                              <span className="font-mono text-[9px] text-[#a3a3a3]">
+                                {item.indexStatus}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={gitBusyAction}
+                                onClick={() => void runGitAction('unstage', { path: item.path })}
+                                className="rounded p-0.5 text-[#9d9d9d] hover:bg-[#333333] hover:text-white"
+                                title="Unstage"
+                              >
+                                <Minus size={11} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
+                        <span>Changes ({unstaged.length})</span>
+                        {unstaged.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={gitBusyAction}
+                            onClick={() => void runGitAction('stage-all')}
+                            className="rounded border border-[#3a3a3a] px-1.5 py-0.5 text-[9px] font-normal normal-case text-[#d4d4d4] hover:bg-[#2a2a2a]"
+                          >
+                            Stage All
+                          </button>
+                        )}
+                      </div>
+                      {unstaged.length === 0 ? (
+                        <p className="text-[10px] text-[#737373]">Working tree clean.</p>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {unstaged.map((item) => (
+                            <div
+                              key={`work-${item.path}`}
+                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[#cccccc] hover:bg-[#222222]"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => onOpenFile(item.path)}
+                                className="min-w-0 flex-1 truncate text-left font-mono text-[10px]"
+                              >
+                                {item.path}
+                              </button>
+                              <span className="font-mono text-[9px] text-[#e2c08d]">
+                                {item.worktreeStatus === '?' ? 'U' : item.worktreeStatus || 'M'}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={gitBusyAction}
+                                onClick={() => void runGitAction('stage', { path: item.path })}
+                                className="rounded p-0.5 text-[#9d9d9d] hover:bg-[#333333] hover:text-white"
+                                title="Stage file"
+                              >
+                                <Plus size={11} />
+                              </button>
+                              {item.worktreeStatus !== '?' && (
+                                <button
+                                  type="button"
+                                  disabled={gitBusyAction}
+                                  onClick={() => {
+                                    if (window.confirm(`Discard uncommitted changes in ${item.path}?`)) {
+                                      void runGitAction('discard', { path: item.path })
+                                    }
+                                  }}
+                                  className="rounded p-0.5 text-[#858585] hover:bg-[#333333] hover:text-[#f48771]"
+                                  title="Discard changes"
+                                >
+                                  <RotateCcw size={10} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {gitStatus.commits.length > 0 && (
+                      <div className="border-t border-[#2b2b2b] pt-2">
+                        <p className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
+                          <GitCommitHorizontal size={11} /> Recent Commits
+                        </p>
+                        <div className="space-y-1">
+                          {gitStatus.commits.slice(0, 6).map((commit) => (
+                            <div
+                              key={commit.hash}
+                              className="rounded border border-[#262626] bg-[#141414] px-2 py-1.5 text-[10px]"
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-mono text-[9px] text-[#e5e5e5]">
+                                  {commit.hash}
+                                </span>
+                                <span className="text-[9px] text-[#737373]">
+                                  {commit.relativeTime}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 truncate text-[#cccccc]">{commit.subject}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </>
           ) : (
-            <p className="text-[11px] text-[#858585]">No unsaved changes in editor.</p>
+            <div className="space-y-2">
+              <p className="text-[11px] text-[#858585]">
+                {gitLoading
+                  ? 'Reading Git repository...'
+                  : gitStatus?.error || 'Not a Git repository.'}
+              </p>
+              {dirtyFiles.length > 0 && (
+                <div className="space-y-0.5">
+                  <p className="text-[10px] uppercase text-[#9d9d9d]">
+                    Unsaved Editor Buffers ({dirtyFiles.length})
+                  </p>
+                  {dirtyFiles.map((file) => (
+                    <button
+                      key={file.path}
+                      onClick={() => onOpenFile(file.path)}
+                      className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-[#cccccc] hover:bg-[#2a2d2e]"
+                    >
+                      {fileIcon(file)}
+                      <span className="truncate">{file.path}</span>
+                      <span className="ml-auto font-mono text-[#e2c08d]">M</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
+
           <button
             onClick={onOpenDiff}
             className="mt-4 w-full rounded border border-[#3c3c3c] bg-[#252526] py-1.5 text-[11px] text-[#cccccc] hover:bg-[#2a2d2e]"

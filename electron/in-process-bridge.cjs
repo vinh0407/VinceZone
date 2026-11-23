@@ -68,8 +68,8 @@ function tryServeStatic(standaloneDir, pathname) {
   })
 }
 
-async function createInProcessNextHandler(projectRoot) {
-  const standaloneDir = path.join(projectRoot, '.next', 'standalone')
+async function createInProcessNextHandler(appRoot, defaultWorkspaceRoot) {
+  const standaloneDir = path.join(appRoot, '.next', 'standalone')
   const serverJsPath = path.join(standaloneDir, 'server.js')
 
   if (!fs.existsSync(serverJsPath)) {
@@ -82,7 +82,8 @@ async function createInProcessNextHandler(projectRoot) {
   const nextConfig = cfgMatch ? JSON.parse(cfgMatch[1]) : { output: 'standalone' }
 
   process.env.NODE_ENV = 'production'
-  process.env.VINCEZONE_WORKSPACE_ROOT = projectRoot
+  process.env.VINCEZONE_WORKSPACE_ROOT =
+    defaultWorkspaceRoot || process.env.VINCEZONE_WORKSPACE_ROOT || appRoot
   process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)
 
   const prevCwd = process.cwd()

@@ -1,17 +1,59 @@
 #!/usr/bin/env node
 /**
- * CLI-Anything Harness for VinceZone Studio (localhost:40704)
- * Provides structured --json commands and a self-audit diagnostic command
- * backed directly by the live VinceZone Studio loopback APIs.
+ * CLI-Anything Harness for VinceZone Studio (100% In-Process by default — ZERO localhost required!)
+ * Runs directly against the compiled Next.js standalone bundle via electron/in-process-bridge.cjs,
+ * or optionally against a remote URL via --url.
  */
 
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import readline from 'node:readline'
+import { fileURLToPath } from 'node:url'
 
-const DEFAULT_BASE_URL = process.env.VINCEZONE_URL || 'http://127.0.0.1:40704'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const PROJECT_ROOT = path.resolve(__dirname, '..')
+const require = createRequire(import.meta.url)
 
-async function apiGet(path, baseUrl = DEFAULT_BASE_URL) {
+let cachedInProcessHandler = null
+
+async function getInProcessHandler() {
+  if (!cachedInProcessHandler) {
+    const { createInProcessNextHandler } = require(
+      path.join(PROJECT_ROOT, 'electron', 'in-process-bridge.cjs'),
+    )
+    cachedInProcessHandler = await createInProcessNextHandler(
+      PROJECT_ROOT,
+      process.env.VINCEZONE_WORKSPACE_ROOT || PROJECT_ROOT,
+    )
+  }
+  return cachedInProcessHandler
+}
+
+async function apiRequest(apiPath, { method = 'GET', body, baseUrl } = {}) {
   const started = Date.now()
-  const res = await fetch(`${baseUrl}${path}`, { headers: { Accept: 'application/json' } })
+  let res
+  if (baseUrl) {
+    res = await fetch(`${baseUrl}${apiPath}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
+  } else {
+    const handler = await getInProcessHandler()
+    const request = new Request(`vincezone://studio${apiPath}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
+    res = await handler(request)
+  }
+
   const text = await res.text()
   let data = null
   try {
@@ -23,12 +65,13 @@ async function apiGet(path, baseUrl = DEFAULT_BASE_URL) {
 }
 
 async function runCommand(cmd, args, baseUrl) {
+  const opts = { baseUrl }
   switch (cmd) {
     case 'ping':
-      return apiGet('/api/vz-ping', baseUrl)
+      return apiRequest('/api/vz-ping', opts)
     case 'workspace': {
       const root = args[0] ? `?root=${encodeURIComponent(args[0])}` : ''
-      const res = await apiGet(`/api/workspace${root}`, baseUrl)
+      const res = await apiRequest(`/api/workspace${root}`, opts)
       if (res.ok && res.data?.files) {
         return {
           ...res,
@@ -42,35 +85,49 @@ async function runCommand(cmd, args, baseUrl) {
       }
       return res
     }
+    case 'git': {
+      const root = args[0] ? `?root=${encodeURIComponent(args[0])}` : ''
+      return apiRequest(`/api/git${root}`, opts)
+    }
+    case 'mcp-list': {
+      const transport = args[0] === 'http' ? 'http' : 'stdio'
+      const endpoint = args.slice(1).join(' ')
+      if (!endpoint) {
+        return { ok: false, error: 'Usage: mcp-list <stdio|http> <command-or-url>' }
+      }
+      return apiRequest('/api/mcp', {
+        ...opts,
+        method: 'POST',
+        body: { action: 'list-tools', transport, endpoint },
+      })
+    }
     case 'android':
-      return apiGet('/api/android', baseUrl)
+      return apiRequest('/api/android', opts)
     case 'github':
-      return apiGet('/api/github', baseUrl)
+      return apiRequest('/api/github', opts)
     case 'cli-tools':
-      return apiGet('/api/cli/detect', baseUrl)
+      return apiRequest('/api/cli/detect', opts)
     case 'extensions':
-      return apiGet('/api/extensions', baseUrl)
+      return apiRequest('/api/extensions', opts)
     case 'craft':
-      return apiGet('/api/craft', baseUrl)
+      return apiRequest('/api/craft', opts)
     case 'audit': {
-      const [ping, workspace, android, github, cliTools, extensions, craft] = await Promise.all([
-        apiGet('/api/vz-ping', baseUrl),
-        apiGet('/api/workspace', baseUrl),
-        apiGet('/api/android', baseUrl),
-        apiGet('/api/github', baseUrl),
-        apiGet('/api/cli/detect', baseUrl),
-        apiGet('/api/extensions', baseUrl),
-        apiGet('/api/craft', baseUrl),
+      const [ping, workspace, git, android, github, cliTools, extensions, craft] = await Promise.all([
+        apiRequest('/api/vz-ping', opts),
+        apiRequest('/api/workspace', opts),
+        apiRequest('/api/git', opts),
+        apiRequest('/api/android', opts),
+        apiRequest('/api/github', opts),
+        apiRequest('/api/cli/detect', opts),
+        apiRequest('/api/extensions', opts),
+        apiRequest('/api/craft', opts),
       ])
 
       const gaps = []
-      if (!ping.ok) gaps.push('VinceZone local runtime is unreachable on ' + baseUrl)
+      if (!ping.ok) gaps.push('VinceZone in-process runtime failed health check')
       if (!android.data?.sdkAvailable) gaps.push('Android SDK not detected')
       if (android.data?.sdkAvailable && (!android.data?.avds || android.data.avds.length === 0)) {
-        gaps.push('Android SDK found, but 0 AVDs configured (create one via avdmanager/Android Studio)')
-      }
-      if (android.data?.sdkAvailable && (!android.data?.devices || android.data.devices.length === 0)) {
-        gaps.push('No Android emulator or physical ADB device currently booted')
+        gaps.push('Android SDK found, but 0 AVDs configured')
       }
       if (!github.data?.authenticated) {
         gaps.push('GitHub CLI (gh) is not authenticated')
@@ -83,8 +140,16 @@ async function runCommand(cmd, args, baseUrl) {
       }
 
       return {
-        ok: ping.ok && workspace.ok && android.ok && github.ok && cliTools.ok && extensions.ok && craft.ok,
-        baseUrl,
+        ok:
+          ping.ok &&
+          workspace.ok &&
+          git.ok &&
+          android.ok &&
+          github.ok &&
+          cliTools.ok &&
+          extensions.ok &&
+          craft.ok,
+        transport: baseUrl ? baseUrl : 'in-process (vincezone://studio — 0 TCP ports)',
         endpoints: {
           ping: { ok: ping.ok, status: ping.status, latencyMs: ping.latencyMs },
           workspace: {
@@ -93,13 +158,17 @@ async function runCommand(cmd, args, baseUrl) {
             name: workspace.data?.name,
             fileCount: workspace.data?.files?.length ?? 0,
           },
+          git: {
+            ok: git.ok,
+            isRepo: git.data?.isRepo ?? false,
+            branch: git.data?.branch ?? null,
+            changeCount: git.data?.changes?.length ?? 0,
+            commitCount: git.data?.commits?.length ?? 0,
+          },
           android: {
             ok: android.ok,
             sdkAvailable: android.data?.sdkAvailable ?? false,
-            emulatorAvailable: android.data?.emulatorAvailable ?? false,
-            adbAvailable: android.data?.adbAvailable ?? false,
             avdCount: android.data?.avds?.length ?? 0,
-            avds: android.data?.avds ?? [],
             deviceCount: android.data?.devices?.length ?? 0,
           },
           github: {
@@ -124,7 +193,6 @@ async function runCommand(cmd, args, baseUrl) {
             installed: craft.data?.installed ?? false,
             version: craft.data?.version ?? null,
             totalTools: craft.data?.totalTools ?? 0,
-            toolsetCount: craft.data?.toolsets?.length ?? 0,
             readyEngines: (craft.data?.engines || []).filter((e) => e.found).map((e) => e.id),
           },
         },
@@ -135,36 +203,43 @@ async function runCommand(cmd, args, baseUrl) {
     default:
       return {
         ok: true,
+        transport: baseUrl || 'in-process (vincezone://studio)',
         commands: [
-          'ping        - Check VinceZone Studio runtime on localhost:40704',
-          'workspace   - Inspect active local workspace files',
-          'android     - Inspect Android SDK, AVDs, and ADB devices',
-          'github      - Inspect GitHub CLI authentication and recent repos',
-          'cli-tools   - Detect installed AI & dev CLIs',
-          'extensions  - List discovered .agent / .agents / Gemini skills',
-          'audit       - Run full diagnostic audit across all endpoints',
+          'ping                         - Check VinceZone Studio runtime',
+          'workspace [root]             - Inspect active local workspace files',
+          'git [root]                   - Inspect live Git branch, changes, and commits',
+          'mcp-list <stdio|http> <ep>   - Run JSON-RPC initialize + tools/list on an MCP server',
+          'android                      - Inspect Android SDK, AVDs, and ADB devices',
+          'github                       - Inspect GitHub CLI authentication and recent repos',
+          'cli-tools                    - Detect installed AI & dev CLIs',
+          'extensions                   - List discovered .agent / .agents / Gemini skills',
+          'craft                        - Inspect Craft Studio engines',
+          'audit                        - Run full diagnostic audit across all endpoints',
         ],
       }
   }
 }
 
-function formatOutput(result, asJson) {
-  if (asJson) return JSON.stringify(result, null, 2)
-  return JSON.stringify(result, null, 2)
-}
-
 async function main() {
   const rawArgs = process.argv.slice(2)
-  const asJson = rawArgs.includes('--json')
   const urlFlagIdx = rawArgs.indexOf('--url')
-  const baseUrl = urlFlagIdx !== -1 && rawArgs[urlFlagIdx + 1] ? rawArgs[urlFlagIdx + 1] : DEFAULT_BASE_URL
+  const baseUrl =
+    urlFlagIdx !== -1 && rawArgs[urlFlagIdx + 1]
+      ? rawArgs[urlFlagIdx + 1]
+      : process.env.VINCEZONE_URL || ''
   const positional = rawArgs.filter(
-    (arg, idx) => arg !== '--json' && arg !== '--url' && (urlFlagIdx === -1 || idx !== urlFlagIdx + 1),
+    (arg, idx) =>
+      arg !== '--json' && arg !== '--url' && (urlFlagIdx === -1 || idx !== urlFlagIdx + 1),
   )
 
   if (positional.length === 0) {
-    console.log(`VinceZone CLI-Anything Harness (${baseUrl}) — type 'help', 'audit', or 'exit'`)
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: 'vincezone> ' })
+    const mode = baseUrl || 'in-process (0 localhost ports)'
+    console.log(`VinceZone CLI-Anything Harness [${mode}] — type 'help', 'audit', or 'exit'`)
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: 'vincezone> ',
+    })
     rl.prompt()
     rl.on('line', async (line) => {
       const parts = line.trim().split(/\s+/).filter(Boolean)
@@ -178,9 +253,11 @@ async function main() {
       }
       try {
         const out = await runCommand(parts[0], parts.slice(1), baseUrl)
-        console.log(formatOutput(out, true))
+        console.log(JSON.stringify(out, null, 2))
       } catch (err) {
-        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }))
+        console.error(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+        )
       }
       rl.prompt()
     })
@@ -189,10 +266,12 @@ async function main() {
 
   try {
     const result = await runCommand(positional[0], positional.slice(1), baseUrl)
-    console.log(formatOutput(result, asJson))
+    console.log(JSON.stringify(result, null, 2))
     process.exit(result.ok === false ? 1 : 0)
   } catch (err) {
-    console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }))
+    console.error(
+      JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+    )
     process.exit(1)
   }
 }

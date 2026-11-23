@@ -17,6 +17,8 @@ logs/
 dist-desktop/
 tools/
 desktop/*.zip
+desktop/*.exe
+desktop/VinceZone Studio/
 *.lnk
 /.plugins/
 /.opencode-skills/

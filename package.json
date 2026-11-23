@@ -9,9 +9,7 @@
     "build": "next build && node electron/prepare-standalone.cjs",
     "start": "next start --port 40704 --hostname 127.0.0.1",
     "desktop": "electron electron/main.cjs",
-    "desktop:dev": "concurrently -k \"pnpm dev\" \"wait-on http://127.0.0.1:40704/api/vz-ping && electron electron/main.cjs\"",
-    "build:app": "pnpm build && electron-builder",
-    "build:app:dir": "pnpm build && electron-builder --dir",
+    "build:exe": "pnpm build && node electron/build-exe.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -33,6 +31,7 @@
     "electron": "^35.2.0",
     "electron-builder": "^25.0.0",
     "postcss": "^8.5.0",
+    "rcedit": "^5.0.2",
     "tailwindcss": "^4.0.0",
     "typescript": "6.0.3",
     "vitest": "^3.2.4",
@@ -67,7 +66,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/vincezone-logo.ico",
