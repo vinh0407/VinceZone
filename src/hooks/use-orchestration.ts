@@ -17,6 +17,7 @@ import type {
   UsageRecord,
   WorkspaceFile,
 } from '@/components/ide/agent-types'
+import { slugifyCommand } from '@/components/ide/slash-command-popover'
 import { uid } from '@/components/ide/workspace-defaults'
 import { estimateCostUsd, estimateTokens } from '@/lib/agent-layout'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
@@ -129,6 +130,81 @@ export function useOrchestration({
   const aborters = useRef<Record<string, AbortController>>({})
   const agentsRef = useRef(agents)
   agentsRef.current = agents
+
+  const resolveSlashContext = useCallback(
+    async (text: string): Promise<{ promptBlock: string; badges: string[] }> => {
+      const matches = Array.from(text.matchAll(/(?:^|\s)\/([a-z0-9:._-]+)/gi)).map((m) =>
+        m[1].toLowerCase(),
+      )
+      const uniqueTokens = Array.from(new Set(matches)).slice(0, 4)
+      if (uniqueTokens.length === 0) return { promptBlock: '', badges: [] }
+
+      const sections: string[] = []
+      const badges: string[] = []
+
+      for (const token of uniqueTokens) {
+        if (token.startsWith('mcp:')) {
+          const slug = token.slice(4)
+          const mcp = appSettings.mcpServers.find(
+            (item) =>
+              item.enabled &&
+              (slugifyCommand(item.name) === slug ||
+                slugifyCommand(item.name).includes(slug) ||
+                item.id.toLowerCase().includes(slug)),
+          )
+          if (mcp) {
+            badges.push(`MCP: ${mcp.name}`)
+            sections.push(
+              `[ACTIVATED MCP SERVER: ${mcp.name}]\nTransport: ${mcp.transport}\nEndpoint: ${mcp.endpoint}\nUse this MCP server's capabilities and protocol conventions when fulfilling the user's request.`,
+            )
+          }
+          continue
+        }
+
+        if (token.startsWith('plugin:')) {
+          const slug = token.slice(7)
+          const plugin = appSettings.plugins.find(
+            (item) =>
+              item.enabled &&
+              (slugifyCommand(item.name) === slug ||
+                slugifyCommand(item.name).includes(slug) ||
+                item.id.toLowerCase().includes(slug)),
+          )
+          if (plugin) {
+            badges.push(`Plugin: ${plugin.name}`)
+            sections.push(
+              `[ACTIVATED PLUGIN: ${plugin.name}]\nPurpose: ${plugin.description}\nStrictly apply this plugin's rules to your response and edits.`,
+            )
+          }
+          continue
+        }
+
+        // Load real SKILL.md from C:\Users\ADMIN\.agents\skills (via /api/extensions?skill=...)
+        try {
+          const res = await fetch(`/api/extensions?skill=${encodeURIComponent(token)}`, {
+            cache: 'no-store',
+          })
+          if (res.ok) {
+            const data = (await res.json()) as {
+              ok?: boolean
+              skill?: { slug: string; name: string; path: string; content: string }
+            }
+            if (data.ok && data.skill) {
+              badges.push(`Skill: /${data.skill.slug}`)
+              sections.push(
+                `[LOADED SKILL: /${data.skill.slug} from ${data.skill.path}]\nFollow these skill instructions strictly:\n${data.skill.content.slice(0, 7_500)}`,
+              )
+            }
+          }
+        } catch {
+          // Ignore network/lookup failure for unknown /tokens
+        }
+      }
+
+      return { promptBlock: sections.join('\n\n'), badges }
+    },
+    [appSettings.mcpServers, appSettings.plugins],
+  )
 
   const resolveProviderForAgent = useCallback(
     (agent: Agent) => {
@@ -503,13 +579,31 @@ export function useOrchestration({
       aborters.current[coordinator.id] = controller
       const topology = readSavedTopology(agentsRef.current)
       const activeProvider = resolveProviderForAgent(coordinator)
-      const projectMemory = memoryNotes.map((note) => `- ${note.title}: ${note.content}`).join('\n')
+      const slashResolved = await resolveSlashContext(instruction)
+      const projectMemory = [
+        memoryNotes.map((note) => `- ${note.title}: ${note.content}`).join('\n'),
+        slashResolved.promptBlock,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
 
       if (!approvalResume) {
         updateAgent(coordinator.id, (current) => ({
           ...current,
           status: 'running',
-          messages: [...current.messages, { id: uid(), role: 'user', text: instruction }],
+          messages: [
+            ...current.messages,
+            { id: uid(), role: 'user', text: instruction },
+            ...(slashResolved.badges.length
+              ? [
+                  {
+                    id: uid(),
+                    role: 'tool' as const,
+                    text: `Loaded via /: ${slashResolved.badges.join(' · ')}`,
+                  },
+                ]
+              : []),
+          ],
         }))
       } else {
         updateAgent(coordinator.id, (current) => ({
@@ -611,12 +705,14 @@ export function useOrchestration({
       }
     },
     [
+      activeFile?.path,
       appSettings.delegation,
       files,
       handleRuntimeEvent,
       memoryNotes,
       projectName,
       resolveProviderForAgent,
+      resolveSlashContext,
       setAiActivity,
       updateAgent,
     ],
@@ -678,12 +774,22 @@ export function useOrchestration({
       const userMessage: Message = { id: uid(), role: 'user', text }
       setAiActivity('reading')
       if (!delegated) setDrafts((current) => ({ ...current, [agent.id]: '' }))
+      const slashResolved = await resolveSlashContext(text)
       updateAgent(agent.id, (current) => ({
         ...current,
         status: 'running',
         messages: [
           ...current.messages,
           ...(delegated ? [] : [userMessage]),
+          ...(slashResolved.badges.length
+            ? [
+                {
+                  id: uid(),
+                  role: 'tool' as const,
+                  text: `Loaded via /: ${slashResolved.badges.join(' · ')}`,
+                },
+              ]
+            : []),
           { id: 'stream', role: 'assistant', text: '' },
         ],
       }))
@@ -725,8 +831,11 @@ export function useOrchestration({
 
       const systemPrompt = [
         buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        slashResolved.promptBlock,
         `Workspace (${projectName}) relevant files:\n${fileContextBlock}`,
-      ].join('\n\n')
+      ]
+        .filter(Boolean)
+        .join('\n\n')
 
       try {
         const response = await fetch('/api/chat', {
@@ -945,6 +1054,7 @@ export function useOrchestration({
       onRecordUsage,
       projectName,
       resolveProviderForAgent,
+      resolveSlashContext,
       setAiActivity,
       setDrafts,
       setPendingApproval,

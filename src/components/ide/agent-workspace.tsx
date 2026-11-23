@@ -38,10 +38,19 @@ import type {
   AgentView,
   AgentWorkspaceState,
   CommunicationEvent,
+  McpServerConfig,
   PendingApprovalPlan,
+  PluginConfig,
   ProposedPatch,
   WorkspaceFile,
 } from './agent-types'
+import {
+  applySlashSelection,
+  buildSlashCommands,
+  extractActiveSlashQuery,
+  SlashCommandPopover,
+  type SkillIndexItem,
+} from './slash-command-popover'
 
 const defaultWorkspace: AgentWorkspaceState = {
   layout: 'focus1',
@@ -58,6 +67,9 @@ export function AgentWorkspace({
   communicationEvents,
   proposedPatches,
   pendingApproval,
+  skills,
+  mcpServers,
+  plugins,
   onCreate,
   onEditAgent,
   onView,
@@ -80,6 +92,9 @@ export function AgentWorkspace({
   communicationEvents: CommunicationEvent[]
   proposedPatches: ProposedPatch[]
   pendingApproval: PendingApprovalPlan | null
+  skills: SkillIndexItem[]
+  mcpServers: McpServerConfig[]
+  plugins: PluginConfig[]
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onView: (id: string, view: AgentView) => void
@@ -204,6 +219,9 @@ export function AgentWorkspace({
       isSendingMail={flightActivity.sendingIds.includes(agent.id)}
       justReceivedMail={flightActivity.arrivedIds.includes(agent.id)}
       files={files}
+      skills={skills}
+      mcpServers={mcpServers}
+      plugins={plugins}
       peers={agents.filter((peer) => peer.id !== agent.id)}
       view={views[agent.id] ?? 'chat'}
       draft={drafts[agent.id] ?? ''}
@@ -556,6 +574,9 @@ function AgentPanel({
   isSendingMail,
   justReceivedMail,
   files,
+  skills,
+  mcpServers,
+  plugins,
   peers,
   view,
   draft,
@@ -578,6 +599,9 @@ function AgentPanel({
   isSendingMail: boolean
   justReceivedMail: boolean
   files: WorkspaceFile[]
+  skills: SkillIndexItem[]
+  mcpServers: McpServerConfig[]
+  plugins: PluginConfig[]
   peers: Agent[]
   view: AgentView
   draft: string
@@ -597,6 +621,7 @@ function AgentPanel({
 }) {
   const [delegationOpen, setDelegationOpen] = useState(false)
   const [contextPickerOpen, setContextPickerOpen] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
   const [delegateTarget, setDelegateTarget] = useState(peers[0]?.id ?? '')
   const [delegatePrompt, setDelegatePrompt] = useState('')
   useEffect(() => {
@@ -604,6 +629,12 @@ function AgentPanel({
   }, [delegateTarget, peers])
 
   const effectiveDraft = agent.composingPrompt ?? draft
+  const slashQuery = agent.composingPrompt ? null : extractActiveSlashQuery(draft)
+  const slashItems = useMemo(
+    () =>
+      slashQuery !== null ? buildSlashCommands(skills, mcpServers, plugins, slashQuery) : [],
+    [mcpServers, plugins, skills, slashQuery],
+  )
 
   return (
     <article
@@ -865,18 +896,61 @@ function AgentPanel({
               </div>
             </div>
           )}
+          {slashQuery !== null && (
+            <SlashCommandPopover
+              query={slashQuery}
+              skills={skills}
+              mcpServers={mcpServers}
+              plugins={plugins}
+              selectedIndex={Math.min(slashIndex, Math.max(0, slashItems.length - 1))}
+              onHoverIndex={setSlashIndex}
+              onSelect={(command) => {
+                onDraft(applySlashSelection(draft, command))
+                setSlashIndex(0)
+              }}
+            />
+          )}
           <textarea
             value={effectiveDraft}
             readOnly={Boolean(agent.composingPrompt)}
-            onChange={(event) => onDraft(event.target.value)}
+            onChange={(event) => {
+              onDraft(event.target.value)
+              setSlashIndex(0)
+            }}
             onKeyDown={(event) => {
+              if (slashQuery !== null && slashItems.length > 0) {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setSlashIndex((i) => (i + 1) % slashItems.length)
+                  return
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setSlashIndex((i) => (i - 1 + slashItems.length) % slashItems.length)
+                  return
+                }
+                if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+                  event.preventDefault()
+                  const picked = slashItems[Math.min(slashIndex, slashItems.length - 1)]
+                  if (picked) {
+                    onDraft(applySlashSelection(draft, picked.command))
+                    setSlashIndex(0)
+                  }
+                  return
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  onDraft(draft.replace(/(^|\s)\/[a-z0-9:._-]*$/i, '$1'))
+                  return
+                }
+              }
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 onSend()
               }
             }}
             rows={2}
-            placeholder={`Message ${agent.name}…`}
+            placeholder={`Message ${agent.name}… Type / for skills, MCP & plugins`}
             className={`w-full resize-none bg-transparent px-2.5 pt-2 text-[10px] leading-4 outline-none placeholder:text-[#666666] ${
               agent.composingPrompt ? 'font-mono text-white' : 'text-[#d4d4d4]'
             }`}
@@ -892,6 +966,16 @@ function AgentPanel({
                 }}
               >
                 <Plus size={11} />
+              </button>
+              <button
+                className="mini-button font-mono text-[10px] font-semibold"
+                title="Invoke /skill, /mcp or /plugin"
+                onClick={() => {
+                  onDraft(`${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}/`)
+                  setSlashIndex(0)
+                }}
+              >
+                /
               </button>
               <button
                 className={`mini-button ${delegationOpen ? 'bg-[#2e2e2e] text-white' : ''}`}

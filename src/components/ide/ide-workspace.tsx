@@ -44,6 +44,7 @@ import { AgentCreatorModal } from './modals/agent-creator-modal'
 import { DiffReviewModal } from './modals/diff-review-modal'
 import { ProviderSettingsModal } from './modals/provider-settings-modal'
 import { RightAiChatPanel } from './right-ai-chat-panel'
+import type { SkillIndexItem } from './slash-command-popover'
 import { StatusBar } from './status-bar'
 import { WebPreview } from './web-preview'
 import {
@@ -152,6 +153,7 @@ export function IDEWorkspace() {
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings)
   const [providers, setProviders] = useState<ProviderConfig[]>([defaultProvider])
   const [savedProvider, setSavedProvider] = useState<ProviderConfig>(defaultProvider)
+  const [availableSkills, setAvailableSkills] = useState<SkillIndexItem[]>([])
   const [isDesktop, setIsDesktop] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hydratedRef = useRef(false)
@@ -395,6 +397,14 @@ export function IDEWorkspace() {
 
     // Load actual workspace files from disk via localhost API, preserving restored session on boot
     void loadLocalDirectory(undefined, restoredAgents)
+
+    // Preload discovered skills from C:\Users\ADMIN\.agents\skills for `/` slash commands
+    void fetch('/api/extensions', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { skills?: SkillIndexItem[] } | null) => {
+        if (data?.skills?.length) setAvailableSkills(data.skills)
+      })
+      .catch(() => {})
   }, [loadLocalDirectory])
 
   const persistWorkspace = useCallback(
@@ -1368,6 +1378,9 @@ export function IDEWorkspace() {
                 drafts={drafts}
                 files={files}
                 activeFilePath={activeFile?.path}
+                skills={availableSkills}
+                mcpServers={appSettings.mcpServers}
+                plugins={appSettings.plugins}
                 onSelectAgent={setRightChatAgentId}
                 onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
                 onSend={(agent) => void sendMessage(agent, undefined, false, { forceDirectChat: true })}
@@ -1387,6 +1400,9 @@ export function IDEWorkspace() {
             communicationEvents={communicationEvents}
             proposedPatches={proposedPatches}
             pendingApproval={pendingApproval}
+            skills={availableSkills}
+            mcpServers={appSettings.mcpServers}
+            plugins={appSettings.plugins}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

@@ -10,8 +10,15 @@ import {
   Square,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
-import type { Agent, WorkspaceFile } from './agent-types'
+import { useMemo, useState } from 'react'
+import type { Agent, McpServerConfig, PluginConfig, WorkspaceFile } from './agent-types'
+import {
+  applySlashSelection,
+  buildSlashCommands,
+  extractActiveSlashQuery,
+  SlashCommandPopover,
+  type SkillIndexItem,
+} from './slash-command-popover'
 
 export function RightAiChatPanel({
   agents,
@@ -19,6 +26,9 @@ export function RightAiChatPanel({
   drafts,
   files,
   activeFilePath,
+  skills,
+  mcpServers,
+  plugins,
   onSelectAgent,
   onDraft,
   onSend,
@@ -31,6 +41,9 @@ export function RightAiChatPanel({
   drafts: Record<string, string>
   files: WorkspaceFile[]
   activeFilePath?: string
+  skills: SkillIndexItem[]
+  mcpServers: McpServerConfig[]
+  plugins: PluginConfig[]
   onSelectAgent: (id: string) => void
   onDraft: (id: string, value: string) => void
   onSend: (agent: Agent) => void
@@ -39,7 +52,15 @@ export function RightAiChatPanel({
   onClose: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
   const agent = agents.find((item) => item.id === selectedAgentId) ?? agents[0]
+  const draft = agent ? (drafts[agent.id] ?? '') : ''
+  const slashQuery = extractActiveSlashQuery(draft)
+  const slashItems = useMemo(
+    () =>
+      slashQuery !== null ? buildSlashCommands(skills, mcpServers, plugins, slashQuery) : [],
+    [mcpServers, plugins, skills, slashQuery],
+  )
 
   if (!agent) {
     return (
@@ -48,8 +69,6 @@ export function RightAiChatPanel({
       </aside>
     )
   }
-
-  const draft = drafts[agent.id] ?? ''
 
   return (
     <aside className="flex w-80 shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818]">
@@ -147,6 +166,20 @@ export function RightAiChatPanel({
           </p>
         )}
         <div className="rounded-lg border border-[#333333] bg-[#141414] focus-within:border-[#737373]">
+          {slashQuery !== null && (
+            <SlashCommandPopover
+              query={slashQuery}
+              skills={skills}
+              mcpServers={mcpServers}
+              plugins={plugins}
+              selectedIndex={Math.min(slashIndex, Math.max(0, slashItems.length - 1))}
+              onHoverIndex={setSlashIndex}
+              onSelect={(command) => {
+                onDraft(agent.id, applySlashSelection(draft, command))
+                setSlashIndex(0)
+              }}
+            />
+          )}
           {contextOpen && (
             <div className="max-h-32 overflow-y-auto border-b border-[#2b2b2b] p-1.5">
               {files.slice(0, 20).map((file) => (
@@ -166,25 +199,66 @@ export function RightAiChatPanel({
           )}
           <textarea
             value={draft}
-            onChange={(event) => onDraft(agent.id, event.target.value)}
+            onChange={(event) => {
+              onDraft(agent.id, event.target.value)
+              setSlashIndex(0)
+            }}
             onKeyDown={(event) => {
+              if (slashQuery !== null && slashItems.length > 0) {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setSlashIndex((i) => (i + 1) % slashItems.length)
+                  return
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setSlashIndex((i) => (i - 1 + slashItems.length) % slashItems.length)
+                  return
+                }
+                if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+                  event.preventDefault()
+                  const picked = slashItems[Math.min(slashIndex, slashItems.length - 1)]
+                  if (picked) {
+                    onDraft(agent.id, applySlashSelection(draft, picked.command))
+                    setSlashIndex(0)
+                  }
+                  return
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  onDraft(agent.id, draft.replace(/(^|\s)\/[a-z0-9:._-]*$/i, '$1'))
+                  return
+                }
+              }
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 onSend(agent)
               }
             }}
             rows={3}
-            placeholder={`Ask ${agent.name} about this code…`}
+            placeholder={`Ask ${agent.name}… Type / for skills, MCP & plugins`}
             className="w-full resize-none bg-transparent px-2.5 pt-2 text-[11px] leading-4 text-white outline-none placeholder:text-[#6e6e6e]"
           />
           <div className="flex items-center justify-between px-2 pb-1.5">
-            <button
-              onClick={() => setContextOpen((prev) => !prev)}
-              className="mini-button"
-              title="Attach @file reference"
-            >
-              <Plus size={12} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setContextOpen((prev) => !prev)}
+                className="mini-button"
+                title="Attach @file reference"
+              >
+                <Plus size={12} />
+              </button>
+              <button
+                onClick={() => {
+                  onDraft(agent.id, `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}/`)
+                  setSlashIndex(0)
+                }}
+                className="mini-button font-mono text-[11px] font-semibold"
+                title="Invoke /skill, /mcp or /plugin"
+              >
+                /
+              </button>
+            </div>
             {agent.status === 'running' || agent.status === 'reviewing' ? (
               <button
                 onClick={() => onPause(agent)}
