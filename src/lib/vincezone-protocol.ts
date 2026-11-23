@@ -76,7 +76,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     code: 'DB',
     title: 'Database & Schema Engineer',
     accent: '#ce9178',
-    writePatterns: [/^src\/collections\//i, /^src\/payload\.config\.ts$/i, /^prisma\//i, /^data\//i, /schema/i],
+    writePatterns: [/^prisma\//i, /^drizzle\//i, /^src\/db\//i, /^data\//i, /schema/i],
     readOnlyPatterns: [/^src\/components\//i],
     summary: 'Collections, database schemas, ownership access rules & migrations.',
   },

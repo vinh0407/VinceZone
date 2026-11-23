@@ -29,6 +29,7 @@ describe('VinceZone territory & API contract enforcement', () => {
 
     const qaEditingTests = validateTerritoryAccess('qa', 'src/lib/__tests__/provider-url.test.ts')
     expect(qaEditingTests.allowed).toBe(true)
-    expect(findTerritoryOwner('src/collections/Admins.ts')).toBe('db')
+    expect(findTerritoryOwner('prisma/schema.prisma')).toBe('db')
+    expect(findTerritoryOwner('src/db/users.ts')).toBe('db')
   })
 })

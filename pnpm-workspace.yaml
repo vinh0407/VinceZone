@@ -1,17 +1,4 @@
-# Keep host-native binaries for builds and Linux ARM64 binaries for Lambda.
-supportedArchitectures:
-  os:
-    - current
-    - linux
-  cpu:
-    - current
-    - arm64
-  libc:
-    - current
-    - glibc
-
 allowBuilds:
   electron: true
   esbuild: true
-  sharp: true
   unrs-resolver: true

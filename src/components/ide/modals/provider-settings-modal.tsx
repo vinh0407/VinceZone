@@ -520,7 +520,7 @@ export function ProviderSettingsModal({
                   value={provider.apiKey}
                   onChange={(apiKey) => updateCurrentProvider({ ...provider, apiKey })}
                   type="password"
-                  placeholder="Never written to localStorage, Payload, or logs"
+                  placeholder="Never written to localStorage, disk, or logs"
                 />
                 <Field
                   label="Models (comma-separated)"
@@ -576,7 +576,7 @@ export function ProviderSettingsModal({
 
                 <div className="flex gap-2 rounded-lg border border-[#2f2f2f] bg-[#181818] p-2.5 text-[10px] leading-4 text-[#a3a3a3]">
                   <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#e5e5e5]" />
-                  API keys stay in memory only and are never saved to localStorage, Payload, or logs.
+                  API keys stay in memory only and are never saved to localStorage, disk, or logs.
                   Outbound HTTPS endpoints are verified via DNS with redirects disabled.
                 </div>
               </SettingsSection>

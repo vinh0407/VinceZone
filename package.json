@@ -6,35 +6,21 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --port 40704 --hostname 127.0.0.1",
-    "build": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --no-deprecation\" payload build",
+    "build": "next build",
     "start": "next start --port 40704 --hostname 127.0.0.1",
     "desktop": "electron electron/main.cjs",
     "format": "oxfmt",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "generate:importmap": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --no-deprecation\" payload generate:importmap",
-    "generate:types": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --no-deprecation\" payload generate:types",
-    "payload": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --no-deprecation\" payload"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "@payloadcms/figma": "1.0.0-beta.4",
-    "@payloadcms/next": "4.0.0-beta.11",
-    "@payloadcms/plugin-cloud-storage": "4.0.0-beta.11",
-    "@payloadcms/plugin-mcp": "4.0.0-beta.11",
-    "@payloadcms/richtext-lexical": "4.0.0-beta.11",
-    "@payloadcms/translations": "4.0.0-beta.11",
-    "@payloadcms/ui": "4.0.0-beta.11",
-    "graphql": "^16.8.1",
-    "html-react-parser": "^5.2.10",
     "lucide-react": "^1.77.0",
     "monaco-editor": "0.55.1",
     "next": "16.4.6",
-    "payload": "4.0.0-beta.11",
     "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "sharp": "^0.35.4"
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
