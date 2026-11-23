@@ -24,6 +24,7 @@ import type {
 } from './agent-types'
 import { ChatContextMenu } from './chat-context-menu'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
+import { MarkdownReply } from './markdown-reply'
 import {
   applySlashSelection,
   buildSlashCommands,
@@ -394,21 +395,25 @@ export function RightAiChatPanel({
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[92%] whitespace-pre-wrap rounded-lg px-2.5 py-2 text-[11px] leading-5 ${
+              className={`min-w-0 rounded-lg px-3 py-2.5 ${
                 message.role === 'user'
-                  ? 'bg-[#2a2a2a] text-white'
+                  ? 'max-w-[90%] whitespace-pre-wrap bg-[#2a2a2a] text-[11px] leading-5 text-white'
                   : message.role === 'tool'
-                    ? 'border border-[#333333] bg-[#1c1c1c] text-[#a3a3a3]'
-                    : 'border border-[#2b2b2b] bg-[#1e1e1e] text-[#d4d4d4]'
+                    ? 'max-w-[96%] whitespace-pre-wrap border border-[#333333] bg-[#1c1c1c] text-[10.5px] leading-4 text-[#a3a3a3]'
+                    : 'w-full max-w-[98%] border border-[#2b2b2b] bg-[#1b1b1b] text-[#d4d4d4]'
               }`}
             >
               {message.from && (
-                <p className="mb-1 text-[9px] uppercase tracking-wider text-[#9a9a9a]">
+                <p className="mb-1.5 border-b border-[#2a2a2a] pb-1 text-[9px] font-semibold uppercase tracking-wider text-[#9a9a9a]">
                   {message.from} → {agent.name}
                 </p>
               )}
               {message.text ? (
-                <HighlightedChatText text={message.text} />
+                message.role === 'user' || message.role === 'tool' ? (
+                  <HighlightedChatText text={message.text} />
+                ) : (
+                  <MarkdownReply text={message.text} />
+                )
               ) : (
                 <span className="streaming-dots">Generating</span>
               )}

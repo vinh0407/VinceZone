@@ -189,6 +189,12 @@ export const GLOBAL_INTELLIGENCE_CORE = [
   GLOBAL_ROLE_MEMORY,
   UNIVERSAL_COMPLETION_REPORT,
   TEAM_INTELLIGENCE_PRINCIPLES,
+  `=== RESPONSE PRESENTATION STANDARD ===
+Format substantive replies with rich, scannable GitHub-Flavored Markdown:
+- Use clear headings (#, ##, ###) and **bold** key terms for hierarchy.
+- Use structured Markdown tables (| Column | ... |) for tech stacks, comparisons, inventories, and verification summaries.
+- Use \`\`\`mermaid flowchart TD / flowchart LR / sequenceDiagram blocks whenever explaining architecture, data flow, or multi-agent interactions (VinceZone renders Mermaid blocks natively as interactive SVG diagrams).
+- Put file paths, commands, and symbols in inline \`code\` spans and multi-line code in fenced blocks with language tags.`,
 ].join('\n\n')
 
 export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, TerritoryConfig> = {

@@ -33,6 +33,7 @@ import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import { ChatContextMenu } from './chat-context-menu'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
+import { MarkdownReply } from './markdown-reply'
 import type {
   Agent,
   AgentLayout,
@@ -806,16 +807,16 @@ function AgentPanel({
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[94%] whitespace-pre-wrap rounded-lg px-2.5 py-2 text-[10px] leading-[1.55] ${
+                  className={`min-w-0 rounded-lg px-3 py-2 ${
                     message.role === 'user'
-                      ? 'bg-[#2a2a2a] text-white'
+                      ? 'max-w-[90%] whitespace-pre-wrap bg-[#2a2a2a] text-[10.5px] leading-[1.55] text-white'
                       : message.role === 'agent'
-                        ? 'border border-[#454545] bg-[#202020] text-[#e5e5e5]'
-                        : 'border border-[#2b2b2b] bg-[#1a1a1a] text-[#cccccc]'
+                        ? 'w-full max-w-[98%] border border-[#454545] bg-[#202020] text-[#e5e5e5]'
+                        : 'w-full max-w-[98%] border border-[#2b2b2b] bg-[#1a1a1a] text-[#cccccc]'
                   }`}
                 >
                   {message.role === 'agent' && (
-                    <div className="mb-1 flex items-center gap-1 text-[8px] uppercase tracking-wider text-[#a3a3a3]">
+                    <div className="mb-1.5 flex items-center gap-1 border-b border-[#323232] pb-1 text-[8.5px] font-semibold uppercase tracking-wider text-[#a3a3a3]">
                       {message.codeSnippet ? <Code2 size={9} /> : <Mail size={9} />}
                       <span>
                         {message.from} → {agent.name}
@@ -823,7 +824,11 @@ function AgentPanel({
                     </div>
                   )}
                   {message.text ? (
-                    <HighlightedChatText text={message.text} />
+                    message.role === 'user' ? (
+                      <HighlightedChatText text={message.text} />
+                    ) : (
+                      <MarkdownReply text={message.text} compact />
+                    )
                   ) : (
                     <span className="streaming-dots">Generating</span>
                   )}

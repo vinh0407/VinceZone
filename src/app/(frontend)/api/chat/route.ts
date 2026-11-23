@@ -105,6 +105,7 @@ export async function POST(request: Request) {
           let totalCompletionTokens = 0
 
           let activeModel = model
+          let emittedAnyText = false
 
           for (let round = 0; round < 8; round++) {
             const attempt = await fetchProviderWithFallback({
@@ -213,8 +214,10 @@ export async function POST(request: Request) {
                     : ''
 
             if (contentText) {
+              const spacer = emittedAnyText ? '\n\n' : ''
+              emittedAnyText = true
               controller.enqueue(
-                sseFrame({ choices: [{ delta: { content: contentText } }] }),
+                sseFrame({ choices: [{ delta: { content: `${spacer}${contentText}` } }] }),
               )
             }
 
