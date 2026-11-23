@@ -4,6 +4,7 @@ import {
   Bot,
   Check,
   ChevronDown,
+  Code2,
   Copy,
   FileCode2,
   GitCompareArrows,
@@ -16,6 +17,7 @@ import {
   MessageSquarePlus,
   PanelTopClose,
   Pause,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -27,6 +29,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import type {
   Agent,
@@ -56,6 +59,7 @@ export function AgentWorkspace({
   proposedPatches,
   pendingApproval,
   onCreate,
+  onEditAgent,
   onView,
   onDraft,
   onSend,
@@ -77,6 +81,7 @@ export function AgentWorkspace({
   proposedPatches: ProposedPatch[]
   pendingApproval: PendingApprovalPlan | null
   onCreate: () => void
+  onEditAgent: (agent: Agent) => void
   onView: (id: string, view: AgentView) => void
   onDraft: (id: string, value: string) => void
   onSend: (agent: Agent) => void
@@ -162,9 +167,8 @@ export function AgentWorkspace({
   const agentsWithMainFirst = mainAgent
     ? [mainAgent, ...visibleAgents.filter((agent) => agent.id !== mainAgent.id)]
     : visibleAgents
-  const layoutCapacity = workspace.layout === 'focus1' ? 7 : 6
-  const layoutAgents = agentsWithMainFirst.slice(0, layoutCapacity)
-  const overflowAgents = agentsWithMainFirst.slice(layoutCapacity)
+
+  const gridPlan = computeAgentGridPlan(agentsWithMainFirst.length, workspace.layout)
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
 
   const swapPanels = (targetId: string) => {
@@ -180,30 +184,32 @@ export function AgentWorkspace({
     setDraggedId('')
   }
 
-  const renderAgentPanel = (agent: Agent) => (
+  const renderAgentPanel = (agent: Agent, index: number) => (
     <AgentPanel
       key={agent.id}
       agent={agent}
       topologyRole={
         workspace.layout === 'equal'
           ? 'Peer'
-          : workspace.layout === 'focus2'
-            ? agentsWithMainFirst.indexOf(agent) < 2
-              ? 'Planner'
+          : gridPlan.kind === 'focus-split'
+            ? index < gridPlan.leftCount
+              ? gridPlan.leftCount === 2
+                ? 'Planner'
+                : 'Coordinator'
               : 'Worker'
-            : agentsWithMainFirst.indexOf(agent) === 0
+            : index === 0
               ? 'Coordinator'
               : 'Worker'
       }
       isSendingMail={flightActivity.sendingIds.includes(agent.id)}
       justReceivedMail={flightActivity.arrivedIds.includes(agent.id)}
-      layoutClass=""
       files={files}
       peers={agents.filter((peer) => peer.id !== agent.id)}
       view={views[agent.id] ?? 'chat'}
       draft={drafts[agent.id] ?? ''}
       onDragStart={() => setDraggedId(agent.id)}
       onDrop={() => swapPanels(agent.id)}
+      onEdit={() => onEditAgent(agent)}
       onView={(view) => onView(agent.id, view)}
       onDraft={(value) => onDraft(agent.id, value)}
       onSend={() => onSend(agent)}
@@ -237,7 +243,7 @@ export function AgentWorkspace({
             VinceZone Multi-Agent Control Center
           </span>
           <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[10px] text-[#a3a3a3]">
-            {agents.length}/7
+            {agents.length} agent{agents.length === 1 ? '' : 's'} · unlimited
           </span>
           {tasks.length > 0 && (
             <span className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[10px] text-[#e5e5e5]">
@@ -248,29 +254,26 @@ export function AgentWorkspace({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
-              if (communicationEvents.some((event) => event.recipientId)) {
-                setReplayTrigger((count) => count + 1)
-              } else {
-                onPreviewMailExchange(
-                  workspace.layout,
-                  agentsWithMainFirst.map((agent) => agent.id),
-                )
-              }
+              onPreviewMailExchange(
+                workspace.layout,
+                agentsWithMainFirst.map((agent) => agent.id),
+              )
             }}
             disabled={agents.length < 2}
             className="flex items-center gap-1.5 rounded border border-[#454545] bg-[#262626] px-2.5 py-1 text-[11px] text-[#e5e5e5] hover:bg-[#333333] disabled:opacity-30"
-            title="Animate VinceZone agent mail exchange across the active topology"
+            title="Watch Commander type prompts & exchange code packets with other agents"
           >
-            {communicationEvents.some((event) => event.recipientId) ? (
-              <>
-                <RotateCcw size={11} /> Replay mail
-              </>
-            ) : (
-              <>
-                <Mail size={11} /> Preview mail flow
-              </>
-            )}
+            <Code2 size={11} /> Preview code exchange
           </button>
+          {communicationEvents.some((event) => event.recipientId) && (
+            <button
+              onClick={() => setReplayTrigger((count) => count + 1)}
+              className="flex items-center gap-1 rounded border border-[#333333] bg-[#222222] px-2 py-1 text-[11px] text-[#cccccc] hover:text-white"
+              title="Replay last mail flights"
+            >
+              <RotateCcw size={11} /> Replay
+            </button>
+          )}
           <button
             onClick={() => setMailLogOpen((prev) => !prev)}
             className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] ${
@@ -300,8 +303,7 @@ export function AgentWorkspace({
           />
           <button
             onClick={onCreate}
-            disabled={agents.length >= 7}
-            className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-3 py-1 text-[11px] font-medium text-[#111111] hover:bg-white disabled:opacity-30"
+            className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-3 py-1 text-[11px] font-medium text-[#111111] hover:bg-white"
           >
             <MessageSquarePlus size={12} /> New agent
           </button>
@@ -309,27 +311,26 @@ export function AgentWorkspace({
       </div>
 
       {pendingApproval && pendingApproval.tasks.length > 0 && (
-        <div className="shrink-0 border-b border-amber-400/20 bg-amber-400/[0.06] px-4 py-2.5">
+        <div className="shrink-0 border-b border-[#404040] bg-[#1c1c1c] px-4 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-[11px] text-amber-200">
-              <ShieldAlert size={14} className="text-amber-400" />
+            <div className="flex items-center gap-2 text-[11px] text-[#e5e5e5]">
+              <ShieldAlert size={14} className="text-[#d4d4d4]" />
               <span className="font-semibold">Approval required before worker calls</span>
-              <span className="text-[10px] text-amber-200/70">
-                Select tasks to execute ({selectedApprovalIds.length}/{pendingApproval.tasks.length}
-                )
+              <span className="text-[10px] text-[#a3a3a3]">
+                Select tasks ({selectedApprovalIds.length}/{pendingApproval.tasks.length})
               </span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={onCancelApproval}
-                className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] text-zinc-400 hover:bg-white/5"
+                className="rounded border border-[#3c3c3c] px-2.5 py-1 text-[10px] text-[#cccccc] hover:bg-[#2a2a2a]"
               >
                 Cancel plan
               </button>
               <button
                 onClick={() => onApprovePlan(selectedApprovalIds)}
                 disabled={selectedApprovalIds.length === 0}
-                className="flex items-center gap-1.5 rounded-md bg-lime-400 px-3 py-1 text-[10px] font-semibold text-black hover:bg-lime-300 disabled:opacity-30"
+                className="flex items-center gap-1.5 rounded bg-[#e5e5e5] px-3 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-30"
               >
                 <Check size={11} /> Approve &amp; Execute
               </button>
@@ -342,10 +343,10 @@ export function AgentWorkspace({
               return (
                 <label
                   key={task.id}
-                  className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-[10px] ${
+                  className={`flex cursor-pointer items-start gap-2 rounded border p-2 text-[10px] ${
                     checked
-                      ? 'border-lime-400/30 bg-black/30 text-zinc-200'
-                      : 'border-white/[0.07] bg-black/20 text-zinc-500'
+                      ? 'border-[#737373] bg-[#262626] text-white'
+                      : 'border-[#2b2b2b] bg-[#161616] text-[#858585]'
                   }`}
                 >
                   <input
@@ -358,13 +359,12 @@ export function AgentWorkspace({
                           : [...current, task.id],
                       )
                     }
-                    className="mt-0.5 accent-lime-400"
+                    className="mt-0.5 accent-[#e5e5e5]"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{task.title}</span>
-                    <span className="mt-0.5 block truncate text-[9px] text-zinc-500">
+                    <span className="mt-0.5 block truncate text-[9px] text-[#9a9a9a]">
                       → {assignee?.name || task.assigneeId}
-                      {task.relevantFiles.length > 0 ? ` · ${task.relevantFiles.join(', ')}` : ''}
                     </span>
                   </span>
                 </label>
@@ -375,47 +375,39 @@ export function AgentWorkspace({
       )}
 
       {mailLogOpen && (
-        <div className="max-h-36 shrink-0 overflow-y-auto border-b border-white/[0.07] bg-[#070707] px-4 py-2">
-          <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-wider text-zinc-500">
-            <span>Agent Mail Exchange Timeline</span>
-            <span>Violet: Delegation · Sky: Peer · Lime: Report</span>
+        <div className="max-h-36 shrink-0 overflow-y-auto border-b border-[#2b2b2b] bg-[#141414] px-4 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-wider text-[#858585]">
+            <span>Agent Mail &amp; Code Exchange Timeline</span>
+            <span>All deliveries synced from runtime events</span>
           </div>
           {communicationEvents.length === 0 ? (
-            <p className="text-[10px] text-zinc-600">No inter-agent messages recorded yet.</p>
+            <p className="text-[10px] text-[#737373]">No inter-agent exchanges recorded yet.</p>
           ) : (
             <div className="space-y-1">
-              {[...communicationEvents]
-                .reverse()
-                .slice(0, 20)
-                .map((event) => {
-                  const sender = agents.find((a) => a.id === event.senderId)?.name || event.senderId
-                  const recipient =
-                    agents.find((a) => a.id === event.recipientId)?.name || event.recipientId
-                  return (
-                    <div
-                      key={event.id}
-                      className="flex items-center gap-2 rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1 text-[10px]"
-                    >
-                      <Mail
-                        size={10}
-                        className={
-                          event.kind === 'report'
-                            ? 'text-lime-400'
-                            : event.kind === 'peer'
-                              ? 'text-sky-400'
-                              : 'text-violet-400'
-                        }
-                      />
-                      <span className="shrink-0 font-mono text-[9px] text-zinc-600">
-                        {event.timestamp.slice(11, 19)}
-                      </span>
-                      <span className="shrink-0 text-zinc-300">
-                        {sender} → {recipient}
-                      </span>
-                      <span className="truncate text-zinc-500">{event.description}</span>
-                    </div>
-                  )
-                })}
+              {[...communicationEvents].reverse().slice(0, 20).map((event) => {
+                const sender = agents.find((a) => a.id === event.senderId)?.name || event.senderId
+                const recipient =
+                  agents.find((a) => a.id === event.recipientId)?.name || event.recipientId
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-center gap-2 rounded border border-[#2b2b2b] bg-[#1a1a1a] px-2 py-1 text-[10px]"
+                  >
+                    {event.kind === 'code' ? (
+                      <Code2 size={10} className="text-white" />
+                    ) : (
+                      <Mail size={10} className="text-[#a3a3a3]" />
+                    )}
+                    <span className="shrink-0 font-mono text-[9px] text-[#6e6e6e]">
+                      {event.timestamp.slice(11, 19)}
+                    </span>
+                    <span className="shrink-0 text-[#e5e5e5]">
+                      {sender} → {recipient}
+                    </span>
+                    <span className="truncate text-[#9a9a9a]">{event.description}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -430,10 +422,10 @@ export function AgentWorkspace({
           onFlightActivity={setFlightActivity}
         />
 
-        {(workspace.minimized.length > 0 || overflowAgents.length > 0) && (
-          <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-white/[0.06] bg-black/20 px-3">
-            <span className="mr-1 text-[8px] uppercase tracking-widest text-zinc-700">
-              {overflowAgents.length > 0 ? 'Outside this layout' : 'Minimized'}
+        {workspace.minimized.length > 0 && (
+          <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-[#2b2b2b] bg-[#141414] px-3">
+            <span className="mr-1 text-[9px] uppercase tracking-widest text-[#737373]">
+              Minimized
             </span>
             {workspace.minimized.map((id) => {
               const agent = agents.find((item) => item.id === id)
@@ -448,51 +440,60 @@ export function AgentWorkspace({
                       minimized: current.minimized.filter((item) => item !== id),
                     }))
                   }
-                  className="flex items-center gap-1 rounded border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[9px] text-zinc-500 hover:text-zinc-200"
+                  className="flex items-center gap-1 rounded border border-[#333333] bg-[#222222] px-2 py-1 text-[10px] text-[#cccccc] hover:text-white"
                 >
-                  <ChevronDown size={9} /> {agent.name}
+                  <ChevronDown size={10} /> {agent.name}
                 </button>
               )
             })}
-            {overflowAgents.map((agent) => (
-              <button
-                key={agent.id}
-                data-agent-chip={agent.id}
-                onClick={() =>
-                  setWorkspace((current) => ({
-                    ...current,
-                    layout: 'focus1',
-                    mainAgentId: agent.id,
-                  }))
-                }
-                className="flex items-center gap-1 rounded border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[9px] text-zinc-500 hover:text-zinc-200"
-              >
-                <Maximize2 size={9} /> {agent.name}
-              </button>
-            ))}
           </div>
         )}
 
-        {agents.length === 0 ? (
+        {agentsWithMainFirst.length === 0 ? (
           <EmptyAgents onCreate={onCreate} />
-        ) : workspace.layout === 'equal' ? (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-px overflow-auto bg-white/[0.08] md:grid-cols-3 md:grid-rows-2">
-            {layoutAgents.map(renderAgentPanel)}
+        ) : gridPlan.kind === 'single' ? (
+          <div className="grid min-h-0 flex-1 grid-cols-1 bg-[#2b2b2b]">
+            {renderAgentPanel(agentsWithMainFirst[0], 0)}
           </div>
-        ) : workspace.layout === 'focus2' ? (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-px overflow-auto bg-white/[0.08] md:grid-cols-2">
-            <div className="grid min-h-0 grid-rows-2 gap-px bg-white/[0.08]">
-              {layoutAgents.slice(0, 2).map(renderAgentPanel)}
-            </div>
-            <div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-px bg-white/[0.08]">
-              {layoutAgents.slice(2, 6).map(renderAgentPanel)}
-            </div>
+        ) : gridPlan.kind === 'split-two' ? (
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-px bg-[#2b2b2b] md:grid-cols-2">
+            {agentsWithMainFirst.map((agent, idx) => renderAgentPanel(agent, idx))}
+          </div>
+        ) : gridPlan.kind === 'equal-grid' ? (
+          <div
+            style={{
+              gridTemplateColumns: `repeat(${gridPlan.cols}, minmax(0, 1fr))`,
+              gridAutoRows:
+                gridPlan.rows <= 2
+                  ? `minmax(0, 1fr)`
+                  : `minmax(280px, 1fr)`,
+            }}
+            className="grid min-h-0 flex-1 gap-px overflow-auto bg-[#2b2b2b]"
+          >
+            {agentsWithMainFirst.map((agent, idx) => renderAgentPanel(agent, idx))}
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-px overflow-auto bg-white/[0.08] md:grid-cols-2">
-            <div className="min-h-0">{layoutAgents[0] && renderAgentPanel(layoutAgents[0])}</div>
-            <div className="grid min-h-0 grid-cols-3 grid-rows-2 gap-px bg-white/[0.08]">
-              {layoutAgents.slice(1, 7).map(renderAgentPanel)}
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-px overflow-auto bg-[#2b2b2b] md:grid-cols-2">
+            <div
+              style={{
+                gridTemplateRows: `repeat(${gridPlan.leftCount}, minmax(0, 1fr))`,
+              }}
+              className="grid min-h-0 gap-px bg-[#2b2b2b]"
+            >
+              {agentsWithMainFirst
+                .slice(0, gridPlan.leftCount)
+                .map((agent, idx) => renderAgentPanel(agent, idx))}
+            </div>
+            <div
+              style={{
+                gridTemplateColumns: `repeat(${gridPlan.rightCols}, minmax(0, 1fr))`,
+                gridAutoRows: gridPlan.rightRows <= 3 ? `minmax(0, 1fr)` : `minmax(250px, 1fr)`,
+              }}
+              className="grid min-h-0 gap-px overflow-auto bg-[#2b2b2b]"
+            >
+              {agentsWithMainFirst
+                .slice(gridPlan.leftCount)
+                .map((agent, idx) => renderAgentPanel(agent, idx + gridPlan.leftCount))}
             </div>
           </div>
         )}
@@ -507,43 +508,40 @@ function SegmentedControl({
   onChange,
 }: {
   value: string
-  items: Array<{ id: string; label: string; icon?: typeof Bot }>
+  items: Array<{ id: string; label: string }>
   onChange: (value: string) => void
 }) {
   return (
-    <div className="flex items-center rounded-md border border-white/[0.07] bg-black/30 p-0.5">
-      {items.map((item) => {
-        const Icon = item.icon
-        return (
-          <button
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-[9px] ${
-              value === item.id ? 'bg-white/10 text-zinc-200' : 'text-zinc-600 hover:text-zinc-300'
-            }`}
-          >
-            {Icon && <Icon size={10} />} {item.label}
-          </button>
-        )
-      })}
+    <div className="flex items-center rounded border border-[#333333] bg-[#121212] p-0.5">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          onClick={() => onChange(item.id)}
+          className={`rounded px-2 py-1 text-[10px] ${
+            value === item.id ? 'bg-[#2f2f2f] text-white' : 'text-[#858585] hover:text-[#cccccc]'
+          }`}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }
 
 function EmptyAgents({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="grid flex-1 place-items-center bg-[#101010]">
+    <div className="grid flex-1 place-items-center bg-[#141414]">
       <div className="max-w-sm text-center">
-        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03]">
-          <Bot size={22} className="text-zinc-500" />
+        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl border border-[#333333] bg-[#1c1c1c]">
+          <Bot size={22} className="text-[#a3a3a3]" />
         </div>
-        <h2 className="text-sm font-semibold text-zinc-200">Build your agent team</h2>
-        <p className="mt-2 text-[11px] leading-5 text-zinc-600">
-          Add a coordinator and workers. Every status shown here is tied to a real provider event.
+        <h2 className="text-sm font-semibold text-white">Build your VinceZone agent team</h2>
+        <p className="mt-2 text-[11px] leading-5 text-[#858585]">
+          Add unlimited agents with custom Soul, Mission, Memory, Provider, and Model.
         </p>
         <button
           onClick={onCreate}
-          className="mt-4 rounded-md bg-lime-400 px-3 py-2 text-[10px] font-semibold text-black"
+          className="mt-4 rounded bg-[#e5e5e5] px-3 py-2 text-[11px] font-semibold text-[#111111] hover:bg-white"
         >
           Create first agent
         </button>
@@ -557,13 +555,13 @@ function AgentPanel({
   topologyRole,
   isSendingMail,
   justReceivedMail,
-  layoutClass,
   files,
   peers,
   view,
   draft,
   onDragStart,
   onDrop,
+  onEdit,
   onView,
   onDraft,
   onSend,
@@ -579,13 +577,13 @@ function AgentPanel({
   topologyRole: 'Peer' | 'Planner' | 'Coordinator' | 'Worker'
   isSendingMail: boolean
   justReceivedMail: boolean
-  layoutClass: string
   files: WorkspaceFile[]
   peers: Agent[]
   view: AgentView
   draft: string
   onDragStart: () => void
   onDrop: () => void
+  onEdit: () => void
   onView: (view: AgentView) => void
   onDraft: (value: string) => void
   onSend: () => void
@@ -605,6 +603,8 @@ function AgentPanel({
     if (!peers.some((peer) => peer.id === delegateTarget)) setDelegateTarget(peers[0]?.id ?? '')
   }, [delegateTarget, peers])
 
+  const effectiveDraft = agent.composingPrompt ?? draft
+
   return (
     <article
       data-agent-panel={agent.id}
@@ -612,15 +612,15 @@ function AgentPanel({
       onDragStart={onDragStart}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
-      className={`agent-chat-panel relative flex h-full min-h-[240px] min-w-0 flex-col bg-[#1e1e1e] transition-shadow ${layoutClass} ${
+      className={`agent-chat-panel relative flex h-full min-h-[220px] min-w-0 flex-col bg-[#161616] transition-shadow ${
         agent.status === 'running' || agent.status === 'reviewing' ? 'agent-panel-running' : ''
       } ${isSendingMail ? 'mail-panel-sending' : ''} ${justReceivedMail ? 'mail-panel-arrived' : ''}`}
     >
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <GripVertical size={12} className="text-[#6e6e6e]" />
-          <div className="relative grid size-7 shrink-0 place-items-center rounded bg-[#252526]">
-            {agent.id === 'pm' || agent.id === 'orchestrator' ? (
+          <GripVertical size={12} className="shrink-0 text-[#5c5c5c]" />
+          <div className="relative grid size-7 shrink-0 place-items-center rounded bg-[#262626]">
+            {agent.roleId === 'pm' || agent.id === 'pm' ? (
               <Sparkles size={14} style={{ color: agent.accent }} />
             ) : (
               <Bot size={14} style={{ color: agent.accent }} />
@@ -650,6 +650,13 @@ function AgentPanel({
         <div className="flex items-center gap-0.5">
           <button
             className="agent-panel-optional mini-button"
+            title="Edit role, Soul, Mission, Memory & Model"
+            onClick={onEdit}
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            className="agent-panel-optional mini-button"
             title="Promote to main panel"
             onClick={onPromote}
           >
@@ -677,8 +684,14 @@ function AgentPanel({
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 border-b border-white/[0.04] px-3 py-1.5 text-[9px] text-zinc-500">
+
+      <div className="flex items-center gap-2 border-b border-[#242424] bg-[#161616] px-3 py-1.5 text-[9px] text-[#858585]">
         <span className="capitalize">{agent.status}</span>
+        {agent.composingPrompt && (
+          <span className="rounded bg-[#333333] px-1.5 py-0.5 text-[8px] font-medium uppercase text-white">
+            Typing command…
+          </span>
+        )}
         {isSendingMail && (
           <span className="flex items-center gap-0.5 rounded bg-[#333333] px-1.5 py-0.5 text-[8px] uppercase text-[#f5f5f5]">
             <Mail size={8} /> Sending
@@ -689,48 +702,55 @@ function AgentPanel({
             <Mail size={8} /> Received
           </span>
         )}
-        <span className="ml-auto max-w-[45%] truncate rounded border border-white/[0.07] bg-white/[0.025] px-1.5 py-0.5 text-zinc-500">
+        <span className="ml-auto max-w-[45%] truncate rounded border border-[#2b2b2b] bg-[#1e1e1e] px-1.5 py-0.5 text-[#a3a3a3]">
           {agent.model}
         </span>
         <button
           onClick={() => onView('chat')}
           title="Chat view"
-          className={view === 'chat' ? 'text-zinc-200' : ''}
+          className={view === 'chat' ? 'text-white' : ''}
         >
           <MessageSquare size={10} />
         </button>
         <button
           onClick={() => onView('terminal')}
           title="Terminal view"
-          className={view === 'terminal' ? 'text-zinc-200' : ''}
+          className={view === 'terminal' ? 'text-white' : ''}
         >
           <TerminalSquare size={10} />
         </button>
       </div>
+
       {(agent.status === 'running' || agent.status === 'reviewing') && (
-        <div className="relative flex h-7 shrink-0 items-center gap-2 overflow-hidden border-b border-lime-400/[0.08] bg-lime-400/[0.025] px-3 text-[9px] text-lime-300/70">
-          <span className="agent-orbit size-1.5 rounded-full bg-lime-400" />
+        <div className="relative flex h-6 shrink-0 items-center gap-2 overflow-hidden border-b border-[#2b2b2b] bg-[#1b1b1b] px-3 text-[9px] text-[#d4d4d4]">
+          <span className="agent-orbit size-1.5 rounded-full bg-[#e5e5e5]" />
           {agent.status === 'reviewing' ? 'Reviewing worker reports' : 'Runtime response active'}
-          <span className="agent-progress absolute inset-x-0 bottom-0 h-px bg-lime-400/70" />
+          <span className="agent-progress absolute inset-x-0 bottom-0 h-px bg-[#e5e5e5]" />
         </div>
       )}
+
       {view === 'chat' ? (
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
           {agent.messages.map((message) =>
             message.role === 'tool' ? (
               <div
                 key={message.id}
-                className="rounded-md border border-white/[0.06] bg-white/[0.025] p-2"
+                className="rounded border border-[#2b2b2b] bg-[#1c1c1c] p-2"
               >
-                <div className="flex items-center gap-1.5 text-[9px] font-medium text-zinc-500">
+                <div className="flex items-center gap-1.5 text-[9px] font-medium text-[#a3a3a3]">
                   <TerminalSquare size={11} /> Runtime event
-                  <Check size={10} className="ml-auto text-lime-400" />
+                  <Check size={10} className="ml-auto text-[#e5e5e5]" />
                 </div>
-                <p className="mt-1.5 text-[10px] leading-4 text-zinc-500">{message.text}</p>
+                <p className="mt-1 text-[10px] leading-4 text-[#a3a3a3]">{message.text}</p>
+                {message.codeSnippet && (
+                  <pre className="mt-1.5 overflow-x-auto rounded border border-[#2f2f2f] bg-[#111111] p-2 font-mono text-[9px] text-[#e5e5e5]">
+                    <code>{message.codeSnippet}</code>
+                  </pre>
+                )}
                 {message.change && (
                   <button
                     onClick={() => onDiff(message.patchId)}
-                    className="mt-2 flex w-full items-center justify-between rounded border border-sky-400/15 bg-sky-400/[0.05] px-2 py-1.5 text-[9px] text-sky-300 hover:bg-sky-400/10"
+                    className="mt-2 flex w-full items-center justify-between rounded border border-[#454545] bg-[#262626] px-2 py-1.5 text-[9px] text-white hover:bg-[#333333]"
                   >
                     <span className="flex items-center gap-1.5">
                       <GitCompareArrows size={11} /> Review proposed changes
@@ -747,21 +767,26 @@ function AgentPanel({
                 <div
                   className={`max-w-[94%] whitespace-pre-wrap rounded-lg px-2.5 py-2 text-[10px] leading-[1.55] ${
                     message.role === 'user'
-                      ? 'bg-white/[0.07] text-zinc-300'
+                      ? 'bg-[#2a2a2a] text-white'
                       : message.role === 'agent'
-                        ? 'border border-violet-400/20 bg-violet-400/[0.05] text-zinc-300'
-                        : 'border border-white/[0.055] bg-[#0d0d0d] text-zinc-400'
+                        ? 'border border-[#454545] bg-[#202020] text-[#e5e5e5]'
+                        : 'border border-[#2b2b2b] bg-[#1a1a1a] text-[#cccccc]'
                   }`}
                 >
                   {message.role === 'agent' && (
-                    <div className="mb-1 flex items-center gap-1 text-[8px] uppercase tracking-wider text-violet-300/80">
-                      <Mail size={9} />
+                    <div className="mb-1 flex items-center gap-1 text-[8px] uppercase tracking-wider text-[#a3a3a3]">
+                      {message.codeSnippet ? <Code2 size={9} /> : <Mail size={9} />}
                       <span>
                         {message.from} → {agent.name}
                       </span>
                     </div>
                   )}
                   {message.text || <span className="streaming-dots">Generating</span>}
+                  {message.codeSnippet && (
+                    <pre className="mt-2 overflow-x-auto rounded border border-[#333333] bg-[#101010] p-2 font-mono text-[9px] leading-4 text-[#f0f0f0]">
+                      <code>{message.codeSnippet}</code>
+                    </pre>
+                  )}
                 </div>
               </div>
             ),
@@ -770,11 +795,18 @@ function AgentPanel({
       ) : (
         <AgentTerminal agent={agent} />
       )}
-      <div className="shrink-0 border-t border-white/[0.06] p-2.5">
-        <div className="rounded-lg border border-white/[0.09] bg-white/[0.025] focus-within:border-zinc-600">
+
+      <div className="shrink-0 border-t border-[#2b2b2b] bg-[#181818] p-2.5">
+        <div
+          className={`rounded-lg border bg-[#131313] transition ${
+            agent.composingPrompt
+              ? 'border-[#e5e5e5] ring-1 ring-white/20'
+              : 'border-[#333333] focus-within:border-[#737373]'
+          }`}
+        >
           {contextPickerOpen && (
-            <div className="max-h-32 overflow-y-auto border-b border-white/[0.07] bg-[#121212] p-1.5">
-              <div className="mb-1 flex items-center justify-between px-1 text-[8px] uppercase tracking-wider text-zinc-500">
+            <div className="max-h-32 overflow-y-auto border-b border-[#2b2b2b] bg-[#161616] p-1.5">
+              <div className="mb-1 flex items-center justify-between px-1 text-[8px] uppercase tracking-wider text-[#858585]">
                 <span>Attach file reference</span>
                 <button onClick={() => setContextPickerOpen(false)}>
                   <X size={10} />
@@ -788,24 +820,24 @@ function AgentPanel({
                     onDraft(`${draft}${spacer}@${file.path} `)
                     setContextPickerOpen(false)
                   }}
-                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[9px] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100"
+                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[9px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white"
                 >
-                  <FileCode2 size={10} className="shrink-0 text-sky-400" />
+                  <FileCode2 size={10} className="shrink-0 text-[#a3a3a3]" />
                   <span className="truncate font-mono">{file.path}</span>
                 </button>
               ))}
             </div>
           )}
           {delegationOpen && (
-            <div className="border-b border-violet-400/10 bg-violet-400/[0.035] p-2">
-              <div className="mb-1.5 flex items-center gap-1 text-[8px] uppercase tracking-wider text-violet-300/70">
-                <Mail size={9} /> Send direct mail from {agent.name}
+            <div className="border-b border-[#2b2b2b] bg-[#1b1b1b] p-2">
+              <div className="mb-1.5 flex items-center gap-1 text-[8px] uppercase tracking-wider text-[#a3a3a3]">
+                <Mail size={9} /> Dispatch prompt from {agent.name}
               </div>
               <div className="flex gap-1.5">
                 <select
                   value={delegateTarget}
                   onChange={(event) => setDelegateTarget(event.target.value)}
-                  className="w-28 rounded border border-white/10 bg-[#151515] px-1.5 text-[9px] text-zinc-400"
+                  className="w-28 rounded border border-[#333333] bg-[#141414] px-1.5 text-[9px] text-[#cccccc]"
                 >
                   {peers.map((peer) => (
                     <option key={peer.id} value={peer.id}>
@@ -816,8 +848,8 @@ function AgentPanel({
                 <input
                   value={delegatePrompt}
                   onChange={(event) => setDelegatePrompt(event.target.value)}
-                  placeholder="Task and expected output…"
-                  className="min-w-0 flex-1 rounded border border-white/10 bg-black/20 px-2 py-1.5 text-[9px] text-zinc-300 outline-none"
+                  placeholder="Task prompt & code instructions…"
+                  className="min-w-0 flex-1 rounded border border-[#333333] bg-[#101010] px-2 py-1.5 text-[9px] text-white outline-none"
                 />
                 <button
                   onClick={() => {
@@ -826,7 +858,7 @@ function AgentPanel({
                     setDelegationOpen(false)
                   }}
                   disabled={!delegatePrompt.trim() || !delegateTarget}
-                  className="grid size-6 place-items-center rounded bg-violet-400 text-black disabled:opacity-20"
+                  className="grid size-6 place-items-center rounded bg-[#e5e5e5] text-[#111111] disabled:opacity-20"
                 >
                   <Send size={10} />
                 </button>
@@ -834,7 +866,8 @@ function AgentPanel({
             </div>
           )}
           <textarea
-            value={draft}
+            value={effectiveDraft}
+            readOnly={Boolean(agent.composingPrompt)}
             onChange={(event) => onDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
@@ -844,12 +877,14 @@ function AgentPanel({
             }}
             rows={2}
             placeholder={`Message ${agent.name}…`}
-            className="w-full resize-none bg-transparent px-2.5 pt-2 text-[10px] leading-4 text-zinc-300 outline-none placeholder:text-zinc-700"
+            className={`w-full resize-none bg-transparent px-2.5 pt-2 text-[10px] leading-4 outline-none placeholder:text-[#666666] ${
+              agent.composingPrompt ? 'font-mono text-white' : 'text-[#d4d4d4]'
+            }`}
           />
           <div className="flex items-center justify-between px-2 pb-1.5">
             <div className="flex gap-1">
               <button
-                className={`mini-button ${contextPickerOpen ? 'bg-sky-400/15 text-sky-300' : 'text-zinc-600'}`}
+                className={`mini-button ${contextPickerOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
                 title="Attach project file reference"
                 onClick={() => {
                   setContextPickerOpen((prev) => !prev)
@@ -859,8 +894,8 @@ function AgentPanel({
                 <Plus size={11} />
               </button>
               <button
-                className={`mini-button ${delegationOpen ? 'bg-violet-400/10 text-violet-300' : 'text-zinc-600'}`}
-                title="Send direct mail / delegation"
+                className={`mini-button ${delegationOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
+                title="Dispatch prompt / delegate task to another agent"
                 disabled={peers.length === 0}
                 onClick={() => {
                   setDelegationOpen((current) => !current)
@@ -873,15 +908,17 @@ function AgentPanel({
             {agent.status === 'running' || agent.status === 'reviewing' ? (
               <button
                 onClick={onPause}
-                className="grid size-5 place-items-center rounded bg-zinc-700"
+                className="grid size-5 place-items-center rounded bg-[#3a3a3a] text-white"
               >
                 <Square size={9} fill="currentColor" />
               </button>
             ) : (
               <button
                 onClick={onSend}
-                disabled={!draft.trim()}
-                className="grid size-5 place-items-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-20"
+                disabled={!effectiveDraft.trim()}
+                className={`grid size-5 place-items-center rounded text-[#111111] transition disabled:opacity-20 ${
+                  agent.composingPrompt ? 'scale-110 bg-white shadow' : 'bg-[#e5e5e5] hover:bg-white'
+                }`}
               >
                 <Send size={10} />
               </button>
@@ -895,23 +932,26 @@ function AgentPanel({
 
 function AgentTerminal({ agent }: { agent: Agent }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#080a08] p-3 font-mono text-[10px] leading-[1.65] text-zinc-500">
-      <p className="text-zinc-700">Baton Runtime · session {agent.id.slice(0, 8)}</p>
+    <div className="min-h-0 flex-1 overflow-y-auto bg-[#111111] p-3 font-mono text-[10px] leading-[1.65] text-[#9a9a9a]">
+      <p className="text-[#666666]">VinceZone Runtime · session {agent.id.slice(0, 8)}</p>
       <p>
-        <span className="text-lime-400">●</span> provider session · {agent.status}
+        <span className="text-[#e5e5e5]">●</span> provider session · {agent.status}
       </p>
       <p>
-        <span className="text-sky-400">model</span> {agent.model}
+        <span className="text-[#d4d4d4]">model</span> {agent.model}
       </p>
-      <div className="my-3 border-t border-dashed border-white/10" />
+      {agent.mission && <p className="text-[#737373]">mission: {agent.mission}</p>}
+      <div className="my-3 border-t border-dashed border-[#2b2b2b]" />
       {agent.messages.map((message) => (
         <div key={message.id} className="mb-3">
-          <p className="text-[9px] uppercase tracking-wider text-zinc-700">{message.role}</p>
-          <p className="whitespace-pre-wrap">{message.text || 'runtime event active...'}</p>
+          <p className="text-[9px] uppercase tracking-wider text-[#666666]">{message.role}</p>
+          <p className="whitespace-pre-wrap text-[#cccccc]">
+            {message.text || 'runtime event active...'}
+          </p>
         </div>
       ))}
-      <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2">
-        <span className="text-lime-400">›</span>
+      <div className="mt-2 flex items-center gap-2 border-t border-[#2b2b2b] pt-2">
+        <span className="text-[#d4d4d4]">›</span>
         <span className="terminal-cursor" />
       </div>
     </div>

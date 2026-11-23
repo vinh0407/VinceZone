@@ -1,18 +1,62 @@
 'use client'
 
-import { FileCode2, FileJson, FileText } from 'lucide-react'
-import type { Agent, AppSettings, ProviderConfig, WorkspaceFile } from './agent-types'
+import {
+  Braces,
+  FileCode2,
+  FileImage,
+  FileJson,
+  FileText,
+  Terminal,
+} from 'lucide-react'
+import type {
+  Agent,
+  AppSettings,
+  MemoryNote,
+  ProviderConfig,
+  WorkspaceFile,
+} from './agent-types'
 
 export const WORKSPACE_STORAGE_KEY = 'vincezone-studio-workspace'
 export const LEGACY_STORAGE_KEYS = ['baton-workspace', 'nova-workspace'] as const
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
 
+/**
+ * Distinct, refined file-type colors inside Explorer folders while preserving
+ * the monochrome black/gray chrome across the IDE shell.
+ */
 export function fileIcon(file: WorkspaceFile) {
-  if (file.language === 'json') return <FileJson size={14} className="shrink-0 text-[#a3a3a3]" />
-  if (file.language === 'markdown') return <FileText size={14} className="shrink-0 text-[#b5b5b5]" />
-  if (file.language === 'css') return <FileCode2 size={14} className="shrink-0 text-[#8f8f8f]" />
-  return <FileCode2 size={14} className="shrink-0 text-[#c4c4c4]" />
+  const lower = file.name.toLowerCase()
+  if (lower.endsWith('.tsx')) return <FileCode2 size={14} className="shrink-0 text-[#61dafb]" />
+  if (lower.endsWith('.ts')) return <FileCode2 size={14} className="shrink-0 text-[#3b82f6]" />
+  if (lower.endsWith('.jsx') || lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
+    return <FileCode2 size={14} className="shrink-0 text-[#facc15]" />
+  }
+  if (file.language === 'json' || lower.endsWith('.json')) {
+    return <FileJson size={14} className="shrink-0 text-[#f59e0b]" />
+  }
+  if (file.language === 'css' || lower.endsWith('.css') || lower.endsWith('.scss')) {
+    return <Braces size={14} className="shrink-0 text-[#c084fc]" />
+  }
+  if (file.language === 'html' || lower.endsWith('.html')) {
+    return <FileCode2 size={14} className="shrink-0 text-[#fb923c]" />
+  }
+  if (file.language === 'markdown' || lower.endsWith('.md')) {
+    return <FileText size={14} className="shrink-0 text-[#93c5fd]" />
+  }
+  if (file.language === 'python' || lower.endsWith('.py')) {
+    return <FileCode2 size={14} className="shrink-0 text-[#4ade80]" />
+  }
+  if (lower.endsWith('.sh') || lower.endsWith('.bat') || lower.endsWith('.vbs') || lower.endsWith('.ps1')) {
+    return <Terminal size={14} className="shrink-0 text-[#2dd4bf]" />
+  }
+  if (lower.endsWith('.svg') || lower.endsWith('.png') || lower.endsWith('.ico')) {
+    return <FileImage size={14} className="shrink-0 text-[#f472b6]" />
+  }
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {
+    return <FileText size={14} className="shrink-0 text-[#fb7185]" />
+  }
+  return <FileCode2 size={14} className="shrink-0 text-[#a3a3a3]" />
 }
 
 export const starterFiles: WorkspaceFile[] = [
@@ -20,7 +64,7 @@ export const starterFiles: WorkspaceFile[] = [
     name: 'page.tsx',
     path: 'src/app/page.tsx',
     language: 'typescript',
-    content: `import { Dashboard } from "@/components/dashboard"\n\nexport default function Home() {\n  return (\n    <main className="min-h-screen bg-[#1e1e1e] text-[#cccccc]">\n      <Dashboard />\n    </main>\n  )\n}\n`,
+    content: `import { Dashboard } from "@/components/dashboard"\n\nexport default function Home() {\n  return (\n    <main className="min-h-screen bg-[#141414] text-[#d4d4d4]">\n      <Dashboard />\n    </main>\n  )\n}\n`,
   },
   {
     name: 'dashboard.tsx',
@@ -42,102 +86,161 @@ export const starterFiles: WorkspaceFile[] = [
   },
 ]
 
-export const seedAgents: Agent[] = [
+export const defaultMemoryNotes: MemoryNote[] = [
   {
-    id: 'pm',
-    name: 'PM Orchestrator',
-    role: 'Central Task Registry, decomposition & QA coordination',
-    roleId: 'pm',
-    model: 'openai/gpt-4.1',
-    accent: '#f5f5f5',
-    status: 'idle',
-    messages: [
-      {
-        id: 'pm-1',
-        role: 'assistant',
-        text: 'VinceZone PM ready. Give one objective and I will decompose tasks with Single Primary Ownership, enforce FE↔BE API Contracts, and coordinate specialists. You can also type "rollback REV-001" to restore code.',
-      },
-    ],
-  },
-  {
-    id: 'arch',
-    name: 'Software Architect',
-    role: 'System architecture, API contracts & docs',
-    roleId: 'arch',
-    model: 'anthropic/claude-sonnet-4',
-    accent: '#d4d4d4',
-    status: 'idle',
-    messages: [
-      {
-        id: 'arch-1',
-        role: 'assistant',
-        text: '@ARCH territory: docs/, AGENTS.md, architecture specifications & module boundaries.',
-      },
-    ],
-  },
-  {
-    id: 'fe',
-    name: 'Frontend Engineer',
-    role: 'VS Code UI, React components & styles',
-    roleId: 'fe',
-    model: 'anthropic/claude-sonnet-4',
-    accent: '#b8b8b8',
-    status: 'idle',
-    messages: [
-      {
-        id: 'fe-1',
-        role: 'assistant',
-        text: '@FE territory: src/components/, hooks/, styles. Consumes @BE API Contracts without modifying server routes.',
-      },
-    ],
-  },
-  {
-    id: 'be',
-    name: 'Backend Engineer',
-    role: 'API endpoints, security & server runtime',
-    roleId: 'be',
-    model: 'google/gemini-2.5-pro',
-    accent: '#a3a3a3',
-    status: 'idle',
-    messages: [
-      {
-        id: 'be-1',
-        role: 'assistant',
-        text: '@BE territory: src/app/**/api/, src/lib/, electron/. Primary Owner of API Contracts.',
-      },
-    ],
-  },
-  {
-    id: 'qa',
-    name: 'QA Engineer',
-    role: 'Vitest suites, Playwright verification & acceptance',
-    roleId: 'qa',
-    model: 'openai/gpt-4.1',
-    accent: '#8a8a8a',
-    status: 'idle',
-    messages: [
-      {
-        id: 'qa-1',
-        role: 'assistant',
-        text: '@QA territory: __tests__/, tests/. Verifies deliverables before marking tasks COMPLETED.',
-      },
-    ],
+    id: 'mem-1',
+    scope: 'project',
+    title: 'Territory & API Contract Rule',
+    content:
+      '@FE owns UI/components and never edits Backend API routes. @BE is the Primary Owner of API Contracts.',
+    updatedAt: new Date().toISOString(),
   },
 ]
 
+export function createSeedAgents(): Agent[] {
+  return [
+    {
+      id: 'pm',
+      name: 'PM Orchestrator',
+      role: 'Central Task Registry, decomposition & QA coordination',
+      roleId: 'pm',
+      soul: 'Decisive, structured, zero duplicate work, enforces verifiable handoffs.',
+      mission:
+        'Break complex goals into non-overlapping tasks with clear owners, dependencies, and acceptance criteria.',
+      memory: 'Always verify FE↔BE API contracts before dispatching UI integration tasks.',
+      providerId: 'omnirouter',
+      model: 'openai/gpt-4.1',
+      accent: '#f5f5f5',
+      status: 'idle',
+      messages: [
+        {
+          id: 'pm-1',
+          role: 'assistant',
+          text: 'VinceZone PM ready. Send an objective and I will decompose tasks, type prompts to specialists, and coordinate code handoffs.',
+        },
+      ],
+    },
+    {
+      id: 'arch',
+      name: 'Software Architect',
+      role: 'System architecture, API contracts & docs',
+      roleId: 'arch',
+      soul: 'Minimalist, modular, protects long-term architectural clarity.',
+      mission: 'Define system boundaries, data schemas, and clean interfaces across modules.',
+      memory: 'Keep core logic pure in src/lib/ with unit test coverage.',
+      providerId: 'omnirouter',
+      model: 'anthropic/claude-sonnet-4',
+      accent: '#d4d4d4',
+      status: 'idle',
+      messages: [
+        {
+          id: 'arch-1',
+          role: 'assistant',
+          text: '@ARCH territory: docs/, AGENTS.md, architecture specifications & module boundaries.',
+        },
+      ],
+    },
+    {
+      id: 'fe',
+      name: 'Frontend Engineer',
+      role: 'VS Code UI, React components & styles',
+      roleId: 'fe',
+      soul: 'Detail-oriented, accessible, monochrome precision without visual clutter.',
+      mission: 'Build responsive UI components consuming verified backend API contracts.',
+      memory: 'Follow black/gray monochrome IDE chrome with colored file icons.',
+      providerId: 'omnirouter',
+      model: 'anthropic/claude-sonnet-4',
+      accent: '#b8b8b8',
+      status: 'idle',
+      messages: [
+        {
+          id: 'fe-1',
+          role: 'assistant',
+          text: '@FE territory: src/components/, hooks/, styles. Consumes @BE API Contracts without modifying server routes.',
+        },
+      ],
+    },
+    {
+      id: 'be',
+      name: 'Backend Engineer',
+      role: 'API endpoints, security & server runtime',
+      roleId: 'be',
+      soul: 'Security-first, defensive validation, zero SSRF or traversal leaks.',
+      mission: 'Design and implement resilient API endpoints, local desktop guards, and data persistence.',
+      memory: 'Restrict local desktop APIs to loopback and validate all upstream URLs via DNS.',
+      providerId: 'omnirouter',
+      model: 'google/gemini-2.5-pro',
+      accent: '#a3a3a3',
+      status: 'idle',
+      messages: [
+        {
+          id: 'be-1',
+          role: 'assistant',
+          text: '@BE territory: src/app/**/api/, src/lib/, electron/. Primary Owner of API Contracts.',
+        },
+      ],
+    },
+  ]
+}
+
+export const seedAgents: Agent[] = createSeedAgents()
+
 export const defaultAppSettings: AppSettings = {
-  autoSave: false,
+  autoSave: true,
+  autoSaveDelayMs: 1000,
   confirmDangerousTools: true,
   restoreWorkspace: true,
   compactMode: true,
-  maxConcurrentAgents: 4,
+  editorFontSize: 13,
+  editorWordWrap: false,
+  editorMinimap: true,
+  maxConcurrentAgents: 6,
   autoApplyTrusted: false,
   allowTerminal: true,
+  autoCaptureMemory: true,
+  defaultCliTool: 'claude',
+  enabledSkillIds: [],
+  mcpServers: [
+    {
+      id: 'mcp-filesystem',
+      name: 'Local Workspace FS',
+      transport: 'stdio',
+      endpoint: 'npx @modelcontextprotocol/server-filesystem',
+      enabled: true,
+    },
+    {
+      id: 'mcp-playwright',
+      name: 'Playwright Browser MCP',
+      transport: 'stdio',
+      endpoint: 'npx @playwright/mcp',
+      enabled: true,
+    },
+  ],
+  plugins: [
+    {
+      id: 'plugin-vincezone-territory',
+      name: 'Territory & API Contract Guard',
+      description: 'Prevents cross-role overwrites between @FE, @BE, @DB, and @QA.',
+      enabled: true,
+    },
+    {
+      id: 'plugin-edit-memory',
+      name: 'Edit Memory (REV-xxx)',
+      description: 'Automatically records file revisions before every save or applied patch.',
+      enabled: true,
+    },
+    {
+      id: 'plugin-cli-anything',
+      name: 'CLI-Anything Harness Bridge',
+      description: 'Exposes JSON-native CLI commands for autonomous verification.',
+      enabled: true,
+    },
+  ],
   delegation: {
-    maxDepth: 1,
-    maxActiveAgents: 7,
-    maxConcurrentTasks: 4,
-    maxIterations: 2,
+    maxDepth: 2,
+    maxActiveAgents: 12,
+    maxConcurrentTasks: 6,
+    maxIterations: 3,
     requireApproval: false,
     assignmentMode: 'automatic',
   },

@@ -3,6 +3,10 @@ export type OrchestratorAgent = {
   name: string
   role: string
   model: string
+  providerId?: string
+  soul?: string
+  mission?: string
+  memory?: string
 }
 
 export type PlannedTask = {

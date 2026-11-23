@@ -3,8 +3,8 @@ import type { WorkspaceFileNode } from '@/lib/file-tree'
 import type { VinceZoneRoleId } from '@/lib/vincezone-protocol'
 
 export type WorkspaceFile = WorkspaceFileNode
-export type WorkspaceMode = 'ide' | 'agents' | 'android'
-export type SidePanel = 'explorer' | 'search' | 'git' | 'revisions'
+export type WorkspaceMode = 'ide' | 'agents' | 'android' | 'web'
+export type SidePanel = 'explorer' | 'search' | 'git' | 'revisions' | 'memory'
 
 export type Message = {
   id: string
@@ -13,6 +13,7 @@ export type Message = {
   change?: boolean
   patchId?: string
   from?: string
+  codeSnippet?: string
   typing?: boolean
 }
 
@@ -21,11 +22,16 @@ export type Agent = {
   name: string
   role: string
   roleId?: VinceZoneRoleId
+  soul?: string
+  mission?: string
+  memory?: string
+  providerId?: string
   model: string
   accent: string
   status: 'running' | 'idle' | 'paused' | 'reviewing' | 'blocked'
   messages: Message[]
   currentTask?: string
+  composingPrompt?: string
 }
 
 export type AgentView = 'chat' | 'terminal'
@@ -63,7 +69,7 @@ export type AgentTask = {
   error?: string
 }
 
-export type MailKind = 'delegation' | 'peer' | 'report' | 'direct' | 'conflict'
+export type MailKind = 'delegation' | 'peer' | 'report' | 'direct' | 'conflict' | 'code'
 
 export type CommunicationEvent = {
   id: string
@@ -75,6 +81,7 @@ export type CommunicationEvent = {
   taskId?: string
   label?: string
   description: string
+  codeSnippet?: string
   relevantFiles?: string[]
 }
 
@@ -125,29 +132,85 @@ export type ProviderConfig = {
   models: string
 }
 
+export type McpServerConfig = {
+  id: string
+  name: string
+  transport: 'stdio' | 'http'
+  endpoint: string
+  enabled: boolean
+}
+
+export type PluginConfig = {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+}
+
+export type UsageRecord = {
+  id: string
+  providerName: string
+  model: string
+  agentName: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  estimatedCostUsd: number
+  timestamp: string
+}
+
+export type MemoryNote = {
+  id: string
+  scope: 'project' | 'agent'
+  agentId?: string
+  title: string
+  content: string
+  updatedAt: string
+}
+
+export type ProjectSessionData = {
+  agents: Agent[]
+  agentTasks: AgentTask[]
+  communicationEvents: CommunicationEvent[]
+  proposedPatches: ProposedPatch[]
+  revisions: EditRevision[]
+  memoryNotes: MemoryNote[]
+}
+
 export type ProjectTab = {
   id: string
   name: string
   rootPath?: string
   files: WorkspaceFile[]
+  session?: ProjectSessionData
 }
 
 export type AppSettings = {
   autoSave: boolean
+  autoSaveDelayMs: number
   confirmDangerousTools: boolean
   restoreWorkspace: boolean
   compactMode: boolean
+  editorFontSize: number
+  editorWordWrap: boolean
+  editorMinimap: boolean
   maxConcurrentAgents: number
   autoApplyTrusted: boolean
   allowTerminal: boolean
+  autoCaptureMemory: boolean
+  defaultCliTool: string
+  enabledSkillIds: string[]
+  mcpServers: McpServerConfig[]
+  plugins: PluginConfig[]
   delegation: DelegationLimits
 }
 
 export type CliDetectionResult = {
   tools: Array<{
-    id: 'claude' | 'codex' | 'gemini'
+    id: string
     name: string
     executable: string
+    category?: string
     installed: boolean
     authentication: 'unknown'
   }>

@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Brain,
   ChevronDown,
   ChevronRight,
   Folder,
@@ -8,14 +9,23 @@ import {
   History,
   MoreHorizontal,
   PanelLeftClose,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { buildFileTree, searchWorkspaceFiles, type FileTreeItem } from '@/lib/file-tree'
-import type { Agent, AgentTask, EditRevision, SidePanel, WorkspaceFile } from './agent-types'
+import type {
+  Agent,
+  AgentTask,
+  EditRevision,
+  MemoryNote,
+  SidePanel,
+  WorkspaceFile,
+} from './agent-types'
 import { fileIcon } from './workspace-defaults'
 
 const statusStyles: Record<AgentTask['status'], { dot: string; label: string }> = {
@@ -36,6 +46,7 @@ export function ExplorerSidebar({
   agentTasks,
   agents,
   revisions,
+  memoryNotes,
   collapsedGroups,
   searchQuery,
   compactMode,
@@ -44,6 +55,8 @@ export function ExplorerSidebar({
   onOpenFile,
   onOpenLocalDirectory,
   onRestoreRevision,
+  onAddMemoryNote,
+  onDeleteMemoryNote,
   onCollapse,
   onRefresh,
   onOpenSettings,
@@ -58,6 +71,7 @@ export function ExplorerSidebar({
   agentTasks: AgentTask[]
   agents: Agent[]
   revisions: EditRevision[]
+  memoryNotes: MemoryNote[]
   collapsedGroups: Record<string, boolean>
   searchQuery: string
   compactMode: boolean
@@ -66,6 +80,8 @@ export function ExplorerSidebar({
   onOpenFile: (path: string, line?: number) => void
   onOpenLocalDirectory: () => void
   onRestoreRevision: (revisionId: string) => void
+  onAddMemoryNote: (title: string, content: string) => void
+  onDeleteMemoryNote: (id: string) => void
   onCollapse: () => void
   onRefresh: () => void
   onOpenSettings: () => void
@@ -79,6 +95,8 @@ export function ExplorerSidebar({
   )
   const dirtyFiles = useMemo(() => files.filter((file) => file.dirty), [files])
   const [showAllTasks, setShowAllTasks] = useState(false)
+  const [memTitle, setMemTitle] = useState('')
+  const [memContent, setMemContent] = useState('')
 
   const visibleTasks = showAllTasks ? agentTasks : agentTasks.slice(-4)
   const completedCount = agentTasks.filter((task) => task.status === 'completed').length
@@ -99,7 +117,7 @@ export function ExplorerSidebar({
             ) : (
               <ChevronDown size={13} className="shrink-0 text-[#858585]" />
             )}
-            <Folder size={14} className="shrink-0 text-[#8f8f8f]" />
+            <Folder size={14} className="shrink-0 text-[#d4a76a]" />
             <span className="truncate">{item.name}</span>
           </button>
           {!collapsed && item.children.map((child) => renderTreeItem(child, depth + 1))}
@@ -139,7 +157,9 @@ export function ExplorerSidebar({
               ? 'Search'
               : sidePanel === 'revisions'
                 ? 'Edit Memory'
-                : 'Source Control'}
+                : sidePanel === 'memory'
+                  ? 'Memory'
+                  : 'Source Control'}
         </span>
         <div className="flex gap-0.5">
           {sidePanel === 'explorer' && (
@@ -276,6 +296,90 @@ export function ExplorerSidebar({
           >
             Open Agent Diff Review
           </button>
+        </div>
+      )}
+
+      {sidePanel === 'memory' && (
+        <div className="flex min-h-0 flex-1 flex-col border-y border-[#2b2b2b] p-2.5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#bbbbbb]">
+              <Brain size={12} /> Project Memory
+            </span>
+            <span className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[9px] text-[#d4d4d4]">
+              {memoryNotes.length}
+            </span>
+          </div>
+          <div className="mb-2.5 space-y-1.5 rounded border border-[#2b2b2b] bg-[#141414] p-2">
+            <input
+              value={memTitle}
+              onChange={(event) => setMemTitle(event.target.value)}
+              placeholder="Memory title (e.g. API rule)…"
+              className="w-full rounded border border-[#333333] bg-[#1b1b1b] px-2 py-1 text-[11px] text-white outline-none placeholder:text-[#6e6e6e]"
+            />
+            <textarea
+              value={memContent}
+              onChange={(event) => setMemContent(event.target.value)}
+              rows={2}
+              placeholder="Persistent rule, architecture fact, or agent note…"
+              className="w-full resize-none rounded border border-[#333333] bg-[#1b1b1b] px-2 py-1 text-[11px] text-white outline-none placeholder:text-[#6e6e6e]"
+            />
+            <button
+              disabled={!memTitle.trim() || !memContent.trim()}
+              onClick={() => {
+                onAddMemoryNote(memTitle.trim(), memContent.trim())
+                setMemTitle('')
+                setMemContent('')
+              }}
+              className="flex w-full items-center justify-center gap-1 rounded bg-[#e5e5e5] py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-30"
+            >
+              <Plus size={11} /> Save to Memory
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
+            {memoryNotes.map((note) => (
+              <div
+                key={note.id}
+                className="rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[10px]"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="truncate font-semibold text-[#e5e5e5]">{note.title}</span>
+                  <button
+                    onClick={() => onDeleteMemoryNote(note.id)}
+                    className="text-[#6e6e6e] hover:text-[#f48771]"
+                    title="Delete memory note"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap leading-4 text-[#a3a3a3]">{note.content}</p>
+              </div>
+            ))}
+            <div className="pt-2">
+              <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#858585]">
+                Agent Role Memory
+              </p>
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="mb-1.5 rounded border border-[#2b2b2b] bg-[#141414] p-2 text-[10px]"
+                >
+                  <p className="font-semibold text-[#d4d4d4]">
+                    {agent.name} {agent.roleId ? `(@${agent.roleId.toUpperCase()})` : ''}
+                  </p>
+                  {agent.mission && (
+                    <p className="mt-0.5 text-[#8f8f8f]">
+                      <span className="text-[#bbbbbb]">Mission:</span> {agent.mission}
+                    </p>
+                  )}
+                  {agent.memory && (
+                    <p className="mt-0.5 text-[#8f8f8f]">
+                      <span className="text-[#bbbbbb]">Memory:</span> {agent.memory}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

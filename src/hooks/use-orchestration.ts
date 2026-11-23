@@ -8,14 +8,17 @@ import type {
   AppSettings,
   CommunicationEvent,
   MailKind,
+  MemoryNote,
   Message,
   PendingApprovalPlan,
   ProposedPatch,
   ProviderConfig,
   RuntimeEvent,
+  UsageRecord,
   WorkspaceFile,
 } from '@/components/ide/agent-types'
 import { uid } from '@/components/ide/workspace-defaults'
+import { estimateCostUsd, estimateTokens } from '@/lib/agent-layout'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
 
 function parseSSEChunk(chunk: string) {
@@ -70,6 +73,8 @@ export function useOrchestration({
   files,
   activeFile,
   projectName,
+  memoryNotes,
+  providers,
   savedProvider,
   appSettings,
   drafts,
@@ -80,12 +85,15 @@ export function useOrchestration({
   setPendingApproval,
   setDrafts,
   setAiActivity,
+  onRecordUsage,
   onPromptRollback,
 }: {
   agents: Agent[]
   files: WorkspaceFile[]
   activeFile?: WorkspaceFile
   projectName: string
+  memoryNotes: MemoryNote[]
+  providers: ProviderConfig[]
   savedProvider: ProviderConfig
   appSettings: AppSettings
   drafts: Record<string, string>
@@ -96,11 +104,22 @@ export function useOrchestration({
   setPendingApproval: React.Dispatch<React.SetStateAction<PendingApprovalPlan | null>>
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   setAiActivity: React.Dispatch<React.SetStateAction<'idle' | 'reading' | 'editing'>>
+  onRecordUsage: (record: UsageRecord) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
   const agentsRef = useRef(agents)
   agentsRef.current = agents
+
+  const resolveProviderForAgent = useCallback(
+    (agent: Agent) => {
+      const matched = agent.providerId
+        ? providers.find((item) => item.id === agent.providerId && item.apiKey)
+        : undefined
+      return matched ?? savedProvider
+    },
+    [providers, savedProvider],
+  )
 
   const updateAgent = useCallback(
     (id: string, updater: (agent: Agent) => Agent) =>
@@ -124,6 +143,44 @@ export function useOrchestration({
     [setCommunicationEvents],
   )
 
+  /**
+   * Animate the commander visibly typing a prompt into its composer and sending it.
+   */
+  const animateCommanderTypeAndSend = useCallback(
+    (senderId: string, promptText: string, onDispatched: () => void) => {
+      const reducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+      if (reducedMotion) {
+        onDispatched()
+        return
+      }
+
+      const chunks = Math.min(18, Math.max(6, Math.ceil(promptText.length / 6)))
+      let step = 1
+      const timer = window.setInterval(() => {
+        const end = Math.ceil((promptText.length * step) / chunks)
+        updateAgent(senderId, (current) => ({
+          ...current,
+          composingPrompt: promptText.slice(0, end),
+        }))
+        step += 1
+        if (step > chunks) {
+          window.clearInterval(timer)
+          window.setTimeout(() => {
+            updateAgent(senderId, (current) => ({
+              ...current,
+              composingPrompt: undefined,
+            }))
+            onDispatched()
+          }, 160)
+        }
+      }, 42)
+    },
+    [updateAgent],
+  )
+
   const handleRuntimeEvent = useCallback(
     (event: RuntimeEvent, runMeta?: { coordinatorId: string; instruction: string }) => {
       if (event.type === 'task.created' && event.task) {
@@ -145,14 +202,26 @@ export function useOrchestration({
               role: 'tool',
               change: true,
               patchId: patch.id,
+              codeSnippet: patch.proposedContent.slice(0, 220),
               text: `Proposed edit for ${patch.path}: ${patch.summary}`,
             },
           ],
         }))
+        appendCommunicationEvent({
+          type: 'patch.proposed',
+          kind: 'code',
+          senderId: patch.agentId,
+          recipientId: runMeta?.coordinatorId || agentsRef.current[0]?.id,
+          taskId: patch.taskId,
+          label: `Code: ${patch.path.split('/').pop()}`,
+          codeSnippet: patch.proposedContent.slice(0, 120),
+          description: `Code patch proposed for ${patch.path}`,
+        })
         return
       }
       if (event.type === 'message.sent' && event.senderId && event.recipientId) {
         const sender = agentsRef.current.find((agent) => agent.id === event.senderId)
+        const recipient = agentsRef.current.find((agent) => agent.id === event.recipientId)
         const isPlanningExchange = Boolean(event.taskId?.startsWith('PLAN-'))
         const isTerritoryAlert = Boolean(event.taskId?.startsWith('TERRITORY-'))
         const kind: MailKind = isTerritoryAlert
@@ -160,41 +229,51 @@ export function useOrchestration({
           : isPlanningExchange
             ? 'peer'
             : 'delegation'
-        appendCommunicationEvent({
-          type: event.type,
-          kind,
-          timestamp: event.timestamp,
-          senderId: event.senderId,
-          recipientId: event.recipientId,
-          taskId: event.taskId,
-          label: isTerritoryAlert
-            ? 'API Contract'
-            : isPlanningExchange
-              ? 'Proposal'
-              : event.taskId || 'Task',
-          description: event.message || 'Structured task message sent.',
-          relevantFiles: event.relevantFiles,
-        })
-        updateAgent(event.recipientId, (current) => ({
-          ...current,
-          status: isPlanningExchange ? current.status : 'running',
-          currentTask: isPlanningExchange ? current.currentTask : event.taskId,
-          messages: [
-            ...current.messages,
-            {
-              id: uid(),
-              role: 'agent',
-              from: sender?.name || event.senderId,
-              text: event.message || 'Structured task received.',
-            },
-          ],
-        }))
-        if (!isPlanningExchange) {
-          setAgentTasks((current) =>
-            current.map((task) =>
-              task.id === event.taskId ? { ...task, status: 'running' as const } : task,
-            ),
-          )
+        const promptPreview = `@${recipient?.name || event.recipientId}: ${(event.message || '').slice(0, 110)}`
+
+        const dispatchDelivery = () => {
+          appendCommunicationEvent({
+            type: event.type,
+            kind,
+            timestamp: event.timestamp,
+            senderId: event.senderId!,
+            recipientId: event.recipientId,
+            taskId: event.taskId,
+            label: isTerritoryAlert
+              ? 'API Contract'
+              : isPlanningExchange
+                ? 'Proposal'
+                : event.taskId || 'Task',
+            description: event.message || 'Structured task message sent.',
+            relevantFiles: event.relevantFiles,
+          })
+          updateAgent(event.recipientId!, (current) => ({
+            ...current,
+            status: isPlanningExchange ? current.status : 'running',
+            currentTask: isPlanningExchange ? current.currentTask : event.taskId,
+            messages: [
+              ...current.messages,
+              {
+                id: uid(),
+                role: 'agent',
+                from: sender?.name || event.senderId,
+                text: event.message || 'Structured task received.',
+              },
+            ],
+          }))
+          if (!isPlanningExchange) {
+            setAgentTasks((current) =>
+              current.map((task) =>
+                task.id === event.taskId ? { ...task, status: 'running' as const } : task,
+              ),
+            )
+          }
+        }
+
+        if (!isPlanningExchange && !isTerritoryAlert) {
+          animateCommanderTypeAndSend(event.senderId, promptPreview, dispatchDelivery)
+        } else {
+          dispatchDelivery()
         }
         return
       }
@@ -211,6 +290,7 @@ export function useOrchestration({
         return
       }
       if (event.type === 'worker.response.completed' && event.agentId) {
+        const worker = agentsRef.current.find((a) => a.id === event.agentId)
         updateAgent(event.agentId, (current) => ({
           ...current,
           status: 'idle',
@@ -225,6 +305,21 @@ export function useOrchestration({
               : message,
           ),
         }))
+        if (event.result) {
+          const completionTokens = estimateTokens(event.result)
+          const promptTokens = Math.round(completionTokens * 1.4)
+          onRecordUsage({
+            id: uid(),
+            providerName: savedProvider.name,
+            model: worker?.model || savedProvider.model,
+            agentName: worker?.name || event.agentId,
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens,
+            estimatedCostUsd: estimateCostUsd(promptTokens, completionTokens),
+            timestamp: new Date().toISOString(),
+          })
+        }
         if (event.senderId && event.recipientId && event.senderId !== event.recipientId) {
           appendCommunicationEvent({
             type: event.type,
@@ -280,11 +375,7 @@ export function useOrchestration({
           status: 'reviewing',
           messages: [
             ...current.messages,
-            {
-              id: uid(),
-              role: 'tool',
-              text: 'Task graph generated and delegation policy applied.',
-            },
+            { id: uid(), role: 'tool', text: 'Task graph generated and delegation policy applied.' },
           ],
         }))
         return
@@ -297,10 +388,7 @@ export function useOrchestration({
         updateAgent(event.agentId, (current) => ({
           ...current,
           status: 'idle',
-          messages: [
-            ...current.messages,
-            { id: uid(), role: 'assistant', text: event.result || '' },
-          ],
+          messages: [...current.messages, { id: uid(), role: 'assistant', text: event.result || '' }],
         }))
         return
       }
@@ -336,7 +424,17 @@ export function useOrchestration({
         }))
       }
     },
-    [appendCommunicationEvent, setAgentTasks, setPendingApproval, setProposedPatches, updateAgent],
+    [
+      animateCommanderTypeAndSend,
+      appendCommunicationEvent,
+      onRecordUsage,
+      savedProvider.model,
+      savedProvider.name,
+      setAgentTasks,
+      setPendingApproval,
+      setProposedPatches,
+      updateAgent,
+    ],
   )
 
   const streamOrchestration = useCallback(
@@ -352,6 +450,8 @@ export function useOrchestration({
       const controller = new AbortController()
       aborters.current[coordinator.id] = controller
       const topology = readSavedTopology(agentsRef.current)
+      const activeProvider = resolveProviderForAgent(coordinator)
+      const projectMemory = memoryNotes.map((note) => `- ${note.title}: ${note.content}`).join('\n')
 
       if (!approvalResume) {
         updateAgent(coordinator.id, (current) => ({
@@ -381,15 +481,19 @@ export function useOrchestration({
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
           body: JSON.stringify({
-            provider: savedProvider,
+            provider: activeProvider,
             coordinatorId: coordinator.id,
-            agents: agentsRef.current.map(({ id, name, role, model }) => ({
+            agents: agentsRef.current.map(({ id, name, role, model, soul, mission, memory }) => ({
               id,
               name,
               role,
               model,
+              soul,
+              mission,
+              memory,
             })),
             instruction,
+            projectMemory,
             project: {
               name: projectName,
               files: files.map(({ path, content }) => ({ path, content })),
@@ -424,7 +528,7 @@ export function useOrchestration({
           try {
             handleRuntimeEvent(JSON.parse(dataLine) as RuntimeEvent, runMeta)
           } catch {
-            // Skip malformed SSE frame without crashing the entire session.
+            // Skip malformed SSE frame
           }
         }
 
@@ -434,13 +538,9 @@ export function useOrchestration({
           pending += decoder.decode(value, { stream: true })
           const frames = pending.split('\n\n')
           pending = frames.pop() ?? ''
-          for (const frame of frames) {
-            dispatchFrame(frame)
-          }
+          for (const frame of frames) dispatchFrame(frame)
         }
-        if (pending.trim()) {
-          dispatchFrame(pending)
-        }
+        if (pending.trim()) dispatchFrame(pending)
       } catch (error) {
         handleRuntimeEvent({
           type: 'session.failed',
@@ -462,8 +562,9 @@ export function useOrchestration({
       appSettings.delegation,
       files,
       handleRuntimeEvent,
+      memoryNotes,
       projectName,
-      savedProvider,
+      resolveProviderForAgent,
       setAiActivity,
       updateAgent,
     ],
@@ -474,7 +575,6 @@ export function useOrchestration({
       const text = delegatedText?.trim() || drafts[agent.id]?.trim()
       if (!text) return
 
-      // Support VinceZone natural-language rollback prompts (e.g. "rollback REV-001", "revert page.tsx")
       if (!delegated && onPromptRollback && parseRollbackPrompt(text)) {
         const rollbackOutcome = onPromptRollback(text)
         if (rollbackOutcome) {
@@ -491,15 +591,16 @@ export function useOrchestration({
         }
       }
 
+      const activeProvider = resolveProviderForAgent(agent)
       const topology = readSavedTopology(agentsRef.current)
       const autonomousAgentIds =
         topology.mode === 'peer'
-          ? topology.orderedAgentIds.slice(0, 6)
+          ? topology.orderedAgentIds
           : topology.mode === 'dual-coordinator'
             ? topology.orderedAgentIds.slice(0, 2)
             : topology.orderedAgentIds.slice(0, 1)
 
-      if (!delegated && autonomousAgentIds.includes(agent.id) && savedProvider.apiKey) {
+      if (!delegated && autonomousAgentIds.includes(agent.id) && activeProvider.apiKey) {
         setDrafts((current) => ({ ...current, [agent.id]: '' }))
         setPendingApproval(null)
         await streamOrchestration(agent, text)
@@ -519,7 +620,7 @@ export function useOrchestration({
         ],
       }))
 
-      if (!savedProvider.apiKey) {
+      if (!activeProvider.apiKey) {
         updateAgent(agent.id, (current) => ({
           ...current,
           status: 'idle',
@@ -528,7 +629,7 @@ export function useOrchestration({
               ? {
                   ...message,
                   id: uid(),
-                  text: `Provider is not connected. Open Settings → Providers to add a session-only API key for ${savedProvider.name}. No runtime request was started.`,
+                  text: `Provider is not connected. Open Settings → Providers to add a session-only API key for ${activeProvider.name}.`,
                 }
               : message,
           ),
@@ -539,22 +640,30 @@ export function useOrchestration({
 
       const controller = new AbortController()
       aborters.current[agent.id] = controller
+      const projectMemText = memoryNotes.map((n) => `- ${n.title}: ${n.content}`).join('\n')
+      const systemPrompt = [
+        `You are ${agent.name}, ${agent.role}. Be concise.`,
+        agent.soul ? `Soul: ${agent.soul}` : '',
+        agent.mission ? `Mission: ${agent.mission}` : '',
+        agent.memory ? `Agent Memory: ${agent.memory}` : '',
+        projectMemText ? `Project Memory:\n${projectMemText}` : '',
+        activeFile
+          ? `Active file (${activeFile.path}):\n${activeFile.content.slice(0, 12000)}`
+          : 'No file open.',
+      ]
+        .filter(Boolean)
+        .join('\n')
+
       try {
-        const activeContext = activeFile
-          ? `The active file is ${activeFile.path}:\n${activeFile.content.slice(0, 12000)}`
-          : 'No file is currently open in the editor.'
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
           body: JSON.stringify({
-            ...savedProvider,
-            model: agent.model || savedProvider.model,
+            ...activeProvider,
+            model: agent.model || activeProvider.model,
             messages: [
-              {
-                role: 'system',
-                content: `You are ${agent.name}, ${agent.role}. Be concise. ${activeContext}`,
-              },
+              { role: 'system', content: systemPrompt },
               ...agent.messages
                 .filter((message) => message.role !== 'tool')
                 .map((message) => ({
@@ -592,16 +701,27 @@ export function useOrchestration({
           }))
         }
         if (pending) result += parseSSEChunk(pending)
+
+        const promptTokens = estimateTokens(`${systemPrompt}\n${text}`)
+        const completionTokens = estimateTokens(result)
+        onRecordUsage({
+          id: uid(),
+          providerName: activeProvider.name,
+          model: agent.model || activeProvider.model,
+          agentName: agent.name,
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          estimatedCostUsd: estimateCostUsd(promptTokens, completionTokens),
+          timestamp: new Date().toISOString(),
+        })
+
         updateAgent(agent.id, (current) => ({
           ...current,
           status: 'idle',
           messages: current.messages.map((message) =>
             message.id === 'stream'
-              ? {
-                  ...message,
-                  id: uid(),
-                  text: result || 'The provider returned an empty response.',
-                }
+              ? { ...message, id: uid(), text: result || 'The provider returned an empty response.' }
               : message,
           ),
         }))
@@ -630,8 +750,10 @@ export function useOrchestration({
     [
       activeFile,
       drafts,
+      memoryNotes,
       onPromptRollback,
-      savedProvider,
+      onRecordUsage,
+      resolveProviderForAgent,
       setAiActivity,
       setDrafts,
       setPendingApproval,
@@ -647,36 +769,38 @@ export function useOrchestration({
       const instruction = prompt.trim()
       if (!source || !target || !instruction || sourceId === targetId) return
 
-      appendCommunicationEvent({
-        type: 'message.sent',
-        kind: 'direct',
-        senderId: sourceId,
-        recipientId: targetId,
-        label: 'Direct mail',
-        description: instruction,
+      animateCommanderTypeAndSend(sourceId, `@${target.name}: ${instruction}`, () => {
+        appendCommunicationEvent({
+          type: 'message.sent',
+          kind: 'direct',
+          senderId: sourceId,
+          recipientId: targetId,
+          label: 'Direct prompt',
+          description: instruction,
+        })
+        updateAgent(sourceId, (current) => ({
+          ...current,
+          messages: [
+            ...current.messages,
+            {
+              id: uid(),
+              role: 'tool',
+              text: `Prompt dispatched to ${target.name}: "${instruction}"`,
+            },
+          ],
+        }))
+        updateAgent(targetId, (current) => ({
+          ...current,
+          status: 'running',
+          messages: [
+            ...current.messages,
+            { id: uid(), role: 'agent', text: instruction, from: source.name },
+          ],
+        }))
+        void sendMessage(target, instruction, true)
       })
-      updateAgent(sourceId, (current) => ({
-        ...current,
-        messages: [
-          ...current.messages,
-          {
-            id: uid(),
-            role: 'tool',
-            text: `Mail delivered to ${target.name}. Runtime invocation started.`,
-          },
-        ],
-      }))
-      updateAgent(targetId, (current) => ({
-        ...current,
-        status: 'running',
-        messages: [
-          ...current.messages,
-          { id: uid(), role: 'agent', text: instruction, from: source.name },
-        ],
-      }))
-      void sendMessage(target, instruction, true)
     },
-    [appendCommunicationEvent, sendMessage, updateAgent],
+    [animateCommanderTypeAndSend, appendCommunicationEvent, sendMessage, updateAgent],
   )
 
   const pauseAgent = useCallback(
@@ -691,74 +815,80 @@ export function useOrchestration({
   )
 
   const previewMailExchange = useCallback(
-    (layout: AgentLayout, orderedAgentIds: string[]) => {
+    (_layout: AgentLayout, orderedAgentIds: string[]) => {
       if (orderedAgentIds.length < 2) return
-      const [first, second, ...rest] = orderedAgentIds
+      const [commanderId, ...workers] = orderedAgentIds
+      const commander = agentsRef.current.find((a) => a.id === commanderId)
+      const targets = workers.slice(0, 4)
 
-      if (layout === 'equal') {
-        // Peer-to-peer ring mail preview
-        orderedAgentIds.forEach((senderId, index) => {
-          const recipientId = orderedAgentIds[(index + 1) % orderedAgentIds.length]
-          appendCommunicationEvent({
-            type: 'message.sent',
-            kind: 'peer',
-            senderId,
-            recipientId,
-            label: 'Peer proposal',
-            description: 'Preview: peer proposal exchange across 3:3 room.',
+      targets.forEach((targetId, index) => {
+        const target = agentsRef.current.find((a) => a.id === targetId)
+        const taskPrompt = `@${target?.name || targetId}: Implement module contract #${index + 1} and return typed code patch.`
+        const sampleCode =
+          index % 2 === 0
+            ? `export async function GET() {\n  return Response.json({ ok: true, task: ${index + 1} })\n}`
+            : `export function PanelCard({ title }: { title: string }) {\n  return <section>{title}</section>\n}`
+
+        window.setTimeout(() => {
+          animateCommanderTypeAndSend(commanderId, taskPrompt, () => {
+            updateAgent(commanderId, (current) => ({
+              ...current,
+              messages: [
+                ...current.messages,
+                { id: uid(), role: 'user', text: taskPrompt },
+              ],
+            }))
+            appendCommunicationEvent({
+              type: 'message.sent',
+              kind: 'delegation',
+              senderId: commanderId,
+              recipientId: targetId,
+              label: `TASK-00${index + 1}`,
+              description: taskPrompt,
+            })
+            updateAgent(targetId, (current) => ({
+              ...current,
+              messages: [
+                ...current.messages,
+                {
+                  id: uid(),
+                  role: 'agent',
+                  from: commander?.name || 'PM Orchestrator',
+                  text: taskPrompt,
+                },
+              ],
+            }))
+
+            // Worker replies with an animated Code Packet back to Commander
+            window.setTimeout(() => {
+              appendCommunicationEvent({
+                type: 'patch.proposed',
+                kind: 'code',
+                senderId: targetId,
+                recipientId: commanderId,
+                label: `Code #${index + 1}`,
+                codeSnippet: sampleCode,
+                description: `${target?.name || targetId} returned verified code implementation.`,
+              })
+              updateAgent(commanderId, (current) => ({
+                ...current,
+                messages: [
+                  ...current.messages,
+                  {
+                    id: uid(),
+                    role: 'agent',
+                    from: target?.name || targetId,
+                    text: `Delivered verified code for TASK-00${index + 1}.`,
+                    codeSnippet: sampleCode,
+                  },
+                ],
+              }))
+            }, 1150)
           })
-        })
-        return
-      }
-
-      if (layout === 'focus2' && second) {
-        appendCommunicationEvent({
-          type: 'message.sent',
-          kind: 'peer',
-          senderId: first,
-          recipientId: second,
-          label: 'Plan sync',
-          description: 'Preview: planner alignment between dual coordinators.',
-        })
-        rest.slice(0, 4).forEach((workerId, idx) => {
-          appendCommunicationEvent({
-            type: 'message.sent',
-            kind: 'delegation',
-            senderId: idx % 2 === 0 ? first : second,
-            recipientId: workerId,
-            label: `TASK-${idx + 1}`,
-            description: 'Preview: task mail assigned to worker.',
-          })
-        })
-        return
-      }
-
-      // 1:6 coordinator -> workers, then worker report return
-      const targets = orderedAgentIds.slice(1, 7)
-      targets.forEach((workerId, idx) => {
-        appendCommunicationEvent({
-          type: 'message.sent',
-          kind: 'delegation',
-          senderId: first,
-          recipientId: workerId,
-          label: `TASK-${idx + 1}`,
-          description: 'Preview: coordinator delegating structured task.',
-        })
+        }, index * 1250)
       })
-      window.setTimeout(() => {
-        targets.forEach((workerId, idx) => {
-          appendCommunicationEvent({
-            type: 'worker.response.completed',
-            kind: 'report',
-            senderId: workerId,
-            recipientId: first,
-            label: `Report #${idx + 1}`,
-            description: 'Preview: worker delivering completed report to coordinator.',
-          })
-        })
-      }, 950)
     },
-    [appendCommunicationEvent],
+    [animateCommanderTypeAndSend, appendCommunicationEvent, updateAgent],
   )
 
   return {

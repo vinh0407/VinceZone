@@ -8,6 +8,7 @@ import {
   GitCompareArrows,
   PanelBottom,
   PanelLeft,
+  PanelRight,
   Play,
   Plus,
   Search,
@@ -43,6 +44,7 @@ export function WorkspaceHeader({
   activeFilePath,
   workspaceMode,
   explorerOpen,
+  rightChatOpen,
   terminalOpen,
   terminalMaximized,
   autoSave,
@@ -66,6 +68,7 @@ export function WorkspaceHeader({
   onToggleAutoSave,
   onToggleCompact,
   onToggleExplorer,
+  onToggleRightChat,
   onToggleTerminal,
   onToggleTerminalMaximized,
   onClearTerminal,
@@ -88,6 +91,7 @@ export function WorkspaceHeader({
   activeFilePath?: string
   workspaceMode: WorkspaceMode
   explorerOpen: boolean
+  rightChatOpen: boolean
   terminalOpen: boolean
   terminalMaximized: boolean
   autoSave: boolean
@@ -111,6 +115,7 @@ export function WorkspaceHeader({
   onToggleAutoSave: () => void
   onToggleCompact: () => void
   onToggleExplorer: () => void
+  onToggleRightChat: () => void
   onToggleTerminal: () => void
   onToggleTerminalMaximized: () => void
   onClearTerminal: () => void
@@ -202,6 +207,7 @@ export function WorkspaceHeader({
         { label: 'Explorer Files', shortcut: 'Ctrl+Shift+E', onSelect: () => onSelectSidePanel('explorer') },
         { label: 'Search Results', shortcut: 'Ctrl+K', onSelect: () => onSelectSidePanel('search') },
         { label: 'Source Control Changes', onSelect: () => onSelectSidePanel('git') },
+        { label: 'Workspace & Agent Memory', onSelect: () => onSelectSidePanel('memory') },
         { label: 'Edit Memory (REV-xxx)', onSelect: () => onSelectSidePanel('revisions') },
         { type: 'separator' },
         { label: 'Agent Diff Review', onSelect: onOpenDiff },
@@ -214,6 +220,7 @@ export function WorkspaceHeader({
         { label: 'Command Center / Search', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
         { type: 'separator' },
         { label: 'Primary Side Bar', checked: explorerOpen, onSelect: onToggleExplorer },
+        { label: 'Right AI Agent Chat', checked: rightChatOpen, onSelect: onToggleRightChat },
         { label: 'Bottom Panel / Terminal', checked: terminalOpen, onSelect: onToggleTerminal },
         { label: 'Compact Interface', checked: compactMode, onSelect: onToggleCompact },
         { type: 'separator' },
@@ -229,9 +236,14 @@ export function WorkspaceHeader({
           onSelect: () => onSelectMode('agents'),
         },
         {
-          label: 'Android Device Preview',
+          label: 'Android Emulator',
           checked: workspaceMode === 'android',
           onSelect: () => onSelectMode('android'),
+        },
+        {
+          label: 'Web Project Preview',
+          checked: workspaceMode === 'web',
+          onSelect: () => onSelectMode('web'),
         },
       ],
     },
@@ -495,6 +507,13 @@ export function WorkspaceHeader({
           title="Toggle Bottom Panel"
         >
           <PanelBottom size={14} />
+        </button>
+        <button
+          onClick={onToggleRightChat}
+          className={`icon-button !size-6 ${rightChatOpen && workspaceMode === 'ide' ? 'bg-[#2a2a2a] text-white' : ''}`}
+          title="Toggle Right AI Agent Chat"
+        >
+          <PanelRight size={14} />
         </button>
         <button
           onClick={onToggleAgents}

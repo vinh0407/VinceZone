@@ -14,7 +14,7 @@ import {
   normalizeImportedPath,
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
-import { inferRoleId } from '@/lib/vincezone-protocol'
+import { inferRoleId, type VinceZoneRoleId } from '@/lib/vincezone-protocol'
 import { ActivityBar } from './activity-bar'
 import type {
   Agent,
@@ -22,12 +22,15 @@ import type {
   AgentView,
   AppSettings,
   CommunicationEvent,
+  MemoryNote,
   PendingApprovalPlan,
+  ProjectSessionData,
   ProjectTab,
   ProposedPatch,
   ProviderConfig,
   SidePanel,
   TerminalHistoryEntry,
+  UsageRecord,
   WorkspaceFile,
   WorkspaceMode,
 } from './agent-types'
@@ -39,12 +42,15 @@ import { ExplorerSidebar } from './explorer-sidebar'
 import { AgentCreatorModal } from './modals/agent-creator-modal'
 import { DiffReviewModal } from './modals/diff-review-modal'
 import { ProviderSettingsModal } from './modals/provider-settings-modal'
+import { RightAiChatPanel } from './right-ai-chat-panel'
 import { StatusBar } from './status-bar'
+import { WebPreview } from './web-preview'
 import {
+  createSeedAgents,
   defaultAppSettings,
+  defaultMemoryNotes,
   defaultProvider,
   LEGACY_STORAGE_KEYS,
-  seedAgents,
   starterFiles,
   uid,
   WORKSPACE_STORAGE_KEY,
@@ -62,19 +68,50 @@ declare global {
   }
 }
 
+function createFreshSession(projectName: string): ProjectSessionData {
+  const seeded = createSeedAgents().map((agent, index) =>
+    index === 0
+      ? {
+          ...agent,
+          messages: [
+            {
+              id: uid(),
+              role: 'assistant' as const,
+              text: `[${projectName}] PM Orchestrator ready. This project has its own isolated agent chat, memory, and revision timeline.`,
+            },
+          ],
+        }
+      : agent,
+  )
+  return {
+    agents: seeded,
+    agentTasks: [],
+    communicationEvents: [],
+    proposedPatches: [],
+    revisions: [],
+    memoryNotes: defaultMemoryNotes.map((note) => ({ ...note, id: `${note.id}-${uid()}` })),
+  }
+}
+
 export function IDEWorkspace() {
   const [files, setFiles] = useState<WorkspaceFile[]>(starterFiles)
   const [projects, setProjects] = useState<ProjectTab[]>([
-    { id: 'vincezone-studio', name: 'VinceZone Studio', files: starterFiles },
+    {
+      id: 'vincezone-studio',
+      name: 'VinceZone Studio',
+      files: starterFiles,
+    },
   ])
   const [activeProjectId, setActiveProjectId] = useState('vincezone-studio')
   const [activePath, setActivePath] = useState(starterFiles[0].path)
   const [openPaths, setOpenPaths] = useState([starterFiles[0].path, starterFiles[1].path])
-  const [agents, setAgents] = useState<Agent[]>(seedAgents)
+  const [agents, setAgents] = useState<Agent[]>(() => createSeedAgents())
   const [agentTasks, setAgentTasks] = useState<AgentTask[]>([])
   const [communicationEvents, setCommunicationEvents] = useState<CommunicationEvent[]>([])
   const [proposedPatches, setProposedPatches] = useState<ProposedPatch[]>([])
   const [revisions, setRevisions] = useState<EditRevision[]>([])
+  const [memoryNotes, setMemoryNotes] = useState<MemoryNote[]>(defaultMemoryNotes)
+  const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([])
   const [pendingApproval, setPendingApproval] = useState<PendingApprovalPlan | null>(null)
   const [terminalEntries, setTerminalEntries] = useState<TerminalHistoryEntry[]>([])
   const [terminalRunning, setTerminalRunning] = useState(false)
@@ -82,6 +119,8 @@ export function IDEWorkspace() {
   const [agentViews, setAgentViews] = useState<Record<string, AgentView>>({})
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('ide')
   const [sidePanel, setSidePanel] = useState<SidePanel>('explorer')
+  const [rightChatOpen, setRightChatOpen] = useState(true)
+  const [rightChatAgentId, setRightChatAgentId] = useState('pm')
   const [searchQuery, setSearchQuery] = useState('')
   const [revealRequest, setRevealRequest] = useState<{
     path: string
@@ -100,10 +139,12 @@ export function IDEWorkspace() {
   const [aiActivity, setAiActivity] = useState<'idle' | 'reading' | 'editing'>('idle')
   const [editPulse, setEditPulse] = useState(false)
   const editPulseTimer = useRef<number | null>(null)
+  const autoSaveTimersRef = useRef<Map<string, number>>(new Map())
   const [explorerOpen, setExplorerOpen] = useState(true)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [agentCreatorOpen, setAgentCreatorOpen] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [diffModalState, setDiffModalState] = useState<{ open: boolean; patchId?: string }>({
     open: false,
   })
@@ -115,53 +156,124 @@ export function IDEWorkspace() {
   const hydratedRef = useRef(false)
   const diskSnapshotRef = useRef<Map<string, string>>(new Map())
 
+  // Keep latest session state in a ref so project switching & async loaders never read stale values
+  const sessionRef = useRef<ProjectSessionData>({
+    agents,
+    agentTasks,
+    communicationEvents,
+    proposedPatches,
+    revisions,
+    memoryNotes,
+  })
+  sessionRef.current = {
+    agents,
+    agentTasks,
+    communicationEvents,
+    proposedPatches,
+    revisions,
+    memoryNotes,
+  }
+
+  const activeProjectIdRef = useRef(activeProjectId)
+  activeProjectIdRef.current = activeProjectId
+
+  const filesRef = useRef(files)
+  filesRef.current = files
+
+  const projectsRef = useRef(projects)
+  projectsRef.current = projects
+
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0]
   const activeFile = files.find((file) => file.path === activePath) ?? files[0]
 
-  const loadLocalDirectory = useCallback(async (dirPath?: string) => {
-    try {
-      const query = dirPath ? `?root=${encodeURIComponent(dirPath)}` : ''
-      const response = await fetch(`/api/workspace${query}`, { cache: 'no-store' })
-      if (!response.ok) return false
-      const payload = (await response.json()) as {
-        root: string
-        name: string
-        files: WorkspaceFile[]
-      }
-      if (!payload.files.length) return false
+  const hydrateSession = useCallback((session: ProjectSessionData) => {
+    setAgents(session.agents.length ? session.agents : createSeedAgents())
+    setAgentTasks(session.agentTasks ?? [])
+    setCommunicationEvents(session.communicationEvents ?? [])
+    setProposedPatches(session.proposedPatches ?? [])
+    setRevisions(session.revisions ?? [])
+    setMemoryNotes(session.memoryNotes ?? defaultMemoryNotes)
+    setPendingApproval(null)
+    setRightChatAgentId(session.agents[0]?.id ?? 'pm')
+  }, [])
 
-      const projectId = `disk-${payload.root}`
-      diskSnapshotRef.current = new Map(payload.files.map((file) => [file.path, file.content]))
+  const loadLocalDirectory = useCallback(
+    async (dirPath?: string, preserveCurrentSession = false) => {
+      try {
+        const query = dirPath ? `?root=${encodeURIComponent(dirPath)}` : ''
+        const response = await fetch(`/api/workspace${query}`, { cache: 'no-store' })
+        if (!response.ok) return false
+        const payload = (await response.json()) as {
+          root: string
+          name: string
+          files: WorkspaceFile[]
+        }
+        if (!payload.files.length) return false
 
-      setProjects((current) => {
-        const exists = current.some((item) => item.id === projectId)
-        if (exists) {
-          return current.map((item) =>
-            item.id === projectId
-              ? { ...item, name: payload.name, rootPath: payload.root, files: payload.files }
+        const projectId = `disk-${payload.root}`
+        diskSnapshotRef.current = new Map(payload.files.map((file) => [file.path, file.content]))
+
+        const existingTarget = projectsRef.current.find((item) => item.id === projectId)
+        const outgoingId = activeProjectIdRef.current
+        const outgoingSession = sessionRef.current
+        const outgoingFiles = filesRef.current
+
+        const nextTargetSession = preserveCurrentSession
+          ? outgoingSession
+          : existingTarget?.session ?? createFreshSession(payload.name)
+
+        setProjects((current) => {
+          const withSavedOutgoing = current.map((item) =>
+            item.id === outgoingId
+              ? { ...item, files: outgoingFiles, session: outgoingSession }
               : item,
           )
+          const exists = withSavedOutgoing.some((item) => item.id === projectId)
+          if (exists) {
+            return withSavedOutgoing.map((item) =>
+              item.id === projectId
+                ? {
+                    ...item,
+                    name: payload.name,
+                    rootPath: payload.root,
+                    files: payload.files,
+                    session: nextTargetSession,
+                  }
+                : item,
+            )
+          }
+          return [
+            ...withSavedOutgoing.filter((item) => item.id !== 'vincezone-studio'),
+            {
+              id: projectId,
+              name: payload.name,
+              rootPath: payload.root,
+              files: payload.files,
+              session: nextTargetSession,
+            },
+          ]
+        })
+
+        setActiveProjectId(projectId)
+        setFiles(payload.files)
+        if (!preserveCurrentSession) {
+          hydrateSession(nextTargetSession)
         }
-        return [
-          ...current.filter((item) => item.id !== 'vincezone-studio'),
-          { id: projectId, name: payload.name, rootPath: payload.root, files: payload.files },
-        ]
-      })
-      setActiveProjectId(projectId)
-      setFiles(payload.files)
-      const preferred =
-        payload.files.find((f) => f.path.endsWith('page.tsx')) ??
-        payload.files.find((f) => f.name === 'README.md') ??
-        payload.files[0]
-      if (preferred) {
-        setActivePath(preferred.path)
-        setOpenPaths([preferred.path])
+        const preferred =
+          payload.files.find((f) => f.path.endsWith('page.tsx')) ??
+          payload.files.find((f) => f.name === 'README.md') ??
+          payload.files[0]
+        if (preferred) {
+          setActivePath(preferred.path)
+          setOpenPaths([preferred.path])
+        }
+        return true
+      } catch {
+        return false
       }
-      return true
-    } catch {
-      return false
-    }
-  }, [])
+    },
+    [hydrateSession],
+  )
 
   // Hydrate persisted state + auto-load local workspace on localhost:40704 desktop runtime
   useEffect(() => {
@@ -179,6 +291,7 @@ export function IDEWorkspace() {
     }
     hydratedRef.current = true
 
+    let restoredAgents = false
     if (rawSaved) {
       try {
         const parsed = JSON.parse(rawSaved) as {
@@ -193,12 +306,19 @@ export function IDEWorkspace() {
           communicationEvents?: CommunicationEvent[]
           proposedPatches?: ProposedPatch[]
           revisions?: EditRevision[]
+          memoryNotes?: MemoryNote[]
+          usageRecords?: UsageRecord[]
         }
 
         if (parsed.settings) {
           setAppSettings((current) => ({
             ...current,
             ...parsed.settings,
+            mcpServers: parsed.settings?.mcpServers?.length
+              ? parsed.settings.mcpServers
+              : current.mcpServers,
+            plugins: parsed.settings?.plugins?.length ? parsed.settings.plugins : current.plugins,
+            enabledSkillIds: parsed.settings?.enabledSkillIds ?? current.enabledSkillIds,
             delegation: { ...current.delegation, ...parsed.settings?.delegation },
           }))
         }
@@ -220,18 +340,26 @@ export function IDEWorkspace() {
             })),
           )
         }
+        if (parsed.projects?.length) {
+          setProjects(parsed.projects)
+          if (parsed.activeProjectId) {
+            setActiveProjectId(parsed.activeProjectId)
+          }
+        }
         if (parsed.agents?.length) {
-          setAgents(
-            parsed.agents.map((agent) => ({
-              ...agent,
-              roleId: agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`),
-              status:
-                agent.status === 'running' || agent.status === 'reviewing'
-                  ? 'paused'
-                  : agent.status,
-              currentTask: undefined,
-            })),
-          )
+          restoredAgents = true
+          const normalized = parsed.agents.map((agent) => ({
+            ...agent,
+            roleId: agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`),
+            status:
+              agent.status === 'running' || agent.status === 'reviewing'
+                ? ('paused' as const)
+                : agent.status,
+            currentTask: undefined,
+            composingPrompt: undefined,
+          }))
+          setAgents(normalized)
+          setRightChatAgentId(normalized[0]?.id ?? 'pm')
         }
         if (parsed.agentTasks) {
           setAgentTasks(
@@ -257,13 +385,15 @@ export function IDEWorkspace() {
         }
         if (parsed.proposedPatches) setProposedPatches(parsed.proposedPatches)
         if (parsed.revisions) setRevisions(parsed.revisions)
+        if (parsed.memoryNotes?.length) setMemoryNotes(parsed.memoryNotes)
+        if (parsed.usageRecords?.length) setUsageRecords(parsed.usageRecords)
       } catch {
         window.localStorage.removeItem(WORKSPACE_STORAGE_KEY)
       }
     }
 
-    // Load actual workspace files from disk via localhost API
-    void loadLocalDirectory()
+    // Load actual workspace files from disk via localhost API, preserving restored session on boot
+    void loadLocalDirectory(undefined, restoredAgents)
   }, [loadLocalDirectory])
 
   const persistWorkspace = useCallback(
@@ -275,16 +405,30 @@ export function IDEWorkspace() {
       providers?: ProviderConfig[]
       settings?: AppSettings
       revisions?: EditRevision[]
+      memoryNotes?: MemoryNote[]
+      usageRecords?: UsageRecord[]
     }) => {
       const nextFiles = overrides?.files ?? files
       const nextActiveId = overrides?.activeProjectId ?? activeProjectId
+      const currentSession: ProjectSessionData = {
+        agents,
+        agentTasks,
+        communicationEvents: communicationEvents.slice(-200),
+        proposedPatches: proposedPatches.slice(0, 40),
+        revisions: (overrides?.revisions ?? revisions).slice(-30),
+        memoryNotes: overrides?.memoryNotes ?? memoryNotes,
+      }
       const nextProjects = (overrides?.projects ?? projects).map((project) =>
-        project.id === nextActiveId ? { ...project, files: nextFiles } : project,
+        project.id === nextActiveId
+          ? { ...project, files: nextFiles, session: currentSession }
+          : project,
       )
       const nextProvider = overrides?.provider ?? savedProvider
       const nextProviders = overrides?.providers ?? providers
       const nextSettings = overrides?.settings ?? appSettings
       const nextRevisions = overrides?.revisions ?? revisions
+      const nextMemory = overrides?.memoryNotes ?? memoryNotes
+      const nextUsage = overrides?.usageRecords ?? usageRecords
 
       try {
         window.localStorage.setItem(
@@ -296,6 +440,14 @@ export function IDEWorkspace() {
               name: project.name,
               rootPath: project.rootPath,
               files: project.files.slice(0, 10),
+              session: project.session
+                ? {
+                    ...project.session,
+                    communicationEvents: project.session.communicationEvents.slice(-120),
+                    proposedPatches: project.session.proposedPatches.slice(0, 30),
+                    revisions: project.session.revisions.slice(-20),
+                  }
+                : undefined,
             })),
             activeProjectId: nextActiveId,
             provider: { ...nextProvider, apiKey: '' },
@@ -306,6 +458,8 @@ export function IDEWorkspace() {
             communicationEvents: communicationEvents.slice(-300),
             proposedPatches: proposedPatches.slice(0, 60),
             revisions: nextRevisions.slice(-40),
+            memoryNotes: nextMemory,
+            usageRecords: nextUsage.slice(-200),
           }),
         )
       } catch {
@@ -319,17 +473,19 @@ export function IDEWorkspace() {
       appSettings,
       communicationEvents,
       files,
+      memoryNotes,
       projects,
       proposedPatches,
       providers,
       revisions,
       savedProvider,
+      usageRecords,
     ],
   )
 
   useEffect(() => {
     if (!hydratedRef.current) return
-    const timer = window.setTimeout(() => persistWorkspace(), 300)
+    const timer = window.setTimeout(() => persistWorkspace(), 350)
     return () => window.clearTimeout(timer)
   }, [persistWorkspace])
 
@@ -408,11 +564,32 @@ export function IDEWorkspace() {
     [restoreRevisionById, revisions],
   )
 
+  const handleRecordUsage = useCallback((record: UsageRecord) => {
+    setUsageRecords((current) => [...current.slice(-199), record])
+  }, [])
+
+  const addMemoryNote = useCallback((title: string, content: string) => {
+    setMemoryNotes((current) => [
+      {
+        id: `mem-${uid()}`,
+        scope: 'project',
+        title,
+        content,
+        updatedAt: new Date().toISOString(),
+      },
+      ...current,
+    ])
+  }, [])
+
+  const deleteMemoryNote = useCallback((id: string) => {
+    setMemoryNotes((current) => current.filter((note) => note.id !== id))
+  }, [])
+
   const handleOpenLocalDirectory = useCallback(async () => {
     if (window.vincezoneDesktop?.openDirectory) {
       const folder = await window.vincezoneDesktop.openDirectory()
       if (folder) {
-        await loadLocalDirectory(folder)
+        await loadLocalDirectory(folder, false)
       }
       return
     }
@@ -421,7 +598,7 @@ export function IDEWorkspace() {
       activeProject?.rootPath || '',
     )
     if (typed && typed.trim()) {
-      const ok = await loadLocalDirectory(typed.trim())
+      const ok = await loadLocalDirectory(typed.trim(), false)
       if (!ok) fileInputRef.current?.click()
     } else {
       fileInputRef.current?.click()
@@ -503,7 +680,7 @@ export function IDEWorkspace() {
 
     const unsubscribeMenu = window.vincezoneDesktop?.onMenuAction?.((payload) => {
       if (payload.action === 'open-workspace' && payload.folder) {
-        void loadLocalDirectory(payload.folder)
+        void loadLocalDirectory(payload.folder, false)
       } else if (payload.action === 'open-settings') {
         setSettingsOpen(true)
       } else if (payload.action === 'toggle-terminal') {
@@ -523,12 +700,25 @@ export function IDEWorkspace() {
     }
   }, [loadLocalDirectory])
 
+  // Clear pending debounced auto-save timers on unmount
+  useEffect(() => {
+    const timers = autoSaveTimersRef.current
+    return () => {
+      for (const id of timers.values()) {
+        window.clearTimeout(id)
+      }
+      timers.clear()
+    }
+  }, [])
+
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
     useOrchestration({
       agents,
       files,
       activeFile,
       projectName: activeProject?.name ?? 'VinceZone Studio',
+      memoryNotes,
+      providers,
       savedProvider,
       appSettings,
       drafts,
@@ -539,31 +729,56 @@ export function IDEWorkspace() {
       setPendingApproval,
       setDrafts,
       setAiActivity,
+      onRecordUsage: handleRecordUsage,
       onPromptRollback: handlePromptRollback,
     })
 
   const updateFile = (content = '') => {
     if (!activePath) return
+    const targetPath = activePath
     setEditPulse(true)
     if (editPulseTimer.current) window.clearTimeout(editPulseTimer.current)
     editPulseTimer.current = window.setTimeout(() => setEditPulse(false), 420)
-    setFiles((current) => {
-      const next = current.map((file) =>
-        file.path === activePath
-          ? { ...file, content, dirty: !appSettings.autoSave }
-          : file,
-      )
-      if (appSettings.autoSave) {
-        void writeFileToDiskIfConnected(activePath, content)
-        persistWorkspace({ files: next })
-      }
-      return next
-    })
+
+    setFiles((current) =>
+      current.map((file) => (file.path === targetPath ? { ...file, content, dirty: true } : file)),
+    )
+
+    if (appSettings.autoSave) {
+      const existingTimer = autoSaveTimersRef.current.get(targetPath)
+      if (existingTimer) window.clearTimeout(existingTimer)
+      const delay = Math.max(300, appSettings.autoSaveDelayMs || 1000)
+      const timerId = window.setTimeout(() => {
+        autoSaveTimersRef.current.delete(targetPath)
+        const previous = diskSnapshotRef.current.get(targetPath) ?? null
+        recordRevision({
+          path: targetPath,
+          actor: 'Auto-Save',
+          summary: `Auto-saved (${delay}ms)`,
+          previousContent: previous,
+          nextContent: content,
+        })
+        void writeFileToDiskIfConnected(targetPath, content)
+        setFiles((current) => {
+          const next = current.map((file) =>
+            file.path === targetPath ? { ...file, dirty: false } : file,
+          )
+          persistWorkspace({ files: next })
+          return next
+        })
+      }, delay)
+      autoSaveTimersRef.current.set(targetPath, timerId)
+    }
   }
 
   const saveFile = () => {
     const target = files.find((file) => file.path === activePath)
     if (!target) return
+    const existingTimer = autoSaveTimersRef.current.get(target.path)
+    if (existingTimer) {
+      window.clearTimeout(existingTimer)
+      autoSaveTimersRef.current.delete(target.path)
+    }
     const previous = diskSnapshotRef.current.get(target.path) ?? null
     recordRevision({
       path: target.path,
@@ -600,15 +815,25 @@ export function IDEWorkspace() {
 
   const switchProject = (id: string) => {
     if (id === activeProjectId) return
-    setProjects((current) =>
-      current.map((project) => (project.id === activeProjectId ? { ...project, files } : project)),
-    )
+    const outgoingSession = sessionRef.current
     const target = projects.find((project) => project.id === id)
     if (!target) return
+    const targetSession = target.session ?? createFreshSession(target.name)
+
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? { ...project, files, session: outgoingSession }
+          : project.id === id
+            ? { ...project, session: targetSession }
+            : project,
+      ),
+    )
     setActiveProjectId(id)
     setFiles(target.files)
     setActivePath(target.files[0]?.path ?? '')
     setOpenPaths(target.files[0] ? [target.files[0].path] : [])
+    hydrateSession(targetSession)
   }
 
   const closeProject = (id: string) => {
@@ -617,10 +842,12 @@ export function IDEWorkspace() {
     setProjects(remaining)
     if (activeProjectId === id) {
       const next = remaining[0]
+      const nextSession = next.session ?? createFreshSession(next.name)
       setActiveProjectId(next.id)
       setFiles(next.files)
       setActivePath(next.files[0]?.path ?? '')
       setOpenPaths(next.files[0] ? [next.files[0].path] : [])
+      hydrateSession(nextSession)
     }
   }
 
@@ -649,17 +876,20 @@ export function IDEWorkspace() {
 
     if (imported.length) {
       const projectId = `${folderName}-${uid()}`
+      const outgoingSession = sessionRef.current
+      const freshSession = createFreshSession(folderName)
       const nextProjects = [
         ...projects.map((project) =>
-          project.id === activeProjectId ? { ...project, files } : project,
+          project.id === activeProjectId ? { ...project, files, session: outgoingSession } : project,
         ),
-        { id: projectId, name: folderName, files: imported },
+        { id: projectId, name: folderName, files: imported, session: freshSession },
       ]
       setProjects(nextProjects)
       setActiveProjectId(projectId)
       setFiles(imported)
       setActivePath(imported[0].path)
       setOpenPaths([imported[0].path])
+      hydrateSession(freshSession)
       persistWorkspace({
         files: imported,
         projects: nextProjects,
@@ -688,9 +918,7 @@ export function IDEWorkspace() {
     setFiles(nextFiles)
     setProposedPatches((current) =>
       current.map((patch) =>
-        patch.id === patchId
-          ? { ...patch, status: 'applied', previousContent }
-          : patch,
+        patch.id === patchId ? { ...patch, status: 'applied', previousContent } : patch,
       ),
     )
     openFile(target.path)
@@ -732,11 +960,45 @@ export function IDEWorkspace() {
     })
   }
 
-  const addAgent = (details: { name: string; role: string; model: string; view: AgentView }) => {
-    if (agents.length >= 7) return
+  const saveAgent = (details: {
+    id?: string
+    name: string
+    role: string
+    roleId: VinceZoneRoleId
+    soul: string
+    mission: string
+    memory: string
+    providerId: string
+    model: string
+    view: AgentView
+  }) => {
+    if (details.id) {
+      setAgents((current) =>
+        current.map((agent) =>
+          agent.id === details.id
+            ? {
+                ...agent,
+                name: details.name,
+                role: details.role,
+                roleId: details.roleId,
+                soul: details.soul,
+                mission: details.mission,
+                memory: details.memory,
+                providerId: details.providerId,
+                model: details.model,
+              }
+            : agent,
+        ),
+      )
+      setAgentViews((current) => ({ ...current, [details.id!]: details.view }))
+      setEditingAgent(null)
+      setAgentCreatorOpen(false)
+      return
+    }
+
     const count = agents.length + 1
     const id = uid()
-    const roleId = inferRoleId(`${details.name} ${details.role}`)
+    const roleId = details.roleId || inferRoleId(`${details.name} ${details.role}`)
     setAgents((current) => [
       ...current,
       {
@@ -744,24 +1006,29 @@ export function IDEWorkspace() {
         name: details.name || `Specialist ${count}`,
         role: details.role || 'Custom coding agent',
         roleId,
+        soul: details.soul,
+        mission: details.mission,
+        memory: details.memory,
+        providerId: details.providerId || savedProvider.id,
         model: details.model || savedProvider.model || 'Select model',
-        accent: ['#4ec9b0', '#dcdcaa', '#c586c0', '#9cdcfe'][count % 4],
+        accent: ['#f5f5f5', '#d4d4d4', '#a3a3a3', '#e5e5e5'][count % 4],
         status: 'idle',
         messages: [
           {
             id: uid(),
             role: 'assistant',
-            text: `Agent ready (@${roleId.toUpperCase()}). Assign a task or attach a project file with @file.`,
+            text: `Agent ready (@${roleId.toUpperCase()} · ${details.model || savedProvider.model}). Mission: ${details.mission || details.role}`,
           },
         ],
       },
     ])
     setAgentViews((current) => ({ ...current, [id]: details.view }))
+    setRightChatAgentId(id)
+    setEditingAgent(null)
     setAgentCreatorOpen(false)
   }
 
   const duplicateAgent = (source: Agent) => {
-    if (agents.length >= 7) return
     const id = uid()
     setAgents((current) => [
       ...current,
@@ -770,6 +1037,7 @@ export function IDEWorkspace() {
         id,
         name: `${source.name} copy`,
         status: 'idle',
+        composingPrompt: undefined,
         messages: source.messages.map((message) => ({ ...message, id: uid() })),
       },
     ])
@@ -847,6 +1115,7 @@ export function IDEWorkspace() {
         activeFilePath={activeFile?.path}
         workspaceMode={workspaceMode}
         explorerOpen={explorerOpen}
+        rightChatOpen={rightChatOpen}
         terminalOpen={terminalOpen}
         terminalMaximized={terminalMaximized}
         autoSave={appSettings.autoSave}
@@ -885,6 +1154,10 @@ export function IDEWorkspace() {
         onToggleExplorer={() => {
           setWorkspaceMode('ide')
           setExplorerOpen((prev) => !prev)
+        }}
+        onToggleRightChat={() => {
+          setWorkspaceMode('ide')
+          setRightChatOpen((prev) => !prev)
         }}
         onToggleTerminal={() => {
           setWorkspaceMode('ide')
@@ -935,6 +1208,7 @@ export function IDEWorkspace() {
           explorerOpen={explorerOpen}
           dirtyCount={dirtyCount}
           revisionCount={revisions.length}
+          memoryCount={memoryNotes.length}
           activeAgentCount={activeAgentCount}
           onSelectSidePanel={(panel) => {
             setWorkspaceMode('ide')
@@ -965,6 +1239,7 @@ export function IDEWorkspace() {
                 agentTasks={agentTasks}
                 agents={agents}
                 revisions={revisions}
+                memoryNotes={memoryNotes}
                 collapsedGroups={collapsedGroups}
                 searchQuery={searchQuery}
                 compactMode={appSettings.compactMode}
@@ -977,9 +1252,11 @@ export function IDEWorkspace() {
                 onRestoreRevision={(revId) => {
                   restoreRevisionById(revId)
                 }}
+                onAddMemoryNote={addMemoryNote}
+                onDeleteMemoryNote={deleteMemoryNote}
                 onCollapse={() => setExplorerOpen(false)}
                 onRefresh={() => {
-                  if (activeProject?.rootPath) void loadLocalDirectory(activeProject.rootPath)
+                  if (activeProject?.rootPath) void loadLocalDirectory(activeProject.rootPath, true)
                   else setFiles((current) => [...current])
                 }}
                 onOpenSettings={() => setSettingsOpen(true)}
@@ -998,6 +1275,9 @@ export function IDEWorkspace() {
                 explorerOpen={explorerOpen}
                 aiActivity={aiActivity}
                 editPulse={editPulse}
+                fontSize={appSettings.editorFontSize}
+                wordWrap={appSettings.editorWordWrap}
+                minimap={appSettings.editorMinimap}
                 revealRequest={revealRequest}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
@@ -1040,6 +1320,22 @@ export function IDEWorkspace() {
                 onStopDebug={() => setDebugState('idle')}
               />
             </section>
+
+            {rightChatOpen && (
+              <RightAiChatPanel
+                agents={agents}
+                selectedAgentId={rightChatAgentId}
+                drafts={drafts}
+                files={files}
+                activeFilePath={activeFile?.path}
+                onSelectAgent={setRightChatAgentId}
+                onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
+                onSend={sendMessage}
+                onPause={pauseAgent}
+                onOpenFullAgents={() => setWorkspaceMode('agents')}
+                onClose={() => setRightChatOpen(false)}
+              />
+            )}
           </>
         ) : workspaceMode === 'agents' ? (
           <AgentWorkspace
@@ -1051,7 +1347,14 @@ export function IDEWorkspace() {
             communicationEvents={communicationEvents}
             proposedPatches={proposedPatches}
             pendingApproval={pendingApproval}
-            onCreate={() => setAgentCreatorOpen(true)}
+            onCreate={() => {
+              setEditingAgent(null)
+              setAgentCreatorOpen(true)
+            }}
+            onEditAgent={(agent) => {
+              setEditingAgent(agent)
+              setAgentCreatorOpen(true)
+            }}
             onView={(id, view) => setAgentViews((current) => ({ ...current, [id]: view }))}
             onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
             onSend={sendMessage}
@@ -1064,13 +1367,15 @@ export function IDEWorkspace() {
             onCancelApproval={() => setPendingApproval(null)}
             onPreviewMailExchange={previewMailExchange}
           />
-        ) : (
+        ) : workspaceMode === 'android' ? (
           <AndroidEmulator
             projectName={activeProject?.name ?? 'VinceZone Studio'}
-            onRun={() => {
-              setRunState('running')
-              window.setTimeout(() => setRunState('success'), 900)
-            }}
+            onRunCommand={(cmd) => void runTerminalCommand(cmd)}
+          />
+        ) : (
+          <WebPreview
+            projectName={activeProject?.name ?? 'VinceZone Studio'}
+            onRunCommand={(cmd) => void runTerminalCommand(cmd)}
           />
         )}
       </div>
@@ -1101,6 +1406,13 @@ export function IDEWorkspace() {
           initialProvider={savedProvider}
           initialProviders={providers}
           initialSettings={appSettings}
+          usageRecords={usageRecords}
+          memoryNotes={memoryNotes}
+          rootPath={activeProject?.rootPath}
+          onResetUsage={() => setUsageRecords([])}
+          onAddMemoryNote={addMemoryNote}
+          onDeleteMemoryNote={deleteMemoryNote}
+          onClearMemoryNotes={() => setMemoryNotes([])}
           onClose={() => setSettingsOpen(false)}
           onSave={({ provider, providers: nextProviders, settings: nextSettings }) => {
             setSavedProvider(provider)
@@ -1118,9 +1430,16 @@ export function IDEWorkspace() {
 
       {agentCreatorOpen && (
         <AgentCreatorModal
+          providers={providers}
+          defaultProviderId={savedProvider.id}
           defaultModel={savedProvider.model}
-          onClose={() => setAgentCreatorOpen(false)}
-          onCreate={addAgent}
+          initialAgent={editingAgent}
+          initialView={editingAgent ? (agentViews[editingAgent.id] ?? 'chat') : 'chat'}
+          onClose={() => {
+            setEditingAgent(null)
+            setAgentCreatorOpen(false)
+          }}
+          onSave={saveAgent}
         />
       )}
 

@@ -15,6 +15,9 @@ export function EditorPane({
   explorerOpen,
   aiActivity,
   editPulse,
+  fontSize = 13,
+  wordWrap = false,
+  minimap = true,
   revealRequest,
   onOpenExplorer,
   onSelectTab,
@@ -31,6 +34,9 @@ export function EditorPane({
   explorerOpen: boolean
   aiActivity: 'idle' | 'reading' | 'editing'
   editPulse: boolean
+  fontSize?: number
+  wordWrap?: boolean
+  minimap?: boolean
   revealRequest: { path: string; line: number; seq: number } | null
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
@@ -143,9 +149,10 @@ export function EditorPane({
             options={{
               automaticLayout: true,
               fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-              fontSize: 13,
-              lineHeight: 20,
-              minimap: { enabled: true, scale: 0.75 },
+              fontSize,
+              lineHeight: Math.round(fontSize * 1.55),
+              minimap: { enabled: minimap, scale: 0.75 },
+              wordWrap: wordWrap ? 'on' : 'off',
               padding: { top: 10 },
               renderLineHighlight: 'all',
               scrollBeyondLastLine: false,

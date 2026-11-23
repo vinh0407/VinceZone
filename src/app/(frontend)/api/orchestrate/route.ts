@@ -33,6 +33,7 @@ type RequestBody = {
   coordinatorId?: string
   agents?: OrchestratorAgent[]
   instruction?: string
+  projectMemory?: string
   project?: { name?: string; files?: Array<{ path: string; content: string }> }
   limits?: Limits
   topology?: {
@@ -102,8 +103,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { provider, coordinatorId, instruction, project } = body
-  const agents = (body.agents ?? []).slice(0, 7)
+  const { provider, coordinatorId, instruction, project, projectMemory } = body
+  const agents = (body.agents ?? []).slice(0, 24)
   const topologyMode =
     body.topology?.mode === 'peer' || body.topology?.mode === 'dual-coordinator'
       ? body.topology.mode
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
     }),
     ...agents.filter((agent) => !body.topology?.orderedAgentIds?.includes(agent.id)),
   ]
-  const topologyAgents = orderedAgents.slice(0, topologyMode === 'coordinator' ? 7 : 6)
+  const topologyAgents = orderedAgents
   const coordinatorCandidates =
     topologyMode === 'peer'
       ? topologyAgents
@@ -150,9 +151,9 @@ export async function POST(request: Request) {
 
   const limits = {
     maxDepth: clamp(body.limits?.maxDepth, 0, 4, 1),
-    maxActiveAgents: clamp(body.limits?.maxActiveAgents, 1, 7, 4),
-    maxConcurrentTasks: clamp(body.limits?.maxConcurrentTasks, 1, 7, 3),
-    maxIterations: clamp(body.limits?.maxIterations, 1, 6, 2),
+    maxActiveAgents: clamp(body.limits?.maxActiveAgents, 1, 24, 6),
+    maxConcurrentTasks: clamp(body.limits?.maxConcurrentTasks, 1, 24, 4),
+    maxIterations: clamp(body.limits?.maxIterations, 1, 8, 2),
     requireApproval: Boolean(body.limits?.requireApproval),
     assignmentMode: body.limits?.assignmentMode === 'manual' ? 'manual' : 'automatic',
   }
@@ -168,8 +169,8 @@ export async function POST(request: Request) {
       : topologyMode === 'peer'
         ? topologyAgents
         : topologyMode === 'dual-coordinator'
-          ? topologyAgents.slice(2, 6)
-          : topologyAgents.slice(1, 7)
+          ? topologyAgents.slice(2)
+          : topologyAgents.slice(1)
 
   const files = (project?.files ?? []).slice(0, 80)
   const fileMap = new Map(files.map((file) => [file.path, file.content]))
@@ -456,7 +457,7 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
                     {
                       role: 'system',
                       content: `You are ${worker.name}, ${worker.role}. You are a worker, not the coordinator.
-Complete only the assigned task. Do not invent access to tools or files. Report findings, proposed changes, blockers, and exact file references.
+${worker.soul ? `Soul / Principles: ${worker.soul}\n` : ''}${worker.mission ? `Mission: ${worker.mission}\n` : ''}${worker.memory ? `Agent Memory: ${worker.memory}\n` : ''}${projectMemory ? `Project Memory: ${projectMemory}\n` : ''}Complete only the assigned task. Do not invent access to tools or files. Report findings, proposed changes, blockers, and exact file references.
 When proposing concrete file edits, include a fenced \`\`\`baton-patch block with JSON: [{"path":"exact/file/path","summary":"brief description","content":"full updated file content"}].
 Sender: ${taskSender.id}
 Recipient: ${worker.id}

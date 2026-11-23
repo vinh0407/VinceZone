@@ -3,15 +3,23 @@ import { constants } from 'node:fs'
 import { delimiter as pathDelimiter, join } from 'node:path'
 
 export const supportedCliTools = [
-  { id: 'claude', name: 'Claude Code', executable: 'claude' },
-  { id: 'codex', name: 'Codex CLI', executable: 'codex' },
-  { id: 'gemini', name: 'Gemini CLI', executable: 'gemini' },
+  { id: 'claude', name: 'Claude Code', executable: 'claude', category: 'ai-agent' },
+  { id: 'codex', name: 'Codex CLI', executable: 'codex', category: 'ai-agent' },
+  { id: 'gemini', name: 'Gemini CLI', executable: 'gemini', category: 'ai-agent' },
+  { id: 'copilot', name: 'GitHub Copilot CLI', executable: 'copilot', category: 'ai-agent' },
+  { id: 'opencode', name: 'OpenCode CLI', executable: 'opencode', category: 'ai-agent' },
+  { id: 'aider', name: 'Aider', executable: 'aider', category: 'ai-agent' },
+  { id: 'ollama', name: 'Ollama', executable: 'ollama', category: 'local-llm' },
+  { id: 'gh', name: 'GitHub CLI', executable: 'gh', category: 'devtools' },
+  { id: 'playwright-cli', name: 'Playwright CLI', executable: 'playwright-cli', category: 'testing' },
+  { id: 'adb', name: 'Android Debug Bridge', executable: 'adb', category: 'mobile' },
 ] as const
 
 export type CliDetection = {
   id: (typeof supportedCliTools)[number]['id']
   name: string
   executable: string
+  category: (typeof supportedCliTools)[number]['category']
   installed: boolean
   authentication: 'unknown'
 }
@@ -53,9 +61,17 @@ async function isExecutable(
   const mode = options.platform === 'win32' ? constants.F_OK : constants.X_OK
   const candidates = candidateExecutableNames(executable, options.platform, options.pathExt)
 
-  for (const rawDir of options.pathValue.split(separator)) {
-    const directory = rawDir.trim().replace(/^"|"$/g, '')
-    if (!directory) continue
+  const dirs = options.pathValue
+    .split(separator)
+    .map((dir) => dir.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean)
+
+  // Include Android platform-tools if ANDROID_HOME is set
+  if (executable === 'adb' && process.env.ANDROID_HOME) {
+    dirs.push(join(process.env.ANDROID_HOME, 'platform-tools'))
+  }
+
+  for (const directory of dirs) {
     for (const candidate of candidates) {
       try {
         await options.accessFn(join(directory, candidate), mode)

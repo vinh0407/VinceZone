@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, Mail, MailOpen } from 'lucide-react'
+import { AlertTriangle, Code2, Mail, MailOpen } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Agent, CommunicationEvent, MailKind } from './agent-types'
 
@@ -14,6 +14,7 @@ type ActiveFlight = {
   senderName: string
   recipientName: string
   label: string
+  codeSnippet?: string
   kind: MailKind
   start: Point
   control: Point
@@ -43,6 +44,11 @@ const mailColors: Record<MailKind, { stroke: string; badge: string; glow: string
     stroke: '#e5e5e5',
     badge: 'border-[#737373] bg-[#1f1f1f]/95 text-[#ffffff]',
     glow: '0 0 18px rgba(229,229,229,0.32)',
+  },
+  code: {
+    stroke: '#ffffff',
+    badge: 'border-[#a3a3a3] bg-[#121212]/95 text-[#ffffff]',
+    glow: '0 0 22px rgba(255,255,255,0.38)',
   },
   conflict: {
     stroke: '#f48771',
@@ -159,7 +165,7 @@ export function AgentMailOverlay({
       const sender = agents.find((agent) => agent.id === event.senderId)
       const recipient = agents.find((agent) => agent.id === event.recipientId)
       const laneOffset = index % 3
-      const durationMs = reducedMotion ? 450 : 1080 + (index % 3) * 120
+      const durationMs = reducedMotion ? 450 : 1120 + (index % 3) * 140
 
       created.push({
         flightId: `${event.id}-${now}-${index}`,
@@ -168,13 +174,17 @@ export function AgentMailOverlay({
         recipientId: event.recipientId,
         senderName: sender?.name || event.senderId,
         recipientName: recipient?.name || event.recipientId,
-        label: event.label || event.taskId || (event.kind === 'report' ? 'Report' : 'Mail'),
+        label:
+          event.label ||
+          event.taskId ||
+          (event.kind === 'code' ? 'Code Patch' : event.kind === 'report' ? 'Report' : 'Mail'),
+        codeSnippet: event.codeSnippet,
         kind: event.kind,
         start,
         control: computeControlPoint(start, end, laneOffset),
         end,
         progress: reducedMotion ? 1 : 0,
-        createdAt: now + index * (reducedMotion ? 0 : 140),
+        createdAt: now + index * (reducedMotion ? 0 : 150),
         durationMs,
       })
     })
@@ -264,19 +274,21 @@ export function AgentMailOverlay({
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
       <svg className="h-full w-full" viewBox={`0 0 ${size.width} ${size.height}`}>
         <defs>
-          {(['delegation', 'direct', 'peer', 'report', 'conflict'] as MailKind[]).map((kind) => (
-            <marker
-              key={kind}
-              id={`mail-arrow-${kind}`}
-              markerWidth="7"
-              markerHeight="7"
-              refX="5"
-              refY="3.5"
-              orient="auto"
-            >
-              <path d="M0,0 L7,3.5 L0,7 Z" fill={mailColors[kind].stroke} fillOpacity="0.9" />
-            </marker>
-          ))}
+          {(['delegation', 'direct', 'peer', 'report', 'code', 'conflict'] as MailKind[]).map(
+            (kind) => (
+              <marker
+                key={kind}
+                id={`mail-arrow-${kind}`}
+                markerWidth="7"
+                markerHeight="7"
+                refX="5"
+                refY="3.5"
+                orient="auto"
+              >
+                <path d="M0,0 L7,3.5 L0,7 Z" fill={mailColors[kind].stroke} fillOpacity="0.9" />
+              </marker>
+            ),
+          )}
         </defs>
         {flights.map((flight) => {
           const path = `M ${flight.start.x} ${flight.start.y} Q ${flight.control.x} ${flight.control.y} ${flight.end.x} ${flight.end.y}`
@@ -288,7 +300,7 @@ export function AgentMailOverlay({
                 fill="none"
                 stroke={color}
                 strokeWidth="3.5"
-                strokeOpacity="0.18"
+                strokeOpacity="0.16"
                 strokeLinecap="round"
               />
               <path
@@ -324,19 +336,28 @@ export function AgentMailOverlay({
           <div
             key={flight.flightId}
             style={{
-              transform: `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%) scale(${opening ? 1.06 : 1})`,
+              transform: `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%) scale(${opening ? 1.05 : 1})`,
               boxShadow: theme.glow,
             }}
-            className={`absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium backdrop-blur-md transition-transform duration-150 ${theme.badge}`}
+            className={`absolute left-0 top-0 max-w-52 rounded-lg border px-2.5 py-1 text-[10px] font-medium backdrop-blur-md transition-transform duration-150 ${theme.badge}`}
           >
-            {flight.kind === 'conflict' ? (
-              <AlertTriangle size={11} />
-            ) : opening ? (
-              <MailOpen size={11} />
-            ) : (
-              <Mail size={11} />
+            <div className="flex items-center gap-1.5">
+              {flight.kind === 'conflict' ? (
+                <AlertTriangle size={11} />
+              ) : flight.kind === 'code' ? (
+                <Code2 size={11} />
+              ) : opening ? (
+                <MailOpen size={11} />
+              ) : (
+                <Mail size={11} />
+              )}
+              <span className="truncate">{flight.label}</span>
+            </div>
+            {flight.codeSnippet && (
+              <p className="mt-0.5 truncate font-mono text-[8px] text-[#b5b5b5]">
+                {flight.codeSnippet.split('\n')[0]}
+              </p>
             )}
-            <span className="max-w-32 truncate">{flight.label}</span>
           </div>
         )
       })}
