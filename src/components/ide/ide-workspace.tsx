@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOrchestration } from '@/hooks/use-orchestration'
+import type { BridgeMessage } from '@/lib/agent-bridge'
 import {
   createEditRevision,
   findRevisionForIntent,
@@ -41,11 +42,12 @@ import { CraftStudio } from './craft-studio'
 import { EditorPane } from './editor-pane'
 import { ExplorerSidebar } from './explorer-sidebar'
 import { AgentCreatorModal } from './modals/agent-creator-modal'
+import { CommandPaletteModal, type PaletteAction } from './modals/command-palette-modal'
 import { DiffReviewModal } from './modals/diff-review-modal'
 import { ProviderSettingsModal } from './modals/provider-settings-modal'
 import { RightAiChatPanel } from './right-ai-chat-panel'
 import type { SkillIndexItem } from './slash-command-popover'
-import { StatusBar } from './status-bar'
+import { StatusBar, type EditorDiagnostic } from './status-bar'
 import { WebPreview } from './web-preview'
 import {
   createSeedAgents,
@@ -155,6 +157,19 @@ export function IDEWorkspace() {
   const [savedProvider, setSavedProvider] = useState<ProviderConfig>(defaultProvider)
   const [availableSkills, setAvailableSkills] = useState<SkillIndexItem[]>([])
   const [isDesktop, setIsDesktop] = useState(false)
+
+  // Group 1 + 2 Coding Experience & Multi-Agent Bridge state
+  const [bridgeEnabled, setBridgeEnabled] = useState(true)
+  const [bridgeMessages, setBridgeMessages] = useState<BridgeMessage[]>([])
+  const [diagnostics, setDiagnostics] = useState<EditorDiagnostic[]>([])
+  const [splitPath, setSplitPath] = useState<string | null>(null)
+  const [paletteMode, setPaletteMode] = useState<'files' | 'commands' | null>(null)
+  const [formatSeq, setFormatSeq] = useState(0)
+  const [chatFocusSeq, setChatFocusSeq] = useState(0)
+  const [explorerWidth, setExplorerWidth] = useState(256)
+  const [rightChatWidth, setRightChatWidth] = useState(320)
+  const [terminalHeight, setTerminalHeight] = useState(200)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hydratedRef = useRef(false)
   const diskSnapshotRef = useRef<Map<string, string>>(new Map())
@@ -405,7 +420,65 @@ export function IDEWorkspace() {
         if (data?.skills?.length) setAvailableSkills(data.skills)
       })
       .catch(() => {})
+
+    // Hydrate saved split-pane sizes + live Agent Bridge history
+    try {
+      const savedSizes = JSON.parse(window.localStorage.getItem('vincezone-pane-sizes') || '{}') as {
+        explorerWidth?: number
+        rightChatWidth?: number
+        terminalHeight?: number
+      }
+      if (savedSizes.explorerWidth) setExplorerWidth(savedSizes.explorerWidth)
+      if (savedSizes.rightChatWidth) setRightChatWidth(savedSizes.rightChatWidth)
+      if (savedSizes.terminalHeight) setTerminalHeight(savedSizes.terminalHeight)
+    } catch {
+      // ignore
+    }
+
+    void fetch('/api/bridge', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { messages?: BridgeMessage[] } | null) => {
+        if (data?.messages?.length) setBridgeMessages(data.messages)
+      })
+      .catch(() => {})
   }, [loadLocalDirectory])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        'vincezone-pane-sizes',
+        JSON.stringify({ explorerWidth, rightChatWidth, terminalHeight }),
+      )
+    } catch {
+      // ignore
+    }
+  }, [explorerWidth, rightChatWidth, terminalHeight])
+
+  const startDragResize = (
+    axis: 'x' | 'y',
+    startPos: number,
+    initialSize: number,
+    min: number,
+    max: number,
+    invert: boolean,
+    onChange: (next: number) => void,
+  ) => {
+    const onMove = (ev: MouseEvent) => {
+      const delta = (axis === 'x' ? ev.clientX : ev.clientY) - startPos
+      const raw = invert ? initialSize - delta : initialSize + delta
+      onChange(Math.min(max, Math.max(min, Math.round(raw))))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   const persistWorkspace = useCallback(
     (overrides?: {
@@ -681,14 +754,50 @@ export function IDEWorkspace() {
     [activeProject?.rootPath],
   )
 
-  // Global keyboard shortcuts + Electron native menu listener
+  // Global developer keyboard shortcuts + Electron native menu listener
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
+      const mod = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
+
+      if (mod && event.shiftKey && key === 'p') {
+        event.preventDefault()
+        setPaletteMode('commands')
+      } else if (mod && !event.shiftKey && key === 'p') {
+        event.preventDefault()
+        setPaletteMode('files')
+      } else if (mod && event.shiftKey && (key === 'f' || key === 'h')) {
         event.preventDefault()
         setWorkspaceMode('ide')
         setSidePanel('search')
         setExplorerOpen(true)
+      } else if (mod && !event.shiftKey && key === 'b') {
+        event.preventDefault()
+        setWorkspaceMode('ide')
+        setExplorerOpen((prev) => !prev)
+      } else if (mod && !event.shiftKey && (key === 'j' || event.key === '`')) {
+        event.preventDefault()
+        setWorkspaceMode('ide')
+        setTerminalOpen((prev) => !prev)
+      } else if (mod && !event.shiftKey && event.key === '\\') {
+        event.preventDefault()
+        setWorkspaceMode('ide')
+        setSplitPath((prev) => {
+          if (prev) return null
+          return filesRef.current.find((f) => f.path !== activePath)?.path ?? activePath ?? null
+        })
+      } else if (mod && !event.shiftKey && key === 'w') {
+        if (activePath) {
+          event.preventDefault()
+          setOpenPaths((current) => {
+            const next = current.filter((item) => item !== activePath)
+            setActivePath(next[next.length - 1] ?? '')
+            return next
+          })
+        }
+      } else if (event.altKey && !mod && key === 'z') {
+        event.preventDefault()
+        setAppSettings((current) => ({ ...current, editorWordWrap: !current.editorWordWrap }))
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -713,7 +822,7 @@ export function IDEWorkspace() {
       window.removeEventListener('keydown', onKeyDown)
       unsubscribeMenu?.()
     }
-  }, [loadLocalDirectory])
+  }, [activePath, loadLocalDirectory])
 
   // Clear pending debounced auto-save timers on unmount
   useEffect(() => {
@@ -760,6 +869,10 @@ export function IDEWorkspace() {
     [persistWorkspace, writeFileToDiskIfConnected],
   )
 
+  const handleBridgeMessage = useCallback((msg: BridgeMessage) => {
+    setBridgeMessages((current) => [...current.slice(-119), msg])
+  }, [])
+
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
     useOrchestration({
       agents,
@@ -768,6 +881,8 @@ export function IDEWorkspace() {
       projectName: activeProject?.name ?? 'VinceZone Studio',
       workspaceRoot: activeProject?.rootPath,
       memoryNotes,
+      bridgeMessages,
+      bridgeEnabled,
       providers,
       savedProvider,
       appSettings,
@@ -779,6 +894,7 @@ export function IDEWorkspace() {
       setPendingApproval,
       setDrafts,
       setAiActivity,
+      onBridgeMessage: handleBridgeMessage,
       onRecordUsage: handleRecordUsage,
       onApplyDirectEdit: applyDirectAgentEdit,
       onPromptRollback: handlePromptRollback,
@@ -1146,7 +1262,7 @@ export function IDEWorkspace() {
           action: 'rename',
           root: activeProject.rootPath,
           path: oldPath,
-          nextPath,
+          newPath: nextPath,
         }),
       }).catch(() => null)
       if (response && !response.ok) return
@@ -1204,6 +1320,234 @@ export function IDEWorkspace() {
       persistWorkspace({ files: nextFiles })
     },
     [persistWorkspace, recordRevision, writeFileToDiskIfConnected],
+  )
+
+  const updateFileByPath = useCallback(
+    (targetPath: string, content: string) => {
+      setFiles((current) =>
+        current.map((file) => (file.path === targetPath ? { ...file, content, dirty: true } : file)),
+      )
+      if (appSettings.autoSave) {
+        void writeFileToDiskIfConnected(targetPath, content)
+      }
+    },
+    [appSettings.autoSave, writeFileToDiskIfConnected],
+  )
+
+  const replaceInWorkspaceFiles = useCallback(
+    (
+      query: string,
+      replacement: string,
+      options: { caseSensitive: boolean; regex: boolean },
+    ) => {
+      if (!query.trim()) return { filesUpdated: 0, occurrences: 0 }
+      let matcher: RegExp
+      try {
+        const flags = options.caseSensitive ? 'g' : 'gi'
+        matcher = options.regex
+          ? new RegExp(query, flags)
+          : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
+      } catch {
+        return { filesUpdated: 0, occurrences: 0 }
+      }
+
+      let filesUpdated = 0
+      let occurrences = 0
+      const updatedFiles = filesRef.current.map((file) => {
+        const hits = file.content.match(matcher)
+        if (!hits || hits.length === 0) return file
+        const nextContent = file.content.replace(matcher, replacement)
+        if (nextContent === file.content) return file
+        filesUpdated += 1
+        occurrences += hits.length
+        recordRevision({
+          path: file.path,
+          actor: 'Replace All',
+          summary: `Replace "${query.slice(0, 30)}" -> "${replacement.slice(0, 30)}" (${hits.length}x)`,
+          previousContent: file.content,
+          nextContent,
+        })
+        void writeFileToDiskIfConnected(file.path, nextContent)
+        return { ...file, content: nextContent, dirty: false }
+      })
+
+      if (filesUpdated > 0) {
+        setFiles(updatedFiles)
+        filesRef.current = updatedFiles
+        persistWorkspace({ files: updatedFiles })
+      }
+      return { filesUpdated, occurrences }
+    },
+    [persistWorkspace, recordRevision, writeFileToDiskIfConnected],
+  )
+
+  const handleSendSelectionToChat = useCallback(
+    (payload: { path: string; startLine: number; endLine: number; snippet: string }) => {
+      const targetId = rightChatAgentId || agents[0]?.id
+      if (!targetId) return
+      setWorkspaceMode('ide')
+      setRightChatOpen(true)
+      const block = `@${payload.path}:${payload.startLine}-${payload.endLine}\n\`\`\`\n${payload.snippet}\n\`\`\`\n`
+      setDrafts((current) => ({
+        ...current,
+        [targetId]: `${block}${current[targetId] ? `\n${current[targetId]}` : ''}`,
+      }))
+      setChatFocusSeq((n) => n + 1)
+    },
+    [agents, rightChatAgentId],
+  )
+
+  const toggleZenMode = useCallback(() => {
+    const anyOpen = explorerOpen || rightChatOpen || terminalOpen
+    if (anyOpen) {
+      setExplorerOpen(false)
+      setRightChatOpen(false)
+      setTerminalOpen(false)
+    } else {
+      setExplorerOpen(true)
+      setRightChatOpen(true)
+    }
+  }, [explorerOpen, rightChatOpen, terminalOpen])
+
+  const paletteActions: PaletteAction[] = useMemo(
+    () => [
+      {
+        id: 'save-all',
+        category: 'File',
+        label: 'Save All Files',
+        shortcut: 'Ctrl+S',
+        run: () => saveAllFiles(),
+      },
+      {
+        id: 'new-file',
+        category: 'File',
+        label: 'New File',
+        shortcut: 'Ctrl+N',
+        run: () => void createNewFile(),
+      },
+      {
+        id: 'format-doc',
+        category: 'Editor',
+        label: 'Format Document',
+        shortcut: 'Shift+Alt+F',
+        run: () => setFormatSeq((n) => n + 1),
+      },
+      {
+        id: 'split-editor',
+        category: 'Editor',
+        label: splitPath ? 'Close Split Editor' : 'Split Editor Right',
+        shortcut: 'Ctrl+\\',
+        run: () =>
+          setSplitPath((prev) =>
+            prev ? null : filesRef.current.find((f) => f.path !== activePath)?.path ?? activePath ?? null,
+          ),
+      },
+      {
+        id: 'toggle-wrap',
+        category: 'Editor',
+        label: `Toggle Word Wrap (${appSettings.editorWordWrap ? 'ON' : 'OFF'})`,
+        shortcut: 'Alt+Z',
+        run: () =>
+          setAppSettings((current) => ({ ...current, editorWordWrap: !current.editorWordWrap })),
+      },
+      {
+        id: 'toggle-minimap',
+        category: 'Editor',
+        label: `Toggle Minimap (${appSettings.editorMinimap ? 'VISIBLE' : 'HIDDEN'})`,
+        run: () =>
+          setAppSettings((current) => ({ ...current, editorMinimap: !current.editorMinimap })),
+      },
+      {
+        id: 'toggle-sidebar',
+        category: 'View',
+        label: 'Toggle Explorer Sidebar',
+        shortcut: 'Ctrl+B',
+        run: () => {
+          setWorkspaceMode('ide')
+          setExplorerOpen((prev) => !prev)
+        },
+      },
+      {
+        id: 'toggle-terminal',
+        category: 'View',
+        label: 'Toggle Bottom Terminal',
+        shortcut: 'Ctrl+J',
+        run: () => {
+          setWorkspaceMode('ide')
+          setTerminalOpen((prev) => !prev)
+        },
+      },
+      {
+        id: 'toggle-chat',
+        category: 'AI',
+        label: 'Toggle Right AI Agent Chat',
+        shortcut: 'Ctrl+L',
+        run: () => {
+          setWorkspaceMode('ide')
+          setRightChatOpen((prev) => !prev)
+        },
+      },
+      {
+        id: 'toggle-zen',
+        category: 'View',
+        label: 'Toggle Zen Focus Mode (Full-Screen Code)',
+        run: toggleZenMode,
+      },
+      {
+        id: 'open-git',
+        category: 'Git',
+        label: 'Open Source Control (Git GUI)',
+        run: () => {
+          setWorkspaceMode('ide')
+          setSidePanel('git')
+          setExplorerOpen(true)
+        },
+      },
+      {
+        id: 'open-search',
+        category: 'Search',
+        label: 'Find & Replace in Workspace',
+        shortcut: 'Ctrl+Shift+F',
+        run: () => {
+          setWorkspaceMode('ide')
+          setSidePanel('search')
+          setExplorerOpen(true)
+        },
+      },
+      {
+        id: 'open-agents',
+        category: 'AI',
+        label: 'Open Multi-Agent Control Center',
+        run: () => setWorkspaceMode('agents'),
+      },
+      {
+        id: 'run-typecheck',
+        category: 'Run',
+        label: 'Run TypeScript Check (pnpm typecheck)',
+        run: () => void runTerminalCommand('pnpm typecheck', { openTerminal: true }),
+      },
+      {
+        id: 'run-tests',
+        category: 'Run',
+        label: 'Run Test Suite (pnpm test)',
+        run: () => void runTerminalCommand('pnpm test', { openTerminal: true }),
+      },
+      {
+        id: 'open-settings',
+        category: 'Preferences',
+        label: 'Open VinceZone Settings',
+        shortcut: 'Ctrl+,',
+        run: () => setSettingsOpen(true),
+      },
+    ],
+    [
+      activePath,
+      appSettings.editorMinimap,
+      appSettings.editorWordWrap,
+      runTerminalCommand,
+      splitPath,
+      toggleZenMode,
+    ],
   )
 
   const saveAllFiles = () => {
@@ -1330,6 +1674,7 @@ export function IDEWorkspace() {
           setSidePanel('search')
           setExplorerOpen(true)
         }}
+        onOpenQuickOpen={() => setPaletteMode('files')}
         onOpenDiff={() => setDiffModalState({ open: true })}
         onOpenSettings={() => setSettingsOpen(true)}
         onPreviewMail={() => {
@@ -1372,43 +1717,55 @@ export function IDEWorkspace() {
         {workspaceMode === 'ide' ? (
           <>
             {explorerOpen && (
-              <ExplorerSidebar
-                sidePanel={sidePanel}
-                projectName={activeProject?.name ?? 'VinceZone Studio'}
-                rootPath={activeProject?.rootPath}
-                files={files}
-                activePath={activePath}
-                agentTasks={agentTasks}
-                agents={agents}
-                revisions={revisions}
-                memoryNotes={memoryNotes}
-                collapsedGroups={collapsedGroups}
-                searchQuery={searchQuery}
-                compactMode={appSettings.compactMode}
-                onSearchQueryChange={setSearchQuery}
-                onToggleGroup={(key) =>
-                  setCollapsedGroups((current) => ({ ...current, [key]: !current[key] }))
-                }
-                onOpenFile={openFile}
-                onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
-                onCreateFile={() => void createNewFile()}
-                onCreateFolder={() => void createNewFolder()}
-                onRenameFile={(path) => void renameWorkspaceFile(path)}
-                onDeleteFile={(path) => void deleteWorkspaceFile(path)}
-                onRestoreRevision={(revId) => {
-                  restoreRevisionById(revId)
-                }}
-                onAddMemoryNote={addMemoryNote}
-                onDeleteMemoryNote={deleteMemoryNote}
-                onCollapse={() => setExplorerOpen(false)}
-                onRefresh={() => {
-                  if (activeProject?.rootPath) void loadLocalDirectory(activeProject.rootPath, true)
-                  else setFiles((current) => [...current])
-                }}
-                onOpenSettings={() => setSettingsOpen(true)}
-                onOpenAgents={() => setWorkspaceMode('agents')}
-                onOpenDiff={() => setDiffModalState({ open: true })}
-              />
+              <>
+                <ExplorerSidebar
+                  sidePanel={sidePanel}
+                  width={explorerWidth}
+                  projectName={activeProject?.name ?? 'VinceZone Studio'}
+                  rootPath={activeProject?.rootPath}
+                  files={files}
+                  activePath={activePath}
+                  agentTasks={agentTasks}
+                  agents={agents}
+                  revisions={revisions}
+                  memoryNotes={memoryNotes}
+                  collapsedGroups={collapsedGroups}
+                  searchQuery={searchQuery}
+                  compactMode={appSettings.compactMode}
+                  onSearchQueryChange={setSearchQuery}
+                  onReplaceInFiles={replaceInWorkspaceFiles}
+                  onToggleGroup={(key) =>
+                    setCollapsedGroups((current) => ({ ...current, [key]: !current[key] }))
+                  }
+                  onOpenFile={openFile}
+                  onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
+                  onCreateFile={() => void createNewFile()}
+                  onCreateFolder={() => void createNewFolder()}
+                  onRenameFile={(path) => void renameWorkspaceFile(path)}
+                  onDeleteFile={(path) => void deleteWorkspaceFile(path)}
+                  onRestoreRevision={(revId) => {
+                    restoreRevisionById(revId)
+                  }}
+                  onAddMemoryNote={addMemoryNote}
+                  onDeleteMemoryNote={deleteMemoryNote}
+                  onCollapse={() => setExplorerOpen(false)}
+                  onRefresh={() => {
+                    if (activeProject?.rootPath) void loadLocalDirectory(activeProject.rootPath, true)
+                    else setFiles((current) => [...current])
+                  }}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenAgents={() => setWorkspaceMode('agents')}
+                  onOpenDiff={() => setDiffModalState({ open: true })}
+                />
+                <div
+                  data-resize="explorer"
+                  onMouseDown={(event) =>
+                    startDragResize('x', event.clientX, explorerWidth, 180, 460, false, setExplorerWidth)
+                  }
+                  className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-[#525252]"
+                  title="Drag to resize Explorer sidebar"
+                />
+              </>
             )}
 
             <section className="relative flex min-w-0 flex-1 flex-col bg-[#1e1e1e]">
@@ -1418,6 +1775,7 @@ export function IDEWorkspace() {
                 openPaths={openPaths}
                 activePath={activePath}
                 activeFile={activeFile}
+                splitPath={splitPath}
                 explorerOpen={explorerOpen}
                 aiActivity={aiActivity}
                 editPulse={editPulse}
@@ -1425,29 +1783,52 @@ export function IDEWorkspace() {
                 wordWrap={appSettings.editorWordWrap}
                 minimap={appSettings.editorMinimap}
                 revealRequest={revealRequest}
+                formatSeq={formatSeq}
                 provider={savedProvider}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
                 onCloseTab={closeTab}
+                onCloseOtherTabs={(keepPath) => {
+                  setOpenPaths([keepPath])
+                  setActivePath(keepPath)
+                }}
+                onSetSplitPath={setSplitPath}
                 onUpdateFile={updateFile}
+                onUpdateFileByPath={updateFileByPath}
                 onSaveFile={saveFile}
                 onAcceptInlineEdit={handleAcceptInlineEdit}
+                onSendSelectionToChat={handleSendSelectionToChat}
+                onDiagnosticsChange={setDiagnostics}
                 onCursorChange={setCursor}
               />
+
+              {terminalOpen && !terminalMaximized && (
+                <div
+                  data-resize="terminal"
+                  onMouseDown={(event) =>
+                    startDragResize('y', event.clientY, terminalHeight, 120, 480, true, setTerminalHeight)
+                  }
+                  className="h-1 shrink-0 cursor-row-resize bg-transparent transition-colors hover:bg-[#525252]"
+                  title="Drag to resize Bottom Panel"
+                />
+              )}
 
               <BottomPanel
                 open={terminalOpen}
                 maximized={terminalMaximized}
+                height={terminalHeight}
                 activeTab={bottomPanel}
                 projectName={activeProject?.name ?? 'VinceZone Studio'}
                 rootPath={activeProject?.rootPath}
                 files={files}
                 activeFile={activeFile}
+                diagnostics={diagnostics}
                 runState={runState}
                 debugState={debugState}
                 debugLine={debugLine}
                 agentCount={agents.length}
                 communicationEvents={communicationEvents}
+                bridgeMessages={bridgeMessages}
                 terminalEntries={terminalEntries}
                 terminalRunning={terminalRunning}
                 onRunTerminalCommand={(cmd) => void runTerminalCommand(cmd)}
@@ -1470,22 +1851,38 @@ export function IDEWorkspace() {
             </section>
 
             {rightChatOpen && (
-              <RightAiChatPanel
-                agents={agents}
-                selectedAgentId={rightChatAgentId}
-                drafts={drafts}
-                files={files}
-                activeFilePath={activeFile?.path}
-                skills={availableSkills}
-                mcpServers={appSettings.mcpServers}
-                plugins={appSettings.plugins}
-                onSelectAgent={setRightChatAgentId}
-                onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-                onSend={(agent) => void sendMessage(agent, undefined, false, { forceDirectChat: true })}
-                onPause={pauseAgent}
-                onOpenFullAgents={() => setWorkspaceMode('agents')}
-                onClose={() => setRightChatOpen(false)}
-              />
+              <>
+                <div
+                  data-resize="chat"
+                  onMouseDown={(event) =>
+                    startDragResize('x', event.clientX, rightChatWidth, 240, 520, true, setRightChatWidth)
+                  }
+                  className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-[#525252]"
+                  title="Drag to resize AI Agent Chat panel"
+                />
+                <RightAiChatPanel
+                  agents={agents}
+                  selectedAgentId={rightChatAgentId}
+                  drafts={drafts}
+                  files={files}
+                  activeFilePath={activeFile?.path}
+                  skills={availableSkills}
+                  mcpServers={appSettings.mcpServers}
+                  plugins={appSettings.plugins}
+                  width={rightChatWidth}
+                  bridgeEnabled={bridgeEnabled}
+                  bridgeMessages={bridgeMessages}
+                  focusSeq={chatFocusSeq}
+                  onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
+                  onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
+                  onSelectAgent={setRightChatAgentId}
+                  onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
+                  onSend={(agent) => void sendMessage(agent, undefined, false, { forceDirectChat: true })}
+                  onPause={pauseAgent}
+                  onOpenFullAgents={() => setWorkspaceMode('agents')}
+                  onClose={() => setRightChatOpen(false)}
+                />
+              </>
             )}
           </>
         ) : workspaceMode === 'agents' ? (
@@ -1550,10 +1947,12 @@ export function IDEWorkspace() {
         activeFile={activeFile}
         cursor={cursor}
         dirtyCount={dirtyCount}
+        diagnostics={diagnostics}
         pendingPatchCount={pendingPatchCount}
         latestRevisionId={revisions[revisions.length - 1]?.id}
         debugActive={debugState === 'paused' || debugState === 'running'}
         isDesktop={isDesktop}
+        bridgeCount={bridgeMessages.length}
         onOpenProblems={() => {
           setWorkspaceMode('ide')
           setTerminalOpen(true)
@@ -1566,6 +1965,16 @@ export function IDEWorkspace() {
           setExplorerOpen(true)
         }}
       />
+
+      {paletteMode && (
+        <CommandPaletteModal
+          mode={paletteMode}
+          files={files}
+          actions={paletteActions}
+          onOpenFile={openFile}
+          onClose={() => setPaletteMode(null)}
+        />
+      )}
 
       {settingsOpen && (
         <ProviderSettingsModal

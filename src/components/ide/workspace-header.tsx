@@ -81,6 +81,7 @@ export function WorkspaceHeader({
   onDebug,
   onStopDebug,
   onOpenSearch,
+  onOpenQuickOpen,
   onOpenDiff,
   onOpenSettings,
   onPreviewMail,
@@ -128,6 +129,7 @@ export function WorkspaceHeader({
   onDebug: () => void
   onStopDebug: () => void
   onOpenSearch: () => void
+  onOpenQuickOpen?: () => void
   onOpenDiff: () => void
   onOpenSettings: () => void
   onPreviewMail: () => void
@@ -183,7 +185,7 @@ export function WorkspaceHeader({
       id: 'edit',
       label: 'Edit',
       items: [
-        { label: 'Find in Workspace', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        { label: 'Find in Workspace', shortcut: 'Ctrl+Shift+F', onSelect: onOpenSearch },
         {
           label: latestRevisionId
             ? `Undo Revision (${latestRevisionId})`
@@ -205,7 +207,7 @@ export function WorkspaceHeader({
       label: 'Selection',
       items: [
         { label: 'Explorer Files', shortcut: 'Ctrl+Shift+E', onSelect: () => onSelectSidePanel('explorer') },
-        { label: 'Search Results', shortcut: 'Ctrl+K', onSelect: () => onSelectSidePanel('search') },
+        { label: 'Search & Replace', shortcut: 'Ctrl+Shift+F', onSelect: () => onSelectSidePanel('search') },
         { label: 'Source Control Changes', onSelect: () => onSelectSidePanel('git') },
         { label: 'Workspace & Agent Memory', onSelect: () => onSelectSidePanel('memory') },
         { label: 'Edit Memory (REV-xxx)', onSelect: () => onSelectSidePanel('revisions') },
@@ -217,7 +219,7 @@ export function WorkspaceHeader({
       id: 'view',
       label: 'View',
       items: [
-        { label: 'Command Center / Search', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        { label: 'Quick Open / Command Palette', shortcut: 'Ctrl+P', onSelect: () => (onOpenQuickOpen ? onOpenQuickOpen() : onOpenSearch()) },
         { type: 'separator' },
         { label: 'Primary Side Bar', checked: explorerOpen, onSelect: onToggleExplorer },
         { label: 'Right AI Agent Chat', checked: rightChatOpen, onSelect: onToggleRightChat },
@@ -450,10 +452,10 @@ export function WorkspaceHeader({
         />
       </div>
 
-      {/* Center: VS Code Command Center */}
+      {/* Center: VS Code Command Center (Ctrl+P Quick Open / Command Palette) */}
       <button
-        onClick={onOpenSearch}
-        title="Search files & code (Ctrl+K)"
+        onClick={() => (onOpenQuickOpen ? onOpenQuickOpen() : onOpenSearch())}
+        title="Quick Open File (Ctrl+P) or Command Palette (Ctrl+Shift+P)"
         className="titlebar-no-drag mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
       >
         <Search size={12} className="shrink-0 text-[#9d9d9d]" />
@@ -462,7 +464,7 @@ export function WorkspaceHeader({
           {activeRootPath ? ` — ${activeRootPath}` : ''}
         </span>
         <kbd className="ml-auto rounded border border-[#3c3c3c] bg-[#181818] px-1 text-[9px] text-[#858585]">
-          Ctrl+K
+          Ctrl+P
         </kbd>
       </button>
 

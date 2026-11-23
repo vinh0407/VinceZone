@@ -16,6 +16,9 @@ const IGNORED_DIRS = new Set([
   '.cache',
   'tools',
   '.playwright-cli',
+  '.vincezone',
+  'VinceZone Studio',
+  'desktop',
 ])
 
 const SAFE_VERIFY_PREFIXES = [
@@ -112,6 +115,47 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'message_agent',
+      description:
+        'Send a direct message or task handoff across the Multi-Agent Communication Bridge to another specialist agent (e.g. FE, BE, QA, ARCH, SEC, PM, UIUX, DB, DEVOPS, ALL). The target agent will be woken up automatically to respond and report back.',
+      parameters: {
+        type: 'object',
+        required: ['to_role', 'message'],
+        properties: {
+          to_role: {
+            type: 'string',
+            description: 'Target agent role code or name (e.g. FE, BE, QA, ARCH, SEC, PM, ALL).',
+          },
+          message: {
+            type: 'string',
+            description: 'Clear task, question, API contract, or review request for the teammate.',
+          },
+          files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of relevant relative file paths.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_team_bus',
+      description:
+        'Read recent inter-agent messages from the shared Multi-Agent Communication Bridge to see what teammates decided or changed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Max number of recent messages to read (default 10).' },
+        },
+      },
+    },
+  },
 ] as const
 
 export function applySearchReplace(
@@ -173,6 +217,11 @@ export type ToolExecutionOutcome = {
     summary: string
     previousContent: string | null
     nextContent: string
+  }
+  agentHandoff?: {
+    toRole: string
+    message: string
+    files?: string[]
   }
 }
 
@@ -320,6 +369,60 @@ async function executeAgentToolInner(
         ok: false,
         output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 6_000)}`,
       }
+    }
+  }
+
+  if (name === 'message_agent') {
+    const toRole = String(args.to_role || '').trim()
+    const message = String(args.message || '').trim()
+    const relatedFiles = Array.isArray(args.files)
+      ? args.files.map((item) => String(item)).slice(0, 8)
+      : undefined
+    if (!toRole || !message) {
+      return { ok: false, output: 'Both "to_role" and "message" are required.' }
+    }
+    return {
+      ok: true,
+      output: `Bridge queued delivery to @${toRole.replace(/^@/, '')}: "${message.slice(0, 160)}". The teammate will execute and report back on the shared Agent Bridge.`,
+      agentHandoff: {
+        toRole: toRole.replace(/^@/, ''),
+        message,
+        files: relatedFiles,
+      },
+    }
+  }
+
+  if (name === 'read_team_bus') {
+    const limit = Math.min(25, Math.max(1, Number(args.limit) || 10))
+    const busFile = path.join(root, '.vincezone', 'agent-bridge.json')
+    try {
+      const raw = await readFile(busFile, 'utf8')
+      const parsed = JSON.parse(raw) as {
+        messages?: Array<{
+          timestamp?: string
+          fromAgentName?: string
+          fromRole?: string
+          toAgentName?: string
+          toRole?: string
+          kind?: string
+          content?: string
+        }>
+      }
+      const list = (parsed.messages ?? []).slice(-limit)
+      if (list.length === 0) {
+        return { ok: true, output: 'Team Bridge Bus is currently empty.' }
+      }
+      return {
+        ok: true,
+        output: list
+          .map(
+            (m) =>
+              `[${(m.timestamp || '').slice(11, 19)}] ${m.fromAgentName} (@${m.fromRole}) -> ${m.toAgentName} (@${m.toRole}) (${m.kind}): ${m.content}`,
+          )
+          .join('\n'),
+      }
+    } catch {
+      return { ok: true, output: 'Team Bridge Bus has no recorded messages yet.' }
     }
   }
 

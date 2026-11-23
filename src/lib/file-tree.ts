@@ -48,8 +48,23 @@ export function inferLanguage(fileName: string): string {
   if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml'
   if (lower.endsWith('.sh') || lower.endsWith('.bash') || lower.endsWith('.zsh')) return 'shell'
   if (lower.endsWith('.sql')) return 'sql'
-  if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.mjs')) return 'javascript'
-  return 'typescript'
+  if (
+    lower.endsWith('.js') ||
+    lower.endsWith('.jsx') ||
+    lower.endsWith('.mjs') ||
+    lower.endsWith('.cjs')
+  ) {
+    return 'javascript'
+  }
+  if (
+    lower.endsWith('.ts') ||
+    lower.endsWith('.tsx') ||
+    lower.endsWith('.mts') ||
+    lower.endsWith('.cts')
+  ) {
+    return 'typescript'
+  }
+  return 'plaintext'
 }
 
 export function normalizeImportedPath(rawPath: string, rootFolder?: string): string {

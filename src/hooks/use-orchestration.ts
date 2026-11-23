@@ -19,11 +19,17 @@ import type {
 } from '@/components/ide/agent-types'
 import { slugifyCommand } from '@/components/ide/slash-command-popover'
 import { uid } from '@/components/ide/workspace-defaults'
+import {
+  buildBridgeContextPrompt,
+  extractBridgeRoutes,
+  resolveAgentByRoleOrName,
+  type BridgeMessage,
+  type BridgeMessageKind,
+} from '@/lib/agent-bridge'
 import { estimateCostUsd, estimateTokens } from '@/lib/agent-layout'
 import { parseRollbackPrompt } from '@/lib/edit-memory'
 import { hashText } from '@/lib/file-tree'
 import {
-  extractAgentHandoffs,
   extractProposedPatches,
   selectCompactWorkspaceFiles,
 } from '@/lib/orchestrator'
@@ -49,6 +55,9 @@ type ParsedChatChunk = {
     promptTokens?: number
     completionTokens?: number
     totalTokens?: number
+    toRole?: string
+    message?: string
+    files?: string[]
   }>
 }
 
@@ -126,6 +135,8 @@ export function useOrchestration({
   projectName,
   workspaceRoot,
   memoryNotes,
+  bridgeMessages = [],
+  bridgeEnabled = true,
   providers,
   savedProvider,
   appSettings,
@@ -137,6 +148,7 @@ export function useOrchestration({
   setPendingApproval,
   setDrafts,
   setAiActivity,
+  onBridgeMessage,
   onRecordUsage,
   onApplyDirectEdit,
   onPromptRollback,
@@ -147,6 +159,8 @@ export function useOrchestration({
   projectName: string
   workspaceRoot?: string
   memoryNotes: MemoryNote[]
+  bridgeMessages?: BridgeMessage[]
+  bridgeEnabled?: boolean
   providers: ProviderConfig[]
   savedProvider: ProviderConfig
   appSettings: AppSettings
@@ -158,6 +172,7 @@ export function useOrchestration({
   setPendingApproval: React.Dispatch<React.SetStateAction<PendingApprovalPlan | null>>
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   setAiActivity: React.Dispatch<React.SetStateAction<'idle' | 'reading' | 'editing'>>
+  onBridgeMessage?: (message: BridgeMessage) => void
   onRecordUsage: (record: UsageRecord) => void
   onApplyDirectEdit?: (input: {
     path: string
@@ -170,10 +185,46 @@ export function useOrchestration({
   const aborters = useRef<Record<string, AbortController>>({})
   const agentsRef = useRef(agents)
   agentsRef.current = agents
+  const bridgeMessagesRef = useRef(bridgeMessages)
+  bridgeMessagesRef.current = bridgeMessages
+
+  const publishBridgeMessage = useCallback(
+    (input: {
+      from: Agent
+      to: Agent
+      kind: BridgeMessageKind
+      content: string
+      relatedFiles?: string[]
+    }) => {
+      const fromRid = input.from.roleId ?? inferRoleId(`${input.from.id} ${input.from.role}`)
+      const toRid = input.to.roleId ?? inferRoleId(`${input.to.id} ${input.to.role}`)
+      const msg: BridgeMessage = {
+        id: `br-${uid()}`,
+        fromAgentId: input.from.id,
+        fromAgentName: input.from.name,
+        fromRole: fromRid === 'custom' ? 'CUSTOM' : ROLE_TERRITORIES[fromRid].code,
+        toAgentId: input.to.id,
+        toAgentName: input.to.name,
+        toRole: toRid === 'custom' ? 'CUSTOM' : ROLE_TERRITORIES[toRid].code,
+        kind: input.kind,
+        content: input.content,
+        relatedFiles: input.relatedFiles,
+        timestamp: new Date().toISOString(),
+      }
+      onBridgeMessage?.(msg)
+      void fetch('/api/bridge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'post', root: workspaceRoot, message: msg }),
+      }).catch(() => {})
+      return msg
+    },
+    [onBridgeMessage, workspaceRoot],
+  )
 
   const resolveSlashContext = useCallback(
     async (text: string): Promise<{ promptBlock: string; badges: string[] }> => {
-      const matches = Array.from(text.matchAll(/(?:^|\s)\/([a-z0-9:._-]+)/gi)).map((m) =>
+      const matches = Array.from(text.matchAll(/(?:^|\s)\/([a-z0-9:._-]+)(?![/\w])/gi)).map((m) =>
         m[1].toLowerCase(),
       )
       const uniqueTokens = Array.from(new Set(matches)).slice(0, 4)
@@ -763,7 +814,7 @@ export function useOrchestration({
       agent: Agent,
       delegatedText?: string,
       delegated = false,
-      options?: { forceDirectChat?: boolean; handoffDepth?: number },
+      options?: { forceDirectChat?: boolean; handoffDepth?: number; replyToAgentId?: string },
     ) => {
       const text = delegatedText?.trim() || drafts[agent.id]?.trim()
       if (!text) return
@@ -780,6 +831,58 @@ export function useOrchestration({
               { id: uid(), role: 'tool', text: rollbackOutcome.message },
             ],
           }))
+          return
+        }
+      }
+
+      // Direct @ROLE routing via the Agent Bridge when user explicitly mentions a teammate (e.g. "@BE check API")
+      if (!delegated && bridgeEnabled && agentsRef.current.length > 1) {
+        const directUserRoutes = extractBridgeRoutes(text, agentsRef.current, agent.id)
+        if (directUserRoutes.length > 0 && /^@[A-Za-z0-9_-]{2,24}/i.test(text)) {
+          setDrafts((current) => ({ ...current, [agent.id]: '' }))
+          updateAgent(agent.id, (current) => ({
+            ...current,
+            messages: [
+              ...current.messages,
+              { id: uid(), role: 'user', text },
+              {
+                id: uid(),
+                role: 'tool',
+                text: `Bridge routed to ${directUserRoutes.map((r) => `${r.targetAgentName} (@${r.targetRoleCode})`).join(', ')}.`,
+              },
+            ],
+          }))
+          for (const route of directUserRoutes) {
+            const target = agentsRef.current.find((a) => a.id === route.targetAgentId)
+            if (!target) continue
+            publishBridgeMessage({
+              from: agent,
+              to: target,
+              kind: route.kind,
+              content: route.message,
+              relatedFiles: activeFile ? [activeFile.path] : undefined,
+            })
+            appendCommunicationEvent({
+              type: 'message.sent',
+              kind: 'delegation',
+              senderId: agent.id,
+              recipientId: target.id,
+              label: `Bridge → @${route.targetRoleCode}`,
+              description: route.message,
+            })
+            updateAgent(target.id, (current) => ({
+              ...current,
+              messages: [
+                ...current.messages,
+                { id: uid(), role: 'agent', from: agent.name, text: route.message },
+              ],
+            }))
+            void sendMessage(target, route.message, true, {
+              forceDirectChat: true,
+              handoffDepth: 1,
+              replyToAgentId: agent.id,
+            })
+          }
           return
         }
       }
@@ -871,6 +974,9 @@ export function useOrchestration({
 
       const systemPrompt = [
         buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        bridgeEnabled
+          ? buildBridgeContextPrompt(agent, agentsRef.current, bridgeMessagesRef.current)
+          : '',
         slashResolved.promptBlock,
         `Workspace (${projectName}) relevant files:\n${fileContextBlock}`,
       ]
@@ -914,12 +1020,14 @@ export function useOrchestration({
         let pending = ''
         let realUsage: ParsedChatChunk['usage']
         const toolActivityLines: string[] = []
+        const queuedToolHandoffs: Array<{ toRole: string; message: string; files?: string[] }> = []
 
         const handleParsedChunk = (parsed: ParsedChatChunk) => {
           if (parsed.usage) realUsage = parsed.usage
           for (const ev of parsed.events) {
             if (ev.type === 'tool.call' && ev.name) {
-              const targetHint = ev.args?.path || ev.args?.query || ev.args?.command || ''
+              const targetHint =
+                ev.args?.to_role || ev.args?.path || ev.args?.query || ev.args?.command || ''
               toolActivityLines.push(`> tool: ${ev.name}${targetHint ? `(${targetHint})` : ''}`)
               setAiActivity(ev.name === 'patch_file' ? 'editing' : 'reading')
             } else if (ev.type === 'file.updated' && ev.path && typeof ev.content === 'string') {
@@ -928,6 +1036,12 @@ export function useOrchestration({
                 content: ev.content,
                 summary: ev.summary || `Tool patch ${ev.path}`,
                 agent,
+              })
+            } else if (ev.type === 'agent.handoff' && ev.toRole && ev.message) {
+              queuedToolHandoffs.push({
+                toRole: ev.toRole,
+                message: ev.message,
+                files: ev.files,
               })
             }
           }
@@ -1047,27 +1161,110 @@ export function useOrchestration({
           ],
         }))
 
-        // 2. Execute live inter-agent handoffs (HANDOFF @ROLE: <instruction>)
+        // 2. Two-way reply back to requesting teammate when answering a bridged delegation
+        if (bridgeEnabled && options?.replyToAgentId && result) {
+          const requester = agentsRef.current.find((a) => a.id === options.replyToAgentId)
+          if (requester && requester.id !== agent.id) {
+            const replyPreview = result.slice(0, 600)
+            publishBridgeMessage({
+              from: agent,
+              to: requester,
+              kind: extractedEdits.length > 0 ? 'code-share' : 'reply',
+              content: replyPreview,
+              relatedFiles: extractedEdits.map((e) => e.path),
+            })
+            appendCommunicationEvent({
+              type: 'worker.response.completed',
+              kind: extractedEdits.length > 0 ? 'code' : 'report',
+              senderId: agent.id,
+              recipientId: requester.id,
+              label: `Reply from ${agent.name}`,
+              codeSnippet: extractedEdits[0]?.content.slice(0, 120),
+              description: replyPreview,
+            })
+            updateAgent(requester.id, (current) => ({
+              ...current,
+              messages: [
+                ...current.messages,
+                {
+                  id: uid(),
+                  role: 'agent',
+                  from: agent.name,
+                  text: replyPreview,
+                  codeSnippet: extractedEdits[0]?.content.slice(0, 220),
+                },
+              ],
+            }))
+          }
+        }
+
+        // 3. Execute live inter-agent handoffs from BOTH native `message_agent` tool calls AND text routes
         const handoffDepth = options?.handoffDepth ?? 0
-        if (handoffDepth < 2 && result) {
-          const handoffs = extractAgentHandoffs(result, agentsRef.current, agent.id)
-          for (const handoff of handoffs) {
-            const targetAgent = agentsRef.current.find((a) => a.id === handoff.targetAgentId)
-            if (!targetAgent) continue
+        if (bridgeEnabled && handoffDepth < 3 && (result || queuedToolHandoffs.length > 0)) {
+          const textRoutes = result ? extractBridgeRoutes(result, agentsRef.current, agent.id) : []
+          const mergedTargets = new Map<
+            string,
+            { target: Agent; message: string; kind: BridgeMessageKind; files?: string[] }
+          >()
+
+          for (const th of queuedToolHandoffs) {
+            if (th.toRole.toUpperCase() === 'ALL' || th.toRole.toUpperCase() === 'TEAM') {
+              for (const peer of agentsRef.current.filter((a) => a.id !== agent.id).slice(0, 4)) {
+                mergedTargets.set(peer.id, {
+                  target: peer,
+                  message: th.message,
+                  kind: 'broadcast',
+                  files: th.files,
+                })
+              }
+            } else {
+              const target = resolveAgentByRoleOrName(th.toRole, agentsRef.current, agent.id)
+              if (target) {
+                mergedTargets.set(target.id, {
+                  target,
+                  message: th.message,
+                  kind: 'handoff',
+                  files: th.files,
+                })
+              }
+            }
+          }
+
+          for (const route of textRoutes) {
+            if (mergedTargets.has(route.targetAgentId)) continue
+            const target = agentsRef.current.find((a) => a.id === route.targetAgentId)
+            if (target) {
+              mergedTargets.set(target.id, {
+                target,
+                message: route.message,
+                kind: route.kind,
+                files: extractedEdits.map((e) => e.path),
+              })
+            }
+          }
+
+          for (const { target, message: handoffMsg, kind, files: relatedFiles } of mergedTargets.values()) {
             animateCommanderTypeAndSend(
               agent.id,
-              `@${targetAgent.name}: ${handoff.message.slice(0, 110)}`,
+              `@${target.name}: ${handoffMsg.slice(0, 110)}`,
               () => {
+                publishBridgeMessage({
+                  from: agent,
+                  to: target,
+                  kind,
+                  content: handoffMsg,
+                  relatedFiles,
+                })
                 appendCommunicationEvent({
                   type: 'message.sent',
                   kind: extractedEdits.length > 0 ? 'code' : 'delegation',
                   senderId: agent.id,
-                  recipientId: targetAgent.id,
-                  label: extractedEdits.length > 0 ? 'Code Handoff' : 'Handoff',
+                  recipientId: target.id,
+                  label: extractedEdits.length > 0 ? 'Code Handoff' : 'Bridge Handoff',
                   codeSnippet: extractedEdits[0]?.content.slice(0, 100),
-                  description: handoff.message,
+                  description: handoffMsg,
                 })
-                updateAgent(targetAgent.id, (current) => ({
+                updateAgent(target.id, (current) => ({
                   ...current,
                   messages: [
                     ...current.messages,
@@ -1075,13 +1272,14 @@ export function useOrchestration({
                       id: uid(),
                       role: 'agent',
                       from: agent.name,
-                      text: handoff.message,
+                      text: handoffMsg,
                     },
                   ],
                 }))
-                void sendMessage(targetAgent, handoff.message, true, {
+                void sendMessage(target, handoffMsg, true, {
                   forceDirectChat: true,
                   handoffDepth: handoffDepth + 1,
+                  replyToAgentId: agent.id,
                 })
               },
             )
@@ -1114,6 +1312,7 @@ export function useOrchestration({
       animateCommanderTypeAndSend,
       appSettings.autoApplyTrusted,
       appendCommunicationEvent,
+      bridgeEnabled,
       drafts,
       files,
       memoryNotes,
@@ -1121,6 +1320,7 @@ export function useOrchestration({
       onPromptRollback,
       onRecordUsage,
       projectName,
+      publishBridgeMessage,
       resolveProviderForAgent,
       resolveSlashContext,
       setAiActivity,
@@ -1129,6 +1329,7 @@ export function useOrchestration({
       setProposedPatches,
       streamOrchestration,
       updateAgent,
+      workspaceRoot,
     ],
   )
 
@@ -1140,12 +1341,19 @@ export function useOrchestration({
       if (!source || !target || !instruction || sourceId === targetId) return
 
       animateCommanderTypeAndSend(sourceId, `@${target.name}: ${instruction}`, () => {
+        publishBridgeMessage({
+          from: source,
+          to: target,
+          kind: 'handoff',
+          content: instruction,
+          relatedFiles: activeFile ? [activeFile.path] : undefined,
+        })
         appendCommunicationEvent({
           type: 'message.sent',
           kind: 'direct',
           senderId: sourceId,
           recipientId: targetId,
-          label: 'Direct prompt',
+          label: 'Bridge Direct',
           description: instruction,
         })
         updateAgent(sourceId, (current) => ({
@@ -1155,7 +1363,7 @@ export function useOrchestration({
             {
               id: uid(),
               role: 'tool',
-              text: `Prompt dispatched to ${target.name}: "${instruction}"`,
+              text: `Bridge sent to ${target.name}: "${instruction}"`,
             },
           ],
         }))
@@ -1167,10 +1375,21 @@ export function useOrchestration({
             { id: uid(), role: 'agent', text: instruction, from: source.name },
           ],
         }))
-        void sendMessage(target, instruction, true)
+        void sendMessage(target, instruction, true, {
+          forceDirectChat: true,
+          handoffDepth: 1,
+          replyToAgentId: source.id,
+        })
       })
     },
-    [animateCommanderTypeAndSend, appendCommunicationEvent, sendMessage, updateAgent],
+    [
+      activeFile,
+      animateCommanderTypeAndSend,
+      appendCommunicationEvent,
+      publishBridgeMessage,
+      sendMessage,
+      updateAgent,
+    ],
   )
 
   const pauseAgent = useCallback(

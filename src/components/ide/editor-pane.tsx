@@ -1,11 +1,68 @@
 'use client'
 
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
-import { Check, ChevronRight, PanelLeftOpen, Save, Sparkles, X } from 'lucide-react'
+import {
+  Check,
+  ChevronRight,
+  Columns2,
+  MessageSquarePlus,
+  PanelLeftOpen,
+  Save,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { extractProposedPatches } from '@/lib/orchestrator'
 import type { ProviderConfig, WorkspaceFile } from './agent-types'
+import type { EditorDiagnostic } from './status-bar'
 import { fileIcon } from './workspace-defaults'
+
+const REACT_JSX_TYPE_SHIMS = [
+  {
+    filePath: 'file:///node_modules/@types/react/index.d.ts',
+    content: `
+declare namespace JSX {
+  type Element = any;
+  interface IntrinsicElements { [elemName: string]: any; }
+  interface ElementAttributesProperty { props: {}; }
+  interface ElementChildrenAttribute { children: {}; }
+}
+declare module 'react' {
+  export type ReactNode = any;
+  export type ReactElement = any;
+  export type FC<P = {}> = (props: P) => any;
+  export type ChangeEvent<T = any> = { target: T & { value: string; files?: FileList | null } };
+  export type Dispatch<A> = (value: A) => void;
+  export type SetStateAction<S> = S | ((prevState: S) => S);
+  export type RefObject<T> = { current: T | null };
+  export function useState<T>(v: T | (() => T)): [T, Dispatch<SetStateAction<T>>];
+  export function useEffect(fn: () => any, deps?: any[]): void;
+  export function useMemo<T>(fn: () => T, deps?: any[]): T;
+  export function useCallback<T extends Function>(fn: T, deps?: any[]): T;
+  export function useRef<T>(v: T): { current: T };
+  const React: any;
+  export default React;
+}
+declare module 'react/jsx-runtime' {
+  export const Fragment: any;
+  export function jsx(type: any, props: any, key?: any): any;
+  export function jsxs(type: any, props: any, key?: any): any;
+  export namespace JSX {
+    type Element = any;
+    interface IntrinsicElements { [elemName: string]: any; }
+  }
+}
+declare module 'react/jsx-dev-runtime' {
+  export const Fragment: any;
+  export function jsxDEV(type: any, props: any, key?: any): any;
+  export namespace JSX {
+    type Element = any;
+    interface IntrinsicElements { [elemName: string]: any; }
+  }
+}
+`,
+  },
+]
 
 export function EditorPane({
   projectName,
@@ -13,6 +70,7 @@ export function EditorPane({
   openPaths,
   activePath,
   activeFile,
+  splitPath,
   explorerOpen,
   aiActivity,
   editPulse,
@@ -21,12 +79,18 @@ export function EditorPane({
   minimap = true,
   provider,
   revealRequest,
+  formatSeq = 0,
   onOpenExplorer,
   onSelectTab,
   onCloseTab,
+  onCloseOtherTabs,
+  onSetSplitPath,
   onUpdateFile,
+  onUpdateFileByPath,
   onSaveFile,
   onAcceptInlineEdit,
+  onSendSelectionToChat,
+  onDiagnosticsChange,
   onCursorChange,
 }: {
   projectName: string
@@ -34,6 +98,7 @@ export function EditorPane({
   openPaths: string[]
   activePath: string
   activeFile?: WorkspaceFile
+  splitPath?: string | null
   explorerOpen: boolean
   aiActivity: 'idle' | 'reading' | 'editing'
   editPulse: boolean
@@ -42,18 +107,45 @@ export function EditorPane({
   minimap?: boolean
   provider?: ProviderConfig
   revealRequest: { path: string; line: number; seq: number } | null
+  formatSeq?: number
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
+  onCloseOtherTabs?: (keepPath: string) => void
+  onSetSplitPath?: (path: string | null) => void
   onUpdateFile: (content?: string) => void
+  onUpdateFileByPath?: (path: string, content: string) => void
   onSaveFile: () => void
   onAcceptInlineEdit?: (path: string, nextContent: string, summary: string) => void
+  onSendSelectionToChat?: (payload: {
+    path: string
+    startLine: number
+    endLine: number
+    snippet: string
+  }) => void
+  onDiagnosticsChange?: (diagnostics: EditorDiagnostic[]) => void
   onCursorChange: (pos: { line: number; column: number }) => void
 }) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
   const saveRef = useRef(onSaveFile)
   saveRef.current = onSaveFile
+  const sendSelectionRef = useRef(onSendSelectionToChat)
+  sendSelectionRef.current = onSendSelectionToChat
+  const activeFileRef = useRef(activeFile)
+  activeFileRef.current = activeFile
+  const diagCbRef = useRef(onDiagnosticsChange)
+  diagCbRef.current = onDiagnosticsChange
+
+  // Selection floating button state
+  const [selectionInfo, setSelectionInfo] = useState<{
+    startLine: number
+    endLine: number
+    snippet: string
+  } | null>(null)
+
+  // Tab context menu state
+  const [tabMenu, setTabMenu] = useState<{ path: string; x: number; y: number } | null>(null)
 
   // Ctrl+K Inline AI Edit state
   const [inlineOpen, setInlineOpen] = useState(false)
@@ -66,6 +158,8 @@ export function EditorPane({
     proposed: string
     summary: string
   } | null>(null)
+
+  const splitFile = splitPath ? files.find((item) => item.path === splitPath) : undefined
 
   const syncMonacoTypeScriptLibs = (
     monaco: Parameters<OnMount>[1],
@@ -93,15 +187,10 @@ export function EditorPane({
         noSemanticValidation: false,
         noSyntaxValidation: false,
         // Suppress missing third-party npm typings noise inside lightweight local Monaco
-        diagnosticCodesToIgnore: [2307, 2792, 7016, 1259],
+        diagnosticCodesToIgnore: [2307, 2792, 7016, 1259, 2875, 17004],
       })
 
-      const extraLibs: Array<{ content: string; filePath: string }> = [
-        {
-          filePath: 'file:///node_modules/@types/react/index.d.ts',
-          content: `declare module 'react' { export type ReactNode = any; export type FC<P = {}> = (props: P) => any; export function useState<T>(v: T | (() => T)): [T, (next: T | ((prev: T) => T)) => void]; export function useEffect(fn: () => any, deps?: any[]): void; export function useMemo<T>(fn: () => T, deps?: any[]): T; export function useCallback<T extends Function>(fn: T, deps?: any[]): T; export function useRef<T>(v: T): { current: T }; const React: any; export default React; }`,
-        },
-      ]
+      const extraLibs: Array<{ content: string; filePath: string }> = [...REACT_JSX_TYPE_SHIMS]
 
       for (const file of workspaceFiles.slice(0, 80)) {
         if (/\.(ts|tsx|js|jsx)$/i.test(file.path)) {
@@ -117,6 +206,33 @@ export function EditorPane({
     }
   }
 
+  const pushCurrentSelectionToChat = () => {
+    const editor = editorRef.current
+    const currentFile = activeFileRef.current
+    if (!editor || !currentFile || !sendSelectionRef.current) return
+    const selection = editor.getSelection()
+    const model = editor.getModel()
+    if (!model) return
+    if (selection && !selection.isEmpty()) {
+      const snippet = model.getValueInRange(selection)
+      sendSelectionRef.current({
+        path: currentFile.path,
+        startLine: selection.startLineNumber,
+        endLine: selection.endLineNumber,
+        snippet,
+      })
+    } else {
+      const pos = editor.getPosition()
+      const line = pos?.lineNumber ?? 1
+      sendSelectionRef.current({
+        path: currentFile.path,
+        startLine: line,
+        endLine: line,
+        snippet: model.getLineContent(line),
+      })
+    }
+  }
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
     monacoRef.current = monaco
@@ -127,9 +243,47 @@ export function EditorPane({
       setInlineOpen(true)
       setInlineError('')
     })
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
+      pushCurrentSelectionToChat()
+    })
     editor.onDidChangeCursorPosition((event) => {
       onCursorChange({ line: event.position.lineNumber, column: event.position.column })
     })
+    editor.onDidChangeCursorSelection(() => {
+      const sel = editor.getSelection()
+      const model = editor.getModel()
+      if (sel && model && !sel.isEmpty()) {
+        const snippet = model.getValueInRange(sel)
+        if (snippet.trim().length > 0) {
+          setSelectionInfo({
+            startLine: sel.startLineNumber,
+            endLine: sel.endLineNumber,
+            snippet: snippet.slice(0, 2400),
+          })
+          return
+        }
+      }
+      setSelectionInfo(null)
+    })
+
+    // Sync real Monaco diagnostics to StatusBar + Problems tab
+    const emitMarkers = () => {
+      if (!diagCbRef.current) return
+      const markers = monaco.editor.getModelMarkers({})
+      const mapped: EditorDiagnostic[] = markers
+        .filter((m: (typeof markers)[number]) => m.severity >= monaco.MarkerSeverity.Warning)
+        .slice(0, 50)
+        .map((m: (typeof markers)[number]) => ({
+          path: m.resource.path.replace(/^\/+/, ''),
+          line: m.startLineNumber,
+          column: m.startColumn,
+          severity: m.severity >= monaco.MarkerSeverity.Error ? 'error' : 'warning',
+          message: m.message,
+        }))
+      diagCbRef.current(mapped)
+    }
+    monaco.editor.onDidChangeMarkers(emitMarkers)
+    window.setTimeout(emitMarkers, 800)
   }
 
   useEffect(() => {
@@ -137,6 +291,19 @@ export function EditorPane({
       syncMonacoTypeScriptLibs(monacoRef.current, files)
     }
   }, [files])
+
+  useEffect(() => {
+    if (formatSeq > 0 && editorRef.current) {
+      void editorRef.current.getAction('editor.action.formatDocument')?.run()
+    }
+  }, [formatSeq])
+
+  useEffect(() => {
+    if (!tabMenu) return
+    const close = () => setTabMenu(null)
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [tabMenu])
 
   useEffect(() => {
     if (!revealRequest || !activeFile || revealRequest.path !== activeFile.path) return
@@ -244,7 +411,7 @@ export function EditorPane({
         <button
           onClick={onOpenExplorer}
           className="absolute left-2 top-11 z-20 grid size-7 place-items-center rounded border border-[#3c3c3c] bg-[#252526] text-[#cccccc] shadow-lg hover:bg-[#2a2d2e]"
-          title="Open Primary Side Bar"
+          title="Open Primary Side Bar (Ctrl+B)"
         >
           <PanelLeftOpen size={14} />
         </button>
@@ -259,6 +426,10 @@ export function EditorPane({
               <button
                 key={path}
                 onClick={() => onSelectTab(path)}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  setTabMenu({ path, x: event.clientX, y: event.clientY })
+                }}
                 className={`group flex min-w-32 items-center gap-2 border-r border-[#2b2b2b] px-3 text-[12px] ${
                   isActive
                     ? 'border-t-2 border-t-[#e5e5e5] bg-[#1e1e1e] text-white'
@@ -283,6 +454,7 @@ export function EditorPane({
             )
           })}
         </div>
+
         <button
           className={`mx-1 flex h-6 items-center gap-1 rounded border px-2 text-[10px] transition ${
             inlineOpen
@@ -300,6 +472,28 @@ export function EditorPane({
           <span>Inline AI</span>
           <kbd className="rounded bg-[#141414] px-1 font-mono text-[9px] text-[#858585]">Ctrl+K</kbd>
         </button>
+
+        {onSetSplitPath && (
+          <button
+            className={`icon-button ${splitPath ? 'bg-[#2a2a2a] text-white' : ''}`}
+            onClick={() => {
+              if (splitPath) {
+                onSetSplitPath(null)
+              } else {
+                const candidate =
+                  openPaths.find((p) => p !== activePath) ??
+                  files.find((f) => f.path !== activePath)?.path ??
+                  activePath
+                if (candidate) onSetSplitPath(candidate)
+              }
+            }}
+            disabled={!activeFile}
+            title="Split Editor Right (Ctrl+\)"
+          >
+            <Columns2 size={14} />
+          </button>
+        )}
+
         <button
           className="icon-button mx-1"
           onClick={onSaveFile}
@@ -310,16 +504,85 @@ export function EditorPane({
         </button>
       </div>
 
-      <div className="flex h-[24px] shrink-0 items-center gap-1 border-b border-[#2b2b2b] bg-[#1e1e1e] px-3 text-[11px] text-[#9d9d9d]">
-        <span>{projectName}</span>
-        {breadcrumbs.map((segment, index) => (
-          <span key={`${segment}-${index}`} className="flex items-center gap-1">
-            <ChevronRight size={11} className="text-[#6e6e6e]" />
-            <span className={index === breadcrumbs.length - 1 ? 'text-[#cccccc]' : ''}>
-              {segment}
+      {tabMenu && (
+        <div
+          style={{ left: tabMenu.x, top: tabMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="fixed z-50 w-44 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] py-1 text-[11px] text-[#d4d4d4] shadow-2xl"
+        >
+          <button
+            className="block w-full px-3 py-1.5 text-left hover:bg-[#2a2a2a] hover:text-white"
+            onClick={() => {
+              onCloseTab(tabMenu.path)
+              setTabMenu(null)
+            }}
+          >
+            Close Tab
+          </button>
+          {onCloseOtherTabs && (
+            <button
+              className="block w-full px-3 py-1.5 text-left hover:bg-[#2a2a2a] hover:text-white"
+              onClick={() => {
+                onCloseOtherTabs(tabMenu.path)
+                setTabMenu(null)
+              }}
+            >
+              Close Other Tabs
+            </button>
+          )}
+          {onSetSplitPath && (
+            <button
+              className="block w-full px-3 py-1.5 text-left hover:bg-[#2a2a2a] hover:text-white"
+              onClick={() => {
+                onSetSplitPath(tabMenu.path)
+                setTabMenu(null)
+              }}
+            >
+              Open in Split Right
+            </button>
+          )}
+          <button
+            className="block w-full px-3 py-1.5 text-left hover:bg-[#2a2a2a] hover:text-white"
+            onClick={() => {
+              void navigator.clipboard?.writeText(tabMenu.path)
+              setTabMenu(null)
+            }}
+          >
+            Copy Relative Path
+          </button>
+        </div>
+      )}
+
+      <div className="flex h-[24px] shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#1e1e1e] px-3 text-[11px] text-[#9d9d9d]">
+        <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+          <span className="shrink-0">{projectName}</span>
+          {breadcrumbs.map((segment, index) => (
+            <span key={`${segment}-${index}`} className="flex items-center gap-1 truncate">
+              <ChevronRight size={11} className="shrink-0 text-[#6e6e6e]" />
+              <span className={index === breadcrumbs.length - 1 ? 'text-[#cccccc]' : ''}>
+                {segment}
+              </span>
             </span>
-          </span>
-        ))}
+          ))}
+        </div>
+        {selectionInfo && onSendSelectionToChat && activeFile && (
+          <button
+            type="button"
+            onClick={() =>
+              onSendSelectionToChat({
+                path: activeFile.path,
+                startLine: selectionInfo.startLine,
+                endLine: selectionInfo.endLine,
+                snippet: selectionInfo.snippet,
+              })
+            }
+            className="flex shrink-0 items-center gap-1 rounded bg-[#2a2a2a] px-2 py-0.5 text-[10px] font-medium text-white hover:bg-[#3a3a3a]"
+            title="Send selected lines to AI Agent Chat (Ctrl+L)"
+          >
+            <MessageSquarePlus size={10} />
+            Add L{selectionInfo.startLine}-{selectionInfo.endLine} to Chat (Ctrl+L)
+          </button>
+        )}
       </div>
 
       {/* Cursor-style Ctrl+K Inline AI Edit Bar */}
@@ -394,52 +657,110 @@ export function EditorPane({
       )}
 
       <div
-        className={`relative min-h-0 flex-1 overflow-hidden bg-[#1e1e1e] ${
+        className={`relative flex min-h-0 flex-1 overflow-hidden bg-[#1e1e1e] ${
           aiActivity !== 'idle' ? 'ring-1 ring-inset ring-white/25' : ''
         }`}
       >
-        {inlineDiff && activeFile && inlineDiff.path === activeFile.path ? (
-          <DiffEditor
-            original={inlineDiff.original}
-            modified={inlineDiff.proposed}
-            language={activeFile.language}
-            theme="vs-dark"
-            options={{
-              automaticLayout: true,
-              renderSideBySide: true,
-              readOnly: true,
-              fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-              fontSize,
-              minimap: { enabled: false },
-            }}
-          />
-        ) : activeFile ? (
-          <Editor
-            path={`file:///${activeFile.path.replace(/^\/+/, '')}`}
-            language={activeFile.language}
-            value={activeFile.content}
-            onChange={onUpdateFile}
-            onMount={handleEditorMount}
-            theme="vs-dark"
-            options={{
-              automaticLayout: true,
-              fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-              fontSize,
-              lineHeight: Math.round(fontSize * 1.55),
-              minimap: { enabled: minimap, scale: 0.75 },
-              wordWrap: wordWrap ? 'on' : 'off',
-              padding: { top: 10 },
-              renderLineHighlight: 'all',
-              scrollBeyondLastLine: false,
-              smoothScrolling: true,
-              tabSize: 2,
-            }}
-          />
-        ) : (
-          <div className="grid h-full place-items-center text-[12px] text-[#858585]">
-            Open a file from Explorer or press Ctrl+K for Inline AI Edit.
+        <div className="relative min-w-0 flex-1">
+          {inlineDiff && activeFile && inlineDiff.path === activeFile.path ? (
+            <DiffEditor
+              original={inlineDiff.original}
+              modified={inlineDiff.proposed}
+              language={activeFile.language}
+              theme="vs-dark"
+              options={{
+                automaticLayout: true,
+                renderSideBySide: true,
+                readOnly: true,
+                fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                fontSize,
+                minimap: { enabled: false },
+              }}
+            />
+          ) : activeFile ? (
+            <Editor
+              path={`file:///${activeFile.path.replace(/^\/+/, '')}`}
+              language={activeFile.language}
+              value={activeFile.content}
+              onChange={onUpdateFile}
+              onMount={handleEditorMount}
+              theme="vs-dark"
+              options={{
+                automaticLayout: true,
+                fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                fontSize,
+                lineHeight: Math.round(fontSize * 1.55),
+                minimap: { enabled: minimap && !splitFile, scale: 0.75 },
+                wordWrap: wordWrap ? 'on' : 'off',
+                stickyScroll: { enabled: true },
+                bracketPairColorization: { enabled: true },
+                guides: { bracketPairs: true, indentation: true },
+                cursorSmoothCaretAnimation: 'on',
+                padding: { top: 10 },
+                renderLineHighlight: 'all',
+                scrollBeyondLastLine: false,
+                smoothScrolling: true,
+                tabSize: 2,
+              }}
+            />
+          ) : (
+            <div className="grid h-full place-items-center text-[12px] text-[#858585]">
+              Press Ctrl+P to Quick Open a file or Ctrl+K for Inline AI Edit.
+            </div>
+          )}
+        </div>
+
+        {/* Secondary Split Editor Pane (Ctrl+\) */}
+        {splitFile && onSetSplitPath && (
+          <div className="flex min-w-0 flex-1 flex-col border-l border-[#2b2b2b] bg-[#1c1c1c]">
+            <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b border-[#2b2b2b] bg-[#161616] px-2 text-[11px]">
+              <select
+                value={splitFile.path}
+                onChange={(e) => onSetSplitPath(e.target.value)}
+                className="min-w-0 flex-1 truncate rounded bg-[#1e1e1e] px-1.5 py-0.5 font-mono text-[10px] text-[#e5e5e5] outline-none"
+              >
+                {files.map((f) => (
+                  <option key={f.path} value={f.path}>
+                    {f.path}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => onSetSplitPath(null)}
+                className="mini-button"
+                title="Close Split Editor"
+              >
+                <X size={12} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <Editor
+                path={`file:///split/${splitFile.path.replace(/^\/+/, '')}`}
+                language={splitFile.language}
+                value={splitFile.content}
+                onChange={(val) => {
+                  if (typeof val === 'string') onUpdateFileByPath?.(splitFile.path, val)
+                }}
+                theme="vs-dark"
+                options={{
+                  automaticLayout: true,
+                  fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                  fontSize,
+                  lineHeight: Math.round(fontSize * 1.55),
+                  minimap: { enabled: false },
+                  wordWrap: wordWrap ? 'on' : 'off',
+                  stickyScroll: { enabled: true },
+                  bracketPairColorization: { enabled: true },
+                  scrollBeyondLastLine: false,
+                  smoothScrolling: true,
+                  tabSize: 2,
+                }}
+              />
+            </div>
           </div>
         )}
+
         {editPulse && (
           <div className="pointer-events-none absolute inset-y-0 right-0 w-1 bg-white/60 shadow-[0_0_20px_rgba(255,255,255,0.45)]" />
         )}

@@ -47,6 +47,7 @@ const statusStyles: Record<AgentTask['status'], { dot: string; label: string }> 
 
 export function ExplorerSidebar({
   sidePanel,
+  width = 256,
   projectName,
   rootPath,
   files,
@@ -59,6 +60,7 @@ export function ExplorerSidebar({
   searchQuery,
   compactMode,
   onSearchQueryChange,
+  onReplaceInFiles,
   onToggleGroup,
   onOpenFile,
   onOpenLocalDirectory,
@@ -76,6 +78,7 @@ export function ExplorerSidebar({
   onOpenDiff,
 }: {
   sidePanel: SidePanel
+  width?: number
   projectName: string
   rootPath?: string
   files: WorkspaceFile[]
@@ -88,6 +91,11 @@ export function ExplorerSidebar({
   searchQuery: string
   compactMode: boolean
   onSearchQueryChange: (query: string) => void
+  onReplaceInFiles?: (
+    query: string,
+    replacement: string,
+    options: { caseSensitive: boolean; regex: boolean },
+  ) => { filesUpdated: number; occurrences: number }
   onToggleGroup: (key: string) => void
   onOpenFile: (path: string, line?: number) => void
   onOpenLocalDirectory: () => void
@@ -105,10 +113,62 @@ export function ExplorerSidebar({
   onOpenDiff: () => void
 }) {
   const tree = useMemo(() => buildFileTree(files), [files])
-  const searchMatches = useMemo(
-    () => searchWorkspaceFiles(files, searchQuery),
-    [files, searchQuery],
-  )
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false)
+  const [searchRegex, setSearchRegex] = useState(false)
+  const [replaceText, setReplaceText] = useState('')
+  const [replaceFeedback, setReplaceFeedback] = useState('')
+  const [collapsedSearchFiles, setCollapsedSearchFiles] = useState<Record<string, boolean>>({})
+
+  const searchMatches = useMemo(() => {
+    const q = searchQuery.trim()
+    if (!q) return []
+    if (!searchCaseSensitive && !searchRegex) {
+      return searchWorkspaceFiles(files, q)
+    }
+    const matches: Array<{ path: string; name: string; line: number; preview: string }> = []
+    let compiled: RegExp | null = null
+    if (searchRegex) {
+      try {
+        compiled = new RegExp(q, searchCaseSensitive ? '' : 'i')
+      } catch {
+        return []
+      }
+    }
+    for (const file of files) {
+      const lines = file.content.split(/\r?\n/)
+      for (let i = 0; i < lines.length; i += 1) {
+        const lineText = lines[i]
+        const hit = compiled
+          ? compiled.test(lineText)
+          : searchCaseSensitive
+            ? lineText.includes(q)
+            : lineText.toLowerCase().includes(q.toLowerCase())
+        if (hit) {
+          matches.push({
+            path: file.path,
+            name: file.name,
+            line: i + 1,
+            preview: lineText.trim().slice(0, 120),
+          })
+          if (matches.length >= 160) return matches
+        }
+      }
+    }
+    return matches
+  }, [files, searchCaseSensitive, searchQuery, searchRegex])
+
+  const groupedSearchMatches = useMemo(() => {
+    const map = new Map<
+      string,
+      { path: string; name: string; hits: Array<{ line: number; preview: string }> }
+    >()
+    for (const match of searchMatches) {
+      const group = map.get(match.path) ?? { path: match.path, name: match.name, hits: [] }
+      group.hits.push({ line: match.line, preview: match.preview })
+      map.set(match.path, group)
+    }
+    return Array.from(map.values())
+  }, [searchMatches])
   const dirtyFiles = useMemo(() => files.filter((file) => file.dirty), [files])
   const [showAllTasks, setShowAllTasks] = useState(false)
   const [memTitle, setMemTitle] = useState('')
@@ -293,7 +353,10 @@ export function ExplorerSidebar({
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-[#2b2b2b] bg-[#181818]">
+    <aside
+      style={{ width }}
+      className="flex shrink-0 flex-col border-r border-[#2b2b2b] bg-[#181818]"
+    >
       <div className="flex h-9 shrink-0 items-center justify-between px-3">
         <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[#bbbbbb]">
           {sidePanel === 'explorer'
@@ -372,57 +435,142 @@ export function ExplorerSidebar({
       )}
 
       {sidePanel === 'search' && (
-        <div className="flex min-h-0 flex-1 flex-col border-y border-[#2b2b2b] p-3">
-          <label className="flex items-center gap-2 rounded border border-[#3c3c3c] bg-[#222222] px-2 py-1.5 focus-within:border-[#737373]">
-            <Search size={13} className="shrink-0 text-[#858585]" />
-            <input
-              autoFocus
-              value={searchQuery}
-              onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search files & code..."
-              className="min-w-0 flex-1 bg-transparent text-[12px] text-white outline-none placeholder:text-[#858585]"
-            />
-            {searchQuery && (
+        <div className="flex min-h-0 flex-1 flex-col border-y border-[#2b2b2b] p-2.5">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1 rounded border border-[#3c3c3c] bg-[#222222] px-2 py-1 focus-within:border-[#737373]">
+              <Search size={12} className="shrink-0 text-[#858585]" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(event) => {
+                  onSearchQueryChange(event.target.value)
+                  setReplaceFeedback('')
+                }}
+                placeholder="Search across files..."
+                className="min-w-0 flex-1 bg-transparent text-[11px] text-white outline-none placeholder:text-[#858585]"
+              />
               <button
-                onClick={() => onSearchQueryChange('')}
-                className="text-[#858585] hover:text-white"
-                title="Clear search"
+                type="button"
+                onClick={() => setSearchCaseSensitive((v) => !v)}
+                className={`rounded px-1 font-mono text-[10px] ${
+                  searchCaseSensitive ? 'bg-[#e5e5e5] text-[#111111]' : 'text-[#858585] hover:text-white'
+                }`}
+                title="Match Case (Aa)"
               >
-                <X size={12} />
+                Aa
               </button>
+              <button
+                type="button"
+                onClick={() => setSearchRegex((v) => !v)}
+                className={`rounded px-1 font-mono text-[10px] ${
+                  searchRegex ? 'bg-[#e5e5e5] text-[#111111]' : 'text-[#858585] hover:text-white'
+                }`}
+                title="Use Regular Expression (.*)"
+              >
+                .*
+              </button>
+              {searchQuery && (
+                <button
+                  onClick={() => onSearchQueryChange('')}
+                  className="text-[#858585] hover:text-white"
+                  title="Clear search"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+
+            {onReplaceInFiles && (
+              <div className="flex items-center gap-1">
+                <input
+                  value={replaceText}
+                  onChange={(event) => setReplaceText(event.target.value)}
+                  placeholder="Replace with..."
+                  className="min-w-0 flex-1 rounded border border-[#333333] bg-[#1a1a1a] px-2 py-1 text-[11px] text-white outline-none placeholder:text-[#6e6e6e] focus:border-[#737373]"
+                />
+                <button
+                  type="button"
+                  disabled={!searchQuery.trim() || searchMatches.length === 0}
+                  onClick={() => {
+                    const outcome = onReplaceInFiles(searchQuery, replaceText, {
+                      caseSensitive: searchCaseSensitive,
+                      regex: searchRegex,
+                    })
+                    setReplaceFeedback(
+                      `Replaced ${outcome.occurrences} match(es) in ${outcome.filesUpdated} file(s) (REV saved).`,
+                    )
+                  }}
+                  className="shrink-0 rounded bg-[#e5e5e5] px-2 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-35"
+                  title="Replace all matches across workspace (auto-records REV-xxx)"
+                >
+                  Replace All
+                </button>
+              </div>
             )}
-          </label>
+            {replaceFeedback && (
+              <p className="rounded bg-[#1f1f1f] px-2 py-1 text-[10px] text-[#e5e5e5]">
+                {replaceFeedback}
+              </p>
+            )}
+          </div>
+
           <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
             {!searchQuery.trim() ? (
               <p className="text-[11px] leading-4 text-[#858585]">
-                Search across {files.length} workspace file{files.length === 1 ? '' : 's'}.
+                Search &amp; Replace across {files.length} workspace file{files.length === 1 ? '' : 's'}.
               </p>
-            ) : searchMatches.length === 0 ? (
+            ) : groupedSearchMatches.length === 0 ? (
               <p className="text-[11px] text-[#858585]">
                 No matches for &ldquo;{searchQuery}&rdquo;.
               </p>
             ) : (
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 <p className="mb-1.5 text-[10px] text-[#858585]">
-                  {searchMatches.length} result{searchMatches.length === 1 ? '' : 's'}
+                  {searchMatches.length} result{searchMatches.length === 1 ? '' : 's'} in{' '}
+                  {groupedSearchMatches.length} file{groupedSearchMatches.length === 1 ? '' : 's'}
                 </p>
-                {searchMatches.map((match, index) => (
-                  <button
-                    key={`${match.path}:${match.line}:${index}`}
-                    onClick={() => onOpenFile(match.path, match.line)}
-                    className="block w-full rounded px-2 py-1.5 text-left hover:bg-[#2a2d2e]"
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <span className="truncate font-medium text-[#cccccc]">{match.name}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-[#858585]">
-                        :{match.line}
-                      </span>
+                {groupedSearchMatches.map((group) => {
+                  const collapsed = Boolean(collapsedSearchFiles[group.path])
+                  return (
+                    <div key={group.path} className="rounded border border-[#242424] bg-[#141414]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedSearchFiles((prev) => ({
+                            ...prev,
+                            [group.path]: !prev[group.path],
+                          }))
+                        }
+                        className="flex w-full items-center gap-1 px-2 py-1 text-left text-[11px] font-medium text-[#e5e5e5] hover:bg-[#222222]"
+                        title={group.path}
+                      >
+                        {collapsed ? (
+                          <ChevronRight size={11} className="shrink-0 text-[#858585]" />
+                        ) : (
+                          <ChevronDown size={11} className="shrink-0 text-[#858585]" />
+                        )}
+                        <span className="truncate">{group.name}</span>
+                        <span className="ml-auto rounded bg-[#262626] px-1 font-mono text-[9px] text-[#a3a3a3]">
+                          {group.hits.length}
+                        </span>
+                      </button>
+                      {!collapsed && (
+                        <div className="border-t border-[#202020] py-0.5">
+                          {group.hits.map((hit, idx) => (
+                            <button
+                              key={`${group.path}:${hit.line}:${idx}`}
+                              onClick={() => onOpenFile(group.path, hit.line)}
+                              className="flex w-full items-center gap-1.5 px-2.5 py-1 text-left font-mono text-[10px] text-[#a3a3a3] hover:bg-[#262626] hover:text-white"
+                            >
+                              <span className="shrink-0 text-[#737373]">:{hit.line}</span>
+                              <span className="truncate">{hit.preview}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="mt-0.5 truncate font-mono text-[10px] text-[#9d9d9d]">
-                      {match.preview}
-                    </p>
-                  </button>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

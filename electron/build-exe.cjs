@@ -53,8 +53,8 @@ async function patchExeIconAndMetadata() {
     const rceditFn = typeof rceditMod === 'function' ? rceditMod : rceditMod.rcedit
     await rceditFn(EXE_PATH, {
       icon: ICON_PATH,
-      'file-version': '2.1.0.0',
-      'product-version': '2.1.0.0',
+      'file-version': '2.2.0.0',
+      'product-version': '2.2.0.0',
       'version-string': {
         ProductName: 'VinceZone Studio',
         FileDescription: 'VinceZone Studio - Autonomous Multi-Agent Local IDE',

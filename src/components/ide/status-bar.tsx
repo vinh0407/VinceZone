@@ -3,6 +3,14 @@
 import { GitBranch, GitCompareArrows, History, Monitor } from 'lucide-react'
 import type { WorkspaceFile } from './agent-types'
 
+export type EditorDiagnostic = {
+  path: string
+  line: number
+  column: number
+  severity: 'error' | 'warning'
+  message: string
+}
+
 const languageLabels: Record<string, string> = {
   typescript: 'TypeScript',
   javascript: 'JavaScript',
@@ -22,10 +30,12 @@ export function StatusBar({
   activeFile,
   cursor,
   dirtyCount,
+  diagnostics = [],
   pendingPatchCount,
   latestRevisionId,
   debugActive,
   isDesktop,
+  bridgeCount = 0,
   onOpenProblems,
   onOpenDiff,
   onOpenRevisions,
@@ -33,10 +43,12 @@ export function StatusBar({
   activeFile?: WorkspaceFile
   cursor: { line: number; column: number }
   dirtyCount: number
+  diagnostics?: EditorDiagnostic[]
   pendingPatchCount: number
   latestRevisionId?: string
   debugActive: boolean
   isDesktop: boolean
+  bridgeCount?: number
   onOpenProblems: () => void
   onOpenDiff: () => void
   onOpenRevisions: () => void
@@ -48,6 +60,9 @@ export function StatusBar({
         ? 'JavaScript React'
         : (languageLabels[activeFile.language] ?? activeFile.language)
     : 'Plain Text'
+
+  const errorCount = diagnostics.filter((d) => d.severity === 'error').length
+  const warningCount = diagnostics.filter((d) => d.severity === 'warning').length + dirtyCount
 
   return (
     <footer
@@ -63,9 +78,18 @@ export function StatusBar({
         <span className="flex items-center gap-1">
           <GitBranch size={11} /> main{dirtyCount > 0 ? `* (${dirtyCount})` : ''}
         </span>
-        <button onClick={onOpenProblems} className="hover:underline">
-          0 ✕ · {dirtyCount} ⚠
+        <button
+          onClick={onOpenProblems}
+          className={`hover:underline ${errorCount > 0 ? 'text-[#f48771]' : ''}`}
+          title="Open Problems panel"
+        >
+          {errorCount} ✕ · {warningCount} ⚠
         </button>
+        {bridgeCount > 0 && (
+          <span className="rounded bg-[#222222] px-1.5 font-mono text-[10px] text-[#d4d4d4]">
+            Bridge: {bridgeCount}
+          </span>
+        )}
         {latestRevisionId && (
           <button
             onClick={onOpenRevisions}

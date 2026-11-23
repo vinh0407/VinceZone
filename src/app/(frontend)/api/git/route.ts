@@ -67,7 +67,14 @@ export async function GET(request: Request) {
       .filter(Boolean)
       .map((row) => {
         const [hash, message, time, author] = row.split('|')
-        return { hash, message, time, author }
+        return {
+          hash: hash || '',
+          subject: message || '',
+          relativeTime: time || '',
+          message: message || '',
+          time: time || '',
+          author: author || '',
+        }
       })
 
     return Response.json(

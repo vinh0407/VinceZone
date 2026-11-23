@@ -232,6 +232,19 @@ export async function POST(request: Request) {
                 )
               }
 
+              if (outcome.agentHandoff) {
+                controller.enqueue(
+                  sseFrame({
+                    vincezone_event: {
+                      type: 'agent.handoff',
+                      toRole: outcome.agentHandoff.toRole,
+                      message: outcome.agentHandoff.message,
+                      files: outcome.agentHandoff.files,
+                    },
+                  }),
+                )
+              }
+
               conversation.push({
                 role: 'tool',
                 tool_call_id: call.id,

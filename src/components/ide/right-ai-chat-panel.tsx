@@ -1,8 +1,10 @@
 'use client'
 
 import {
+  ArrowRightLeft,
   Bot,
   FileCode2,
+  Link2,
   Maximize2,
   Plus,
   Send,
@@ -10,7 +12,9 @@ import {
   Square,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { BridgeMessage } from '@/lib/agent-bridge'
+import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type { Agent, McpServerConfig, PluginConfig, WorkspaceFile } from './agent-types'
 import {
   applySlashSelection,
@@ -29,6 +33,12 @@ export function RightAiChatPanel({
   skills,
   mcpServers,
   plugins,
+  width = 320,
+  bridgeEnabled = true,
+  bridgeMessages = [],
+  focusSeq = 0,
+  onToggleBridge,
+  onRelayToAgent,
   onSelectAgent,
   onDraft,
   onSend,
@@ -44,6 +54,12 @@ export function RightAiChatPanel({
   skills: SkillIndexItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
+  width?: number
+  bridgeEnabled?: boolean
+  bridgeMessages?: BridgeMessage[]
+  focusSeq?: number
+  onToggleBridge?: () => void
+  onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onSelectAgent: (id: string) => void
   onDraft: (id: string, value: string) => void
   onSend: (agent: Agent) => void
@@ -52,8 +68,15 @@ export function RightAiChatPanel({
   onClose: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
+  const [bridgeDrawerOpen, setBridgeDrawerOpen] = useState(false)
+  const [relayTargetId, setRelayTargetId] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agent = agents.find((item) => item.id === selectedAgentId) ?? agents[0]
+  const peers = useMemo(
+    () => agents.filter((item) => item.id !== agent?.id),
+    [agents, agent?.id],
+  )
   const draft = agent ? (drafts[agent.id] ?? '') : ''
   const slashQuery = extractActiveSlashQuery(draft)
   const slashItems = useMemo(
@@ -62,16 +85,32 @@ export function RightAiChatPanel({
     [mcpServers, plugins, skills, slashQuery],
   )
 
+  useEffect(() => {
+    if (focusSeq > 0) {
+      textareaRef.current?.focus()
+    }
+  }, [focusSeq])
+
   if (!agent) {
     return (
-      <aside className="flex w-80 shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818] p-4 text-[11px] text-[#858585]">
+      <aside
+        style={{ width }}
+        className="flex shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818] p-4 text-[11px] text-[#858585]"
+      >
         No AI agents in this project.
       </aside>
     )
   }
 
+  const effectiveRelayTarget = relayTargetId && peers.some((p) => p.id === relayTargetId)
+    ? relayTargetId
+    : peers[0]?.id || ''
+
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818]">
+    <aside
+      style={{ width }}
+      className="flex shrink-0 flex-col border-l border-[#2b2b2b] bg-[#181818]"
+    >
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#2b2b2b] px-3">
         <div className="flex items-center gap-1.5">
           {agent.roleId === 'pm' ? (
@@ -112,7 +151,103 @@ export function RightAiChatPanel({
             </option>
           ))}
         </select>
-        {(agent.soul || agent.mission) && (
+
+        {/* Multi-Agent Communication Bridge Bar */}
+        <div className="mt-2 flex items-center justify-between gap-1.5 rounded border border-[#2b2b2b] bg-[#181818] px-2 py-1">
+          <button
+            type="button"
+            onClick={onToggleBridge}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold transition ${
+              bridgeEnabled
+                ? 'bg-[#e5e5e5] text-[#111111]'
+                : 'border border-[#3a3a3a] text-[#858585]'
+            }`}
+            title="Toggle automatic Multi-Agent Communication Bridge (@ROLE handoffs & shared team bus)"
+          >
+            <Link2 size={10} />
+            Bridge {bridgeEnabled ? 'ON' : 'OFF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setBridgeDrawerOpen((prev) => !prev)}
+            className="flex items-center gap-1 text-[9px] text-[#a3a3a3] hover:text-white"
+            title="Inspect live inter-agent messages on the Communication Bridge"
+          >
+            <ArrowRightLeft size={10} />
+            Bus ({bridgeMessages.length})
+          </button>
+        </div>
+
+        {bridgeDrawerOpen && (
+          <div className="mt-2 max-h-36 space-y-1.5 overflow-y-auto rounded border border-[#2b2b2b] bg-[#121212] p-2">
+            {peers.length > 0 && onRelayToAgent && (
+              <div className="flex items-center gap-1 border-b border-[#262626] pb-1.5">
+                <select
+                  value={effectiveRelayTarget}
+                  onChange={(e) => setRelayTargetId(e.target.value)}
+                  className="min-w-0 flex-1 rounded border border-[#333333] bg-[#1b1b1b] px-1.5 py-0.5 text-[9px] text-[#e5e5e5] outline-none"
+                >
+                  {peers.map((peer) => {
+                    const rid = peer.roleId ?? inferRoleId(`${peer.id} ${peer.role}`)
+                    const code = rid === 'custom' ? 'CUSTOM' : ROLE_TERRITORIES[rid].code
+                    return (
+                      <option key={peer.id} value={peer.id}>
+                        @{code} · {peer.name}
+                      </option>
+                    )
+                  })}
+                </select>
+                <button
+                  type="button"
+                  disabled={!effectiveRelayTarget}
+                  onClick={() => {
+                    const textToSend =
+                      draft.trim() ||
+                      `Collaborate with ${agent.name} on ${activeFilePath || 'current task'} and report findings back.`
+                    onRelayToAgent(agent.id, effectiveRelayTarget, textToSend)
+                    if (draft.trim()) onDraft(agent.id, '')
+                  }}
+                  className="shrink-0 rounded bg-[#e5e5e5] px-2 py-0.5 text-[9px] font-semibold text-[#111111] hover:bg-white disabled:opacity-40"
+                  title="Send current prompt across Bridge to selected teammate"
+                >
+                  Bridge →
+                </button>
+              </div>
+            )}
+            {bridgeMessages.length === 0 ? (
+              <p className="text-[9px] text-[#737373]">
+                No bridge messages yet. Type <span className="font-mono text-[#cccccc]">@BE</span>,{' '}
+                <span className="font-mono text-[#cccccc]">@FE</span>,{' '}
+                <span className="font-mono text-[#cccccc]">@QA</span> or click{' '}
+                <span className="text-[#cccccc]">Bridge →</span> to connect agents.
+              </p>
+            ) : (
+              [...bridgeMessages]
+                .reverse()
+                .slice(0, 12)
+                .map((msg) => (
+                  <button
+                    key={msg.id}
+                    type="button"
+                    onClick={() => onSelectAgent(msg.toAgentId)}
+                    className="block w-full rounded border border-[#242424] bg-[#181818] px-2 py-1 text-left hover:border-[#4a4a4a]"
+                  >
+                    <div className="flex items-center justify-between gap-1 text-[9px]">
+                      <span className="truncate font-semibold text-[#e5e5e5]">
+                        @{msg.fromRole} → @{msg.toRole}
+                      </span>
+                      <span className="shrink-0 font-mono text-[8px] uppercase text-[#858585]">
+                        {msg.kind}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-2 text-[9px] text-[#a3a3a3]">{msg.content}</p>
+                  </button>
+                ))
+            )}
+          </div>
+        )}
+
+        {(agent.soul || agent.mission) && !bridgeDrawerOpen && (
           <div className="mt-2 space-y-0.5 text-[10px] leading-4 text-[#8f8f8f]">
             {agent.mission && (
               <p className="truncate" title={agent.mission}>
@@ -161,9 +296,30 @@ export function RightAiChatPanel({
 
       <div className="shrink-0 border-t border-[#2b2b2b] bg-[#181818] p-2.5">
         {activeFilePath && (
-          <p className="mb-1.5 truncate font-mono text-[9px] text-[#858585]">
-            Context: {activeFilePath}
-          </p>
+          <div className="mb-1.5 flex items-center justify-between gap-1">
+            <p className="truncate font-mono text-[9px] text-[#858585]">
+              Context: {activeFilePath}
+            </p>
+            <div className="flex shrink-0 items-center gap-1">
+              {[
+                { label: 'Explain', prefix: 'Explain this code concisely: ' },
+                { label: 'Refactor', prefix: 'Refactor cleanly with minimal diff: ' },
+                { label: 'Fix', prefix: 'Find and fix any bugs here: ' },
+              ].map((quick) => (
+                <button
+                  key={quick.label}
+                  type="button"
+                  onClick={() => {
+                    onDraft(agent.id, `${quick.prefix}${draft || `@${activeFilePath}`}`)
+                    textareaRef.current?.focus()
+                  }}
+                  className="rounded border border-[#2f2f2f] bg-[#141414] px-1.5 py-0.5 text-[9px] text-[#a3a3a3] hover:border-[#555555] hover:text-white"
+                >
+                  {quick.label}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         <div className="rounded-lg border border-[#333333] bg-[#141414] focus-within:border-[#737373]">
           {slashQuery !== null && (
@@ -198,6 +354,7 @@ export function RightAiChatPanel({
             </div>
           )}
           <textarea
+            ref={textareaRef}
             value={draft}
             onChange={(event) => {
               onDraft(agent.id, event.target.value)
@@ -236,7 +393,7 @@ export function RightAiChatPanel({
               }
             }}
             rows={3}
-            placeholder={`Ask ${agent.name}… Type / for skills, MCP & plugins`}
+            placeholder={`Ask ${agent.name}… Type @BE/@FE/@QA to bridge or / for skills`}
             className="w-full resize-none bg-transparent px-2.5 pt-2 text-[11px] leading-4 text-white outline-none placeholder:text-[#6e6e6e]"
           />
           <div className="flex items-center justify-between px-2 pb-1.5">
@@ -251,30 +408,40 @@ export function RightAiChatPanel({
               <button
                 onClick={() => {
                   onDraft(agent.id, `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}/`)
-                  setSlashIndex(0)
+                  textareaRef.current?.focus()
                 }}
-                className="mini-button font-mono text-[11px] font-semibold"
-                title="Invoke /skill, /mcp or /plugin"
+                className="mini-button font-mono text-[11px]"
+                title="Insert / slash command (skills, MCP, plugins)"
               >
                 /
               </button>
+              <button
+                onClick={() => {
+                  onDraft(agent.id, `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}@`)
+                  textareaRef.current?.focus()
+                }}
+                className="mini-button font-mono text-[11px]"
+                title="Mention @ROLE to route via Agent Bridge (e.g. @BE, @FE, @QA)"
+              >
+                @
+              </button>
             </div>
-            {agent.status === 'running' || agent.status === 'reviewing' ? (
+            {agent.status === 'running' ? (
               <button
                 onClick={() => onPause(agent)}
-                className="grid size-6 place-items-center rounded bg-[#3a3a3a] text-white"
+                className="flex size-6 items-center justify-center rounded bg-[#333333] text-[#f48771] hover:bg-[#444444]"
                 title="Stop generation"
               >
-                <Square size={9} fill="currentColor" />
+                <Square size={10} fill="currentColor" />
               </button>
             ) : (
               <button
                 onClick={() => onSend(agent)}
                 disabled={!draft.trim()}
-                className="grid size-6 place-items-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-25"
-                title="Send message"
+                className="flex size-6 items-center justify-center rounded bg-[#e5e5e5] text-[#111111] hover:bg-white disabled:opacity-30"
+                title="Send message (Enter)"
               >
-                <Send size={10} />
+                <Send size={11} />
               </button>
             )}
           </div>
