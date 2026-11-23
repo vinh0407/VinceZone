@@ -776,6 +776,53 @@ export function IDEWorkspace() {
     setAgentViews((current) => ({ ...current, [id]: current[source.id] ?? 'chat' }))
   }
 
+  const createNewFile = () => {
+    const fileName = window.prompt('New file path (relative to workspace):', 'src/untitled.ts')
+    const clean = fileName?.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+    if (!clean) return
+    if (files.some((item) => item.path === clean)) {
+      openFile(clean)
+      return
+    }
+    const name = clean.split('/').pop() || clean
+    const created: WorkspaceFile = {
+      name,
+      path: clean,
+      content: '',
+      language: inferLanguage(name),
+      dirty: true,
+    }
+    setFiles((current) => [...current, created])
+    openFile(clean)
+  }
+
+  const saveAllFiles = () => {
+    const dirtyList = files.filter((file) => file.dirty)
+    for (const file of dirtyList) {
+      const previous = diskSnapshotRef.current.get(file.path) ?? null
+      recordRevision({
+        path: file.path,
+        actor: 'User',
+        summary: 'Save All',
+        previousContent: previous,
+        nextContent: file.content,
+      })
+      void writeFileToDiskIfConnected(file.path, file.content)
+    }
+    setFiles((current) => {
+      const next = current.map((file) => ({ ...file, dirty: false }))
+      persistWorkspace({ files: next })
+      return next
+    })
+  }
+
+  const cycleEditorTab = (direction: 1 | -1) => {
+    if (openPaths.length <= 1) return
+    const currentIndex = openPaths.indexOf(activePath)
+    const nextIndex = (currentIndex + direction + openPaths.length) % openPaths.length
+    setActivePath(openPaths[nextIndex])
+  }
+
   const debugProject = () => {
     setWorkspaceMode('ide')
     setTerminalOpen(true)
@@ -797,18 +844,44 @@ export function IDEWorkspace() {
         projects={projects}
         activeProjectId={activeProjectId}
         activeRootPath={activeProject?.rootPath}
+        activeFilePath={activeFile?.path}
         workspaceMode={workspaceMode}
         explorerOpen={explorerOpen}
         terminalOpen={terminalOpen}
+        terminalMaximized={terminalMaximized}
+        autoSave={appSettings.autoSave}
+        compactMode={appSettings.compactMode}
         fileInputRef={fileInputRef}
         runState={runState}
         debugState={debugState}
         pendingPatchCount={pendingPatchCount}
+        latestRevisionId={revisions[revisions.length - 1]?.id}
         isDesktop={isDesktop}
         onSwitchProject={switchProject}
         onCloseProject={closeProject}
         onImportFolder={importFolder}
         onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
+        onNewFile={createNewFile}
+        onSaveFile={saveFile}
+        onSaveAll={saveAllFiles}
+        onCloseActiveTab={() => {
+          if (activePath) closeTab(activePath)
+        }}
+        onCopyActivePath={() => {
+          if (activeFile?.path && navigator.clipboard) {
+            void navigator.clipboard.writeText(activeFile.path)
+          }
+        }}
+        onUndoLatestRevision={() => {
+          const latest = revisions[revisions.length - 1]
+          if (latest) restoreRevisionById(latest.id)
+        }}
+        onToggleAutoSave={() =>
+          setAppSettings((current) => ({ ...current, autoSave: !current.autoSave }))
+        }
+        onToggleCompact={() =>
+          setAppSettings((current) => ({ ...current, compactMode: !current.compactMode }))
+        }
         onToggleExplorer={() => {
           setWorkspaceMode('ide')
           setExplorerOpen((prev) => !prev)
@@ -817,11 +890,26 @@ export function IDEWorkspace() {
           setWorkspaceMode('ide')
           setTerminalOpen((prev) => !prev)
         }}
+        onToggleTerminalMaximized={() => {
+          setWorkspaceMode('ide')
+          setTerminalOpen(true)
+          setTerminalMaximized((prev) => !prev)
+        }}
+        onClearTerminal={() => setTerminalEntries([])}
         onToggleAgents={() =>
           setWorkspaceMode((prev) => (prev === 'agents' ? 'ide' : 'agents'))
         }
+        onSelectSidePanel={(panel) => {
+          setWorkspaceMode('ide')
+          setSidePanel(panel)
+          setExplorerOpen(true)
+        }}
+        onSelectMode={setWorkspaceMode}
+        onCycleTab={cycleEditorTab}
         onRun={() => void runTerminalCommand('pnpm test')}
+        onRunCommand={(cmd) => void runTerminalCommand(cmd)}
         onDebug={debugProject}
+        onStopDebug={() => setDebugState('idle')}
         onOpenSearch={() => {
           setWorkspaceMode('ide')
           setSidePanel('search')
@@ -829,6 +917,15 @@ export function IDEWorkspace() {
         }}
         onOpenDiff={() => setDiffModalState({ open: true })}
         onOpenSettings={() => setSettingsOpen(true)}
+        onPreviewMail={() => {
+          setWorkspaceMode('agents')
+          window.setTimeout(() => {
+            previewMailExchange(
+              'focus1',
+              agents.map((agent) => agent.id),
+            )
+          }, 220)
+        }}
       />
 
       <div className="flex min-h-0 flex-1">

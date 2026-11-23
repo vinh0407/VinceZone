@@ -3,6 +3,7 @@
 import {
   Bot,
   Bug,
+  Check,
   FolderOpen,
   GitCompareArrows,
   PanelBottom,
@@ -15,63 +16,294 @@ import {
   TerminalSquare,
   X,
 } from 'lucide-react'
-import type { RefObject } from 'react'
-import type { ProjectTab, WorkspaceMode } from './agent-types'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import type { ProjectTab, SidePanel, WorkspaceMode } from './agent-types'
+
+type MenuOption =
+  | { type: 'separator' }
+  | {
+      type?: 'item'
+      label: string
+      shortcut?: string
+      checked?: boolean
+      disabled?: boolean
+      onSelect: () => void
+    }
+
+type MenuGroup = {
+  id: string
+  label: string
+  items: MenuOption[]
+}
 
 export function WorkspaceHeader({
   projects,
   activeProjectId,
   activeRootPath,
+  activeFilePath,
   workspaceMode,
   explorerOpen,
   terminalOpen,
+  terminalMaximized,
+  autoSave,
+  compactMode,
   fileInputRef,
   runState,
   debugState,
   pendingPatchCount,
+  latestRevisionId,
   isDesktop,
   onSwitchProject,
   onCloseProject,
   onImportFolder,
   onOpenLocalDirectory,
+  onNewFile,
+  onSaveFile,
+  onSaveAll,
+  onCloseActiveTab,
+  onCopyActivePath,
+  onUndoLatestRevision,
+  onToggleAutoSave,
+  onToggleCompact,
   onToggleExplorer,
   onToggleTerminal,
+  onToggleTerminalMaximized,
+  onClearTerminal,
   onToggleAgents,
+  onSelectSidePanel,
+  onSelectMode,
+  onCycleTab,
   onRun,
+  onRunCommand,
   onDebug,
+  onStopDebug,
   onOpenSearch,
   onOpenDiff,
   onOpenSettings,
+  onPreviewMail,
 }: {
   projects: ProjectTab[]
   activeProjectId: string
   activeRootPath?: string
+  activeFilePath?: string
   workspaceMode: WorkspaceMode
   explorerOpen: boolean
   terminalOpen: boolean
+  terminalMaximized: boolean
+  autoSave: boolean
+  compactMode: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
   runState: 'idle' | 'running' | 'success'
   debugState: 'idle' | 'starting' | 'paused' | 'running'
   pendingPatchCount: number
+  latestRevisionId?: string
   isDesktop: boolean
   onSwitchProject: (id: string) => void
   onCloseProject: (id: string) => void
   onImportFolder: (event: React.ChangeEvent<HTMLInputElement>) => void
   onOpenLocalDirectory: () => void
+  onNewFile: () => void
+  onSaveFile: () => void
+  onSaveAll: () => void
+  onCloseActiveTab: () => void
+  onCopyActivePath: () => void
+  onUndoLatestRevision: () => void
+  onToggleAutoSave: () => void
+  onToggleCompact: () => void
   onToggleExplorer: () => void
   onToggleTerminal: () => void
+  onToggleTerminalMaximized: () => void
+  onClearTerminal: () => void
   onToggleAgents: () => void
+  onSelectSidePanel: (panel: SidePanel) => void
+  onSelectMode: (mode: WorkspaceMode) => void
+  onCycleTab: (direction: 1 | -1) => void
   onRun: () => void
+  onRunCommand: (command: string) => void
   onDebug: () => void
+  onStopDebug: () => void
   onOpenSearch: () => void
   onOpenDiff: () => void
   onOpenSettings: () => void
+  onPreviewMail: () => void
 }) {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const menuBarRef = useRef<HTMLDivElement>(null)
   const activeProject = projects.find((project) => project.id === activeProjectId)
 
+  useEffect(() => {
+    if (!openMenuId) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenMenuId(null)
+    }
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openMenuId])
+
+  const menus: MenuGroup[] = [
+    {
+      id: 'file',
+      label: 'File',
+      items: [
+        { label: 'New Text File', shortcut: 'Ctrl+N', onSelect: onNewFile },
+        { label: 'Open Local Folder…', shortcut: 'Ctrl+O', onSelect: onOpenLocalDirectory },
+        {
+          label: 'Import Folder (Browser Picker)…',
+          onSelect: () => fileInputRef.current?.click(),
+        },
+        { type: 'separator' },
+        { label: 'Save', shortcut: 'Ctrl+S', disabled: !activeFilePath, onSelect: onSaveFile },
+        { label: 'Save All', onSelect: onSaveAll },
+        { label: 'Auto Save', checked: autoSave, onSelect: onToggleAutoSave },
+        { type: 'separator' },
+        {
+          label: 'Close Editor',
+          shortcut: 'Ctrl+W',
+          disabled: !activeFilePath,
+          onSelect: onCloseActiveTab,
+        },
+        { label: 'Preferences: Settings', shortcut: 'Ctrl+,', onSelect: onOpenSettings },
+      ],
+    },
+    {
+      id: 'edit',
+      label: 'Edit',
+      items: [
+        { label: 'Find in Workspace', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        {
+          label: latestRevisionId
+            ? `Undo Revision (${latestRevisionId})`
+            : 'Undo Latest Revision',
+          disabled: !latestRevisionId,
+          onSelect: onUndoLatestRevision,
+        },
+        { type: 'separator' },
+        {
+          label: 'Copy Active File Path',
+          disabled: !activeFilePath,
+          onSelect: onCopyActivePath,
+        },
+        { label: 'Open Edit Memory History', onSelect: () => onSelectSidePanel('revisions') },
+      ],
+    },
+    {
+      id: 'selection',
+      label: 'Selection',
+      items: [
+        { label: 'Explorer Files', shortcut: 'Ctrl+Shift+E', onSelect: () => onSelectSidePanel('explorer') },
+        { label: 'Search Results', shortcut: 'Ctrl+K', onSelect: () => onSelectSidePanel('search') },
+        { label: 'Source Control Changes', onSelect: () => onSelectSidePanel('git') },
+        { label: 'Edit Memory (REV-xxx)', onSelect: () => onSelectSidePanel('revisions') },
+        { type: 'separator' },
+        { label: 'Agent Diff Review', onSelect: onOpenDiff },
+      ],
+    },
+    {
+      id: 'view',
+      label: 'View',
+      items: [
+        { label: 'Command Center / Search', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        { type: 'separator' },
+        { label: 'Primary Side Bar', checked: explorerOpen, onSelect: onToggleExplorer },
+        { label: 'Bottom Panel / Terminal', checked: terminalOpen, onSelect: onToggleTerminal },
+        { label: 'Compact Interface', checked: compactMode, onSelect: onToggleCompact },
+        { type: 'separator' },
+        {
+          label: 'IDE Editor Workspace',
+          checked: workspaceMode === 'ide',
+          onSelect: () => onSelectMode('ide'),
+        },
+        {
+          label: 'VinceZone Multi-Agent Control Center',
+          shortcut: 'Ctrl+Shift+A',
+          checked: workspaceMode === 'agents',
+          onSelect: () => onSelectMode('agents'),
+        },
+        {
+          label: 'Android Device Preview',
+          checked: workspaceMode === 'android',
+          onSelect: () => onSelectMode('android'),
+        },
+      ],
+    },
+    {
+      id: 'go',
+      label: 'Go',
+      items: [
+        { label: 'Go to File / Symbol…', shortcut: 'Ctrl+K', onSelect: onOpenSearch },
+        { type: 'separator' },
+        { label: 'Next Editor Tab', onSelect: () => onCycleTab(1) },
+        { label: 'Previous Editor Tab', onSelect: () => onCycleTab(-1) },
+        { type: 'separator' },
+        { label: 'Edit Memory Revisions', onSelect: () => onSelectSidePanel('revisions') },
+        { label: 'Multi-Agent Control Center', onSelect: () => onSelectMode('agents') },
+      ],
+    },
+    {
+      id: 'run',
+      label: 'Run',
+      items: [
+        { label: 'Run Test Suite (pnpm test)', onSelect: onRun },
+        { label: 'Run TypeScript Check (pnpm typecheck)', onSelect: () => onRunCommand('pnpm typecheck') },
+        { type: 'separator' },
+        { label: 'Start Debugging', shortcut: 'F5', onSelect: onDebug },
+        {
+          label: 'Stop Debugging',
+          disabled: debugState === 'idle',
+          onSelect: onStopDebug,
+        },
+        { type: 'separator' },
+        {
+          label: `Review Agent Patches${pendingPatchCount > 0 ? ` (${pendingPatchCount})` : ''}`,
+          onSelect: onOpenDiff,
+        },
+      ],
+    },
+    {
+      id: 'terminal',
+      label: 'Terminal',
+      items: [
+        { label: 'Toggle Integrated Terminal', shortcut: 'Ctrl+`', onSelect: onToggleTerminal },
+        {
+          label: terminalMaximized ? 'Restore Panel Size' : 'Maximize Panel Size',
+          onSelect: onToggleTerminalMaximized,
+        },
+        { type: 'separator' },
+        { label: 'Run: pnpm test', onSelect: () => onRunCommand('pnpm test') },
+        { label: 'Run: pnpm typecheck', onSelect: () => onRunCommand('pnpm typecheck') },
+        { label: 'Run: git status', onSelect: () => onRunCommand('git status') },
+        { type: 'separator' },
+        { label: 'Clear Terminal Output', onSelect: onClearTerminal },
+      ],
+    },
+    {
+      id: 'help',
+      label: 'Help',
+      items: [
+        { label: 'Preview Agent Mail Animation', onSelect: onPreviewMail },
+        { label: 'Settings & CLI Integrations', onSelect: onOpenSettings },
+        { type: 'separator' },
+        {
+          label: 'VinceZone Studio v2.0.0 · localhost:40704',
+          disabled: true,
+          onSelect: () => {},
+        },
+      ],
+    },
+  ]
+
   return (
-    <header className="flex h-[35px] shrink-0 select-none items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-2 text-[#cccccc]">
-      {/* Left: VS Code Menu Bar + Workspace Switcher */}
+    <header className="relative z-40 flex h-[35px] shrink-0 select-none items-center justify-between border-b border-[#2b2b2b] bg-[#181818] px-2 text-[#cccccc]">
+      {/* Left: VS Code Menu Bar with real dropdown options + Workspace Switcher */}
       <div className="flex min-w-0 items-center gap-1">
         <div className="flex items-center gap-1.5 pr-1.5">
           <div className="grid size-5 place-items-center rounded bg-[#0078d4] text-[10px] font-bold text-white">
@@ -82,34 +314,73 @@ export function WorkspaceHeader({
           </span>
         </div>
 
-        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Application menu">
-          <button
-            className="vscode-menu-item"
-            onClick={onOpenLocalDirectory}
-            title="Open local directory on disk"
-          >
-            File
-          </button>
-          <button className="vscode-menu-item" onClick={onOpenSearch} title="Search in workspace">
-            Edit
-          </button>
-          <button className="vscode-menu-item" onClick={onToggleExplorer} title="Toggle Side Bar">
-            View
-          </button>
-          <button className="vscode-menu-item" onClick={onRun} title="Run workspace command">
-            Run
-          </button>
-          <button className="vscode-menu-item" onClick={onToggleTerminal} title="Toggle Terminal">
-            Terminal
-          </button>
-          <button className="vscode-menu-item" onClick={onOpenSettings} title="Settings">
-            Settings
-          </button>
-        </nav>
+        <div
+          ref={menuBarRef}
+          role="menubar"
+          aria-label="Application menu"
+          className="relative flex items-center gap-0.5"
+        >
+          {menus.map((menu) => {
+            const isOpen = openMenuId === menu.id
+            return (
+              <div key={menu.id} className="relative">
+                <button
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded={isOpen}
+                  onClick={() => setOpenMenuId((current) => (current === menu.id ? null : menu.id))}
+                  onMouseEnter={() => {
+                    if (openMenuId && openMenuId !== menu.id) setOpenMenuId(menu.id)
+                  }}
+                  className={`rounded px-2 py-0.5 text-[12px] transition ${
+                    isOpen
+                      ? 'bg-[#2a2d2e] text-white'
+                      : 'text-[#cccccc] hover:bg-[#2a2d2e] hover:text-white'
+                  }`}
+                >
+                  {menu.label}
+                </button>
+                {isOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 top-[28px] z-50 min-w-60 rounded-md border border-[#454545] bg-[#1f1f1f] py-1 shadow-[0_10px_32px_rgba(0,0,0,0.65)]"
+                  >
+                    {menu.items.map((item, index) =>
+                      item.type === 'separator' ? (
+                        <div key={`sep-${index}`} className="my-1 h-px bg-[#323232]" />
+                      ) : (
+                        <button
+                          key={item.label}
+                          role="menuitem"
+                          disabled={item.disabled}
+                          onClick={() => {
+                            setOpenMenuId(null)
+                            item.onSelect()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#cccccc] transition hover:bg-[#04395e] hover:text-white disabled:cursor-default disabled:text-[#666666] disabled:hover:bg-transparent"
+                        >
+                          <span className="grid size-3.5 shrink-0 place-items-center text-[#4ec9b0]">
+                            {item.checked ? <Check size={12} /> : null}
+                          </span>
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {item.shortcut && (
+                            <span className="ml-4 shrink-0 font-mono text-[10px] text-[#858585]">
+                              {item.shortcut}
+                            </span>
+                          )}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
 
         <div className="mx-1 hidden h-3.5 w-px bg-[#2b2b2b] lg:block" />
 
-        <div className="flex max-w-[26vw] items-center gap-1 overflow-x-auto">
+        <div className="hidden max-w-[20vw] items-center gap-1 overflow-x-auto xl:flex">
           {projects.map((project) => (
             <button
               key={project.id}
@@ -160,7 +431,7 @@ export function WorkspaceHeader({
       <button
         onClick={onOpenSearch}
         title="Search files & code (Ctrl+K)"
-        className="mx-2 hidden h-[24px] w-full max-w-md items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
+        className="mx-2 hidden h-[24px] w-full max-w-sm items-center justify-center gap-2 rounded-md border border-[#3c3c3c] bg-[#222222] px-3 text-[11px] text-[#9d9d9d] transition hover:border-[#4c4c4c] hover:bg-[#2a2d2e] hover:text-white md:flex"
       >
         <Search size={12} className="shrink-0 text-[#9d9d9d]" />
         <span className="truncate">
@@ -172,7 +443,7 @@ export function WorkspaceHeader({
         </kbd>
       </button>
 
-      {/* Right: Actions + VS Code Layout Controls */}
+      {/* Right: Quick Actions + VS Code Layout Controls */}
       <div className="flex shrink-0 items-center gap-1">
         {pendingPatchCount > 0 && (
           <button
@@ -188,7 +459,7 @@ export function WorkspaceHeader({
         <button
           onClick={onRun}
           className="flex h-6 items-center gap-1 rounded bg-[#0078d4] px-2 text-[11px] font-medium text-white hover:bg-[#1a8ad4]"
-          title="Run command in terminal"
+          title="Run test suite"
         >
           {runState === 'running' ? <Square size={10} fill="currentColor" /> : <Play size={11} />}
           <span className="hidden sm:inline">{runState === 'running' ? 'Running' : 'Run'}</span>
@@ -209,7 +480,6 @@ export function WorkspaceHeader({
 
         <div className="mx-1 h-3.5 w-px bg-[#2b2b2b]" />
 
-        {/* VS Code Layout Toggles */}
         <button
           onClick={onToggleExplorer}
           className={`icon-button !size-6 ${explorerOpen && workspaceMode === 'ide' ? 'bg-[#2a2d2e] text-white' : ''}`}
@@ -231,11 +501,7 @@ export function WorkspaceHeader({
         >
           <Bot size={14} />
         </button>
-        <button
-          onClick={onOpenSettings}
-          className="icon-button !size-6"
-          title="Settings"
-        >
+        <button className="icon-button !size-6" title="Settings" onClick={onOpenSettings}>
           <Settings size={14} />
         </button>
 

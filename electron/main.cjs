@@ -160,6 +160,7 @@ async function createWindow() {
     minHeight: 680,
     title: 'VinceZone Studio',
     icon: path.join(__dirname, 'icon.ico'),
+    autoHideMenuBar: true,
     backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
