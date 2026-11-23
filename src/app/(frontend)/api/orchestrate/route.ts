@@ -1,3 +1,4 @@
+import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from '@/lib/agent-tools'
 import { hashText } from '@/lib/file-tree'
 import { isLoopbackRequest } from '@/lib/local-guard'
 import {
@@ -8,6 +9,7 @@ import {
   type OrchestratorAgent,
   type PlannedTask,
 } from '@/lib/orchestrator'
+import { fetchProviderWithFallback } from '@/lib/provider-fallback'
 import { resolveSafeProviderEndpoint } from '@/lib/provider-url'
 import { checkRateLimit, getClientKey } from '@/lib/rate-limit'
 import {
@@ -35,6 +37,7 @@ type RequestBody = {
   coordinatorId?: string
   agents?: OrchestratorAgent[]
   instruction?: string
+  workspaceRoot?: string
   projectMemory?: string
   project?: { name?: string; files?: Array<{ path: string; content: string }> }
   limits?: Limits
@@ -47,6 +50,37 @@ type RequestBody = {
   planSummary?: string
 }
 
+type ToolChatMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
+  tool_call_id?: string
+  tool_calls?: Array<{
+    id: string
+    type: 'function'
+    function: { name: string; arguments: string }
+  }>
+}
+
+function extractAssistantText(msg?: {
+  content?: string | Array<{ text?: string }> | null
+  reasoning_content?: string | null
+  reasoning?: string | null
+}): string {
+  if (!msg) return ''
+  if (typeof msg.content === 'string' && msg.content.trim()) return msg.content
+  if (Array.isArray(msg.content)) {
+    const joined = msg.content.map((part) => part.text ?? '').join('').trim()
+    if (joined) return joined
+  }
+  if (typeof msg.reasoning_content === 'string' && msg.reasoning_content.trim()) {
+    return msg.reasoning_content
+  }
+  if (typeof msg.reasoning === 'string' && msg.reasoning.trim()) {
+    return msg.reasoning
+  }
+  return ''
+}
+
 async function complete(
   endpoint: URL,
   provider: Provider,
@@ -54,28 +88,192 @@ async function complete(
   signal: AbortSignal,
   model = provider.model,
 ) {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
-    },
-    body: JSON.stringify({ model, messages, stream: false, temperature: 0.2 }),
-    cache: 'no-store',
-    redirect: 'error',
-    signal,
-  })
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 500)
-    throw new Error(`Provider returned ${response.status}: ${detail}`)
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
   }
-  const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>
+  const tryModels = [model, 'super-coder', 'always-on', 'free-forever'].filter(
+    (m, i, arr) => Boolean(m) && arr.indexOf(m) === i,
+  )
+
+  for (const candidateModel of tryModels) {
+    const { response } = await fetchProviderWithFallback({
+      endpoint,
+      headers,
+      model: candidateModel,
+      payload: { messages, stream: false, temperature: 0.2 },
+      parentSignal: signal,
+      timeoutMs: 24_000,
+    })
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 500)
+      if (candidateModel === tryModels[tryModels.length - 1]) {
+        throw new Error(`Provider returned ${response.status}: ${detail}`)
+      }
+      continue
+    }
+    const payload = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ text?: string }> | null
+          reasoning_content?: string | null
+          reasoning?: string | null
+        }
+      }>
+    }
+    const text = extractAssistantText(payload.choices?.[0]?.message)
+    if (text) return text
   }
-  const content = payload.choices?.[0]?.message?.content
-  if (typeof content === 'string') return content
-  if (Array.isArray(content)) return content.map((part) => part.text ?? '').join('')
+
   throw new Error('Provider returned an empty response.')
+}
+
+async function completeWithTools(options: {
+  endpoint: URL
+  provider: Provider
+  model: string
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  signal: AbortSignal
+  workspaceRoot: string
+  allowTools: boolean
+  onFileUpdated?: (file: { path: string; summary: string; nextContent: string; previousContent: string | null }) => void
+  onAgentHandoff?: (handoff: { toRole: string; message: string; files?: string[] }) => void
+}): Promise<{ text: string; savedFiles: string[] }> {
+  const {
+    endpoint,
+    provider,
+    model,
+    messages,
+    signal,
+    workspaceRoot,
+    allowTools,
+    onFileUpdated,
+    onAgentHandoff,
+  } = options
+
+  if (!allowTools) {
+    const text = await complete(endpoint, provider, messages, signal, model)
+    return { text, savedFiles: [] }
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
+  }
+  const conversation: ToolChatMessage[] = messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }))
+  const savedFiles: string[] = []
+  let finalChunks: string[] = []
+  let activeModel = model
+
+  for (let round = 0; round < 6; round += 1) {
+    const { response, usedModel } = await fetchProviderWithFallback({
+      endpoint,
+      headers,
+      model: activeModel,
+      payload: {
+        messages: conversation,
+        tools: AGENT_TOOL_DEFINITIONS,
+        tool_choice: 'auto',
+        stream: false,
+        temperature: 0.2,
+      },
+      parentSignal: signal,
+      timeoutMs: 24_000,
+    })
+    activeModel = usedModel
+
+    if (!response.ok) {
+      if (round === 0) {
+        const fallbackText = await complete(endpoint, provider, messages, signal, activeModel)
+        return { text: fallbackText, savedFiles }
+      }
+      const detail = (await response.text()).slice(0, 400)
+      throw new Error(`Provider returned ${response.status}: ${detail}`)
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ text?: string }> | null
+          reasoning_content?: string | null
+          reasoning?: string | null
+          tool_calls?: Array<{
+            id: string
+            type: 'function'
+            function: { name: string; arguments: string }
+          }>
+        }
+      }>
+    }
+    const msg = data.choices?.[0]?.message
+    const contentText = extractAssistantText(msg)
+    const toolCalls = msg?.tool_calls ?? []
+
+    if (contentText.trim()) {
+      finalChunks.push(contentText.trim())
+    }
+    if (!toolCalls.length) break
+
+    conversation.push({
+      role: 'assistant',
+      content: contentText || null,
+      tool_calls: toolCalls,
+    })
+
+    for (const call of toolCalls.slice(0, 5)) {
+      const toolName = call.function?.name || ''
+      let parsedArgs: Record<string, unknown> = {}
+      try {
+        parsedArgs = JSON.parse(call.function?.arguments || '{}') as Record<string, unknown>
+      } catch {
+        parsedArgs = {}
+      }
+
+      const outcome = await executeAgentTool(toolName, parsedArgs, workspaceRoot)
+      if (outcome.fileUpdated) {
+        savedFiles.push(outcome.fileUpdated.path)
+        onFileUpdated?.(outcome.fileUpdated)
+      }
+      if (outcome.agentHandoff) {
+        onAgentHandoff?.(outcome.agentHandoff)
+      }
+
+      conversation.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        content: outcome.output.slice(0, 9_000),
+      })
+    }
+  }
+
+  const combined =
+    finalChunks.join('\n\n').trim() ||
+    (savedFiles.length > 0 ? `Updated and saved: ${[...new Set(savedFiles)].join(', ')}` : '')
+
+  return { text: combined, savedFiles: [...new Set(savedFiles)] }
+}
+
+function selectDiscussionSpecialists(
+  instruction: string,
+  workers: OrchestratorAgent[],
+): OrchestratorAgent[] {
+  if (workers.length === 0) return []
+  const lower = instruction.toLowerCase()
+  const scored = workers.map((worker) => {
+    const rid = inferRoleId(`${worker.id} ${worker.role}`)
+    let score = 1
+    if (rid === 'arch') score += 5
+    if (rid === 'be' && /api|server|route|db|auth|save|backend|error|bug|fix|sửa|lỗi|android|run/i.test(lower)) score += 6
+    if (rid === 'fe' && /ui|ux|button|chat|panel|css|react|modal|page|giao diện|nút|hiển thị|fix|sửa/i.test(lower)) score += 6
+    if (rid === 'qa' && /test|bug|fix|verify|lỗi|kiểm tra/i.test(lower)) score += 4
+    if (rid === 'mobile' && /android|mobile|phone|apk|emulator|điện thoại/i.test(lower)) score += 8
+    return { worker, score }
+  })
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, Math.min(2, workers.length)).map((item) => item.worker)
 }
 
 function clamp(value: number | undefined, min: number, max: number, fallback: number) {
@@ -105,7 +303,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { provider, coordinatorId, instruction, project, projectMemory } = body
+  const { provider, coordinatorId, instruction, project, projectMemory, workspaceRoot } = body
   const agents = (body.agents ?? []).slice(0, 24)
   const topologyMode =
     body.topology?.mode === 'peer' || body.topology?.mode === 'dual-coordinator'
@@ -129,12 +327,7 @@ export async function POST(request: Request) {
     coordinatorCandidates.find((agent) => agent.id === coordinatorId) ?? coordinatorCandidates[0]
 
   const isLocalReq = isLoopbackRequest(request)
-  if (
-    !provider?.baseUrl ||
-    !provider.model ||
-    !coordinator ||
-    !instruction?.trim()
-  ) {
+  if (!provider?.baseUrl || !provider.model || !coordinator || !instruction?.trim()) {
     return Response.json(
       { error: 'Provider, coordinator, agents, and instruction are required.' },
       { status: 400 },
@@ -164,8 +357,11 @@ export async function POST(request: Request) {
     )
   }
 
+  const resolvedRoot =
+    workspaceRoot?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
+
   const limits = {
-    maxDepth: clamp(body.limits?.maxDepth, 0, 4, 1),
+    maxDepth: clamp(body.limits?.maxDepth, 0, 4, 2),
     maxActiveAgents: clamp(body.limits?.maxActiveAgents, 1, 24, 6),
     maxConcurrentTasks: clamp(body.limits?.maxConcurrentTasks, 1, 24, 4),
     maxIterations: clamp(body.limits?.maxIterations, 1, 8, 2),
@@ -193,7 +389,7 @@ export async function POST(request: Request) {
   const projectContext = files
     .map((file) => `--- ${file.path}\n${file.content.slice(0, 5000)}`)
     .join('\n')
-    .slice(0, 60_000)
+    .slice(0, 50_000)
   const runId = crypto.randomUUID().slice(0, 8)
   const isResumingApproved = Array.isArray(body.approvedTasks) && body.approvedTasks.length > 0
 
@@ -225,6 +421,7 @@ export async function POST(request: Request) {
         let planningContext = body.planningContext ?? ''
         let planSummary = body.planSummary ?? ''
         let tasks: PlannedTask[] = []
+        const allSavedFiles = new Set<string>()
 
         if (isResumingApproved) {
           const validApproved = (body.approvedTasks ?? []).filter((task) =>
@@ -244,101 +441,94 @@ export async function POST(request: Request) {
         } else {
           emit('coordinator.response.started', { agentId: coordinator.id })
 
-          if (topologyMode !== 'coordinator' && planners.length > 0) {
+          // Autonomous Multi-Agent Discussion Round (runs in ALL topologies including default @PM!)
+          const discussionParticipants =
+            topologyMode !== 'coordinator' && planners.length > 1
+              ? planners
+              : selectDiscussionSpecialists(instruction, workers)
+
+          if (discussionParticipants.length > 0) {
             const planningConcurrency = Math.max(
               1,
               Math.min(limits.maxActiveAgents, limits.maxConcurrentTasks),
             )
-            const proposals = await runLimited(planners, planningConcurrency, async (planner) => {
-              const taskId = `PLAN-${runId}-${planner.id}`
-              emit('worker.response.started', { agentId: planner.id, taskId })
-              const result = await complete(
-                endpoint,
-                provider,
-                [
-                  {
-                    role: 'system',
-                    content:
-                      topologyMode === 'peer'
-                        ? `You are ${planner.name}, one member of a six-agent peer planning room. Independently analyze the request, project risks, dependencies, likely file ownership, and a concrete work plan. Your proposal will be delivered to every other peer before execution.`
-                        : `You are ${planner.name}, one of two planning agents. Independently analyze the request, architecture, dependencies, worker assignments, and conflict risks. Your proposal will be exchanged with the other planner before tasks are sent to four workers.`,
-                  },
-                  {
-                    role: 'user',
-                    content: `Project: ${project?.name || 'workspace'}\nRequest: ${instruction}\n\nProject context:\n${projectContext}`,
-                  },
-                ],
-                request.signal,
-                planner.model || provider.model,
-              )
-              emit('worker.response.completed', {
-                agentId: planner.id,
-                senderId: planner.id,
-                recipientId: coordinator.id,
-                taskId,
-                result,
+            // Coordinator opens team discussion with selected specialists
+            for (const specialist of discussionParticipants) {
+              emit('message.sent', {
+                senderId: coordinator.id,
+                recipientId: specialist.id,
+                taskId: `PLAN-${runId}-${specialist.id}`,
+                message: `Team Discussion Request: Analyze "${instruction.slice(0, 220)}" from your specialist perspective, identify affected files & root cause, and propose concrete changes.`,
+                relevantFiles: [...paths].slice(0, 8),
               })
-              return { planner, result }
-            })
-            planningContext = proposals
-              .map(
-                ({ planner, result }) =>
-                  `## Proposal from ${planner.name} (${planner.id})\n${result}`,
-              )
-              .join('\n\n')
-            for (const proposal of proposals) {
-              const recipients = planners.filter((planner) => planner.id !== proposal.planner.id)
-              for (const recipient of recipients) {
-                emit('message.sent', {
-                  senderId: proposal.planner.id,
-                  recipientId: recipient.id,
-                  taskId: `PLAN-${runId}`,
-                  message: proposal.result,
-                  relevantFiles: [],
-                })
-              }
             }
-            if (topologyMode === 'dual-coordinator' && planners.length === 2) {
-              const sharedProposals = planningContext
-              const refinements = await runLimited(
-                planners,
-                planningConcurrency,
-                async (planner) => {
-                  const otherPlanner = planners.find((item) => item.id !== planner.id)!
-                  const taskId = `REVIEW-${runId}-${planner.id}`
-                  emit('worker.response.started', { agentId: planner.id, taskId })
+
+            const proposalsRaw = await runLimited(
+              discussionParticipants,
+              isLoopbackTarget ? 1 : planningConcurrency,
+              async (specialist) => {
+                const taskId = `PLAN-${runId}-${specialist.id}`
+                emit('worker.response.started', { agentId: specialist.id, taskId })
+                try {
                   const result = await complete(
                     endpoint,
                     provider,
                     [
                       {
                         role: 'system',
-                        content: `You are ${planner.name}, one of two planning agents. You have now received ${otherPlanner.name}'s proposal. Reconcile both proposals, explicitly resolve disagreements and file conflicts, then return your refined assignment plan for the four workers.`,
+                        content: `You are ${specialist.name} (${specialist.role}) in a live multi-agent team discussion led by ${coordinator.name}. Be concise (4-6 bullets): identify root cause, exact files to edit, API/UI contracts, and risks for teammates.`,
                       },
                       {
                         role: 'user',
-                        content: `Original request: ${instruction}\n\nBoth planner proposals:\n${sharedProposals}`,
+                        content: `Project: ${project?.name || 'workspace'}\nUser Request: ${instruction}\n\nRelevant files:\n${projectContext.slice(0, 20_000)}`,
                       },
                     ],
                     request.signal,
-                    planner.model || provider.model,
+                    specialist.model || provider.model,
                   )
                   emit('worker.response.completed', {
-                    agentId: planner.id,
-                    senderId: planner.id,
-                    recipientId: otherPlanner.id,
+                    agentId: specialist.id,
+                    senderId: specialist.id,
+                    recipientId: coordinator.id,
                     taskId,
                     result,
                   })
-                  return { planner, result }
-                },
+                  return { specialist, result }
+                } catch (err) {
+                  const fallbackNote = `${specialist.name} skipped discussion round (${err instanceof Error ? err.message : 'transient error'}).`
+                  emit('worker.response.completed', {
+                    agentId: specialist.id,
+                    senderId: specialist.id,
+                    recipientId: coordinator.id,
+                    taskId,
+                    result: fallbackNote,
+                  })
+                  return { specialist, result: fallbackNote }
+                }
+              },
+            )
+            const proposals = proposalsRaw.filter((p) => Boolean(p.result))
+
+            planningContext = proposals
+              .map(
+                ({ specialist, result }) =>
+                  `## Specialist Input from ${specialist.name} (${specialist.id})\n${result}`,
               )
-              planningContext = `${sharedProposals}\n\n${refinements
-                .map(
-                  ({ planner, result }) =>
-                    `## Refined plan from ${planner.name} (${planner.id})\n${result}`,
-                )
-                .join('\n\n')}`
+              .join('\n\n')
+
+            // Cross-share discussion insights between participating peers
+            if (proposals.length >= 2) {
+              for (const p of proposals) {
+                for (const peer of proposals.filter((other) => other.specialist.id !== p.specialist.id)) {
+                  emit('message.sent', {
+                    senderId: p.specialist.id,
+                    recipientId: peer.specialist.id,
+                    taskId: `PLAN-${runId}`,
+                    message: p.result.slice(0, 700),
+                    relevantFiles: [],
+                  })
+                }
+              }
             }
           }
 
@@ -349,27 +539,26 @@ export async function POST(request: Request) {
               return `${agent.id}: ${agent.name} [@${code}] — ${agent.role} — ${agent.model}`
             })
             .join('\n')
+
           const planRaw = await complete(
             endpoint,
             provider,
             [
               {
                 role: 'system',
-                content: `You are ${coordinator.name}, the central Project Manager (PM) & Coordinator for VinceZone Studio.
+                content: `You are ${coordinator.name}, the central Project Manager (PM) & Commander for VinceZone Studio.
 ${buildVinceZoneCoordinatorRules('')}
-Decide whether delegation is useful. Trivial requests should have an empty tasks array.
-Never assign duplicate work. Respect dependencies, API Contracts, and exclusive file territories.
-${topologyMode === 'peer' ? 'For a non-trivial request, assign one distinct task to every available peer so all six agents work from the shared discussion.' : ''}
-${topologyMode === 'dual-coordinator' ? 'For a non-trivial request, assign one distinct task to each of the four workers based on the two-planner discussion.' : ''}
+Review the team discussion and assign clear, non-overlapping specialist tasks whenever code edits, bug fixes, analysis, or verification are requested.
+Every coding/fixing request MUST assign at least 1 specialist task to the right owner (e.g. @FE, @BE, @ARCH, @QA) so they actually modify & save files using tools!
 Return ONLY JSON: {"summary":"...","tasks":[{"id":"TASK-001","title":"...","description":"...","assigneeId":"exact id","dependencies":[],"relevantFiles":["exact known path"],"expectedOutput":"...","constraints":[],"completionCriteria":[]}]}.
 Available specialists:
 ${roster || '(none)'}
 Known project files: ${[...paths].join(', ')}
-Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concurrent tasks ${limits.maxConcurrentTasks}, iterations ${limits.maxIterations}.`,
+Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concurrent tasks ${limits.maxConcurrentTasks}.`,
               },
               {
                 role: 'user',
-                content: `Project: ${project?.name || 'workspace'}\nRequest: ${instruction}\n\nShared planning discussion:\n${planningContext || '(single coordinator analysis)'}\n\nProject context:\n${projectContext}`,
+                content: `Project: ${project?.name || 'workspace'}\nRequest: ${instruction}\n\nTeam discussion:\n${planningContext || '(single coordinator analysis)'}\n\nProject context:\n${projectContext.slice(0, 30_000)}`,
               },
             ],
             request.signal,
@@ -465,10 +654,15 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
                   .filter((file) => task.relevantFiles.includes(file.path))
                   .map((file) => `--- ${file.path}\n${file.content.slice(0, 8000)}`)
                   .join('\n')
-                const result = await complete(
+
+                const toolRun = await completeWithTools({
                   endpoint,
                   provider,
-                  [
+                  model: worker.model || provider.model,
+                  signal: request.signal,
+                  workspaceRoot: resolvedRoot,
+                  allowTools: isLocalReq,
+                  messages: [
                     {
                       role: 'system',
                       content: `${buildTeamCollaborationPrompt(worker, topologyAgents, projectMemory)}
@@ -480,20 +674,50 @@ Assigned Task Execution:
 - Expected output: ${task.expectedOutput}
 - Constraints: ${task.constraints.join('; ') || 'none'}
 - Dependencies: ${task.dependencies.join(', ') || 'none'}
-- Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}`,
+- Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}
+- IMPORTANT: You have live workspace tools (\`read_file\`, \`patch_file\`, \`write_file\`, \`grep_search\`, \`run_verify\`, \`message_agent\`). USE \`patch_file\` or \`write_file\` to ACTUALLY EDIT AND SAVE code directly to disk!`,
                     },
                     {
                       role: 'user',
-                      content: `${task.description}\n\nShared planning context from the other agents:\n${planningContext || '(single coordinator plan)'}\n\nExplicit project context:\n${relevantContext || projectContext.slice(0, 24_000)}`,
+                      content: `${task.description}\n\nShared team discussion:\n${planningContext || '(single coordinator plan)'}\n\nExplicit project context:\n${relevantContext || projectContext.slice(0, 24_000)}`,
                     },
                   ],
-                  request.signal,
-                  worker.model || provider.model,
-                )
+                  onFileUpdated: (fileUpdated) => {
+                    allSavedFiles.add(fileUpdated.path)
+                    fileMap.set(fileUpdated.path, fileUpdated.nextContent)
+                    emit('file.updated', {
+                      agentId: worker.id,
+                      taskId: task.id,
+                      path: fileUpdated.path,
+                      summary: fileUpdated.summary,
+                      content: fileUpdated.nextContent,
+                    })
+                  },
+                  onAgentHandoff: (handoff) => {
+                    const target = topologyAgents.find(
+                      (a) =>
+                        a.id !== worker.id &&
+                        (a.id.toLowerCase() === handoff.toRole.toLowerCase() ||
+                          inferRoleId(`${a.id} ${a.role}`).toLowerCase() ===
+                            handoff.toRole.toLowerCase()),
+                    )
+                    if (target) {
+                      emit('message.sent', {
+                        senderId: worker.id,
+                        recipientId: target.id,
+                        taskId: `HANDOFF-${task.id}`,
+                        message: handoff.message,
+                        relevantFiles: handoff.files ?? [],
+                      })
+                    }
+                  },
+                })
 
+                const result = toolRun.text
                 const workerRoleId = inferRoleId(`${worker.id} ${worker.role}`)
                 const proposedPatches = extractProposedPatches(result, paths)
                 for (const patch of proposedPatches) {
+                  if (toolRun.savedFiles.includes(patch.path)) continue
                   const baseContent = fileMap.get(patch.path) ?? ''
                   const existingOwner = claimedFiles.get(patch.path)
                   const conflictWith =
@@ -566,32 +790,48 @@ Assigned Task Execution:
           }
         }
 
+        // If no worker tasks were delegated, let @PM directly execute with real tools so code fixes still happen!
         emit('coordinator.review.started', { agentId: coordinator.id })
-        const final = await complete(
+        const finalRun = await completeWithTools({
           endpoint,
           provider,
-          [
+          model: coordinator.model || provider.model,
+          signal: request.signal,
+          workspaceRoot: resolvedRoot,
+          allowTools: isLocalReq && results.length === 0,
+          messages: [
             {
               role: 'system',
-              content: `You are ${coordinator.name}. Review worker reports, identify conflicts or blockers, and give the user a concise integrated result. Do not claim files were changed unless the user approves proposed patches. State next actions clearly.`,
+              content: `You are ${coordinator.name}. Synthesize the team discussion, specialist reports, and saved file changes (${[...allSavedFiles].join(', ') || 'none yet'}) into a clear, factual final summary. ${
+                results.length === 0
+                  ? 'If the user asked to edit or fix code, use `read_file` and `patch_file`/`write_file` right now to apply and save the change directly.'
+                  : 'List exact modified/saved files and verification status honestly.'
+              }`,
             },
             {
               role: 'user',
-              content: `Original request: ${instruction}\nPlan: ${planSummary}\nWorker reports:\n${
+              content: `Original request: ${instruction}\nPlan: ${planSummary}\nTeam discussion:\n${planningContext || '(none)'}\n\nWorker reports:\n${
                 results
                   .map(
                     ({ task, result, error }) =>
                       `## ${task.id} ${task.title}\n${result || `ERROR: ${error}`}`,
                   )
-                  .join('\n\n') ||
-                'No delegation was necessary. Respond directly to the request using the project context.'
-              }\n\nProject context:\n${projectContext.slice(0, 32_000)}`,
+                  .join('\n\n') || 'No separate worker tasks were delegated.'
+              }\n\nProject context:\n${projectContext.slice(0, 28_000)}`,
             },
           ],
-          request.signal,
-          coordinator.model || provider.model,
-        )
-        emit('coordinator.review.completed', { agentId: coordinator.id, result: final })
+          onFileUpdated: (fileUpdated) => {
+            allSavedFiles.add(fileUpdated.path)
+            emit('file.updated', {
+              agentId: coordinator.id,
+              path: fileUpdated.path,
+              summary: fileUpdated.summary,
+              content: fileUpdated.nextContent,
+            })
+          },
+        })
+
+        emit('coordinator.review.completed', { agentId: coordinator.id, result: finalRun.text })
         emit('session.completed', { agentId: coordinator.id })
       } catch (error) {
         emit('session.failed', {

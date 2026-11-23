@@ -242,6 +242,9 @@ export type RuntimeEvent = {
   result?: string
   error?: string
   relevantFiles?: string[]
+  path?: string
+  content?: string
+  summary?: string
 }
 
 export type { EditRevision }

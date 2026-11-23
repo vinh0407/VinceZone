@@ -401,6 +401,44 @@ export function useOrchestration({
         ])
         return
       }
+      if (event.type === 'file.updated' && event.path && typeof event.content === 'string') {
+        const sourceAgent =
+          agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
+        if (sourceAgent && onApplyDirectEdit) {
+          setAiActivity('editing')
+          const applied = onApplyDirectEdit({
+            path: event.path,
+            content: event.content,
+            summary: event.summary || `Saved ${event.path}`,
+            agent: sourceAgent,
+          })
+          const badgeMsg: Message = {
+            id: uid(),
+            role: 'tool',
+            change: true,
+            codeSnippet: event.content.slice(0, 220),
+            text: `Edited & saved ${event.path}${applied.revisionId ? ` (${applied.revisionId})` : ''} to disk.`,
+          }
+          updateAgent(sourceAgent.id, (current) => ({
+            ...current,
+            messages: [...current.messages, badgeMsg],
+          }))
+          if (runMeta?.coordinatorId && runMeta.coordinatorId !== sourceAgent.id) {
+            updateAgent(runMeta.coordinatorId, (current) => ({
+              ...current,
+              messages: [
+                ...current.messages,
+                {
+                  ...badgeMsg,
+                  id: uid(),
+                  text: `[${sourceAgent.name}] ${badgeMsg.text}`,
+                },
+              ],
+            }))
+          }
+        }
+        return
+      }
       if (event.type === 'patch.proposed' && event.patch) {
         const patch = event.patch
         const sourceAgent = agentsRef.current.find((a) => a.id === patch.agentId)
@@ -503,6 +541,34 @@ export function useOrchestration({
               },
             ],
           }))
+          if (sender && recipient) {
+            publishBridgeMessage({
+              from: sender,
+              to: recipient,
+              kind: isPlanningExchange ? 'question' : 'handoff',
+              content: (event.message || 'Task dispatched').slice(0, 500),
+              relatedFiles: event.relevantFiles,
+            })
+            // Mirror inter-agent discussion live into @PM's chat timeline so Code View shows the team talking!
+            if (
+              runMeta?.coordinatorId &&
+              sender.id !== runMeta.coordinatorId &&
+              recipient.id !== runMeta.coordinatorId
+            ) {
+              updateAgent(runMeta.coordinatorId, (current) => ({
+                ...current,
+                messages: [
+                  ...current.messages,
+                  {
+                    id: uid(),
+                    role: 'agent',
+                    from: `${sender.name} → ${recipient.name}`,
+                    text: (event.message || '').slice(0, 320),
+                  },
+                ],
+              }))
+            }
+          }
           if (!isPlanningExchange) {
             setAgentTasks((current) =>
               current.map((task) =>
@@ -563,6 +629,30 @@ export function useOrchestration({
           })
         }
         if (event.senderId && event.recipientId && event.senderId !== event.recipientId) {
+          const sender = agentsRef.current.find((a) => a.id === event.senderId)
+          const recipient = agentsRef.current.find((a) => a.id === event.recipientId)
+          if (sender && recipient && event.result) {
+            publishBridgeMessage({
+              from: sender,
+              to: recipient,
+              kind: 'reply',
+              content: event.result.slice(0, 500),
+            })
+            if (runMeta?.coordinatorId === recipient.id) {
+              updateAgent(recipient.id, (current) => ({
+                ...current,
+                messages: [
+                  ...current.messages,
+                  {
+                    id: uid(),
+                    role: 'agent',
+                    from: sender.name,
+                    text: event.result!.slice(0, 480),
+                  },
+                ],
+              }))
+            }
+          }
           appendCommunicationEvent({
             type: event.type,
             kind: 'report',
@@ -672,9 +762,11 @@ export function useOrchestration({
       appendCommunicationEvent,
       onApplyDirectEdit,
       onRecordUsage,
+      publishBridgeMessage,
       savedProvider.model,
       savedProvider.name,
       setAgentTasks,
+      setAiActivity,
       setPendingApproval,
       setProposedPatches,
       updateAgent,
@@ -745,6 +837,7 @@ export function useOrchestration({
           body: JSON.stringify({
             provider: activeProvider,
             coordinatorId: coordinator.id,
+            workspaceRoot,
             agents: agentsRef.current.map(({ id, name, role, model, soul, mission, memory }) => ({
               id,
               name,
@@ -831,6 +924,7 @@ export function useOrchestration({
       resolveSlashContext,
       setAiActivity,
       updateAgent,
+      workspaceRoot,
     ],
   )
 

@@ -1,5 +1,6 @@
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from '@/lib/agent-tools'
 import { isLoopbackRequest } from '@/lib/local-guard'
+import { fetchProviderWithFallback } from '@/lib/provider-fallback'
 import { resolveSafeProviderEndpoint } from '@/lib/provider-url'
 import { checkRateLimit, getClientKey } from '@/lib/rate-limit'
 
@@ -103,38 +104,52 @@ export async function POST(request: Request) {
           let totalPromptTokens = 0
           let totalCompletionTokens = 0
 
+          let activeModel = model
+
           for (let round = 0; round < 8; round++) {
-            const upstream = await fetch(endpoint, {
-              method: 'POST',
+            const attempt = await fetchProviderWithFallback({
+              endpoint,
               headers: authHeaders,
-              body: JSON.stringify({
-                model,
+              model: activeModel,
+              payload: {
                 messages: conversation,
                 tools: AGENT_TOOL_DEFINITIONS,
                 tool_choice: 'auto',
                 stream: false,
                 temperature: 0.2,
-              }),
-              cache: 'no-store',
-              redirect: 'error',
-              signal: request.signal,
+              },
+              parentSignal: request.signal,
+              timeoutMs: 24_000,
             })
+            const upstream = attempt.response
+            if (attempt.fellBack && attempt.usedModel !== activeModel) {
+              activeModel = attempt.usedModel
+              controller.enqueue(
+                sseFrame({
+                  vincezone_event: {
+                    type: 'tool.call',
+                    name: 'model_fallback',
+                    args: { path: `Switched to fast combo ${activeModel}` },
+                  },
+                }),
+              )
+            }
 
             // If provider/model doesn't support `tools`, cleanly fall back to standard SSE streaming
             if (!upstream.ok && round === 0) {
-              const fallback = await fetch(endpoint, {
-                method: 'POST',
+              const fbAttempt = await fetchProviderWithFallback({
+                endpoint,
                 headers: authHeaders,
-                body: JSON.stringify({
-                  model,
+                model: activeModel,
+                payload: {
                   messages: messages.slice(-26),
                   stream: true,
                   temperature: 0.2,
-                }),
-                cache: 'no-store',
-                redirect: 'error',
-                signal: request.signal,
+                },
+                parentSignal: request.signal,
+                timeoutMs: 24_000,
               })
+              const fallback = fbAttempt.response
               if (!fallback.ok || !fallback.body) {
                 const detail = (await fallback.text()).slice(0, 600)
                 controller.enqueue(
@@ -165,6 +180,8 @@ export async function POST(request: Request) {
               choices?: Array<{
                 message?: {
                   content?: string | null
+                  reasoning_content?: string | null
+                  reasoning?: string | null
                   tool_calls?: Array<{
                     id: string
                     type: 'function'
@@ -182,7 +199,18 @@ export async function POST(request: Request) {
 
             const assistantMsg = data.choices?.[0]?.message
             const toolCalls = assistantMsg?.tool_calls ?? []
-            const contentText = typeof assistantMsg?.content === 'string' ? assistantMsg.content : ''
+            const contentText =
+              typeof assistantMsg?.content === 'string' && assistantMsg.content.trim()
+                ? assistantMsg.content
+                : typeof assistantMsg?.reasoning_content === 'string' &&
+                    assistantMsg.reasoning_content.trim() &&
+                    !toolCalls.length
+                  ? assistantMsg.reasoning_content
+                  : typeof assistantMsg?.reasoning === 'string' &&
+                      assistantMsg.reasoning.trim() &&
+                      !toolCalls.length
+                    ? assistantMsg.reasoning
+                    : ''
 
             if (contentText) {
               controller.enqueue(

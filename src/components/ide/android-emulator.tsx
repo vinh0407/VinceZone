@@ -22,6 +22,9 @@ type AndroidStatus = {
   adbAvailable: boolean
   avds: string[]
   devices: Array<{ serial: string; status: string; details: string }>
+  bootingSerial?: string | null
+  bootCompleted?: boolean
+  emulatorProcessAlive?: boolean
   screenSize?: { width: number; height: number }
 }
 
@@ -89,10 +92,13 @@ export function AndroidEmulator({
       const online = data.devices.find((d) => d.status === 'device')
       if (online) {
         setSelectedSerial(online.serial)
-        setBooting(false)
+        setBooting(!data.bootCompleted)
         setAutoStream(true)
       } else {
         setSelectedSerial('')
+        if (data.bootingSerial || data.emulatorProcessAlive) {
+          setBooting(true)
+        }
       }
     } finally {
       setLoading(false)
@@ -355,7 +361,9 @@ export function AndroidEmulator({
                 </h3>
                 <p className="mt-1.5 text-[10px] leading-4 text-[#9a9a9a]">
                   {booting
-                    ? 'Starting Android headless directly on this phone screen. Live display will appear automatically…'
+                    ? status?.bootingSerial
+                      ? `${status.bootingSerial} detected — booting Android OS silently in background (no terminal popup)…`
+                      : 'Starting Android silently inside this phone screen (takes ~15-20s on first boot)…'
                     : selectedSerial
                       ? `Connected to ${selectedSerial}. Streaming live screen…`
                       : status?.avds.length

@@ -355,6 +355,11 @@ export function IDEWorkspace() {
             needsBlueprintUpgrade && (!agent.mission || agent.mission.length < 320)
           const upgradeMemory =
             needsBlueprintUpgrade && (!agent.memory || agent.memory.length < 300)
+          const isStalledCombo =
+            needsBlueprintUpgrade &&
+            (agent.model === 'lead-architect' ||
+              agent.model === 'backend-core' ||
+              agent.model === 'frontend-ui-ux')
           return {
             ...agent,
             roleId,
@@ -362,6 +367,7 @@ export function IDEWorkspace() {
             soul: upgradeSoul ? blueprint.defaultSoul : agent.soul,
             mission: upgradeMission ? blueprint.defaultMission : agent.mission,
             memory: upgradeMemory ? blueprint.defaultMemory : agent.memory,
+            model: isStalledCombo ? blueprint.recommendedModel : agent.model,
           }
         }
 
@@ -520,21 +526,13 @@ export function IDEWorkspace() {
                 !agent.model ||
                 agent.model === 'openai/gpt-4.1' ||
                 agent.model === 'anthropic/claude-sonnet-4' ||
-                agent.model === 'google/gemini-2.5-pro'
+                agent.model === 'google/gemini-2.5-pro' ||
+                agent.model === 'lead-architect' ||
+                agent.model === 'backend-core' ||
+                agent.model === 'frontend-ui-ux'
               if (!isLegacyModel) return agent
               const rid = agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)
-              const comboForRole =
-                rid === 'pm' || rid === 'arch'
-                  ? 'lead-architect'
-                  : rid === 'fe' || rid === 'uiux'
-                    ? 'frontend-ui-ux'
-                    : rid === 'be' || rid === 'db'
-                      ? 'backend-core'
-                      : rid === 'qa' || rid === 'perf'
-                        ? 'qa-test-debugger'
-                        : rid === 'sec' || rid === 'devops'
-                          ? 'secops-reviewer'
-                          : 'super-coder'
+              const comboForRole = getRoleBlueprint(rid).recommendedModel
               return { ...agent, providerId: omni.id, model: comboForRole }
             }),
           )
@@ -2132,9 +2130,7 @@ export function IDEWorkspace() {
                     onChangeAgentModel={handleChangeAgentModel}
                     onSelectAgent={setRightChatAgentId}
                     onDraft={(id, value) => setDrafts((current) => ({ ...current, [id]: value }))}
-                    onSend={(agent) =>
-                      void sendMessage(agent, undefined, false, { forceDirectChat: true })
-                    }
+                    onSend={(agent) => void sendMessage(agent)}
                     onPause={pauseAgent}
                     onOpenFullAgents={() => setWorkspaceMode('agents')}
                     onClose={() => setRightPanelMode(null)}

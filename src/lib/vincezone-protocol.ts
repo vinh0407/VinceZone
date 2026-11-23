@@ -12,7 +12,7 @@
  * - Part VII: 10 Team-Wide Intelligence Principles
  */
 
-export const ROLE_INTELLIGENCE_VERSION = 5
+export const ROLE_INTELLIGENCE_VERSION = 6
 
 export type VinceZoneRoleId =
   | 'pm'
@@ -201,7 +201,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['User'],
     handsOffTo: ['@ARCH', '@UIUX', '@FE', '@BE', '@DB', '@QA'],
     accent: '#f5f5f5',
-    recommendedModel: 'lead-architect',
+    recommendedModel: 'super-coder',
     defaultSkills: [
       'caveman-compress',
       'headroom',
@@ -300,7 +300,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['@PM'],
     handsOffTo: ['@BE', '@FE', '@DB', '@MOBILE', '@AI', '@DEVOPS'],
     accent: '#d4d4d4',
-    recommendedModel: 'lead-architect',
+    recommendedModel: 'ultimate-free-stack',
     defaultSkills: [
       'headroom',
       'learn-codebase',
@@ -381,7 +381,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['@PM', '@ARCH'],
     handsOffTo: ['@FE', '@MOBILE'],
     accent: '#e5e5e5',
-    recommendedModel: 'frontend-ui-ux',
+    recommendedModel: 'super-coder',
     defaultSkills: [
       'caveman-compress',
       'design-taste-frontend',
@@ -455,7 +455,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['@PM', '@ARCH', '@UIUX', '@BE'],
     handsOffTo: ['@QA', '@PERF'],
     accent: '#4ec9b0',
-    recommendedModel: 'frontend-ui-ux',
+    recommendedModel: 'super-coder',
     defaultSkills: [
       'ponytail',
       'surgical-patch',
@@ -543,7 +543,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['@PM', '@ARCH', '@DB'],
     handsOffTo: ['@FE', '@MOBILE', '@SEC', '@QA'],
     accent: '#dcdcaa',
-    recommendedModel: 'backend-core',
+    recommendedModel: 'always-on',
     defaultSkills: [
       'ponytail',
       'surgical-patch',
@@ -625,7 +625,7 @@ export const ROLE_TERRITORIES: Record<Exclude<VinceZoneRoleId, 'custom'>, Territ
     receivesFrom: ['@PM', '@ARCH'],
     handsOffTo: ['@BE', '@PERF', '@QA'],
     accent: '#ce9178',
-    recommendedModel: 'backend-core',
+    recommendedModel: 'always-on',
     defaultSkills: [
       'headroom',
       'database-migrations',

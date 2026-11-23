@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process'
+import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { access } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,6 +9,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const execFileAsync = promisify(execFile)
+
+const globalAndroid = globalThis as typeof globalThis & {
+  __vincezoneAndroidProc?: ChildProcess | null
+  __vincezoneWokenSerials?: Set<string>
+}
 
 async function resolveSdkTool(subPath: string): Promise<string | null> {
   const candidates = [
@@ -91,6 +96,35 @@ async function getDeviceScreenSize(
   }
 }
 
+async function isBootCompleted(adbBin: string | null, serial: string): Promise<boolean> {
+  if (!adbBin || !serial) return false
+  try {
+    const { stdout } = await execFileAsync(
+      adbBin,
+      ['-s', serial, 'shell', 'getprop', 'sys.boot_completed'],
+      { timeout: 3000, windowsHide: true },
+    )
+    return stdout.trim() === '1'
+  } catch {
+    return false
+  }
+}
+
+async function wakeAndUnlock(adbBin: string, serial: string) {
+  try {
+    await execFileAsync(adbBin, ['-s', serial, 'shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'], {
+      timeout: 4000,
+      windowsHide: true,
+    })
+    await execFileAsync(adbBin, ['-s', serial, 'shell', 'wm', 'dismiss-keyguard'], {
+      timeout: 4000,
+      windowsHide: true,
+    })
+  } catch {
+    // Non-fatal while launcher is still finishing startup
+  }
+}
+
 export async function GET(request: Request) {
   if (!isLoopbackRequest(request)) {
     return Response.json({ error: 'Android runtime is restricted to localhost.' }, { status: 403 })
@@ -107,6 +141,16 @@ export async function GET(request: Request) {
       return Response.json({ error: 'ADB binary not found in Android SDK.' }, { status: 404 })
     }
     const serial = searchParams.get('serial')?.trim()
+    if (serial) {
+      globalAndroid.__vincezoneWokenSerials ??= new Set()
+      if (!globalAndroid.__vincezoneWokenSerials.has(serial)) {
+        const booted = await isBootCompleted(adbBin, serial)
+        if (booted) {
+          globalAndroid.__vincezoneWokenSerials.add(serial)
+          await wakeAndUnlock(adbBin, serial)
+        }
+      }
+    }
     const args = serial
       ? ['-s', serial, 'exec-out', 'screencap', '-p']
       : ['exec-out', 'screencap', '-p']
@@ -136,7 +180,19 @@ export async function GET(request: Request) {
 
   const [avds, devices] = await Promise.all([listAvds(emulatorBin), listAdbDevices(adbBin)])
   const online = devices.find((d) => d.status === 'device')
-  const screenSize = online ? await getDeviceScreenSize(adbBin, online.serial) : null
+  const bootingDevice = devices.find((d) => d.status === 'offline')
+  const [screenSize, bootCompleted] = online
+    ? await Promise.all([
+        getDeviceScreenSize(adbBin, online.serial),
+        isBootCompleted(adbBin, online.serial),
+      ])
+    : [null, false]
+
+  const emulatorProcessAlive = Boolean(
+    globalAndroid.__vincezoneAndroidProc &&
+      !globalAndroid.__vincezoneAndroidProc.killed &&
+      globalAndroid.__vincezoneAndroidProc.exitCode === null,
+  )
 
   return Response.json(
     {
@@ -145,6 +201,9 @@ export async function GET(request: Request) {
       adbAvailable: Boolean(adbBin),
       avds,
       devices,
+      bootingSerial: bootingDevice?.serial ?? null,
+      bootCompleted,
+      emulatorProcessAlive,
       screenSize: screenSize ?? { width: 720, height: 1280 },
     },
     { headers: { 'Cache-Control': 'no-store' } },
@@ -183,16 +242,19 @@ export async function POST(request: Request) {
     if (!emulatorBin) {
       return Response.json({ error: 'Android Emulator binary not found.' }, { status: 404 })
     }
-    // Check if an emulator is already running so we don't spawn duplicates
     const existingDevices = await listAdbDevices(adbBin)
     const alreadyRunning = existingDevices.find(
       (d) => d.serial.startsWith('emulator-') && (d.status === 'device' || d.status === 'offline'),
     )
     if (alreadyRunning) {
+      if (alreadyRunning.status === 'device' && adbBin) {
+        await wakeAndUnlock(adbBin, alreadyRunning.serial)
+      }
       return Response.json({
         ok: true,
         alreadyRunning: true,
         serial: alreadyRunning.serial,
+        status: alreadyRunning.status,
         launchedAvd: body.avd || 'Running Emulator',
       })
     }
@@ -206,23 +268,48 @@ export async function POST(request: Request) {
       )
     }
 
-    // Launch headless inside the IDE's own on-screen Phone Emulator by default
-    const headless = body.headless !== false
+    // CRITICAL on Windows: NEVER use `detached: true` with `windowsHide: true` because
+    // libuv sets CREATE_NEW_CONSOLE when detached=true, flashing a black terminal window!
     const args = [
       '-avd',
       targetAvd,
+      '-no-window',
       '-no-boot-anim',
       '-no-audio',
-      ...(headless ? ['-no-window', '-gpu', 'swiftshader_indirect'] : []),
+      '-gpu',
+      'swiftshader_indirect',
     ]
 
+    let earlyErr = ''
     const child = spawn(emulatorBin, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: headless,
+      detached: false,
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe'],
+      env: {
+        ...process.env,
+        ANDROID_SDK_ROOT: path.dirname(path.dirname(emulatorBin)),
+        ANDROID_HOME: path.dirname(path.dirname(emulatorBin)),
+      },
     })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      if (earlyErr.length < 600) earlyErr += chunk.toString('utf8')
+    })
+    globalAndroid.__vincezoneAndroidProc = child
+    globalAndroid.__vincezoneWokenSerials?.clear()
+
+    // Wait briefly to catch immediate launch errors before returning
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    if (child.exitCode !== null && child.exitCode !== 0) {
+      return Response.json(
+        {
+          error: earlyErr.trim() || `Android Emulator exited immediately (code ${child.exitCode}).`,
+        },
+        { status: 500 },
+      )
+    }
+
     child.unref()
-    return Response.json({ ok: true, launchedAvd: targetAvd, headless })
+    return Response.json({ ok: true, launchedAvd: targetAvd, headless: true, pid: child.pid })
   }
 
   if (body.action === 'keyevent' && body.keycode && adbBin) {
@@ -325,6 +412,8 @@ export async function POST(request: Request) {
         timeout: 6000,
         windowsHide: true,
       })
+      globalAndroid.__vincezoneAndroidProc = null
+      globalAndroid.__vincezoneWokenSerials?.delete(body.serial)
       return Response.json({ ok: true })
     } catch (error) {
       return Response.json(
