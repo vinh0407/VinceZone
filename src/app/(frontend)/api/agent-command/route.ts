@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { classifyShellCommand } from '@/lib/agent-tools'
+import { consumePendingApproval, rejectPendingApproval } from '@/lib/command-approvals'
 import { isLoopbackRequest } from '@/lib/local-guard'
 
 export const runtime = 'nodejs'
@@ -12,7 +13,8 @@ const execFileAsync = promisify(execFile)
 /**
  * Executes a shell command explicitly approved by the user from an AI Agent
  * Allow / Deny card inside the chat stream (e.g. `pnpm add`, `gradlew assembleDebug`,
- * `prisma migrate`). Runs silently (`windowsHide: true`) with catastrophic-command protection.
+ * `prisma migrate`). Verifies the server-registered `approvalId` (consume-once, exact
+ * command & cwd match) before running silently (`windowsHide: true`).
  */
 export async function POST(request: Request) {
   if (!isLoopbackRequest(request)) {
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
 
   let body: {
     action?: 'approve' | 'reject'
+    approvalId?: string
     command?: string
     cwd?: string
   }
@@ -36,7 +39,13 @@ export async function POST(request: Request) {
   }
 
   if (body.action === 'reject') {
-    return Response.json({ ok: true, status: 'rejected', command, output: 'User denied command execution.' })
+    rejectPendingApproval(body.approvalId)
+    return Response.json({
+      ok: true,
+      status: 'rejected',
+      command,
+      output: 'User denied command execution.',
+    })
   }
 
   const verdict = classifyShellCommand(command)
@@ -49,6 +58,11 @@ export async function POST(request: Request) {
       process.env.VINCEZONE_WORKSPACE_ROOT ||
       process.cwd(),
   )
+
+  const check = consumePendingApproval(String(body.approvalId || ''), command, cwd)
+  if (!check.ok) {
+    return Response.json({ ok: false, error: check.reason }, { status: 403 })
+  }
 
   const startedAt = Date.now()
   const isWin = process.platform === 'win32'

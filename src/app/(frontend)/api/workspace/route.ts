@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { watch as fsWatch, type FSWatcher } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { removeIndexedFile, updateIndexedFile } from '@/lib/code-index'
 import { inferLanguage } from '@/lib/file-tree'
 import { isLoopbackRequest, resolvePathInsideWorkspace } from '@/lib/local-guard'
 
@@ -290,6 +291,7 @@ export async function GET(request: Request) {
                   if (!info.isFile() || info.size > MAX_EAGER_BYTES) return
                   const content = await readFile(full, 'utf8')
                   if (content.includes('\0')) return
+                  updateIndexedFile(resolvedRoot, rel, content)
                   send({
                     type: 'file.changed',
                     path: rel,
@@ -299,6 +301,7 @@ export async function GET(request: Request) {
                     size: info.size,
                   })
                 } catch {
+                  removeIndexedFile(resolvedRoot, rel)
                   send({ type: 'file.removed', path: rel })
                 }
               }, 240),
@@ -383,6 +386,7 @@ export async function POST(request: Request) {
       const target = resolvePathInsideWorkspace(root, body.path)
       await mkdir(path.dirname(target), { recursive: true })
       await writeFile(target, body.content, 'utf8')
+      updateIndexedFile(root, body.path, body.content)
       return Response.json({ ok: true, path: body.path })
     }
 

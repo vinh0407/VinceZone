@@ -122,7 +122,11 @@ function readSavedTopology(agents: Agent[]) {
     orderedAgentIds: agents.map((item) => item.id),
   }
   try {
-    const savedLayout = JSON.parse(window.localStorage.getItem('baton-agent-layout') || '{}') as {
+    const rawLayout =
+      window.localStorage.getItem('vincezone-agent-layout') ||
+      window.localStorage.getItem('baton-agent-layout') ||
+      '{}'
+    const savedLayout = JSON.parse(rawLayout) as {
       layout?: 'equal' | 'focus2' | 'focus1'
       order?: string[]
     }
@@ -204,6 +208,8 @@ export function useOrchestration({
   const aborters = useRef<Record<string, AbortController>>({})
   const agentsRef = useRef(agents)
   agentsRef.current = agents
+  const filesRef = useRef(files)
+  filesRef.current = files
   const bridgeMessagesRef = useRef(bridgeMessages)
   bridgeMessagesRef.current = bridgeMessages
 
@@ -1134,6 +1140,8 @@ export function useOrchestration({
       setAiActivity('reading')
       if (!delegated) setDrafts((current) => ({ ...current, [agent.id]: '' }))
       const slashResolved = await resolveSlashContext(text)
+      const streamMsgId = `stream-${uid()}`
+
       updateAgent(agent.id, (current) => ({
         ...current,
         status: 'running',
@@ -1149,7 +1157,7 @@ export function useOrchestration({
                 },
               ]
             : []),
-          { id: 'stream', role: 'assistant', text: '' },
+          { id: streamMsgId, role: 'assistant', text: '' },
         ],
       }))
 
@@ -1158,7 +1166,7 @@ export function useOrchestration({
           ...current,
           status: 'idle',
           messages: current.messages.map((message) =>
-            message.id === 'stream'
+            message.id === streamMsgId
               ? {
                   ...message,
                   id: uid(),
@@ -1291,7 +1299,7 @@ export function useOrchestration({
           updateAgent(agent.id, (current) => ({
             ...current,
             messages: current.messages.map((message) =>
-              message.id === 'stream' ? { ...message, text: liveDisplay } : message,
+              message.id === streamMsgId ? { ...message, text: liveDisplay } : message,
             ),
           }))
         }
@@ -1327,7 +1335,7 @@ export function useOrchestration({
 
         for (const edit of extractedEdits) {
           const territory = validateTerritoryAccess(agentRoleId, edit.path)
-          const existingFile = files.find((f) => f.path === edit.path)
+          const existingFile = filesRef.current.find((f) => f.path === edit.path)
           const patchId = `patch-${uid()}`
           let appliedStatus: 'applied' | 'pending' = 'pending'
           let appliedRev: string | undefined
@@ -1395,7 +1403,7 @@ export function useOrchestration({
           status: 'idle',
           messages: [
             ...current.messages.map((message) =>
-              message.id === 'stream'
+              message.id === streamMsgId
                 ? {
                     ...message,
                     id: uid(),
@@ -1537,7 +1545,7 @@ export function useOrchestration({
           ...current,
           status: 'idle',
           messages: current.messages.map((message) =>
-            message.id === 'stream'
+            message.id === streamMsgId
               ? {
                   ...message,
                   id: uid(),

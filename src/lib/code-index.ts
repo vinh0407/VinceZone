@@ -71,14 +71,49 @@ type CachedIndex = {
 }
 
 const INDEX_CACHE = new Map<string, CachedIndex>()
-const CACHE_TTL_MS = 6_000
+const CACHE_TTL_MS = 5 * 60_000
 
 export function invalidateCodeIndex(workspaceRoot?: string) {
   if (!workspaceRoot) {
     INDEX_CACHE.clear()
     return
   }
-  INDEX_CACHE.delete(path.resolve(workspaceRoot))
+  INDEX_CACHE.delete(path.resolve(/*turbopackIgnore: true*/ workspaceRoot))
+}
+
+/**
+ * Incremental single-file index update triggered by `fs.watch` or AI file edits.
+ * Re-extracts symbols ONLY for `relPath` in <1ms instead of rescanning the entire repository.
+ */
+export function updateIndexedFile(workspaceRoot: string, relPath: string, content: string): boolean {
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
+  const cached = INDEX_CACHE.get(root)
+  if (!cached) return false
+  const cleanRel = relPath.replace(/\\/g, '/').replace(/^\/+/, '')
+  const ext = path.extname(cleanRel).toLowerCase()
+  if (!SOURCE_EXTS.has(ext)) return false
+
+  const kept = cached.symbols.filter((s) => s.path !== cleanRel)
+  const fresh = content.length <= 350_000 ? extractSymbolsFromSource(cleanRel, content) : []
+  cached.symbols = [...kept, ...fresh]
+  if (!cached.files.includes(cleanRel)) {
+    cached.files = [...cached.files, cleanRel]
+    cached.fileCount = cached.files.length
+  }
+  cached.builtAt = Date.now()
+  return true
+}
+
+export function removeIndexedFile(workspaceRoot: string, relPath: string): boolean {
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
+  const cached = INDEX_CACHE.get(root)
+  if (!cached) return false
+  const cleanRel = relPath.replace(/\\/g, '/').replace(/^\/+/, '')
+  cached.symbols = cached.symbols.filter((s) => s.path !== cleanRel)
+  cached.files = cached.files.filter((f) => f !== cleanRel)
+  cached.fileCount = cached.files.length
+  cached.builtAt = Date.now()
+  return true
 }
 
 async function collectSourceFiles(rootDir: string, maxFiles = 1500): Promise<string[]> {
@@ -279,9 +314,9 @@ export function extractSymbolsFromSource(relPath: string, content: string): Symb
 
 export async function indexWorkspaceSymbols(
   workspaceRoot: string,
-  maxFiles = 1500,
+  maxFiles = 3000,
 ): Promise<CachedIndex> {
-  const root = path.resolve(workspaceRoot)
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
   const cached = INDEX_CACHE.get(root)
   if (cached && Date.now() - cached.builtAt < CACHE_TTL_MS) {
     return cached

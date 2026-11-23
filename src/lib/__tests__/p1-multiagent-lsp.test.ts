@@ -13,6 +13,7 @@ import {
   invalidateCodeIndex,
 } from '../code-index'
 import { applyHunkDecisions, computeDiffHunks } from '../hunk-diff'
+import { shutdownMcpPool } from '../mcp-client'
 
 describe('P1-1: Live MCP Server Tools in AI Agent Loop', () => {
   it('discovers tools from an enabled stdio MCP server and calls them through executeAgentTool', async () => {
@@ -65,6 +66,7 @@ describe('P1-1: Live MCP Server Tools in AI Agent Loop', () => {
       expect(res.ok).toBe(true)
       expect(res.output).toContain('42')
     } finally {
+      shutdownMcpPool()
       await new Promise((r) => setTimeout(r, 120))
       await rm(tmp, { recursive: true, force: true, maxRetries: 6, retryDelay: 80 }).catch(() => {})
     }
@@ -101,6 +103,7 @@ describe('P1-2: Safe Allow/Deny Shell Command Approval', () => {
       expect(outcome.commandApproval?.command).toBe('pnpm add zod')
       expect(outcome.commandApproval?.reason).toBe('Install schema validation')
     } finally {
+      shutdownMcpPool()
       await new Promise((r) => setTimeout(r, 120))
       await rm(tmp, { recursive: true, force: true, maxRetries: 6, retryDelay: 80 }).catch(() => {})
     }

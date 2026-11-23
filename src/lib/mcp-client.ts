@@ -1,12 +1,11 @@
 /**
- * Pure zero-dependency JSON-RPC 2.0 Model Context Protocol (MCP) client.
- * Supports real stdio MCP server spawning and Streamable HTTP JSON-RPC calls:
- * - initialize handshake
- * - tools/list discovery
- * - tools/call execution
+ * Pure zero-dependency JSON-RPC 2.0 Model Context Protocol (MCP) client
+ * with a Persistent `stdio` Connection Pool (preserves stateful MCP sessions
+ * such as Playwright browser tabs or DB connections across tool calls)
+ * and Streamable HTTP JSON-RPC support.
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import path from 'node:path'
 
 export type McpToolInfo = {
@@ -42,6 +41,202 @@ function splitCommandArgs(commandLine: string): { bin: string; args: string[] } 
   return { bin, args }
 }
 
+type PendingRpc = {
+  resolve: (value: unknown) => void
+  reject: (err: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
+type PooledStdioServer = {
+  key: string
+  child: ChildProcess
+  ready: Promise<void>
+  alive: boolean
+  nextId: number
+  stdoutBuffer: string
+  stderrText: string
+  pending: Map<number, PendingRpc>
+  idleTimer: ReturnType<typeof setTimeout> | null
+}
+
+const MCP_IDLE_TTL_MS = 5 * 60_000
+
+const globalMcpPool = globalThis as typeof globalThis & {
+  __vincezoneMcpPool?: Map<string, PooledStdioServer>
+}
+
+function getPool(): Map<string, PooledStdioServer> {
+  if (!globalMcpPool.__vincezoneMcpPool) {
+    globalMcpPool.__vincezoneMcpPool = new Map()
+  }
+  return globalMcpPool.__vincezoneMcpPool
+}
+
+function destroyPooledServer(entry: PooledStdioServer, reason?: string) {
+  if (!entry.alive) return
+  entry.alive = false
+  if (entry.idleTimer) {
+    clearTimeout(entry.idleTimer)
+    entry.idleTimer = null
+  }
+  getPool().delete(entry.key)
+  for (const [, pending] of entry.pending.entries()) {
+    clearTimeout(pending.timer)
+    pending.reject(new Error(reason || 'MCP server connection closed.'))
+  }
+  entry.pending.clear()
+  try {
+    entry.child.kill()
+  } catch {
+    // already exited
+  }
+}
+
+function refreshIdleTimer(entry: PooledStdioServer) {
+  if (entry.idleTimer) clearTimeout(entry.idleTimer)
+  entry.idleTimer = setTimeout(() => {
+    destroyPooledServer(entry, 'MCP server evicted after idle timeout.')
+  }, MCP_IDLE_TTL_MS)
+  if (typeof entry.idleTimer.unref === 'function') {
+    entry.idleTimer.unref()
+  }
+}
+
+function sendJsonRpc(
+  entry: PooledStdioServer,
+  method: string,
+  params: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<unknown> {
+  if (!entry.alive || entry.child.killed || entry.child.exitCode !== null) {
+    return Promise.reject(new Error('MCP server process is no longer running.'))
+  }
+  const id = entry.nextId++
+  refreshIdleTimer(entry)
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      entry.pending.delete(id)
+      reject(new Error(`MCP ${method} timed out after ${timeoutMs}ms. ${entry.stderrText.slice(0, 200)}`))
+    }, timeoutMs)
+
+    entry.pending.set(id, { resolve, reject, timer })
+    try {
+      entry.child.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
+    } catch (err) {
+      clearTimeout(timer)
+      entry.pending.delete(id)
+      reject(err instanceof Error ? err : new Error('Failed writing to MCP stdin.'))
+    }
+  })
+}
+
+function getOrSpawnStdioServer(endpoint: string, cwd: string, timeoutMs = 15_000): PooledStdioServer {
+  const key = `${endpoint.trim()}@@${path.resolve(/*turbopackIgnore: true*/ cwd)}`
+  const pool = getPool()
+  const existing = pool.get(key)
+  if (existing && existing.alive && !existing.child.killed && existing.child.exitCode === null) {
+    refreshIdleTimer(existing)
+    return existing
+  }
+
+  const { bin, args } = splitCommandArgs(endpoint.trim())
+  if (!bin) throw new Error('MCP stdio command is empty.')
+
+  const resolvedBin =
+    bin.startsWith('.') || bin.includes('/') || bin.includes('\\')
+      ? path.resolve(/*turbopackIgnore: true*/ cwd, bin)
+      : bin
+
+  const child = spawn(/*turbopackIgnore: true*/ resolvedBin, args, {
+    cwd,
+    windowsHide: true,
+    shell: process.platform === 'win32' && !resolvedBin.toLowerCase().endsWith('.exe'),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+
+  const entry: PooledStdioServer = {
+    key,
+    child,
+    ready: Promise.resolve(),
+    alive: true,
+    nextId: 1,
+    stdoutBuffer: '',
+    stderrText: '',
+    pending: new Map(),
+    idleTimer: null,
+  }
+
+  child.stderr?.on('data', (chunk: Buffer) => {
+    entry.stderrText = (entry.stderrText + chunk.toString('utf8')).slice(-1500)
+  })
+
+  child.stdout?.on('data', (chunk: Buffer) => {
+    entry.stdoutBuffer += chunk.toString('utf8')
+    const lines = entry.stdoutBuffer.split(/\r?\n/)
+    entry.stdoutBuffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('{')) continue
+      let msg: { id?: number; result?: unknown; error?: { message?: string } }
+      try {
+        msg = JSON.parse(trimmed)
+      } catch {
+        continue
+      }
+      if (typeof msg.id === 'number') {
+        const pending = entry.pending.get(msg.id)
+        if (!pending) continue
+        entry.pending.delete(msg.id)
+        clearTimeout(pending.timer)
+        if (msg.error) {
+          pending.reject(new Error(msg.error.message || 'MCP RPC error.'))
+        } else {
+          pending.resolve(msg.result)
+        }
+      }
+    }
+  })
+
+  child.on('error', (err) => {
+    destroyPooledServer(entry, err.message)
+  })
+  child.on('exit', (code) => {
+    destroyPooledServer(
+      entry,
+      `MCP server exited (code ${code ?? 1}): ${entry.stderrText.slice(0, 240)}`,
+    )
+  })
+
+  pool.set(key, entry)
+  refreshIdleTimer(entry)
+
+  entry.ready = sendJsonRpc(
+    entry,
+    'initialize',
+    {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'VinceZone Studio', version: '2.2.0' },
+    },
+    timeoutMs,
+  )
+    .then(() => {
+      if (entry.alive) {
+        entry.child.stdin?.write(
+          `${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })}\n`,
+        )
+      }
+    })
+    .catch((err) => {
+      destroyPooledServer(entry, err instanceof Error ? err.message : 'MCP initialize failed.')
+      throw err
+    })
+
+  return entry
+}
+
 async function runStdioMcpRpc(
   endpoint: string,
   method: 'tools/list' | 'tools/call',
@@ -49,104 +244,9 @@ async function runStdioMcpRpc(
   cwd: string,
   timeoutMs = 15_000,
 ): Promise<unknown> {
-  const { bin, args } = splitCommandArgs(endpoint.trim())
-  if (!bin) throw new Error('MCP stdio command is empty.')
-
-  const resolvedBin =
-    bin.startsWith('.') || bin.includes('/') || bin.includes('\\')
-      ? path.resolve(cwd, bin)
-      : bin
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(resolvedBin, args, {
-      cwd,
-      windowsHide: true,
-      shell: process.platform === 'win32' && !resolvedBin.toLowerCase().endsWith('.exe'),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-
-    let stdoutBuffer = ''
-    let stderrText = ''
-    let settled = false
-    let initialized = false
-
-    const finish = (err: Error | null, result?: unknown) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      try {
-        child.kill()
-      } catch {
-        // already exited
-      }
-      if (err) reject(err)
-      else resolve(result)
-    }
-
-    const timer = setTimeout(() => {
-      finish(new Error(`MCP server timed out after ${timeoutMs}ms. ${stderrText.slice(0, 200)}`))
-    }, timeoutMs)
-
-    const sendRpc = (payload: Record<string, unknown>) => {
-      child.stdin?.write(`${JSON.stringify(payload)}\n`)
-    }
-
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderrText += chunk.toString('utf8').slice(0, 1000)
-    })
-
-    child.on('error', (err) => finish(err))
-    child.on('exit', (code) => {
-      if (!settled) {
-        finish(new Error(`MCP server exited early (code ${code ?? 1}): ${stderrText.slice(0, 240)}`))
-      }
-    })
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdoutBuffer += chunk.toString('utf8')
-      const lines = stdoutBuffer.split(/\r?\n/)
-      stdoutBuffer = lines.pop() ?? ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('{')) continue
-        let msg: { id?: number; result?: unknown; error?: { message?: string } }
-        try {
-          msg = JSON.parse(trimmed)
-        } catch {
-          continue
-        }
-
-        if (msg.id === 1 && !initialized) {
-          if (msg.error) {
-            finish(new Error(msg.error.message || 'MCP initialize failed.'))
-            return
-          }
-          initialized = true
-          sendRpc({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })
-          sendRpc({ jsonrpc: '2.0', id: 2, method, params })
-        } else if (msg.id === 2) {
-          if (msg.error) {
-            finish(new Error(msg.error.message || `MCP ${method} failed.`))
-          } else {
-            finish(null, msg.result)
-          }
-          return
-        }
-      }
-    })
-
-    sendRpc({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'VinceZone Studio', version: '2.0.0' },
-      },
-    })
-  })
+  const entry = getOrSpawnStdioServer(endpoint, cwd, timeoutMs)
+  await entry.ready
+  return sendJsonRpc(entry, method, params, timeoutMs)
 }
 
 async function runHttpMcpRpc(
@@ -198,4 +298,18 @@ export async function callMcpServerTool(
   return transport === 'http'
     ? runHttpMcpRpc(endpoint, 'tools/call', { name: toolName, arguments: args })
     : runStdioMcpRpc(endpoint, 'tools/call', { name: toolName, arguments: args }, cwd)
+}
+
+/**
+ * Terminates all pooled stdio MCP server child processes cleanly (used on Electron quit & tests).
+ */
+export function shutdownMcpPool() {
+  const pool = getPool()
+  for (const entry of [...pool.values()]) {
+    destroyPooledServer(entry, 'MCP pool shut down.')
+  }
+}
+
+export function getActiveMcpPoolSize(): number {
+  return getPool().size
 }

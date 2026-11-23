@@ -852,6 +852,20 @@ export function IDEWorkspace() {
       const nextMemory = overrides?.memoryNotes ?? memoryNotes
       const nextUsage = overrides?.usageRecords ?? usageRecords
 
+      const stripImages = (list: Agent[]) =>
+        list.map((a) => ({
+          ...a,
+          messages: a.messages.map((m) =>
+            m.images?.length
+              ? {
+                  ...m,
+                  images: undefined,
+                  text: m.text || `[${m.images.length} image(s) stored in .vincezone/session-store.json]`,
+                }
+              : m,
+          ),
+        }))
+
       try {
         window.localStorage.setItem(
           WORKSPACE_STORAGE_KEY,
@@ -866,6 +880,11 @@ export function IDEWorkspace() {
               session: project.session
                 ? {
                     ...project.session,
+                    agents: stripImages(project.session.agents),
+                    chatThreads: (project.session.chatThreads ?? []).slice(0, 10).map((t) => ({
+                      ...t,
+                      agents: stripImages(t.agents),
+                    })),
                     communicationEvents: project.session.communicationEvents.slice(-120),
                     proposedPatches: project.session.proposedPatches.slice(0, 30),
                     revisions: project.session.revisions.slice(-20),
@@ -876,7 +895,7 @@ export function IDEWorkspace() {
             provider: { ...nextProvider, apiKey: '' },
             providers: nextProviders.map((item) => ({ ...item, apiKey: '' })),
             settings: nextSettings,
-            agents,
+            agents: stripImages(agents),
             agentTasks,
             communicationEvents: communicationEvents.slice(-300),
             proposedPatches: proposedPatches.slice(0, 60),
@@ -1382,6 +1401,7 @@ export function IDEWorkspace() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'approve',
+            approvalId: target.id,
             command: target.command,
             cwd: target.cwd || activeProject?.rootPath,
           }),
@@ -1458,6 +1478,16 @@ export function IDEWorkspace() {
         ),
       )
       if (target) {
+        void fetch('/api/agent-command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reject',
+            approvalId: target.id,
+            command: target.command,
+            cwd: target.cwd || activeProject?.rootPath,
+          }),
+        }).catch(() => {})
         setAgents((current) =>
           current.map((a) =>
             a.id === target.agentId

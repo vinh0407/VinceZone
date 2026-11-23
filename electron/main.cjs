@@ -6,6 +6,7 @@ const { createInProcessNextHandler } = require('./in-process-bridge.cjs')
 
 const APP_ORIGIN = 'vincezone://studio'
 let mainWindow = null
+let activeInProcessHandler = null
 
 // Register custom local protocol BEFORE app.whenReady() — ZERO TCP ports, ZERO localhost!
 protocol.registerSchemesAsPrivileged([
@@ -152,6 +153,7 @@ async function createWindow() {
 
   try {
     inProcessHandler = await createInProcessNextHandler(appRoot, defaultWorkspaceRoot)
+    activeInProcessHandler = inProcessHandler
     protocol.handle('vincezone', async (request) => {
       try {
         return await inProcessHandler(request)
@@ -171,8 +173,8 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
-    minWidth: 1024,
-    minHeight: 680,
+    minWidth: 960,
+    minHeight: 480,
     title: 'VinceZone Studio',
     icon: path.join(__dirname, 'vincezone-logo.ico'),
     autoHideMenuBar: true,
@@ -309,6 +311,18 @@ ipcMain.handle('vincezone:secrets:load', () => {
 })
 
 app.whenReady().then(createWindow)
+
+app.on('before-quit', () => {
+  if (activeInProcessHandler) {
+    void activeInProcessHandler(
+      new Request(`${APP_ORIGIN}/api/vz-ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'shutdown' }),
+      }),
+    ).catch(() => {})
+  }
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

@@ -8,7 +8,10 @@ import {
   findSymbolReferences,
   invalidateCodeIndex,
   searchWorkspaceSymbols,
+  updateIndexedFile,
 } from './code-index'
+import { registerPendingApproval } from './command-approvals'
+import { withFileLock } from './file-lock'
 import { resolvePathInsideWorkspace } from './local-guard'
 import { callMcpServerTool, listMcpServerTools, type McpToolInfo } from './mcp-client'
 
@@ -59,6 +62,8 @@ const HIGH_RISK_SHELL_PATTERNS = [
   /\b(prisma|drizzle|alembic|flyway)\b.*\b(migrate|push|drop|reset)\b/i,
   /\b(drop|truncate)\s+table\b/i,
   /\bcurl\b.*\|\s*(sh|bash|powershell)/i,
+  /-(?:enc|encodedcommand)\b/i,
+  /\b(?:iex|invoke-expression)\b/i,
 ]
 
 export function classifyShellCommand(command: string): {
@@ -77,8 +82,8 @@ export function classifyShellCommand(command: string): {
       reason: 'Catastrophic system-level command is permanently blocked for safety.',
     }
   }
-  // Safe read-only verification commands (no chained shell mutation operators)
-  const hasChaining = /[;&|`]|>\s*[^&]|\$\(/.test(trimmed)
+  // Safe read-only verification commands (strictly single-line, zero shell chaining/redirection/subshells)
+  const hasChaining = /[\r\n;&|`]|>\s*[^&]|\$\(/.test(trimmed)
   if (
     !hasChaining &&
     SAFE_VERIFY_PREFIXES.some((prefix) => trimmed.toLowerCase().startsWith(prefix))
@@ -692,32 +697,34 @@ async function executeAgentToolInner(
     }
 
     const target = resolvePathInsideWorkspace(root, rel)
-    let previousContent: string | null = null
-    try {
-      previousContent = await readFile(target, 'utf8')
-    } catch {
-      previousContent = null
-    }
+    return withFileLock(target, async () => {
+      let previousContent: string | null = null
+      try {
+        previousContent = await readFile(target, 'utf8')
+      } catch {
+        previousContent = null
+      }
 
-    const patched = applySearchReplace(previousContent ?? '', searchValue, replaceValue)
-    if (!patched.ok) {
-      return { ok: false, output: patched.error }
-    }
+      const patched = applySearchReplace(previousContent ?? '', searchValue, replaceValue)
+      if (!patched.ok) {
+        return { ok: false, output: patched.error }
+      }
 
-    await mkdir(path.dirname(target), { recursive: true })
-    await writeFile(target, patched.nextContent, 'utf8')
-    invalidateCodeIndex(root)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, patched.nextContent, 'utf8')
+      updateIndexedFile(root, rel, patched.nextContent)
 
-    return {
-      ok: true,
-      output: `Successfully saved ${rel} to disk (${patched.nextContent.length} bytes).`,
-      fileUpdated: {
-        path: rel,
-        summary,
-        previousContent,
-        nextContent: patched.nextContent,
-      },
-    }
+      return {
+        ok: true,
+        output: `Successfully saved ${rel} to disk (${patched.nextContent.length} bytes).`,
+        fileUpdated: {
+          path: rel,
+          summary,
+          previousContent,
+          nextContent: patched.nextContent,
+        },
+      }
+    })
   }
 
   if (name === 'find_symbol') {
@@ -793,6 +800,7 @@ async function executeAgentToolInner(
         cwd: root,
         riskLevel: verdict.riskLevel === 'high' ? 'high' : 'medium',
       }
+      registerPendingApproval({ id: approval.id, command: approval.command, cwd: approval.cwd })
       return {
         ok: true,
         output: `AWAITING_USER_APPROVAL [${approval.id}]: Command "${command}" requires user confirmation (Allow / Deny) in the IDE chat before execution. Do not retry automatically; wait for the user to approve or reject.`,
@@ -827,11 +835,11 @@ async function executeAgentToolInner(
 
   if (name === 'run_verify') {
     const command = String(args.command || '').trim()
-    const allowed = SAFE_VERIFY_PREFIXES.some((prefix) => command.toLowerCase().startsWith(prefix))
-    if (!allowed) {
+    const verdict = classifyShellCommand(command)
+    if (verdict.status !== 'safe') {
       return {
         ok: false,
-        output: `Blocked: only verification commands (${SAFE_VERIFY_PREFIXES.join(', ')}) are permitted in autonomous tool loop.`,
+        output: `Blocked: only verification commands (single-line read-only: ${SAFE_VERIFY_PREFIXES.join(', ')}) are permitted in autonomous tool loop.`,
       }
     }
 

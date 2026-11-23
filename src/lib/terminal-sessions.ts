@@ -239,3 +239,12 @@ export function killTerminalSession(id: string): boolean {
   store.delete(id)
   return true
 }
+
+export function killAllTerminalSessions(): number {
+  const store = getStore()
+  const ids = [...store.keys()]
+  for (const id of ids) {
+    killTerminalSession(id)
+  }
+  return ids.length
+}
