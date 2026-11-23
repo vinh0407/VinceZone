@@ -998,8 +998,6 @@ export function IDEWorkspace() {
                 explorerOpen={explorerOpen}
                 aiActivity={aiActivity}
                 editPulse={editPulse}
-                debugState={debugState}
-                debugLine={debugLine}
                 revealRequest={revealRequest}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}

@@ -15,8 +15,6 @@ export function EditorPane({
   explorerOpen,
   aiActivity,
   editPulse,
-  debugState,
-  debugLine,
   revealRequest,
   onOpenExplorer,
   onSelectTab,
@@ -33,8 +31,6 @@ export function EditorPane({
   explorerOpen: boolean
   aiActivity: 'idle' | 'reading' | 'editing'
   editPulse: boolean
-  debugState: 'idle' | 'starting' | 'paused' | 'running'
-  debugLine: number
   revealRequest: { path: string; line: number; seq: number } | null
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
@@ -176,14 +172,6 @@ export function EditorPane({
               <span className="text-[10px] text-[#858585]">{activeFile.name}</span>
             </div>
           </>
-        )}
-        {debugState === 'paused' && (
-          <div className="pointer-events-none absolute left-12 top-[92px] flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#e5e5e5] shadow-[0_0_12px_rgba(255,255,255,0.7)]" />
-            <span className="rounded border border-[#454545] bg-[#262626]/95 px-2 py-0.5 font-mono text-[10px] text-white">
-              paused · line {debugLine}
-            </span>
-          </div>
         )}
       </div>
     </>
