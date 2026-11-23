@@ -3,17 +3,22 @@
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import {
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Columns2,
+  GitCompareArrows,
   MessageSquarePlus,
   PanelLeftOpen,
   Save,
+  Search,
   Sparkles,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { computeDiffHunks } from '@/lib/hunk-diff'
 import { extractProposedPatches } from '@/lib/orchestrator'
-import type { ProviderConfig, WorkspaceFile } from './agent-types'
+import type { InlineHunkReview, ProviderConfig, WorkspaceFile } from './agent-types'
 import type { EditorDiagnostic } from './status-bar'
 import { fileIcon } from './workspace-defaults'
 
@@ -66,6 +71,7 @@ declare module 'react/jsx-dev-runtime' {
 
 export function EditorPane({
   projectName,
+  workspaceRoot,
   files,
   openPaths,
   activePath,
@@ -82,7 +88,13 @@ export function EditorPane({
   formatSeq = 0,
   breakpoints = {},
   debugActiveLocation = null,
+  hunkReview = null,
   onToggleBreakpoint,
+  onNavigateToFile,
+  onHunkDecision,
+  onAcceptAllHunks,
+  onRejectAllHunks,
+  onDismissHunkReview,
   onOpenExplorer,
   onSelectTab,
   onCloseTab,
@@ -97,6 +109,7 @@ export function EditorPane({
   onCursorChange,
 }: {
   projectName: string
+  workspaceRoot?: string
   files: WorkspaceFile[]
   openPaths: string[]
   activePath: string
@@ -113,7 +126,13 @@ export function EditorPane({
   formatSeq?: number
   breakpoints?: Record<string, number[]>
   debugActiveLocation?: { path: string; line: number } | null
+  hunkReview?: InlineHunkReview | null
   onToggleBreakpoint?: (path: string, line: number) => void
+  onNavigateToFile?: (path: string, line: number) => void
+  onHunkDecision?: (path: string, hunkId: string, decision: 'accepted' | 'rejected') => void
+  onAcceptAllHunks?: (path: string) => void
+  onRejectAllHunks?: (path: string) => void
+  onDismissHunkReview?: (path: string) => void
   onOpenExplorer: () => void
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
@@ -161,10 +180,32 @@ export function EditorPane({
   providerRef.current = provider
   const toggleBreakpointRef = useRef(onToggleBreakpoint)
   toggleBreakpointRef.current = onToggleBreakpoint
+  const navigateToFileRef = useRef(onNavigateToFile)
+  navigateToFileRef.current = onNavigateToFile
+  const workspaceRootRef = useRef(workspaceRoot)
+  workspaceRootRef.current = workspaceRoot
   const decorationIdsRef = useRef<string[]>([])
   const inlineProviderDisposablesRef = useRef<Array<{ dispose: () => void }>>([])
   const ghostAbortRef = useRef<AbortController | null>(null)
   const ghostCacheRef = useRef<Map<string, string>>(new Map())
+
+  // P1-3: Cross-File LSP F12 Go-to-Definition / Shift+F12 Find All References overlay
+  const [lspOverlay, setLspOverlay] = useState<{
+    mode: 'definition' | 'references'
+    symbol: string
+    items: Array<{ path: string; line: number; preview: string; badge?: string }>
+  } | null>(null)
+
+  // P1-4: Per-Hunk Inline Diff Review state
+  const [activeHunkIndex, setActiveHunkIndex] = useState(0)
+  const diffHunks = useMemo(() => {
+    if (!hunkReview || !activeFile || hunkReview.path !== activeFile.path) return []
+    return computeDiffHunks(hunkReview.originalContent, hunkReview.proposedContent)
+  }, [activeFile, hunkReview])
+
+  useEffect(() => {
+    setActiveHunkIndex(0)
+  }, [hunkReview?.path, hunkReview?.proposedContent])
 
   const [inlineOpen, setInlineOpen] = useState(false)
   const [inlinePrompt, setInlinePrompt] = useState('')
@@ -263,6 +304,88 @@ export function EditorPane({
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
       pushCurrentSelectionToChat()
+    })
+
+    // P1-3: Cross-file F12 Go-to-Definition & Shift+F12 Find All References via /api/code-index
+    const runCrossFileLookup = async (mode: 'definition' | 'references') => {
+      const model = editor.getModel()
+      const pos = editor.getPosition()
+      if (!model || !pos) return
+      const word = model.getWordAtPosition(pos)?.word?.trim()
+      if (!word || word.length < 2) return
+      const params = new URLSearchParams({ action: mode, symbol: word })
+      if (activeFileRef.current?.path) params.set('currentFile', activeFileRef.current.path)
+      if (workspaceRootRef.current) params.set('root', workspaceRootRef.current)
+
+      try {
+        const res = await fetch(`/api/code-index?${params.toString()}`)
+        if (!res.ok) return
+        if (mode === 'definition') {
+          const data = (await res.json()) as {
+            definitions?: Array<{ path: string; line: number; kind: string; signature: string }>
+          }
+          const defs = data.definitions ?? []
+          if (defs.length === 1 && navigateToFileRef.current) {
+            navigateToFileRef.current(defs[0].path, defs[0].line)
+            return
+          }
+          if (defs.length > 0) {
+            setLspOverlay({
+              mode: 'definition',
+              symbol: word,
+              items: defs.map((d) => ({
+                path: d.path,
+                line: d.line,
+                preview: d.signature,
+                badge: d.kind,
+              })),
+            })
+          }
+        } else {
+          const data = (await res.json()) as {
+            references?: Array<{
+              path: string
+              line: number
+              preview: string
+              isDefinition: boolean
+            }>
+          }
+          const refs = data.references ?? []
+          setLspOverlay({
+            mode: 'references',
+            symbol: word,
+            items: refs.map((r) => ({
+              path: r.path,
+              line: r.line,
+              preview: r.preview,
+              badge: r.isDefinition ? 'DEF' : undefined,
+            })),
+          })
+        }
+      } catch {
+        // ignore lookup error
+      }
+    }
+
+    editor.addAction({
+      id: 'vincezone.crossFileGoToDefinition',
+      label: 'VinceZone: Go to Definition (Cross-File F12)',
+      keybindings: [monaco.KeyCode.F12],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.1,
+      run: () => {
+        void runCrossFileLookup('definition')
+      },
+    })
+    editor.addAction({
+      id: 'vincezone.crossFileFindReferences',
+      label: 'VinceZone: Find All References (Cross-File Shift+F12)',
+      keybindings: [monaco.KeyMod.Shift | monaco.KeyCode.F12],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.2,
+      run: () => {
+        void runCrossFileLookup('references')
+      },
     })
     editor.onDidChangeCursorPosition((event) => {
       onCursorChange({ line: event.position.lineNumber, column: event.position.column })
@@ -476,8 +599,26 @@ export function EditorPane({
       editor.revealLineInCenter(debugActiveLocation.line)
     }
 
+    // P1-4: Highlight per-hunk AI diff blocks right inside Monaco
+    if (hunkReview && hunkReview.path === activeFile.path && diffHunks.length > 0) {
+      diffHunks.forEach((hunk, idx) => {
+        const decision = hunkReview.decisions[hunk.id]
+        if (decision === 'rejected') return
+        const startLine = Math.max(1, hunk.nextStart)
+        const endLine = Math.max(startLine, startLine + Math.max(1, hunk.nextCount) - 1)
+        nextDecorations.push({
+          range: new monaco.Range(startLine, 1, endLine, 1),
+          options: {
+            isWholeLine: true,
+            className:
+              idx === activeHunkIndex ? 'vz-hunk-active-line' : 'vz-hunk-added-line',
+          },
+        })
+      })
+    }
+
     decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, nextDecorations)
-  }, [activeFile, breakpoints, debugActiveLocation])
+  }, [activeFile, activeHunkIndex, breakpoints, debugActiveLocation, diffHunks, hunkReview])
 
   useEffect(() => {
     if (monacoRef.current) {
@@ -860,6 +1001,174 @@ export function EditorPane({
                   <Check size={11} /> Accept & Save (REV-xxx)
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* P1-4: Per-Hunk Inline Diff Review Bar directly above Monaco */}
+      {hunkReview && activeFile && hunkReview.path === activeFile.path && diffHunks.length > 0 && (() => {
+        const safeIdx = Math.min(activeHunkIndex, diffHunks.length - 1)
+        const activeHunk = diffHunks[safeIdx]
+        const decision = hunkReview.decisions[activeHunk.id]
+        const jumpToHunk = (nextIdx: number) => {
+          const clamped = (nextIdx + diffHunks.length) % diffHunks.length
+          setActiveHunkIndex(clamped)
+          const targetLine = Math.max(1, diffHunks[clamped].nextStart)
+          editorRef.current?.revealLineInCenter(targetLine)
+          editorRef.current?.setPosition({ lineNumber: targetLine, column: 1 })
+        }
+
+        return (
+          <div className="shrink-0 border-b border-[#3a3a3a] bg-[#161a16] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="flex items-center gap-2">
+                <GitCompareArrows size={13} className="text-[#89d185]" />
+                <span className="font-semibold text-white">
+                  Hunk {safeIdx + 1}/{diffHunks.length}
+                </span>
+                <span className="font-mono text-[10px] text-[#9a9a9a]">
+                  L{activeHunk.nextStart}
+                  {activeHunk.nextCount > 1 ? `–${activeHunk.nextStart + activeHunk.nextCount - 1}` : ''}
+                  {' · '}
+                  <span className="text-[#89d185]">+{activeHunk.addedLines.length}</span>
+                  {' / '}
+                  <span className="text-[#f48771]">-{activeHunk.removedLines.length}</span>
+                </span>
+                {decision && (
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase ${
+                      decision === 'accepted'
+                        ? 'bg-[#1e3620] text-[#89d185]'
+                        : 'bg-[#3b2020] text-[#f48771]'
+                    }`}
+                  >
+                    {decision}
+                  </span>
+                )}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => jumpToHunk(safeIdx - 1)}
+                    className="mini-button"
+                    title="Previous hunk"
+                  >
+                    <ChevronUp size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => jumpToHunk(safeIdx + 1)}
+                    className="mini-button"
+                    title="Next hunk"
+                  >
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onHunkDecision?.(hunkReview.path, activeHunk.id, 'accepted')
+                    if (safeIdx + 1 < diffHunks.length) jumpToHunk(safeIdx + 1)
+                  }}
+                  className="flex items-center gap-1 rounded bg-[#234227] px-2 py-1 text-[10px] font-semibold text-[#c8f5c5] hover:bg-[#2c5331]"
+                >
+                  <Check size={11} /> Accept Hunk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onHunkDecision?.(hunkReview.path, activeHunk.id, 'rejected')}
+                  className="flex items-center gap-1 rounded bg-[#422323] px-2 py-1 text-[10px] font-semibold text-[#f8c4bc] hover:bg-[#542c2c]"
+                >
+                  <X size={11} /> Reject Hunk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAcceptAllHunks?.(hunkReview.path)}
+                  className="rounded bg-[#e5e5e5] px-2 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white"
+                >
+                  Accept All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRejectAllHunks?.(hunkReview.path)}
+                  className="rounded border border-[#444444] bg-[#222222] px-2 py-1 text-[10px] text-[#cccccc] hover:bg-[#2f2f2f] hover:text-white"
+                >
+                  Reject All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDismissHunkReview?.(hunkReview.path)}
+                  className="mini-button"
+                  title="Close hunk review"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </div>
+            {activeHunk.removedLines.length > 0 && (
+              <pre className="mt-1.5 max-h-20 overflow-auto rounded border border-[#4a2626] bg-[#1f1313] px-2.5 py-1 font-mono text-[10px] leading-4 text-[#f4a298]">
+                {activeHunk.removedLines.slice(0, 6).map((l) => `- ${l}`).join('\n')}
+                {activeHunk.removedLines.length > 6
+                  ? `\n… +${activeHunk.removedLines.length - 6} removed lines`
+                  : ''}
+              </pre>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* P1-3: Cross-File LSP Definitions / References Panel (F12 / Shift+F12) */}
+      {lspOverlay && (
+        <div className="shrink-0 border-b border-[#3a3a3a] bg-[#151515] px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5 font-semibold text-white">
+              <Search size={12} className="text-[#9cdcfe]" />
+              {lspOverlay.mode === 'definition' ? 'Definitions' : 'References'} for{' '}
+              <code className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[10.5px]">
+                {lspOverlay.symbol}
+              </code>
+              <span className="text-[10px] font-normal text-[#858585]">
+                ({lspOverlay.items.length})
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setLspOverlay(null)}
+              className="mini-button"
+              title="Close symbol results"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          {lspOverlay.items.length === 0 ? (
+            <p className="text-[10.5px] text-[#858585]">No matches found across workspace.</p>
+          ) : (
+            <div className="max-h-40 space-y-0.5 overflow-y-auto">
+              {lspOverlay.items.map((item, i) => (
+                <button
+                  key={`${item.path}:${item.line}:${i}`}
+                  type="button"
+                  onClick={() => {
+                    onNavigateToFile?.(item.path, item.line)
+                    setLspOverlay(null)
+                  }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[10.5px] text-[#cccccc] hover:bg-[#252525] hover:text-white"
+                >
+                  <span className="shrink-0 font-mono text-[#9cdcfe]">
+                    {item.path}:{item.line}
+                  </span>
+                  {item.badge && (
+                    <span className="shrink-0 rounded bg-[#2a2a2a] px-1 py-0.5 font-mono text-[8.5px] uppercase text-[#e5e5e5]">
+                      {item.badge}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[#8f8f8f]">
+                    {item.preview}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>

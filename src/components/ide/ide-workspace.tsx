@@ -17,6 +17,7 @@ import {
   normalizeImportedPath,
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
+import { applyHunkDecisions } from '@/lib/hunk-diff'
 import {
   getRoleBlueprint,
   inferRoleId,
@@ -29,7 +30,9 @@ import type {
   AgentTask,
   AgentView,
   AppSettings,
+  CommandApprovalItem,
   CommunicationEvent,
+  InlineHunkReview,
   MemoryNote,
   PendingApprovalPlan,
   ProjectSessionData,
@@ -158,6 +161,8 @@ export function IDEWorkspace() {
   const [debugLine, setDebugLine] = useState(5)
   const [breakpoints, setBreakpoints] = useState<Record<string, number[]>>({})
   const [debugSnapshot, setDebugSnapshot] = useState<DebugSnapshot | null>(null)
+  const [commandApprovals, setCommandApprovals] = useState<CommandApprovalItem[]>([])
+  const [hunkReviews, setHunkReviews] = useState<Record<string, InlineHunkReview>>({})
   const [pendingTerminalCmd, setPendingTerminalCmd] = useState<{
     command: string
     seq: number
@@ -972,16 +977,24 @@ export function IDEWorkspace() {
     ({
       path: targetPath,
       content,
+      previousContent: explicitPrevious,
       summary,
       agent,
     }: {
       path: string
       content: string
+      previousContent?: string | null
       summary: string
       agent: Agent
     }) => {
       const currentFiles = filesRef.current
-      const { nextFiles, previousContent } = applyPatchToFiles(currentFiles, targetPath, content)
+      const { nextFiles, previousContent: prevFromFiles } = applyPatchToFiles(
+        currentFiles,
+        targetPath,
+        content,
+      )
+      const previousContent =
+        explicitPrevious !== undefined ? explicitPrevious : prevFromFiles
       const roleCode = (agent.roleId ?? inferRoleId(`${agent.id} ${agent.role}`)).toUpperCase()
       const nextRev = createEditRevision(sessionRef.current.revisions, {
         path: targetPath,
@@ -993,6 +1006,18 @@ export function IDEWorkspace() {
       setRevisions((current) => [...current.slice(-39), nextRev])
       setFiles(nextFiles)
       filesRef.current = nextFiles
+      if (previousContent !== null && previousContent !== content) {
+        setHunkReviews((current) => ({
+          ...current,
+          [targetPath]: {
+            path: targetPath,
+            originalContent: previousContent,
+            proposedContent: content,
+            summary,
+            decisions: {},
+          },
+        }))
+      }
       void writeFileToDiskIfConnected(targetPath, content).then((saved) => {
         if (!saved) return
         setFiles((current) => {
@@ -1010,6 +1035,181 @@ export function IDEWorkspace() {
     },
     [persistWorkspace, writeFileToDiskIfConnected],
   )
+
+  // P1-2: Safe Allow / Deny Shell Command Approval handlers
+  const handleCommandApprovalRequest = useCallback((item: CommandApprovalItem) => {
+    setCommandApprovals((current) => [
+      ...current.filter((existing) => existing.id !== item.id).slice(-19),
+      item,
+    ])
+  }, [])
+
+  const handleApproveCommand = useCallback(
+    async (id: string) => {
+      const target = commandApprovals.find((item) => item.id === id)
+      if (!target || target.status !== 'pending') return
+      setCommandApprovals((current) =>
+        current.map((item) => (item.id === id ? { ...item, status: 'running' } : item)),
+      )
+      try {
+        const res = await fetch('/api/agent-command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'approve',
+            command: target.command,
+            cwd: target.cwd || activeProject?.rootPath,
+          }),
+        })
+        const data = (await res.json()) as {
+          ok?: boolean
+          exitCode?: number
+          output?: string
+          error?: string
+        }
+        const ok = Boolean(res.ok && data.ok)
+        const outText = data.output || data.error || (ok ? '(exit 0)' : 'Command failed.')
+        setCommandApprovals((current) =>
+          current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: ok ? 'approved' : 'failed',
+                  exitCode: data.exitCode ?? (ok ? 0 : 1),
+                  output: outText,
+                }
+              : item,
+          ),
+        )
+        setAgents((current) =>
+          current.map((a) =>
+            a.id === target.agentId
+              ? {
+                  ...a,
+                  messages: [
+                    ...a.messages,
+                    {
+                      id: uid(),
+                      role: 'tool',
+                      text: `User approved command: \`${target.command}\` (exit ${data.exitCode ?? (ok ? 0 : 1)})`,
+                      codeSnippet: outText.slice(0, 600),
+                    },
+                  ],
+                }
+              : a,
+          ),
+        )
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Execution failed.'
+        setCommandApprovals((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, status: 'failed', output: msg } : item,
+          ),
+        )
+      }
+    },
+    [activeProject?.rootPath, commandApprovals],
+  )
+
+  const handleRejectCommand = useCallback((id: string) => {
+    const target = commandApprovals.find((item) => item.id === id)
+    setCommandApprovals((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, status: 'rejected', output: 'Denied by user.' }
+          : item,
+      ),
+    )
+    if (target) {
+      setAgents((current) =>
+        current.map((a) =>
+          a.id === target.agentId
+            ? {
+                ...a,
+                messages: [
+                  ...a.messages,
+                  {
+                    id: uid(),
+                    role: 'tool',
+                    text: `User denied shell command: \`${target.command}\`.`,
+                  },
+                ],
+              }
+            : a,
+        ),
+      )
+    }
+  }, [commandApprovals])
+
+  // P1-4: Per-Hunk Inline Diff selective Accept / Reject handlers
+  const handleHunkDecision = useCallback(
+    (targetPath: string, hunkId: string, decision: 'accepted' | 'rejected') => {
+      setHunkReviews((current) => {
+        const review = current[targetPath]
+        if (!review) return current
+        const nextDecisions = { ...review.decisions, [hunkId]: decision }
+        const merged = applyHunkDecisions(
+          review.originalContent,
+          review.proposedContent,
+          nextDecisions,
+        )
+        const { nextFiles } = applyPatchToFiles(filesRef.current, targetPath, merged)
+        setFiles(nextFiles)
+        filesRef.current = nextFiles
+        void writeFileToDiskIfConnected(targetPath, merged)
+        persistWorkspace({ files: nextFiles })
+        return {
+          ...current,
+          [targetPath]: { ...review, decisions: nextDecisions },
+        }
+      })
+    },
+    [persistWorkspace, writeFileToDiskIfConnected],
+  )
+
+  const handleAcceptAllHunks = useCallback(
+    (targetPath: string) => {
+      const review = hunkReviews[targetPath]
+      if (!review) return
+      const { nextFiles } = applyPatchToFiles(filesRef.current, targetPath, review.proposedContent)
+      setFiles(nextFiles)
+      filesRef.current = nextFiles
+      void writeFileToDiskIfConnected(targetPath, review.proposedContent)
+      persistWorkspace({ files: nextFiles })
+      setHunkReviews((current) => {
+        const copy = { ...current }
+        delete copy[targetPath]
+        return copy
+      })
+    },
+    [hunkReviews, persistWorkspace, writeFileToDiskIfConnected],
+  )
+
+  const handleRejectAllHunks = useCallback(
+    (targetPath: string) => {
+      const review = hunkReviews[targetPath]
+      if (!review) return
+      const { nextFiles } = applyPatchToFiles(filesRef.current, targetPath, review.originalContent)
+      setFiles(nextFiles)
+      filesRef.current = nextFiles
+      void writeFileToDiskIfConnected(targetPath, review.originalContent)
+      persistWorkspace({ files: nextFiles })
+      setHunkReviews((current) => {
+        const copy = { ...current }
+        delete copy[targetPath]
+        return copy
+      })
+    },
+    [hunkReviews, persistWorkspace, writeFileToDiskIfConnected],
+  )
+
+  const handleDismissHunkReview = useCallback((targetPath: string) => {
+    setHunkReviews((current) => {
+      const copy = { ...current }
+      delete copy[targetPath]
+      return copy
+    })
+  }, [])
 
   const handleBridgeMessage = useCallback((msg: BridgeMessage) => {
     setBridgeMessages((current) => [...current.slice(-119), msg])
@@ -1039,6 +1239,7 @@ export function IDEWorkspace() {
       onBridgeMessage: handleBridgeMessage,
       onRecordUsage: handleRecordUsage,
       onApplyDirectEdit: applyDirectAgentEdit,
+      onCommandApproval: handleCommandApprovalRequest,
       onPromptRollback: handlePromptRollback,
     })
 
@@ -2255,6 +2456,7 @@ export function IDEWorkspace() {
             <section className="relative flex min-w-0 flex-1 flex-col bg-[#1e1e1e]">
               <EditorPane
                 projectName={activeProject?.name ?? 'VinceZone Studio'}
+                workspaceRoot={activeProject?.rootPath}
                 files={files}
                 openPaths={openPaths}
                 activePath={activePath}
@@ -2270,7 +2472,13 @@ export function IDEWorkspace() {
                 formatSeq={formatSeq}
                 breakpoints={breakpoints}
                 debugActiveLocation={debugSnapshot?.activeLocation ?? null}
+                hunkReview={activePath ? (hunkReviews[activePath] ?? null) : null}
                 onToggleBreakpoint={toggleBreakpoint}
+                onNavigateToFile={(targetPath, line) => openFile(targetPath, line)}
+                onHunkDecision={handleHunkDecision}
+                onAcceptAllHunks={handleAcceptAllHunks}
+                onRejectAllHunks={handleRejectAllHunks}
+                onDismissHunkReview={handleDismissHunkReview}
                 provider={savedProvider}
                 onOpenExplorer={() => setExplorerOpen(true)}
                 onSelectTab={setActivePath}
@@ -2370,7 +2578,10 @@ export function IDEWorkspace() {
                     width={rightChatWidth}
                     bridgeEnabled={bridgeEnabled}
                     bridgeMessages={bridgeMessages}
+                    commandApprovals={commandApprovals}
                     focusSeq={chatFocusSeq}
+                    onApproveCommand={(id) => void handleApproveCommand(id)}
+                    onRejectCommand={handleRejectCommand}
                     onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
                     onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
                     onChangeAgentModel={handleChangeAgentModel}
@@ -2454,11 +2665,14 @@ export function IDEWorkspace() {
             communicationEvents={communicationEvents}
             proposedPatches={proposedPatches}
             pendingApproval={pendingApproval}
+            commandApprovals={commandApprovals}
             skills={availableSkills}
             combos={availableCombos}
             mcpServers={appSettings.mcpServers}
             plugins={appSettings.plugins}
             providers={providers}
+            onApproveCommand={(id) => void handleApproveCommand(id)}
+            onRejectCommand={handleRejectCommand}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

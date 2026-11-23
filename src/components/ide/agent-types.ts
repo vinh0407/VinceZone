@@ -112,6 +112,27 @@ export type PendingApprovalPlan = {
   planSummary: string
 }
 
+export type CommandApprovalItem = {
+  id: string
+  command: string
+  reason: string
+  cwd: string
+  riskLevel: 'medium' | 'high'
+  agentId: string
+  agentName: string
+  status: 'pending' | 'running' | 'approved' | 'rejected' | 'failed'
+  output?: string
+  exitCode?: number
+}
+
+export type InlineHunkReview = {
+  path: string
+  originalContent: string
+  proposedContent: string
+  summary: string
+  decisions: Record<string, 'accepted' | 'rejected'>
+}
+
 export type TerminalHistoryEntry = {
   id: string
   command: string
@@ -244,7 +265,17 @@ export type RuntimeEvent = {
   relevantFiles?: string[]
   path?: string
   content?: string
+  previousContent?: string | null
   summary?: string
+  chunk?: string
+  agentName?: string
+  approval?: {
+    id: string
+    command: string
+    reason: string
+    cwd: string
+    riskLevel: 'medium' | 'high'
+  }
 }
 
 export type { EditRevision }

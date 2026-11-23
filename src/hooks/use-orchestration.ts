@@ -6,6 +6,7 @@ import type {
   AgentLayout,
   AgentTask,
   AppSettings,
+  CommandApprovalItem,
   CommunicationEvent,
   MailKind,
   MemoryNote,
@@ -51,6 +52,7 @@ type ParsedChatChunk = {
     preview?: string
     path?: string
     summary?: string
+    previousContent?: string | null
     content?: string
     promptTokens?: number
     completionTokens?: number
@@ -58,6 +60,13 @@ type ParsedChatChunk = {
     toRole?: string
     message?: string
     files?: string[]
+    approval?: {
+      id: string
+      command: string
+      reason: string
+      cwd: string
+      riskLevel: 'medium' | 'high'
+    }
   }>
 }
 
@@ -151,6 +160,7 @@ export function useOrchestration({
   onBridgeMessage,
   onRecordUsage,
   onApplyDirectEdit,
+  onCommandApproval,
   onPromptRollback,
 }: {
   agents: Agent[]
@@ -177,9 +187,11 @@ export function useOrchestration({
   onApplyDirectEdit?: (input: {
     path: string
     content: string
+    previousContent?: string | null
     summary: string
     agent: Agent
   }) => { applied: boolean; revisionId?: string }
+  onCommandApproval?: (item: CommandApprovalItem) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
@@ -401,6 +413,47 @@ export function useOrchestration({
         ])
         return
       }
+      if (event.type === 'agent.token' && event.agentId && event.chunk) {
+        updateAgent(event.agentId, (current) => {
+          const runtimeId = event.taskId ? `runtime-${event.taskId}` : ''
+          if (runtimeId && current.messages.some((m) => m.id === runtimeId)) {
+            return {
+              ...current,
+              messages: current.messages.map((m) =>
+                m.id === runtimeId ? { ...m, text: `${m.text}${event.chunk}` } : m,
+              ),
+            }
+          }
+          const streamId = `stream-${event.agentId}`
+          if (current.messages.some((m) => m.id === streamId)) {
+            return {
+              ...current,
+              messages: current.messages.map((m) =>
+                m.id === streamId ? { ...m, text: `${m.text}${event.chunk}` } : m,
+              ),
+            }
+          }
+          return {
+            ...current,
+            messages: [
+              ...current.messages,
+              { id: streamId, role: 'assistant', text: event.chunk || '' },
+            ],
+          }
+        })
+        return
+      }
+      if (event.type === 'command.approval_required' && event.approval) {
+        const sourceAgent =
+          agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
+        onCommandApproval?.({
+          ...event.approval,
+          agentId: sourceAgent?.id || event.agentId || 'pm',
+          agentName: event.agentName || sourceAgent?.name || 'Agent',
+          status: 'pending',
+        })
+        return
+      }
       if (event.type === 'file.updated' && event.path && typeof event.content === 'string') {
         const sourceAgent =
           agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
@@ -409,6 +462,7 @@ export function useOrchestration({
           const applied = onApplyDirectEdit({
             path: event.path,
             content: event.content,
+            previousContent: event.previousContent,
             summary: event.summary || `Saved ${event.path}`,
             agent: sourceAgent,
           })
@@ -717,11 +771,21 @@ export function useOrchestration({
         return
       }
       if (event.type === 'coordinator.review.completed' && event.agentId) {
-        updateAgent(event.agentId, (current) => ({
-          ...current,
-          status: 'idle',
-          messages: [...current.messages, { id: uid(), role: 'assistant', text: event.result || '' }],
-        }))
+        updateAgent(event.agentId, (current) => {
+          const streamId = `stream-${event.agentId}`
+          const hasStream = current.messages.some((m) => m.id === streamId)
+          return {
+            ...current,
+            status: 'idle',
+            messages: hasStream
+              ? current.messages.map((m) =>
+                  m.id === streamId
+                    ? { ...m, id: uid(), text: event.result || m.text }
+                    : m,
+                )
+              : [...current.messages, { id: uid(), role: 'assistant', text: event.result || '' }],
+          }
+        })
         return
       }
       if (event.type === 'approval.required' && event.agentId) {
@@ -855,6 +919,7 @@ export function useOrchestration({
             },
             limits: appSettings.delegation,
             topology,
+            mcpServers: appSettings.mcpServers,
             ...(approvalResume
               ? {
                   approvedTasks: approvalResume.approvedTasks,
@@ -1117,6 +1182,7 @@ export function useOrchestration({
             model: agent.model || activeProvider.model,
             enableTools: true,
             workspaceRoot,
+            mcpServers: appSettings.mcpServers,
             messages: [
               { role: 'system', content: systemPrompt },
               ...agent.messages
@@ -1161,6 +1227,7 @@ export function useOrchestration({
               const outcome = onApplyDirectEdit?.({
                 path: ev.path,
                 content: ev.content,
+                previousContent: ev.previousContent,
                 summary: ev.summary || `Saved ${ev.path}`,
                 agent,
               })
@@ -1170,6 +1237,13 @@ export function useOrchestration({
                 change: true,
                 codeSnippet: ev.content.slice(0, 220),
                 text: `Edited & saved ${ev.path}${outcome?.revisionId ? ` (${outcome.revisionId})` : ''} directly to disk.`,
+              })
+            } else if (ev.type === 'command.approval_required' && ev.approval) {
+              onCommandApproval?.({
+                ...ev.approval,
+                agentId: agent.id,
+                agentName: agent.name,
+                status: 'pending',
               })
             } else if (ev.type === 'agent.handoff' && ev.toRole && ev.message) {
               queuedToolHandoffs.push({

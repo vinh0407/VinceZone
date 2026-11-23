@@ -1,10 +1,180 @@
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import {
+  findSymbolDefinitions,
+  findSymbolReferences,
+  invalidateCodeIndex,
+  searchWorkspaceSymbols,
+} from './code-index'
 import { resolvePathInsideWorkspace } from './local-guard'
+import { callMcpServerTool, listMcpServerTools, type McpToolInfo } from './mcp-client'
 
 const execFileAsync = promisify(execFile)
+
+export type McpServerRuntimeConfig = {
+  id: string
+  name: string
+  transport: 'stdio' | 'http'
+  endpoint: string
+  enabled?: boolean
+}
+
+export type DynamicMcpBinding = {
+  functionName: string
+  server: McpServerRuntimeConfig
+  toolName: string
+}
+
+export type AgentToolDefinition = {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
+}
+
+const MCP_DISCOVERY_CACHE = new Map<string, { fetchedAt: number; tools: McpToolInfo[] }>()
+const MCP_CACHE_TTL_MS = 30_000
+
+const BLOCKED_SHELL_PATTERNS = [
+  /\brm\s+-[a-z]*r[a-z]*f[a-z]*\s+(\/|~|\$home|c:\\|\/\*)/i,
+  /\bdel\s+\/[sfq\s]+c:\\/i,
+  /\brd\s+\/s\s+\/q\s+c:\\/i,
+  /\bformat\s+[a-z]:/i,
+  /\bmkfs\b/i,
+  /\bshutdown\b/i,
+  /\breboot\b/i,
+  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/,
+  /\breg\s+delete\b/i,
+  /\bRemove-Item\b.*-Recurse.*([A-Z]:\\|\/)\s*$/i,
+]
+
+const HIGH_RISK_SHELL_PATTERNS = [
+  /\b(rm|del|rmdir|Remove-Item)\b/i,
+  /\bgit\s+(push|reset\s+--hard|clean\s+-f)/i,
+  /\b(prisma|drizzle|alembic|flyway)\b.*\b(migrate|push|drop|reset)\b/i,
+  /\b(drop|truncate)\s+table\b/i,
+  /\bcurl\b.*\|\s*(sh|bash|powershell)/i,
+]
+
+export function classifyShellCommand(command: string): {
+  status: 'safe' | 'approval-required' | 'blocked'
+  riskLevel: 'low' | 'medium' | 'high'
+  reason: string
+} {
+  const trimmed = command.trim()
+  if (!trimmed) {
+    return { status: 'blocked', riskLevel: 'high', reason: 'Empty command.' }
+  }
+  if (BLOCKED_SHELL_PATTERNS.some((re) => re.test(trimmed))) {
+    return {
+      status: 'blocked',
+      riskLevel: 'high',
+      reason: 'Catastrophic system-level command is permanently blocked for safety.',
+    }
+  }
+  // Safe read-only verification commands (no chained shell mutation operators)
+  const hasChaining = /[;&|`]|>\s*[^&]|\$\(/.test(trimmed)
+  if (
+    !hasChaining &&
+    SAFE_VERIFY_PREFIXES.some((prefix) => trimmed.toLowerCase().startsWith(prefix))
+  ) {
+    return {
+      status: 'safe',
+      riskLevel: 'low',
+      reason: 'Read-only verification command.',
+    }
+  }
+  const isHighRisk = HIGH_RISK_SHELL_PATTERNS.some((re) => re.test(trimmed))
+  return {
+    status: 'approval-required',
+    riskLevel: isHighRisk ? 'high' : 'medium',
+    reason: isHighRisk
+      ? 'Potentially destructive or remote-mutating command requires explicit user approval.'
+      : 'Command modifies dependencies, build artifacts, or workspace state — requires Allow/Deny approval.',
+  }
+}
+
+function sanitizeToolPart(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24)
+}
+
+export async function buildDynamicAgentTools(
+  mcpServers: McpServerRuntimeConfig[] | undefined,
+  workspaceRoot: string,
+): Promise<{
+  tools: AgentToolDefinition[]
+  mcpBindings: Map<string, DynamicMcpBinding>
+}> {
+  const tools: AgentToolDefinition[] = [...(AGENT_TOOL_DEFINITIONS as unknown as AgentToolDefinition[])]
+  const mcpBindings = new Map<string, DynamicMcpBinding>()
+
+  const enabledServers = (mcpServers ?? [])
+    .filter((s) => s.enabled !== false && s.endpoint?.trim())
+    .slice(0, 6)
+
+  if (enabledServers.length === 0) {
+    return { tools, mcpBindings }
+  }
+
+  const root = path.resolve(workspaceRoot)
+
+  await Promise.all(
+    enabledServers.map(async (server) => {
+      const cacheKey = `${server.transport}:${server.endpoint.trim()}`
+      const cached = MCP_DISCOVERY_CACHE.get(cacheKey)
+      let discovered: McpToolInfo[] = []
+
+      if (cached && Date.now() - cached.fetchedAt < MCP_CACHE_TTL_MS) {
+        discovered = cached.tools
+      } else {
+        try {
+          discovered = await Promise.race([
+            listMcpServerTools(server.transport, server.endpoint.trim(), root),
+            new Promise<McpToolInfo[]>((resolve) => setTimeout(() => resolve([]), 4_000)),
+          ])
+          MCP_DISCOVERY_CACHE.set(cacheKey, { fetchedAt: Date.now(), tools: discovered })
+        } catch {
+          discovered = []
+        }
+      }
+
+      const serverSlug = sanitizeToolPart(server.name || server.id || 'mcp') || 'mcp'
+      for (const tool of discovered.slice(0, 12)) {
+        const toolSlug = sanitizeToolPart(tool.name)
+        if (!toolSlug) continue
+        const fnName = `mcp__${serverSlug}__${toolSlug}`.slice(0, 64)
+        if (mcpBindings.has(fnName)) continue
+        mcpBindings.set(fnName, {
+          functionName: fnName,
+          server,
+          toolName: tool.name,
+        })
+        tools.push({
+          type: 'function',
+          function: {
+            name: fnName,
+            description: `[MCP ${server.name}] ${tool.description || tool.name}`.slice(0, 260),
+            parameters:
+              tool.inputSchema && typeof tool.inputSchema === 'object'
+                ? tool.inputSchema
+                : { type: 'object', properties: {} },
+          },
+        })
+      }
+    }),
+  )
+
+  return { tools, mcpBindings }
+}
 
 const IGNORED_DIRS = new Set([
   'node_modules',
@@ -31,6 +201,9 @@ const SAFE_VERIFY_PREFIXES = [
   'npm test',
   'git status',
   'git diff',
+  'git log',
+  'node -v',
+  'python --version',
 ]
 
 export const AGENT_TOOL_DEFINITIONS = [
@@ -122,12 +295,55 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: 'run_verify',
       description:
-        'Run a safe verification command (pnpm typecheck, pnpm test, git status, git diff) inside the workspace.',
+        'Run a safe read-only verification command (pnpm typecheck, pnpm test, git status, git diff) inside the workspace.',
       parameters: {
         type: 'object',
         required: ['command'],
         properties: {
           command: { type: 'string', description: 'Verification command to execute.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_shell',
+      description:
+        'Propose and execute a workspace shell command (e.g. pnpm add, npm install, gradlew assembleDebug, prisma migrate). Safe read-only commands run immediately; mutating commands pause and prompt the user with an Allow / Deny approval dialog.',
+      parameters: {
+        type: 'object',
+        required: ['command'],
+        properties: {
+          command: { type: 'string', description: 'Shell command to execute inside workspace root.' },
+          reason: {
+            type: 'string',
+            description: 'Short explanation of why this command is needed for the user approval card.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'find_symbol',
+      description:
+        'Cross-file Codebase Symbol Index (LSP): jump to definitions, find all references across TS/JS/Python/Kotlin/Go/Rust files, or search exported symbols without reading entire files.',
+      parameters: {
+        type: 'object',
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'Exact symbol name or search keyword.' },
+          mode: {
+            type: 'string',
+            enum: ['definition', 'references', 'search'],
+            description: 'Lookup mode (default: definition).',
+          },
+          currentFile: {
+            type: 'string',
+            description: 'Optional relative path of current file for ranking nearby definitions.',
+          },
         },
       },
     },
@@ -279,6 +495,14 @@ async function collectFiles(rootDir: string, dirPath: string, limit = 180): Prom
   return out
 }
 
+export type PendingCommandApproval = {
+  id: string
+  command: string
+  reason: string
+  cwd: string
+  riskLevel: 'medium' | 'high'
+}
+
 export type ToolExecutionOutcome = {
   ok: boolean
   output: string
@@ -293,15 +517,17 @@ export type ToolExecutionOutcome = {
     message: string
     files?: string[]
   }
+  commandApproval?: PendingCommandApproval
 }
 
 export async function executeAgentTool(
   name: string,
   args: Record<string, unknown>,
   workspaceRoot: string,
+  options?: { mcpBindings?: Map<string, DynamicMcpBinding> },
 ): Promise<ToolExecutionOutcome> {
   try {
-    return await executeAgentToolInner(name, args, workspaceRoot)
+    return await executeAgentToolInner(name, args, workspaceRoot, options)
   } catch (err) {
     return { ok: false, output: err instanceof Error ? err.message : 'Tool execution failed.' }
   }
@@ -311,8 +537,36 @@ async function executeAgentToolInner(
   name: string,
   args: Record<string, unknown>,
   workspaceRoot: string,
+  options?: { mcpBindings?: Map<string, DynamicMcpBinding> },
 ): Promise<ToolExecutionOutcome> {
   const root = path.resolve(workspaceRoot)
+
+  // P1-1: Direct live MCP Server tool call
+  const mcpBinding = options?.mcpBindings?.get(name)
+  if (mcpBinding) {
+    try {
+      const result = await callMcpServerTool(
+        mcpBinding.server.transport,
+        mcpBinding.server.endpoint.trim(),
+        mcpBinding.toolName,
+        args,
+        root,
+      )
+      const rendered =
+        typeof result === 'string' ? result : JSON.stringify(result ?? {}, null, 2)
+      return {
+        ok: true,
+        output: `[MCP ${mcpBinding.server.name} -> ${mcpBinding.toolName}]\n${rendered.slice(0, 9_000)}`,
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        output: `[MCP ${mcpBinding.server.name} -> ${mcpBinding.toolName} ERROR]: ${
+          err instanceof Error ? err.message : 'MCP call failed.'
+        }`,
+      }
+    }
+  }
 
   if (name === 'list_files') {
     const rel = String(args.dir || '').trim()
@@ -426,6 +680,7 @@ async function executeAgentToolInner(
 
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, patched.nextContent, 'utf8')
+    invalidateCodeIndex(root)
 
     return {
       ok: true,
@@ -436,6 +691,111 @@ async function executeAgentToolInner(
         previousContent,
         nextContent: patched.nextContent,
       },
+    }
+  }
+
+  if (name === 'find_symbol') {
+    const query = String(args.query || '').trim()
+    const mode = String(args.mode || 'definition').trim()
+    const currentFile = args.currentFile ? String(args.currentFile) : undefined
+    if (!query) return { ok: false, output: 'Missing required "query".' }
+
+    if (mode === 'references') {
+      const refs = await findSymbolReferences(root, query, 50)
+      if (!refs.length) {
+        return { ok: true, output: `No cross-file references found for "${query}".` }
+      }
+      return {
+        ok: true,
+        output: refs
+          .map(
+            (r) =>
+              `${r.path}:${r.line}:${r.column}${r.isDefinition ? ' [DEF]' : ''}: ${r.preview}`,
+          )
+          .join('\n'),
+      }
+    }
+
+    if (mode === 'search') {
+      const syms = await searchWorkspaceSymbols(root, query, 30)
+      if (!syms.length) {
+        return { ok: true, output: `No symbols matched "${query}".` }
+      }
+      return {
+        ok: true,
+        output: syms
+          .map((s) => `${s.kind} ${s.name} — ${s.path}:${s.line} | ${s.signature}`)
+          .join('\n'),
+      }
+    }
+
+    // default: definition
+    const defs = await findSymbolDefinitions(root, query, currentFile)
+    if (!defs.length) {
+      const fuzzy = await searchWorkspaceSymbols(root, query, 12)
+      if (!fuzzy.length) {
+        return { ok: true, output: `No definition found for symbol "${query}".` }
+      }
+      return {
+        ok: true,
+        output: `Exact definition not found; closest symbols:\n${fuzzy
+          .map((s) => `${s.kind} ${s.name} — ${s.path}:${s.line} | ${s.signature}`)
+          .join('\n')}`,
+      }
+    }
+    return {
+      ok: true,
+      output: defs
+        .slice(0, 12)
+        .map((s) => `${s.kind} ${s.name} — ${s.path}:${s.line}:${s.column} | ${s.signature}`)
+        .join('\n'),
+    }
+  }
+
+  if (name === 'run_shell') {
+    const command = String(args.command || '').trim()
+    const userReason = String(args.reason || '').trim()
+    const verdict = classifyShellCommand(command)
+    if (verdict.status === 'blocked') {
+      return { ok: false, output: `Blocked: ${verdict.reason}` }
+    }
+    if (verdict.status === 'approval-required') {
+      const approval: PendingCommandApproval = {
+        id: `cmd-${randomUUID().slice(0, 8)}`,
+        command,
+        reason: userReason || verdict.reason,
+        cwd: root,
+        riskLevel: verdict.riskLevel === 'high' ? 'high' : 'medium',
+      }
+      return {
+        ok: true,
+        output: `AWAITING_USER_APPROVAL [${approval.id}]: Command "${command}" requires user confirmation (Allow / Deny) in the IDE chat before execution. Do not retry automatically; wait for the user to approve or reject.`,
+        commandApproval: approval,
+      }
+    }
+    // Safe read-only command executes immediately
+    const isWin = process.platform === 'win32'
+    const shellBin = isWin ? 'powershell.exe' : '/bin/sh'
+    const shellArgs = isWin
+      ? ['-NoProfile', '-NonInteractive', '-Command', command]
+      : ['-lc', command]
+    try {
+      const { stdout, stderr } = await execFileAsync(shellBin, shellArgs, {
+        cwd: root,
+        timeout: 35_000,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true,
+      })
+      return {
+        ok: true,
+        output: `Exit 0:\n${(stdout + '\n' + stderr).trim().slice(0, 6_000)}`,
+      }
+    } catch (error) {
+      const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+      return {
+        ok: false,
+        output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 6_000)}`,
+      }
     }
   }
 

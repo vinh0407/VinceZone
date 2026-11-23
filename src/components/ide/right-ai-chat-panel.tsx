@@ -17,12 +17,14 @@ import type { BridgeMessage } from '@/lib/agent-bridge'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type {
   Agent,
+  CommandApprovalItem,
   McpServerConfig,
   PluginConfig,
   ProviderConfig,
   WorkspaceFile,
 } from './agent-types'
 import { ChatContextMenu } from './chat-context-menu'
+import { CommandApprovalList } from './command-approval-card'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import { MarkdownReply } from './markdown-reply'
 import {
@@ -48,7 +50,10 @@ export function RightAiChatPanel({
   width = 320,
   bridgeEnabled = true,
   bridgeMessages = [],
+  commandApprovals = [],
   focusSeq = 0,
+  onApproveCommand,
+  onRejectCommand,
   onToggleBridge,
   onRelayToAgent,
   onChangeAgentModel,
@@ -72,7 +77,10 @@ export function RightAiChatPanel({
   width?: number
   bridgeEnabled?: boolean
   bridgeMessages?: BridgeMessage[]
+  commandApprovals?: CommandApprovalItem[]
   focusSeq?: number
+  onApproveCommand?: (id: string) => void
+  onRejectCommand?: (id: string) => void
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -425,6 +433,13 @@ export function RightAiChatPanel({
             </div>
           </div>
         ))}
+        <CommandApprovalList
+          items={commandApprovals.filter(
+            (item) => item.agentId === agent.id || item.status === 'pending',
+          )}
+          onApprove={onApproveCommand}
+          onReject={onRejectCommand}
+        />
       </div>
 
       <div className="shrink-0 border-t border-[#2b2b2b] bg-[#181818] p-2.5">

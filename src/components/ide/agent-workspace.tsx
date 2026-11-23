@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import { ChatContextMenu } from './chat-context-menu'
+import { CommandApprovalList } from './command-approval-card'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import { MarkdownReply } from './markdown-reply'
 import type {
@@ -40,6 +41,7 @@ import type {
   AgentTask,
   AgentView,
   AgentWorkspaceState,
+  CommandApprovalItem,
   CommunicationEvent,
   McpServerConfig,
   PendingApprovalPlan,
@@ -72,11 +74,14 @@ export function AgentWorkspace({
   communicationEvents,
   proposedPatches,
   pendingApproval,
+  commandApprovals = [],
   skills,
   combos = [],
   mcpServers,
   plugins,
   providers = [],
+  onApproveCommand,
+  onRejectCommand,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -100,11 +105,14 @@ export function AgentWorkspace({
   communicationEvents: CommunicationEvent[]
   proposedPatches: ProposedPatch[]
   pendingApproval: PendingApprovalPlan | null
+  commandApprovals?: CommandApprovalItem[]
   skills: SkillIndexItem[]
   combos?: SkillComboItem[]
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   providers?: ProviderConfig[]
+  onApproveCommand?: (id: string) => void
+  onRejectCommand?: (id: string) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -236,6 +244,9 @@ export function AgentWorkspace({
       mcpServers={mcpServers}
       plugins={plugins}
       providers={providers}
+      commandApprovals={commandApprovals.filter((c) => c.agentId === agent.id)}
+      onApproveCommand={onApproveCommand}
+      onRejectCommand={onRejectCommand}
       peers={agents.filter((peer) => peer.id !== agent.id)}
       view={views[agent.id] ?? 'chat'}
       draft={drafts[agent.id] ?? ''}
@@ -564,6 +575,9 @@ function AgentPanel({
   mcpServers,
   plugins,
   providers = [],
+  commandApprovals = [],
+  onApproveCommand,
+  onRejectCommand,
   peers,
   view,
   draft,
@@ -593,6 +607,9 @@ function AgentPanel({
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   providers?: ProviderConfig[]
+  commandApprovals?: CommandApprovalItem[]
+  onApproveCommand?: (id: string) => void
+  onRejectCommand?: (id: string) => void
   peers: Agent[]
   view: AgentView
   draft: string
@@ -1017,6 +1034,12 @@ function AgentPanel({
                 </div>
               ),
             )}
+            <CommandApprovalList
+              items={commandApprovals}
+              large={isSolo}
+              onApprove={onApproveCommand}
+              onReject={onRejectCommand}
+            />
           </div>
         </div>
       ) : (

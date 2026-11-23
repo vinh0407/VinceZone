@@ -1,4 +1,9 @@
-import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from '@/lib/agent-tools'
+import {
+  buildDynamicAgentTools,
+  executeAgentTool,
+  type McpServerRuntimeConfig,
+  type PendingCommandApproval,
+} from '@/lib/agent-tools'
 import { hashText } from '@/lib/file-tree'
 import { isLoopbackRequest } from '@/lib/local-guard'
 import {
@@ -12,6 +17,7 @@ import {
 import { fetchProviderWithFallback } from '@/lib/provider-fallback'
 import { resolveSafeProviderEndpoint } from '@/lib/provider-url'
 import { checkRateLimit, getClientKey } from '@/lib/rate-limit'
+import { streamCompletionWithTools } from '@/lib/stream-tools'
 import {
   buildTeamCollaborationPrompt,
   buildVinceZoneCoordinatorRules,
@@ -48,6 +54,7 @@ type RequestBody = {
   approvedTasks?: PlannedTask[]
   planningContext?: string
   planSummary?: string
+  mcpServers?: McpServerRuntimeConfig[]
 }
 
 type ToolChatMessage = {
@@ -136,8 +143,11 @@ async function completeWithTools(options: {
   signal: AbortSignal
   workspaceRoot: string
   allowTools: boolean
+  mcpServers?: McpServerRuntimeConfig[]
+  onToken?: (chunk: string) => void
   onFileUpdated?: (file: { path: string; summary: string; nextContent: string; previousContent: string | null }) => void
   onAgentHandoff?: (handoff: { toRole: string; message: string; files?: string[] }) => void
+  onCommandApproval?: (approval: PendingCommandApproval) => void
 }): Promise<{ text: string; savedFiles: string[] }> {
   const {
     endpoint,
@@ -147,8 +157,11 @@ async function completeWithTools(options: {
     signal,
     workspaceRoot,
     allowTools,
+    mcpServers,
+    onToken,
     onFileUpdated,
     onAgentHandoff,
+    onCommandApproval,
   } = options
 
   if (!allowTools) {
@@ -160,57 +173,56 @@ async function completeWithTools(options: {
     'Content-Type': 'application/json',
     ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
   }
+  const { tools: dynamicTools, mcpBindings } = await buildDynamicAgentTools(
+    mcpServers,
+    workspaceRoot,
+  )
   const conversation: ToolChatMessage[] = messages.map((m) => ({
     role: m.role,
     content: m.content,
   }))
   const savedFiles: string[] = []
-  let finalChunks: string[] = []
+  const finalChunks: string[] = []
   let activeModel = model
+  let emittedAnyText = false
 
   for (let round = 0; round < 6; round += 1) {
-    const { response, usedModel } = await fetchProviderWithFallback({
+    let roundStreamed = false
+    const streamed = await streamCompletionWithTools({
       endpoint,
       headers,
       model: activeModel,
       payload: {
         messages: conversation,
-        tools: AGENT_TOOL_DEFINITIONS,
+        tools: dynamicTools,
         tool_choice: 'auto',
-        stream: false,
         temperature: 0.2,
       },
       parentSignal: signal,
-      timeoutMs: 24_000,
+      timeoutMs: 28_000,
+      onToken: (chunk) => {
+        if (!roundStreamed) {
+          roundStreamed = true
+          if (emittedAnyText) onToken?.('\n\n')
+          emittedAnyText = true
+        }
+        onToken?.(chunk)
+      },
     })
-    activeModel = usedModel
+    activeModel = streamed.usedModel
 
-    if (!response.ok) {
+    if (!streamed.ok) {
       if (round === 0) {
         const fallbackText = await complete(endpoint, provider, messages, signal, activeModel)
         return { text: fallbackText, savedFiles }
       }
-      const detail = (await response.text()).slice(0, 400)
-      throw new Error(`Provider returned ${response.status}: ${detail}`)
+      throw new Error(`Provider returned ${streamed.status}: ${streamed.errorText || ''}`)
     }
 
-    const data = (await response.json()) as {
-      choices?: Array<{
-        message?: {
-          content?: string | Array<{ text?: string }> | null
-          reasoning_content?: string | null
-          reasoning?: string | null
-          tool_calls?: Array<{
-            id: string
-            type: 'function'
-            function: { name: string; arguments: string }
-          }>
-        }
-      }>
-    }
-    const msg = data.choices?.[0]?.message
-    const contentText = extractAssistantText(msg)
-    const toolCalls = msg?.tool_calls ?? []
+    const toolCalls = streamed.toolCalls
+    const contentText =
+      streamed.content.trim() ||
+      (!toolCalls.length && streamed.reasoning.trim() ? streamed.reasoning : '')
 
     if (contentText.trim()) {
       finalChunks.push(contentText.trim())
@@ -232,13 +244,18 @@ async function completeWithTools(options: {
         parsedArgs = {}
       }
 
-      const outcome = await executeAgentTool(toolName, parsedArgs, workspaceRoot)
+      const outcome = await executeAgentTool(toolName, parsedArgs, workspaceRoot, {
+        mcpBindings,
+      })
       if (outcome.fileUpdated) {
         savedFiles.push(outcome.fileUpdated.path)
         onFileUpdated?.(outcome.fileUpdated)
       }
       if (outcome.agentHandoff) {
         onAgentHandoff?.(outcome.agentHandoff)
+      }
+      if (outcome.commandApproval) {
+        onCommandApproval?.(outcome.commandApproval)
       }
 
       conversation.push({
@@ -662,6 +679,7 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
                   signal: request.signal,
                   workspaceRoot: resolvedRoot,
                   allowTools: isLocalReq,
+                  mcpServers: body.mcpServers,
                   messages: [
                     {
                       role: 'system',
@@ -675,13 +693,16 @@ Assigned Task Execution:
 - Constraints: ${task.constraints.join('; ') || 'none'}
 - Dependencies: ${task.dependencies.join(', ') || 'none'}
 - Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}
-- IMPORTANT: You have live workspace tools (\`read_file\`, \`patch_file\`, \`write_file\`, \`grep_search\`, \`run_verify\`, \`message_agent\`). USE \`patch_file\` or \`write_file\` to ACTUALLY EDIT AND SAVE code directly to disk!`,
+- IMPORTANT: You have live workspace tools (\`read_file\`, \`patch_file\`, \`write_file\`, \`grep_search\`, \`find_symbol\`, \`run_verify\`, \`run_shell\`, \`message_agent\`, plus any connected MCP server tools). USE \`patch_file\` or \`write_file\` to ACTUALLY EDIT AND SAVE code directly to disk!`,
                     },
                     {
                       role: 'user',
                       content: `${task.description}\n\nShared team discussion:\n${planningContext || '(single coordinator plan)'}\n\nExplicit project context:\n${relevantContext || projectContext.slice(0, 24_000)}`,
                     },
                   ],
+                  onToken: (chunk) => {
+                    emit('agent.token', { agentId: worker.id, taskId: task.id, chunk })
+                  },
                   onFileUpdated: (fileUpdated) => {
                     allSavedFiles.add(fileUpdated.path)
                     fileMap.set(fileUpdated.path, fileUpdated.nextContent)
@@ -690,7 +711,16 @@ Assigned Task Execution:
                       taskId: task.id,
                       path: fileUpdated.path,
                       summary: fileUpdated.summary,
+                      previousContent: fileUpdated.previousContent,
                       content: fileUpdated.nextContent,
+                    })
+                  },
+                  onCommandApproval: (approval) => {
+                    emit('command.approval_required', {
+                      agentId: worker.id,
+                      agentName: worker.name,
+                      taskId: task.id,
+                      approval,
                     })
                   },
                   onAgentHandoff: (handoff) => {
@@ -799,12 +829,13 @@ Assigned Task Execution:
           signal: request.signal,
           workspaceRoot: resolvedRoot,
           allowTools: isLocalReq && results.length === 0,
+          mcpServers: body.mcpServers,
           messages: [
             {
               role: 'system',
               content: `You are ${coordinator.name}. Synthesize the team discussion, specialist reports, and saved file changes (${[...allSavedFiles].join(', ') || 'none yet'}) into a clear, factual final summary. ${
                 results.length === 0
-                  ? 'If the user asked to edit or fix code, use `read_file` and `patch_file`/`write_file` right now to apply and save the change directly.'
+                  ? 'If the user asked to edit or fix code, use `read_file`, `find_symbol`, and `patch_file`/`write_file` right now to apply and save the change directly.'
                   : 'List exact modified/saved files and verification status honestly.'
               }`,
             },
@@ -820,13 +851,24 @@ Assigned Task Execution:
               }\n\nProject context:\n${projectContext.slice(0, 28_000)}`,
             },
           ],
+          onToken: (chunk) => {
+            emit('agent.token', { agentId: coordinator.id, chunk })
+          },
           onFileUpdated: (fileUpdated) => {
             allSavedFiles.add(fileUpdated.path)
             emit('file.updated', {
               agentId: coordinator.id,
               path: fileUpdated.path,
               summary: fileUpdated.summary,
+              previousContent: fileUpdated.previousContent,
               content: fileUpdated.nextContent,
+            })
+          },
+          onCommandApproval: (approval) => {
+            emit('command.approval_required', {
+              agentId: coordinator.id,
+              agentName: coordinator.name,
+              approval,
             })
           },
         })

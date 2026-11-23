@@ -1,8 +1,13 @@
-import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from '@/lib/agent-tools'
+import {
+  buildDynamicAgentTools,
+  executeAgentTool,
+  type McpServerRuntimeConfig,
+} from '@/lib/agent-tools'
 import { isLoopbackRequest } from '@/lib/local-guard'
 import { fetchProviderWithFallback } from '@/lib/provider-fallback'
 import { resolveSafeProviderEndpoint } from '@/lib/provider-url'
 import { checkRateLimit, getClientKey } from '@/lib/rate-limit'
+import { streamCompletionWithTools } from '@/lib/stream-tools'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +30,7 @@ type ChatRequest = {
   messages?: ChatMessage[]
   enableTools?: boolean
   workspaceRoot?: string
+  mcpServers?: McpServerRuntimeConfig[]
 }
 
 function sseFrame(payload: unknown): Uint8Array {
@@ -54,7 +60,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { apiKey, baseUrl, model, messages, enableTools, workspaceRoot } = body
+  const { apiKey, baseUrl, model, messages, enableTools, workspaceRoot, mcpServers } = body
   const isLocalReq = isLoopbackRequest(request)
   if (!baseUrl || !model || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
@@ -95,7 +101,7 @@ export async function POST(request: Request) {
   const resolvedRoot =
     workspaceRoot?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
 
-  // Mode A: Multi-turn Agentic Tool-Calling Loop (Cursor / Claude Code style)
+  // Mode A: Multi-turn Agentic Tool-Calling Loop with real-time token streaming + live MCP tools
   if (canUseLocalTools) {
     const stream = new ReadableStream({
       async start(controller) {
@@ -104,27 +110,45 @@ export async function POST(request: Request) {
           let totalPromptTokens = 0
           let totalCompletionTokens = 0
 
+          const { tools: dynamicTools, mcpBindings } = await buildDynamicAgentTools(
+            mcpServers,
+            resolvedRoot,
+          )
+
           let activeModel = model
           let emittedAnyText = false
 
           for (let round = 0; round < 8; round++) {
-            const attempt = await fetchProviderWithFallback({
+            let roundStartedStreaming = false
+
+            const streamed = await streamCompletionWithTools({
               endpoint,
               headers: authHeaders,
               model: activeModel,
               payload: {
                 messages: conversation,
-                tools: AGENT_TOOL_DEFINITIONS,
+                tools: dynamicTools,
                 tool_choice: 'auto',
-                stream: false,
                 temperature: 0.2,
               },
               parentSignal: request.signal,
-              timeoutMs: 24_000,
+              timeoutMs: 28_000,
+              onToken: (chunk) => {
+                if (!roundStartedStreaming) {
+                  roundStartedStreaming = true
+                  if (emittedAnyText) {
+                    controller.enqueue(
+                      sseFrame({ choices: [{ delta: { content: '\n\n' } }] }),
+                    )
+                  }
+                  emittedAnyText = true
+                }
+                controller.enqueue(sseFrame({ choices: [{ delta: { content: chunk } }] }))
+              },
             })
-            const upstream = attempt.response
-            if (attempt.fellBack && attempt.usedModel !== activeModel) {
-              activeModel = attempt.usedModel
+
+            if (streamed.fellBack && streamed.usedModel !== activeModel) {
+              activeModel = streamed.usedModel
               controller.enqueue(
                 sseFrame({
                   vincezone_event: {
@@ -137,7 +161,7 @@ export async function POST(request: Request) {
             }
 
             // If provider/model doesn't support `tools`, cleanly fall back to standard SSE streaming
-            if (!upstream.ok && round === 0) {
+            if (!streamed.ok && round === 0) {
               const fbAttempt = await fetchProviderWithFallback({
                 endpoint,
                 headers: authHeaders,
@@ -172,48 +196,22 @@ export async function POST(request: Request) {
               return
             }
 
-            if (!upstream.ok) {
-              const detail = (await upstream.text()).slice(0, 600)
-              throw new Error(`Provider returned ${upstream.status}: ${detail}`)
+            if (!streamed.ok) {
+              throw new Error(`Provider returned ${streamed.status}: ${streamed.errorText || ''}`)
             }
 
-            const data = (await upstream.json()) as {
-              choices?: Array<{
-                message?: {
-                  content?: string | null
-                  reasoning_content?: string | null
-                  reasoning?: string | null
-                  tool_calls?: Array<{
-                    id: string
-                    type: 'function'
-                    function: { name: string; arguments: string }
-                  }>
-                }
-              }>
-              usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+            if (streamed.usage) {
+              totalPromptTokens += streamed.usage.prompt_tokens ?? 0
+              totalCompletionTokens += streamed.usage.completion_tokens ?? 0
             }
 
-            if (data.usage) {
-              totalPromptTokens += data.usage.prompt_tokens ?? 0
-              totalCompletionTokens += data.usage.completion_tokens ?? 0
-            }
-
-            const assistantMsg = data.choices?.[0]?.message
-            const toolCalls = assistantMsg?.tool_calls ?? []
+            const toolCalls = streamed.toolCalls
             const contentText =
-              typeof assistantMsg?.content === 'string' && assistantMsg.content.trim()
-                ? assistantMsg.content
-                : typeof assistantMsg?.reasoning_content === 'string' &&
-                    assistantMsg.reasoning_content.trim() &&
-                    !toolCalls.length
-                  ? assistantMsg.reasoning_content
-                  : typeof assistantMsg?.reasoning === 'string' &&
-                      assistantMsg.reasoning.trim() &&
-                      !toolCalls.length
-                    ? assistantMsg.reasoning
-                    : ''
+              streamed.content.trim() ||
+              (!toolCalls.length && streamed.reasoning.trim() ? streamed.reasoning : '')
 
-            if (contentText) {
+            // If model only produced reasoning_content without streaming delta.content, emit it now
+            if (!roundStartedStreaming && contentText) {
               const spacer = emittedAnyText ? '\n\n' : ''
               emittedAnyText = true
               controller.enqueue(
@@ -250,7 +248,9 @@ export async function POST(request: Request) {
                 }),
               )
 
-              const outcome = await executeAgentTool(toolName, parsedArgs, resolvedRoot)
+              const outcome = await executeAgentTool(toolName, parsedArgs, resolvedRoot, {
+                mcpBindings,
+              })
 
               controller.enqueue(
                 sseFrame({
@@ -270,6 +270,7 @@ export async function POST(request: Request) {
                       type: 'file.updated',
                       path: outcome.fileUpdated.path,
                       summary: outcome.fileUpdated.summary,
+                      previousContent: outcome.fileUpdated.previousContent,
                       content: outcome.fileUpdated.nextContent,
                     },
                   }),
@@ -284,6 +285,17 @@ export async function POST(request: Request) {
                       toRole: outcome.agentHandoff.toRole,
                       message: outcome.agentHandoff.message,
                       files: outcome.agentHandoff.files,
+                    },
+                  }),
+                )
+              }
+
+              if (outcome.commandApproval) {
+                controller.enqueue(
+                  sseFrame({
+                    vincezone_event: {
+                      type: 'command.approval_required',
+                      approval: outcome.commandApproval,
                     },
                   }),
                 )
