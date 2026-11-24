@@ -4,6 +4,7 @@ import {
   ArrowRightLeft,
   Bot,
   Check,
+  Copy,
   Crown,
   History,
   ImagePlus,
@@ -15,10 +16,12 @@ import {
   Send,
   Shield,
   Square,
+  Undo2,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
+import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
@@ -68,6 +71,7 @@ export function RightAiChatPanel({
   onToggleViceCaptain,
   onNewThread,
   onSelectThread,
+  onUndoTurn,
   onToggleBridge,
   onRelayToAgent,
   onChangeAgentModel,
@@ -100,6 +104,7 @@ export function RightAiChatPanel({
   onToggleViceCaptain?: (agentId: string) => void
   onNewThread?: () => void
   onSelectThread?: (threadId: string) => void
+  onUndoTurn?: (agentId: string, messageId: string) => void
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -119,6 +124,7 @@ export function RightAiChatPanel({
   const [slashIndex, setSlashIndex] = useState(0)
   const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -551,10 +557,10 @@ export function RightAiChatPanel({
         {agent.messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`group flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
-              className={`min-w-0 rounded-lg px-3 py-2.5 ${
+              className={`min-w-0 select-text rounded-lg px-3 py-2.5 ${
                 message.role === 'user'
                   ? 'max-w-[90%] whitespace-pre-wrap bg-[#2a2a2a] text-[11px] leading-5 text-white'
                   : message.role === 'tool'
@@ -594,6 +600,49 @@ export function RightAiChatPanel({
                 </pre>
               )}
             </div>
+            {(message.role === 'user' || message.role === 'assistant') && message.text && (
+              <div className="mt-1 flex items-center gap-1 px-0.5 text-[9.5px] text-[#8a8a8a] opacity-75 transition group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void copyTextToClipboard(message.text).then((ok) => {
+                      if (ok) {
+                        setCopiedMsgId(message.id)
+                        window.setTimeout(
+                          () => setCopiedMsgId((cur) => (cur === message.id ? null : cur)),
+                          1500,
+                        )
+                      }
+                    })
+                  }}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#2a2720] hover:text-[#e6cfa0]"
+                  title="Sao chép nội dung tin nhắn này"
+                >
+                  {copiedMsgId === message.id ? (
+                    <>
+                      <Check size={10} className="text-[#ddb968]" />
+                      <span className="text-[#ddb968]">Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={10} />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+                {message.role === 'user' && onUndoTurn && (
+                  <button
+                    type="button"
+                    onClick={() => onUndoTurn(agent.id, message.id)}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#2a2720] hover:text-[#ddb968]"
+                    title="Hoàn tác lệnh này, khôi phục file code đã sửa và đưa lệnh về ô nhập"
+                  >
+                    <Undo2 size={10} />
+                    <span>Undo</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
         <CommandApprovalList

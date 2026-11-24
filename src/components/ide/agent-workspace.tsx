@@ -29,10 +29,12 @@ import {
   Sparkles,
   Square,
   TerminalSquare,
+  Undo2,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
+import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
 import { AgentMailOverlay } from './agent-mail-overlay'
@@ -95,6 +97,7 @@ export function AgentWorkspace({
   onClearViceCaptain,
   onNewThread,
   onSelectThread,
+  onUndoTurn,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -132,6 +135,7 @@ export function AgentWorkspace({
   onClearViceCaptain?: () => void
   onNewThread?: () => void
   onSelectThread?: (threadId: string) => void
+  onUndoTurn?: (agentId: string, messageId: string) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -288,6 +292,7 @@ export function AgentWorkspace({
       onDelegate={(targetId, prompt) => onDelegate(agent.id, targetId, prompt)}
       onPause={() => onPause(agent)}
       onDiff={onDiff}
+      onUndoTurn={onUndoTurn ? (msgId) => onUndoTurn(agent.id, msgId) : undefined}
       onMinimize={() =>
         setWorkspace((current) => ({
           ...current,
@@ -706,6 +711,7 @@ function AgentPanel({
   onDelegate,
   onPause,
   onDiff,
+  onUndoTurn,
   onMinimize,
   onPromote,
 }: {
@@ -742,6 +748,7 @@ function AgentPanel({
   onDelegate: (targetId: string, prompt: string) => void
   onPause: () => void
   onDiff: (patchId?: string) => void
+  onUndoTurn?: (messageId: string) => void
   onMinimize: () => void
   onPromote: () => void
 }) {
@@ -752,6 +759,7 @@ function AgentPanel({
   const [delegateTarget, setDelegateTarget] = useState(peers[0]?.id ?? '')
   const [delegatePrompt, setDelegatePrompt] = useState('')
   const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([])
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -791,8 +799,6 @@ function AgentPanel({
   return (
     <article
       data-agent-panel={agent.id}
-      draggable
-      onDragStart={onDragStart}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
       className={`agent-chat-panel relative flex h-full min-h-[220px] min-w-0 flex-col bg-[#161616] transition-shadow ${
@@ -800,7 +806,9 @@ function AgentPanel({
       } ${isSendingMail ? 'mail-panel-sending' : ''} ${justReceivedMail ? 'mail-panel-arrived' : ''}`}
     >
       <div
-        className={`flex shrink-0 items-center justify-between border-b border-[#2b2b2b] bg-[#181818] ${
+        draggable
+        onDragStart={onDragStart}
+        className={`flex shrink-0 cursor-grab items-center justify-between border-b border-[#2b2b2b] bg-[#181818] active:cursor-grabbing ${
           isSolo ? 'h-16 px-5' : 'h-11 px-3'
         }`}
       >
@@ -1156,10 +1164,10 @@ function AgentPanel({
               ) : (
                 <div
                   key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`group flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`min-w-0 ${
+                    className={`min-w-0 select-text ${
                       isSolo ? 'rounded-xl' : 'rounded-lg'
                     } ${
                       message.role === 'user'
@@ -1229,6 +1237,53 @@ function AgentPanel({
                       </pre>
                     )}
                   </div>
+                  {(message.role === 'user' || message.role === 'assistant') && message.text && (
+                    <div
+                      className={`mt-1 flex items-center gap-1 px-0.5 text-[#8a8a8a] opacity-75 transition group-hover:opacity-100 ${
+                        isSolo ? 'text-[11.5px]' : 'text-[9.5px]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void copyTextToClipboard(message.text).then((ok) => {
+                            if (ok) {
+                              setCopiedMsgId(message.id)
+                              window.setTimeout(
+                                () => setCopiedMsgId((cur) => (cur === message.id ? null : cur)),
+                                1500,
+                              )
+                            }
+                          })
+                        }}
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#2a2720] hover:text-[#e6cfa0]"
+                        title="Sao chép nội dung tin nhắn này"
+                      >
+                        {copiedMsgId === message.id ? (
+                          <>
+                            <Check size={isSolo ? 12 : 10} className="text-[#ddb968]" />
+                            <span className="text-[#ddb968]">Đã chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={isSolo ? 12 : 10} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                      {message.role === 'user' && onUndoTurn && (
+                        <button
+                          type="button"
+                          onClick={() => onUndoTurn(message.id)}
+                          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#2a2720] hover:text-[#ddb968]"
+                          title="Hoàn tác lệnh này, khôi phục file code đã sửa và đưa lệnh về ô nhập"
+                        >
+                          <Undo2 size={isSolo ? 12 : 10} />
+                          <span>Undo</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ),
             )}

@@ -26,6 +26,8 @@ export type Message = {
   from?: string
   codeSnippet?: string
   typing?: boolean
+  sentAt?: string
+  revisionCheckpoint?: number
 }
 
 export type ChatThreadSnapshot = {

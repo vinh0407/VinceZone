@@ -191,7 +191,7 @@ export function HighlightedChatTextarea({
             onPasteImages(imageFiles)
           }
         }}
-        className={`relative z-10 block w-full resize-none bg-transparent ${typography} text-transparent caret-white outline-none selection:bg-white/25 placeholder:text-[#666666]`}
+        className={`relative z-10 block w-full resize-none bg-transparent ${typography} text-transparent caret-[#e6cfa0] outline-none selection:bg-[#c9a24d]/35 placeholder:text-[#666666]`}
       />
     </div>
   )

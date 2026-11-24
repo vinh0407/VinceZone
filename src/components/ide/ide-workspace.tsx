@@ -27,6 +27,7 @@ import {
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
 import { applyHunkDecisions } from '@/lib/hunk-diff'
+import { computeTurnUndoPlan } from '@/lib/turn-undo'
 import {
   getRoleBlueprint,
   inferRoleId,
@@ -1741,8 +1742,76 @@ export function IDEWorkspace() {
       onApplyDirectEdit: applyDirectAgentEdit,
       onCommandApproval: handleCommandApprovalRequest,
       onPromptRollback: handlePromptRollback,
+      getRevisionCount: () => sessionRef.current.revisions.length,
     })
   sendMessageRef.current = sendMessage
+
+  const handleUndoAgentTurn = useCallback(
+    (agentId: string, messageId: string) => {
+      const targetAgent = sessionRef.current.agents.find((a) => a.id === agentId)
+      if (!targetAgent) return
+
+      // Stop active generation if this agent is currently running
+      if (targetAgent.status === 'running' || targetAgent.status === 'reviewing') {
+        pauseAgent(targetAgent)
+      }
+
+      const plan = computeTurnUndoPlan({
+        messages: targetAgent.messages,
+        messageId,
+        revisions: sessionRef.current.revisions,
+        files: filesRef.current,
+      })
+      if (!plan.found) return
+
+      if (plan.revisionsToRollback.length > 0) {
+        setFiles(plan.nextFiles)
+        filesRef.current = plan.nextFiles
+        setRevisions(plan.nextRevisions)
+        for (const item of plan.diskWrites) {
+          void writeFileToDiskIfConnected(item.path, item.content)
+        }
+        if (activeProject?.rootPath) {
+          for (const delPath of plan.diskDeletes) {
+            void fetch('/api/workspace', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'delete',
+                root: activeProject.rootPath,
+                path: delPath,
+              }),
+            }).catch(() => {})
+          }
+        }
+        persistWorkspace({ files: plan.nextFiles, revisions: plan.nextRevisions })
+      }
+
+      setAgents((current) =>
+        current.map((a) =>
+          a.id === agentId
+            ? { ...a, status: 'idle', currentTask: undefined, messages: plan.nextMessages }
+            : a,
+        ),
+      )
+      setDrafts((current) => ({ ...current, [agentId]: plan.restoredPrompt }))
+      setChatFocusSeq((n) => n + 1)
+
+      const rolledCount = plan.diskWrites.length + plan.diskDeletes.length
+      pushToast({
+        title:
+          rolledCount > 0
+            ? `Đã hoàn tác lệnh & khôi phục ${rolledCount} file`
+            : 'Đã hoàn tác lệnh về ô nhập',
+        detail:
+          plan.revisionsToRollback.length > 0
+            ? `Reverted: ${plan.revisionsToRollback.map((r) => r.id).join(', ')}`
+            : plan.restoredPrompt.slice(0, 90),
+        variant: 'success',
+      })
+    },
+    [activeProject?.rootPath, pauseAgent, persistWorkspace, pushToast, writeFileToDiskIfConnected],
+  )
 
   const updateFile = (content = '') => {
     if (!activePath) return
@@ -3159,6 +3228,7 @@ export function IDEWorkspace() {
                     onToggleViceCaptain={handleToggleViceCaptain}
                     onNewThread={handleNewChatThread}
                     onSelectThread={handleSelectChatThread}
+                    onUndoTurn={handleUndoAgentTurn}
                     onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
                     onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
                     onChangeAgentModel={handleChangeAgentModel}
@@ -3259,6 +3329,7 @@ export function IDEWorkspace() {
             onClearViceCaptain={handleClearViceCaptain}
             onNewThread={handleNewChatThread}
             onSelectThread={handleSelectChatThread}
+            onUndoTurn={handleUndoAgentTurn}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

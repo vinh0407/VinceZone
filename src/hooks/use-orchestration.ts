@@ -177,6 +177,7 @@ export function useOrchestration({
   onApplyDirectEdit,
   onCommandApproval,
   onPromptRollback,
+  getRevisionCount,
 }: {
   agents: Agent[]
   files: WorkspaceFile[]
@@ -208,6 +209,7 @@ export function useOrchestration({
   }) => { applied: boolean; revisionId?: string }
   onCommandApproval?: (item: CommandApprovalItem) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
+  getRevisionCount?: () => number
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
   const agentsRef = useRef(agents)
@@ -877,12 +879,19 @@ export function useOrchestration({
         .join('\n\n')
 
       if (!approvalResume) {
+        const revCheckpoint = getRevisionCount?.()
         updateAgent(coordinator.id, (current) => ({
           ...current,
           status: 'running',
           messages: [
             ...current.messages,
-            { id: uid(), role: 'user', text: instruction },
+            {
+              id: uid(),
+              role: 'user',
+              text: instruction,
+              sentAt: new Date().toISOString(),
+              revisionCheckpoint: revCheckpoint,
+            },
             ...(slashResolved.badges.length
               ? [
                   {
@@ -1040,12 +1049,19 @@ export function useOrchestration({
       if (!delegated && onPromptRollback && parseRollbackPrompt(text)) {
         const rollbackOutcome = onPromptRollback(text)
         if (rollbackOutcome) {
+          const revCheckpoint = getRevisionCount?.()
           setDrafts((current) => ({ ...current, [agent.id]: '' }))
           updateAgent(agent.id, (current) => ({
             ...current,
             messages: [
               ...current.messages,
-              { id: uid(), role: 'user', text },
+              {
+                id: uid(),
+                role: 'user',
+                text,
+                sentAt: new Date().toISOString(),
+                revisionCheckpoint: revCheckpoint,
+              },
               { id: uid(), role: 'tool', text: rollbackOutcome.message },
             ],
           }))
@@ -1057,12 +1073,19 @@ export function useOrchestration({
       if (!delegated && bridgeEnabled && agentsRef.current.length > 1) {
         const directUserRoutes = extractBridgeRoutes(text, agentsRef.current, agent.id)
         if (directUserRoutes.length > 0 && /^@[A-Za-z0-9_-]{2,24}/i.test(text)) {
+          const revCheckpoint = getRevisionCount?.()
           setDrafts((current) => ({ ...current, [agent.id]: '' }))
           updateAgent(agent.id, (current) => ({
             ...current,
             messages: [
               ...current.messages,
-              { id: uid(), role: 'user', text },
+              {
+                id: uid(),
+                role: 'user',
+                text,
+                sentAt: new Date().toISOString(),
+                revisionCheckpoint: revCheckpoint,
+              },
               {
                 id: uid(),
                 role: 'tool',
@@ -1141,6 +1164,8 @@ export function useOrchestration({
         id: uid(),
         role: 'user',
         text,
+        sentAt: new Date().toISOString(),
+        revisionCheckpoint: getRevisionCount?.(),
         ...(attachedImages.length > 0 ? { images: attachedImages } : {}),
       }
       setAiActivity('reading')
