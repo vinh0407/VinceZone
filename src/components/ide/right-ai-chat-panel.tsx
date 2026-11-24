@@ -19,7 +19,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
@@ -127,6 +127,8 @@ export function RightAiChatPanel({
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
 
   const handleAddImages = async (fileList: FileList | File[]) => {
     const added = await extractImagesFromFileList(fileList)
@@ -139,6 +141,7 @@ export function RightAiChatPanel({
     if (!agent) return
     const imgs = pendingImages
     if (!draft.trim() && imgs.length === 0) return
+    stickToBottomRef.current = true
     setPendingImages([])
     onSend(agent, imgs.length > 0 ? imgs : undefined)
   }
@@ -181,6 +184,31 @@ export function RightAiChatPanel({
     }
     return list
   }, [modelFilter, providers])
+
+  const lastMsg = agent?.messages[agent.messages.length - 1]
+  const lastMsgSignature = `${agent?.messages.length ?? 0}:${lastMsg?.id ?? ''}:${lastMsg?.text.length ?? 0}:${commandApprovals.length}`
+
+  // Always jump directly to the latest message when opening or switching to an agent
+  useLayoutEffect(() => {
+    stickToBottomRef.current = true
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    const raf = window.requestAnimationFrame(() => {
+      if (messagesScrollRef.current) {
+        messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight
+      }
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [agent?.id])
+
+  // Follow new / streaming messages automatically when user is near the bottom
+  useEffect(() => {
+    if (!stickToBottomRef.current) return
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [lastMsgSignature])
 
   useEffect(() => {
     if (focusSeq > 0) {
@@ -553,7 +581,14 @@ export function RightAiChatPanel({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-[#161616] p-3">
+      <div
+        ref={messagesScrollRef}
+        onScroll={(event) => {
+          const el = event.currentTarget
+          stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96
+        }}
+        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-[#161616] p-3"
+      >
         {agent.messages.map((message) => (
           <div
             key={message.id}

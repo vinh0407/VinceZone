@@ -32,7 +32,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
@@ -762,6 +762,8 @@ function AgentPanel({
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
 
   const handleAddImages = async (fileList: FileList | File[]) => {
     const added = await extractImagesFromFileList(fileList)
@@ -773,9 +775,36 @@ function AgentPanel({
   const triggerSend = () => {
     const imgs = pendingImages
     if (!effectiveDraft.trim() && imgs.length === 0) return
+    stickToBottomRef.current = true
     setPendingImages([])
     onSend(imgs.length > 0 ? imgs : undefined)
   }
+
+  const lastMsg = agent.messages[agent.messages.length - 1]
+  const lastMsgSignature = `${agent.messages.length}:${lastMsg?.id ?? ''}:${lastMsg?.text.length ?? 0}:${commandApprovals.length}`
+
+  // Jump immediately to the latest message whenever entering this agent panel or switching back to chat view
+  useLayoutEffect(() => {
+    if (view !== 'chat') return
+    stickToBottomRef.current = true
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    const raf = window.requestAnimationFrame(() => {
+      if (messagesScrollRef.current) {
+        messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight
+      }
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [agent.id, view])
+
+  // Stay anchored at the latest message during new replies & streaming unless user scrolled up
+  useEffect(() => {
+    if (view !== 'chat' || !stickToBottomRef.current) return
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [lastMsgSignature, view])
   useEffect(() => {
     if (!peers.some((peer) => peer.id === delegateTarget)) setDelegateTarget(peers[0]?.id ?? '')
   }, [delegateTarget, peers])
@@ -1110,6 +1139,11 @@ function AgentPanel({
 
       {view === 'chat' ? (
         <div
+          ref={messagesScrollRef}
+          onScroll={(event) => {
+            const el = event.currentTarget
+            stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96
+          }}
           className={`min-h-0 flex-1 overflow-y-auto ${
             isSolo ? 'px-6 py-5' : 'space-y-2.5 p-3'
           }`}
