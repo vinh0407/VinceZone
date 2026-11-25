@@ -60,14 +60,16 @@ jobs:
           pnpm build
 
       - name: Install Playwright Chromium
-        run: npx --yes @playwright/test@latest install chromium --with-deps
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install chromium --with-deps
 
       - name: Run IDE E2E Smoke Suite
         run: |
-          pnpm start &
+          PORT=40704 HOSTNAME=127.0.0.1 node .next/standalone/server.js &
           SERVER_PID=$!
           npx wait-on http://127.0.0.1:40704/api/vz-ping --timeout 45000
-          npx --yes @playwright/test@latest test e2e/ide-smoke.spec.ts --reporter=list
+          npx playwright test e2e/ide-smoke.spec.ts --reporter=list
           EXIT_CODE=$?
           kill $SERVER_PID || true
           exit $EXIT_CODE

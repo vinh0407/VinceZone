@@ -6,7 +6,7 @@
   </p>
 
   <p>
-    <a href="https://github.com/vinh0407/VinceZone/releases/latest">
+    <a href="https://github.com/vinh0407/VinceZone/releases/latest/download/VinceZone-Studio-Setup-2.2.0.exe">
       <img src="https://img.shields.io/badge/⬇%20Download%20Setup%20v2.2.0-Windows%20(.exe)-c9a24d?style=for-the-badge&logo=windows&logoColor=111111&labelColor=1e1c17" alt="Download Windows Setup" />
     </a>
     <a href="https://github.com/vinh0407/VinceZone/releases/latest">
@@ -30,8 +30,8 @@
 | Platform | Package | Direct Link |
 |---|---|---|
 | **Windows (x64)** | Setup Installer (`.exe`) | [**Download VinceZone-Studio-Setup-2.2.0.exe**](https://github.com/vinh0407/VinceZone/releases/latest/download/VinceZone-Studio-Setup-2.2.0.exe) |
-| **Windows (Portable)** | Portable Archive (`.zip`) | [**Download Portable ZIP**](https://github.com/vinh0407/VinceZone/releases/latest) |
-| **macOS / Linux** | `.dmg` / `.AppImage` | [**Browse All Release Assets**](https://github.com/vinh0407/VinceZone/releases/latest) |
+| **Linux (x86_64)** | AppImage (`.AppImage`) | [**Download VinceZone-Studio-2.2.0-x86_64.AppImage**](https://github.com/vinh0407/VinceZone/releases/latest/download/VinceZone-Studio-2.2.0-x86_64.AppImage) |
+| **All Platforms** | Windows / macOS / Linux | [**Browse GitHub Releases**](https://github.com/vinh0407/VinceZone/releases/latest) |
 
 > **Zero Localhost Ports:** Packaged desktop builds serve the entire Next.js 16 backend inside Electron via a custom `vincezone://studio` protocol — no exposed local TCP port and no background terminal window.
 
