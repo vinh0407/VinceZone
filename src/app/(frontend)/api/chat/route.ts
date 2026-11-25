@@ -336,6 +336,17 @@ export async function POST(request: Request) {
                 )
               }
 
+              if (outcome.teamRecruitment) {
+                controller.enqueue(
+                  sseFrame({
+                    vincezone_event: {
+                      type: 'team.recruit',
+                      teamRecruitment: outcome.teamRecruitment,
+                    },
+                  }),
+                )
+              }
+
               if (outcome.commandApproval) {
                 controller.enqueue(
                   sseFrame({

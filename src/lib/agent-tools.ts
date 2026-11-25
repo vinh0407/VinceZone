@@ -16,6 +16,10 @@ import { resolvePathInsideWorkspace } from './local-guard'
 import { callMcpServerTool, listMcpServerTools, type McpToolInfo } from './mcp-client'
 import { semanticSearchWorkspace } from './semantic-index'
 import { listInstalledSkills, loadSkillInstructions } from './skill-runner'
+import {
+  normalizeRecruitedMembers,
+  type AiRecruitedMemberSpec,
+} from './pm-team-recruiter'
 
 const execFileAsync = promisify(execFile)
 
@@ -528,6 +532,63 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'recruit_team',
+      description:
+        'Recruit or update a specialist engineering team under @PM Captain in 1:6 PM mode after analyzing the project. Call this whenever the user — in ANY language or natural phrasing — asks to form, create, assemble, recruit, staff, or reorganize a team/squad/specialists for the workspace or a goal. Each recruited member automatically receives their pre-configured Role Model from Settings and clear scope onboarding.',
+      parameters: {
+        type: 'object',
+        required: ['members'],
+        properties: {
+          project_summary: {
+            type: 'string',
+            description: 'Concise analysis of the project stack, architecture, and goal written in the user\'s language.',
+          },
+          members: {
+            type: 'array',
+            description:
+              '1 to 6 fixed specialist roles to recruit alongside @PM Captain (do not include pm or custom).',
+            items: {
+              type: 'object',
+              required: ['role', 'responsibility'],
+              properties: {
+                role: {
+                  type: 'string',
+                  enum: [
+                    'arch',
+                    'fe',
+                    'be',
+                    'uiux',
+                    'db',
+                    'mobile',
+                    'ai',
+                    'sec',
+                    'qa',
+                    'devops',
+                    'perf',
+                    'docs',
+                  ],
+                  description: 'Fixed specialist role ID.',
+                },
+                responsibility: {
+                  type: 'string',
+                  description:
+                    'Exact project-specific responsibility and boundaries for this specialist, written in the user\'s language.',
+                },
+                owned_paths: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Key workspace files or directories owned by this specialist.',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 ] as const
 
 function stripReadFileLineNumbers(block: string): string {
@@ -657,6 +718,10 @@ export type ToolExecutionOutcome = {
     files?: string[]
   }
   commandApproval?: PendingCommandApproval
+  teamRecruitment?: {
+    projectSummary?: string
+    members: AiRecruitedMemberSpec[]
+  }
 }
 
 export async function executeAgentTool(
@@ -1278,6 +1343,27 @@ async function executeAgentToolInner(
       }
     } catch {
       return { ok: true, output: 'Team Bridge Bus has no recorded messages yet.' }
+    }
+  }
+
+  if (name === 'recruit_team') {
+    const members = normalizeRecruitedMembers(args.members)
+    if (members.length === 0) {
+      return {
+        ok: false,
+        output:
+          'Provide at least 1 valid specialist role in "members" (arch, fe, be, uiux, db, mobile, ai, sec, qa, devops, perf, docs).',
+      }
+    }
+    const projectSummary =
+      String(args.project_summary ?? args.projectSummary ?? '').trim().slice(0, 800) || undefined
+    return {
+      ok: true,
+      output: `Recruited ${members.length} specialist(s) into 1:6 PM mode: ${members.map((m) => `@${m.role.toUpperCase()} (${m.responsibility.slice(0, 80)})`).join('; ')}. Pre-configured Role Models from Settings have been applied and each specialist has received their onboarding scope.`,
+      teamRecruitment: {
+        projectSummary,
+        members,
+      },
     }
   }
 

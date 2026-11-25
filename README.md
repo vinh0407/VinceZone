@@ -16,7 +16,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-2.2.0-c9a24d?style=flat-square" alt="Version 2.2.0" />
-    <img src="https://img.shields.io/badge/tests-106%20passing-4c9a5e?style=flat-square" alt="Tests Passing" />
+    <img src="https://img.shields.io/badge/tests-107%20passing-4c9a5e?style=flat-square" alt="Tests Passing" />
     <img src="https://img.shields.io/badge/Electron-35-47848F?style=flat-square&logo=electron&logoColor=white" alt="Electron 35" />
     <img src="https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs&logoColor=white" alt="Next.js 16" />
     <img src="https://img.shields.io/badge/license-MIT-858585?style=flat-square" alt="MIT License" />
@@ -41,7 +41,7 @@
 
 ### Multi-Agent Control Center (`Ctrl+Shift+A`)
 - **1:6 PM Captain Mode (`focus1`)**: `@PM` is always locked as Team Captain on the large left panel while specialists operate in parallel on the right grid. Also supports `2:4 Plan` and `3:3 Peer` topologies.
-- **PM Project-Analysis Team Recruitment**: Click **PM Tuyển Nhóm** or type *"tạo nhóm cho dự án này"* — `@PM` analyzes the repository stack, recruits the exact specialists needed (`@ARCH`, `@FE`, `@BE`, `@UIUX`, `@DB`, `@MOBILE`, `@AI`, `@SEC`, `@QA`, `@DEVOPS`, `@PERF`, `@DOCS`), assigns their pre-configured models, and briefs each member on their exact scope and boundaries.
+- **AI-Native Multilingual Team Recruitment (`recruit_team`)**: Talk naturally to `@PM` in **any language** (or click **PM Recruit Team**) — the AI Captain understands your intent without fixed keywords, analyzes the repository stack, recruits the exact specialists needed (`@ARCH`, `@FE`, `@BE`, `@UIUX`, `@DB`, `@MOBILE`, `@AI`, `@SEC`, `@QA`, `@DEVOPS`, `@PERF`, `@DOCS`), assigns their pre-configured Role Models, and briefs every member on their exact scope and boundaries in your language.
 - **Per-Role Model Selector**: Configure a default provider/model for each of the **13 fixed specialist roles** in `Settings → Providers` while keeping **`@CUSTOM`** completely free to improvise any model.
 - **Full Autonomous Execution & Skills**: Built-in AI tools for coding (`write_file`, `patch_file`), executing code (`run_code` for `.ts`, `.js`, `.py`, `.go`, `.ps1`, `.sh`), shell commands (`run_shell` with 1-click **Auto-Run** toggle or **Allow/Deny** approval cards), Git (`git_action`), MCP servers (persistent stdio/HTTP pool), and installed skills (`list_skills`, `use_skill`, `/skill`, `/combo:...`).
 - **Isolated Agent Git Worktrees**: Spin up, assign per agent, merge, and clean up isolated `vz-agent/*` Git worktrees directly from the Multi-Agent toolbar.
@@ -74,7 +74,7 @@ pnpm desktop
 
 ```bash
 pnpm typecheck        # TypeScript strict check
-pnpm test             # Vitest suite (26 files / 106 tests)
+pnpm test             # Vitest suite (26 files / 107 tests)
 pnpm build:exe        # Build standalone desktop/VinceZone Studio/VinceZone Studio.exe
 pnpm build:installer  # Build Windows NSIS Setup (.exe) or Portable ZIP
 ```

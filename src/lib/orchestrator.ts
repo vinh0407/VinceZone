@@ -1,3 +1,8 @@
+import {
+  normalizeRecruitedMembers,
+  type AiRecruitedMemberSpec,
+} from '@/lib/pm-team-recruiter'
+
 export type OrchestratorAgent = {
   id: string
   name: string
@@ -89,16 +94,37 @@ export function parsePlan(
   raw: string,
   workers: OrchestratorAgent[],
   paths: Set<string>,
-): { summary: string; tasks: PlannedTask[] } {
+): {
+  summary: string
+  tasks: PlannedTask[]
+  recruitTeam?: { projectSummary?: string; members: AiRecruitedMemberSpec[] }
+} {
   const jsonText = extractJsonObject(raw)
   if (!jsonText) return { summary: raw, tasks: [] }
 
-  let parsed: { summary?: string; tasks?: Partial<PlannedTask>[] }
+  let parsed: {
+    summary?: string
+    tasks?: Partial<PlannedTask>[]
+    recruitTeam?: { projectSummary?: string; project_summary?: string; members?: unknown }
+    recruit_team?: { projectSummary?: string; project_summary?: string; members?: unknown }
+  }
   try {
-    parsed = JSON.parse(jsonText) as { summary?: string; tasks?: Partial<PlannedTask>[] }
+    parsed = JSON.parse(jsonText) as typeof parsed
   } catch {
     return { summary: raw, tasks: [] }
   }
+
+  const rawRecruit = parsed.recruitTeam ?? parsed.recruit_team
+  const normalizedRecruitMembers = rawRecruit ? normalizeRecruitedMembers(rawRecruit.members) : []
+  const recruitTeam =
+    normalizedRecruitMembers.length > 0
+      ? {
+          projectSummary:
+            String(rawRecruit?.projectSummary ?? rawRecruit?.project_summary ?? '').trim() ||
+            undefined,
+          members: normalizedRecruitMembers,
+        }
+      : undefined
 
   const tasks = (Array.isArray(parsed.tasks) ? parsed.tasks : []).flatMap((task, index) => {
     const assignee = workers.find((agent) => agent.id === task.assigneeId)
@@ -129,7 +155,7 @@ export function parsePlan(
     ]
   })
 
-  return { summary: String(parsed.summary || raw), tasks }
+  return { summary: String(parsed.summary || raw), tasks, ...(recruitTeam ? { recruitTeam } : {}) }
 }
 
 export function sanitizeTaskGraph(

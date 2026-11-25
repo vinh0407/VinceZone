@@ -313,6 +313,14 @@ export type RuntimeEvent = {
     cwd: string
     riskLevel: 'medium' | 'high'
   }
+  teamRecruitment?: {
+    projectSummary?: string
+    members: Array<{
+      role: string
+      responsibility: string
+      ownedPaths?: string[]
+    }>
+  }
 }
 
 export type { EditRevision }

@@ -31,7 +31,10 @@ import {
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
 import { applyHunkDecisions } from '@/lib/hunk-diff'
-import { analyzeProjectAndRecruitTeam } from '@/lib/pm-team-recruiter'
+import {
+  analyzeProjectAndRecruitTeam,
+  type AiRecruitedTeamPlan,
+} from '@/lib/pm-team-recruiter'
 import { extractProjectRules } from '@/lib/project-rules'
 import { computeTurnUndoPlan } from '@/lib/turn-undo'
 import {
@@ -1645,52 +1648,76 @@ export function IDEWorkspace() {
   }, [])
 
   const handleRecruitTeam = useCallback(
-    (instruction = 'Phân tích dự án và tuyển nhóm thành viên phù hợp') => {
+    (
+      instruction = 'Analyze the project and recruit the optimal specialist team',
+      aiPlan?: AiRecruitedTeamPlan,
+    ) => {
       const projectLabel = activeProject?.name ?? 'VinceZone Studio'
-      const result = analyzeProjectAndRecruitTeam({
-        projectName: projectLabel,
-        files: filesRef.current,
-        instruction,
-        existingAgents: sessionRef.current.agents,
-        roleModels: appSettings.roleModels,
-        defaultProviderId: savedProvider.id,
-        defaultModel: savedProvider.model,
+      let latestResult: ReturnType<typeof analyzeProjectAndRecruitTeam> | null = null
+
+      setAgents((currentAgents) => {
+        const result = analyzeProjectAndRecruitTeam({
+          projectName: projectLabel,
+          files: filesRef.current,
+          instruction,
+          existingAgents: currentAgents,
+          roleModels: appSettings.roleModels,
+          defaultProviderId: savedProvider.id,
+          defaultModel: savedProvider.model,
+          aiPlan,
+        })
+        latestResult = result
+        return result.nextAgents
       })
 
-      const pm = result.nextAgents[0]
-      setAgents(result.nextAgents)
-      if (pm) setRightChatAgentId(pm.id)
-      setCommunicationEvents((current) => [
-        ...current.slice(-60),
-        ...result.communicationEvents,
-      ])
-      try {
-        window.localStorage.setItem(
-          'baton-agent-layout',
-          JSON.stringify({
-            layout: 'focus1',
-            order: result.nextAgents.map((a) => a.id),
-            minimized: [],
-            mainAgentId: pm?.id,
-          }),
-        )
-      } catch {
-        // ignore storage quota errors
-      }
-      persistWorkspace({
-        session: {
-          ...sessionRef.current,
-          agents: result.nextAgents,
-          communicationEvents: [
-            ...sessionRef.current.communicationEvents.slice(-60),
-            ...result.communicationEvents,
-          ],
-        },
-      })
-      pushToast({
-        title: `Đội trưởng @PM đã tuyển ${result.recruitedCount} chuyên gia`,
-        detail: `${projectLabel} · Chế độ 1:6 PM (PM luôn ở bên trái)`,
-        variant: 'success',
+      // Compute side effects cleanly after state update queued
+      queueMicrotask(() => {
+        const result =
+          latestResult ??
+          analyzeProjectAndRecruitTeam({
+            projectName: projectLabel,
+            files: filesRef.current,
+            instruction,
+            existingAgents: sessionRef.current.agents,
+            roleModels: appSettings.roleModels,
+            defaultProviderId: savedProvider.id,
+            defaultModel: savedProvider.model,
+            aiPlan,
+          })
+        const pm = result.nextAgents[0]
+        if (pm) setRightChatAgentId(pm.id)
+        setCommunicationEvents((current) => [
+          ...current.slice(-60),
+          ...result.communicationEvents,
+        ])
+        try {
+          window.localStorage.setItem(
+            'baton-agent-layout',
+            JSON.stringify({
+              layout: 'focus1',
+              order: result.nextAgents.map((a) => a.id),
+              minimized: [],
+              mainAgentId: pm?.id,
+            }),
+          )
+        } catch {
+          // ignore storage quota errors
+        }
+        persistWorkspace({
+          session: {
+            ...sessionRef.current,
+            agents: result.nextAgents,
+            communicationEvents: [
+              ...sessionRef.current.communicationEvents.slice(-60),
+              ...result.communicationEvents,
+            ],
+          },
+        })
+        pushToast({
+          title: `Captain @PM recruited ${result.recruitedCount} specialist${result.recruitedCount === 1 ? '' : 's'}`,
+          detail: `${projectLabel} · 1:6 PM mode (@PM Captain on left)`,
+          variant: 'success',
+        })
       })
     },
     [
@@ -1701,6 +1728,26 @@ export function IDEWorkspace() {
       savedProvider.id,
       savedProvider.model,
     ],
+  )
+
+  const handleTriggerPmRecruitButton = useCallback(
+    (instruction = 'Analyze this workspace and recruit the right specialist team using the recruit_team tool.') => {
+      const currentAgents = sessionRef.current.agents
+      const pmAgent =
+        currentAgents.find((a) => a.roleId === 'pm' || a.id === 'pm') ?? currentAgents[0]
+      const activeProv =
+        providers.find((p) => p.id === pmAgent?.providerId) ?? savedProvider
+      const isLocalLoopback = /localhost|127\.0\.0\.1|\[::1\]/i.test(activeProv.baseUrl || '')
+      const providerReady = Boolean(activeProv.apiKey || isLocalLoopback)
+
+      if (pmAgent && providerReady && sendMessageRef.current) {
+        setRightChatAgentId(pmAgent.id)
+        void sendMessageRef.current(pmAgent, instruction, false, { forceDirectChat: true })
+        return
+      }
+      handleRecruitTeam(instruction)
+    },
+    [handleRecruitTeam, providers, savedProvider],
   )
 
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
@@ -3595,7 +3642,7 @@ export function IDEWorkspace() {
             onRetryTask={handleRetryTask}
             onUpdateTaskStatus={handleUpdateTaskStatus}
             onAssignAgentWorktree={handleAssignAgentWorktree}
-            onRecruitTeam={handleRecruitTeam}
+            onRecruitTeam={handleTriggerPmRecruitButton}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

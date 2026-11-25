@@ -67,7 +67,7 @@ export function WelcomeTab({
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] px-3 py-1.5 text-[11px] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.28)] transition hover:from-[#e0bc6c] hover:to-[#bc9542]"
-            title="Tải bộ cài đặt VinceZone Studio mới nhất từ GitHub Releases"
+            title="Download the latest VinceZone Studio installer from GitHub Releases"
           >
             <Download size={12} /> Download Setup
           </a>

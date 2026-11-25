@@ -70,12 +70,13 @@ export function RoleModelsSection({
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#f0d394]">
-            <Users size={13} /> Chọn Model Cho Từng Vị Trí ({FIXED_ROLES.length} vị trí cố định)
+            <Users size={13} /> Per-Role Model Assignments ({FIXED_ROLES.length} fixed roles)
           </p>
           <p className="mt-0.5 text-[9.5px] text-[#9a9a9a]">
-            Khi PM tuyển nhóm hoặc tạo Agent mới, mỗi vị trí sẽ tự động dùng đúng model đã cấu hình
-            sẵn. Riêng vị trí <strong className="text-[#e6cfa0]">@CUSTOM</strong> không bị cố định
-            để tự do ứng biến model theo tình huống.
+            Whenever Captain @PM recruits a team or you add a fixed specialist, each role
+            automatically uses its assigned model below.{' '}
+            <strong className="text-[#e6cfa0]">@CUSTOM</strong> remains unpinned so you can freely
+            pick any model on the fly.
           </p>
         </div>
         {Object.keys(roleModels).length > 0 && (
@@ -83,9 +84,9 @@ export function RoleModelsSection({
             type="button"
             onClick={() => onChangeRoleModels({})}
             className="flex items-center gap-1 rounded border border-[#3a3a3a] bg-[#202020] px-2 py-1 text-[9.5px] text-[#cccccc] hover:bg-[#2a2a2a] hover:text-white"
-            title="Đặt tất cả vị trí về model khuyến nghị mặc định"
+            title="Reset all fixed roles to recommended default models"
           >
-            <RotateCcw size={10} /> Reset mặc định
+            <RotateCcw size={10} /> Reset defaults
           </button>
         )}
       </div>
@@ -129,16 +130,16 @@ export function RoleModelsSection({
                       }
                     }}
                     className="rounded border border-[#333333] bg-[#222222] px-1.5 py-0.5 text-[8.5px] text-[#cccccc] hover:border-[#c9a24d]/50 hover:text-white"
-                    title="Nhập tên model tùy chỉnh cho vị trí này"
+                    title="Enter a custom model ID for this role"
                   >
-                    {isEditingCustom ? 'Chọn list' : '+ Nhập tên'}
+                    {isEditingCustom ? 'Pick list' : '+ Custom ID'}
                   </button>
                   {assigned && (
                     <button
                       type="button"
                       onClick={() => updateRoleModel(role.roleId, undefined, '')}
                       className="rounded p-0.5 text-[#858585] hover:bg-[#2a2a2a] hover:text-white"
-                      title={`Về mặc định (${role.recommendedModel})`}
+                      title={`Reset to default (${role.recommendedModel})`}
                     >
                       <RotateCcw size={9} />
                     </button>
@@ -165,7 +166,7 @@ export function RoleModelsSection({
                       }
                       if (e.key === 'Escape') setEditingRole(null)
                     }}
-                    placeholder="VD: anthropic/claude-sonnet-4"
+                    placeholder="e.g. anthropic/claude-sonnet-4"
                     className="min-w-0 flex-1 rounded border border-[#c9a24d]/50 bg-[#111111] px-2 py-1 font-mono text-[10px] text-white outline-none"
                   />
                   <button
@@ -180,7 +181,7 @@ export function RoleModelsSection({
                     }}
                     className="rounded bg-[#c9a24d] px-2 py-1 text-[9.5px] font-semibold text-[#111111] hover:bg-[#ddb968]"
                   >
-                    Lưu
+                    Save
                   </button>
                 </div>
               ) : (
@@ -199,7 +200,7 @@ export function RoleModelsSection({
                 >
                   {!hasExactChoice && (
                     <option value={`__direct__::${activeModel}`}>
-                      {activeModel} {assigned ? '(đã chọn)' : '(khuyến nghị)'}
+                      {activeModel} {assigned ? '(assigned)' : '(recommended)'}
                     </option>
                   )}
                   {allModelChoices.map((choice) => (
@@ -217,8 +218,8 @@ export function RoleModelsSection({
       <div className="mt-2 flex items-center gap-1.5 rounded border border-[#2c2c2c] bg-[#121212] px-2.5 py-1.5 text-[9.5px] text-[#a3a3a3]">
         <Sparkles size={11} className="shrink-0 text-[#ddb968]" />
         <span>
-          <strong className="text-white">@CUSTOM (Custom Specialist):</strong> Tự do chọn bất kỳ
-          model nào trực tiếp khi tạo Agent hoặc nhấn vào icon robot trên khung chat để ứng biến.
+          <strong className="text-white">@CUSTOM (Custom Specialist):</strong> Freely choose any
+          model when creating the agent or switch models directly from the agent card header.
         </span>
       </div>
     </div>

@@ -451,9 +451,9 @@ export function AgentWorkspace({
               className={`flex items-center gap-1 rounded border border-[#5e4d26] bg-[#262013] font-medium text-[#f0d394] ${
                 isSolo ? 'px-2.5 py-0.5 text-[11.5px]' : 'px-2 py-0.5 text-[10px]'
               }`}
-              title="Đội trưởng sẽ phân tích, lên kế hoạch và tự gửi prompt cho cả nhóm"
+              title="Team Captain analyzes the project, plans tasks, recruits specialists, and dispatches prompts"
             >
-              <Crown size={isSolo ? 13 : 10} /> Đội trưởng: {captainAgent.name}
+              <Crown size={isSolo ? 13 : 10} /> Captain: {captainAgent.name}
             </span>
           )}
           {viceAgent ? (
@@ -462,12 +462,12 @@ export function AgentWorkspace({
                 isSolo ? 'px-2.5 py-0.5 text-[11.5px]' : 'px-2 py-0.5 text-[10px]'
               }`}
             >
-              <Shield size={isSolo ? 13 : 10} /> Đội phó: {viceAgent.name}
+              <Shield size={isSolo ? 13 : 10} /> Vice: {viceAgent.name}
               {onClearViceCaptain && (
                 <button
                   type="button"
                   onClick={onClearViceCaptain}
-                  title="Bỏ Đội phó (chỉ giữ 1 Đội trưởng)"
+                  title="Remove Vice Captain (keep Captain only)"
                   className="ml-0.5 rounded p-0.5 hover:bg-white/10 hover:text-white"
                 >
                   <X size={isSolo ? 11 : 9} />
@@ -599,14 +599,16 @@ export function AgentWorkspace({
               type="button"
               onClick={() => {
                 setLayout('focus1')
-                onRecruitTeam('Phân tích dự án và tuyển nhóm thành viên phù hợp cho dự án này')
+                onRecruitTeam(
+                  'Analyze this repository stack and recruit the optimal specialist engineering team with clear per-role responsibilities.',
+                )
               }}
               className={`flex items-center gap-1.5 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.28)] transition hover:from-[#e0bc6c] hover:to-[#bc9542] ${
                 isSolo ? 'px-3.5 py-1.5 text-[12.5px]' : 'px-2.5 py-1 text-[11px]'
               }`}
-              title="PM tự phân tích dự án và tuyển các thành viên chuyên trách (mỗi người hiểu rõ vị trí & dùng đúng model đã cài sẵn)"
+              title="Have Captain @PM analyze the project and recruit the needed specialists (using your pre-configured Role Models)"
             >
-              <Sparkles size={isSolo ? 14 : 11} /> PM Tuyển Nhóm
+              <Sparkles size={isSolo ? 14 : 11} /> PM Recruit Team
             </button>
           )}
           <button
@@ -1230,7 +1232,7 @@ function AgentPanel({
                     isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1.5 py-0.5 text-[8px]'
                   }`}
                 >
-                  <Crown size={isSolo ? 11 : 8} /> Đội trưởng
+                  <Crown size={isSolo ? 11 : 8} /> Captain
                 </span>
               ) : isViceCaptain ? (
                 <span
@@ -1238,7 +1240,7 @@ function AgentPanel({
                     isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1.5 py-0.5 text-[8px]'
                   }`}
                 >
-                  <Shield size={isSolo ? 11 : 8} /> Đội phó
+                  <Shield size={isSolo ? 11 : 8} /> Vice
                 </span>
               ) : topologyRole !== 'Worker' ? (
                 <span
@@ -1290,8 +1292,8 @@ function AgentPanel({
             }`}
             title={
               isCaptain
-                ? 'Đang là Đội trưởng (tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm)'
-                : 'Gán làm Đội trưởng'
+                ? 'Active Team Captain (analyzes, recruits, plans & dispatches team prompts)'
+                : 'Assign as Team Captain'
             }
             onClick={onAssignCaptain}
           >
@@ -1307,10 +1309,10 @@ function AgentPanel({
             }`}
             title={
               isCaptain
-                ? 'Đội trưởng không cần kiêm Đội phó'
+                ? 'Captain cannot also be Vice Captain'
                 : isViceCaptain
-                  ? 'Bấm để Bỏ Đội phó (chỉ giữ 1 Đội trưởng)'
-                  : 'Gán làm Đội phó (tùy chọn)'
+                  ? 'Click to remove Vice Captain'
+                  : 'Assign as Vice Captain (optional)'
             }
             onClick={onToggleViceCaptain}
           >
@@ -1793,8 +1795,8 @@ function AgentPanel({
             >
               <Crown size={isSolo ? 13 : 10} className="shrink-0" />
               <span className="truncate">
-                Chế độ Đội trưởng: tự phân tích, lên kế hoạch &amp; gửi prompt cho cả nhóm (
-                {peers.length} thành viên)
+                Captain Mode: analyzes project, recruits specialists &amp; orchestrates team (
+                {peers.length} members)
               </span>
             </div>
           )}
@@ -1843,8 +1845,8 @@ function AgentPanel({
             mono={Boolean(agent.composingPrompt)}
             placeholder={
               isCaptain && peers.length > 0
-                ? `Ra lệnh cho Đội trưởng ${agent.name}… (Ctrl+V dán ảnh Vision) — Đội trưởng sẽ tự phân tích, lập kế hoạch & gửi prompt cho cả nhóm`
-                : `Message ${agent.name}… Ctrl+V dán ảnh Vision hoặc / cho skills`
+                ? `Command Captain ${agent.name} in any language… (Ctrl+V for Vision, / for skills)`
+                : `Message ${agent.name} in any language… (Ctrl+V for Vision, / for skills)`
             }
             onChange={(nextValue) => {
               onDraft(nextValue)

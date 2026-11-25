@@ -1417,6 +1417,15 @@ export function buildTeamCollaborationPrompt(
     ? `Assigned Token-Saving & Specialist Skills (invoke via /slug or apply discipline): ${roleMeta.defaultSkills.map((s) => `/${s}`).join(', ')} (Combo: /combo:${roleMeta.recommendedComboId})`
     : ''
 
+  const pmRecruitmentDirective =
+    roleId === 'pm'
+      ? `TEAM RECRUITMENT CAPABILITY (MULTILINGUAL — ANY LANGUAGE):
+You are the permanent Team Captain (@PM) in 1:6 PM mode. Whenever the user — in ANY language or natural phrasing — asks to analyze the project and assemble, create, recruit, staff, or reorganize a team/squad/specialists for the workspace or a goal:
+1. Inspect the workspace snapshot/files and decide which 1–6 specialist roles are genuinely needed from: arch, fe, be, uiux, db, mobile, ai, sec, qa, devops, perf, docs (never recruit pm or custom).
+2. Call the native \`recruit_team\` tool with \`project_summary\` and \`members\` (writing each specialist's exact project-specific \`responsibility\` in the user's language so every member clearly understands their position and boundaries).
+3. If your model does not support tool calling, emit a fenced \`\`\`recruit-team JSON block with {"projectSummary":"...","members":[{"role":"fe","responsibility":"...","ownedPaths":["src/..."]}]} and present a clear roster summary in the user's language.`
+      : ''
+
   return [
     GLOBAL_INTELLIGENCE_CORE,
     `=== PART V — ACTIVE SPECIALIST: ${current.name} (@${roleMeta.code} — ${roleMeta.title}) ===`,
@@ -1425,6 +1434,7 @@ export function buildTeamCollaborationPrompt(
     `## Soul\n${current.soul || roleMeta.defaultSoul}`,
     `## Mission\n${current.mission || roleMeta.defaultMission}`,
     `## Role Memory\n${current.memory || roleMeta.defaultMemory}`,
+    pmRecruitmentDirective,
     assignedSkillsLine,
     projectMemory ? `Shared Project Memory:\n${projectMemory}` : '',
     roster

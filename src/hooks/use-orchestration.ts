@@ -43,7 +43,11 @@ import {
   extractProposedPatches,
   selectCompactWorkspaceFiles,
 } from '@/lib/orchestrator'
-import { isTeamRecruitmentPrompt } from '@/lib/pm-team-recruiter'
+import {
+  extractRecruitTeamBlock,
+  normalizeRecruitedMembers,
+  type AiRecruitedTeamPlan,
+} from '@/lib/pm-team-recruiter'
 import {
   extractProjectRules,
   resolveDynamicContextMentions,
@@ -84,6 +88,14 @@ type ParsedChatChunk = {
       reason: string
       cwd: string
       riskLevel: 'medium' | 'high'
+    }
+    teamRecruitment?: {
+      projectSummary?: string
+      members: Array<{
+        role: string
+        responsibility: string
+        ownedPaths?: string[]
+      }>
     }
   }>
 }
@@ -221,7 +233,7 @@ export function useOrchestration({
   }) => { applied: boolean; revisionId?: string }
   onCommandApproval?: (item: CommandApprovalItem) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
-  onRecruitTeam?: (instruction: string) => void
+  onRecruitTeam?: (instruction: string, aiPlan?: AiRecruitedTeamPlan) => void
   getRevisionCount?: () => number
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
@@ -477,6 +489,17 @@ export function useOrchestration({
             ],
           }
         })
+        return
+      }
+      if (event.type === 'team.recruited' && event.teamRecruitment && onRecruitTeam) {
+        const members = normalizeRecruitedMembers(event.teamRecruitment.members)
+        if (members.length > 0) {
+          onRecruitTeam(runMeta?.instruction || 'Recruit team for project', {
+            projectSummary: event.teamRecruitment.projectSummary,
+            members,
+            preservePmMessages: true,
+          })
+        }
         return
       }
       if (event.type === 'command.approval_required' && event.approval) {
@@ -1077,10 +1100,16 @@ export function useOrchestration({
         (attachedImages.length > 0 ? 'Phân tích hình ảnh đính kèm này và đề xuất/thực hiện chỉnh sửa.' : '')
       if (!text && attachedImages.length === 0) return
 
-      if (!delegated && onRecruitTeam && isTeamRecruitmentPrompt(text)) {
-        setDrafts((current) => ({ ...current, [agent.id]: '' }))
-        onRecruitTeam(text)
-        return
+      const isExplicitRecruitSlash = /^\/recruit(?:\s|$)/i.test(text)
+      if (!delegated && isExplicitRecruitSlash && onRecruitTeam) {
+        const activeProv = resolveProviderForAgent(agent)
+        const isLocalProv = /localhost|127\.0\.0\.1|\[::1\]/i.test(activeProv.baseUrl || '')
+        const hasProv = Boolean(activeProv.apiKey || isLocalProv)
+        if (!hasProv) {
+          setDrafts((current) => ({ ...current, [agent.id]: '' }))
+          onRecruitTeam(text.replace(/^\/recruit\s*/i, '').trim() || 'Analyze project and recruit specialist team')
+          return
+        }
       }
 
       if (!delegated && onPromptRollback && parseRollbackPrompt(text)) {
@@ -1181,8 +1210,12 @@ export function useOrchestration({
       )
       const providerReady = Boolean(activeProvider.apiKey || isLocalLoopbackProvider)
 
+      const isPmOrCaptain = agent.roleId === 'pm' || agent.id === captain?.id
+      const isExplicitRecruit = /^\/recruit(?:\s|$)/i.test(text)
+
       if (
         !options?.forceDirectChat &&
+        !isExplicitRecruit &&
         !delegated &&
         !isShortGreeting &&
         !isFastAnalysis &&
@@ -1326,7 +1359,7 @@ export function useOrchestration({
           body: JSON.stringify({
             ...activeProvider,
             model: agent.model || activeProvider.model,
-            enableTools: !isFastAnalysis,
+            enableTools: !isFastAnalysis || isPmOrCaptain,
             autoApproveCommands: !appSettings.confirmDangerousTools,
             fastAnalysis: isFastAnalysis,
             workspaceRoot: effectiveWorkspaceRoot,
@@ -1351,6 +1384,7 @@ export function useOrchestration({
         const toolActivityLines: string[] = []
         const toolSavedMessages: Message[] = []
         const queuedToolHandoffs: Array<{ toRole: string; message: string; files?: string[] }> = []
+        let recruitedViaTool: AiRecruitedTeamPlan | null = null
 
         const handleParsedChunk = (parsed: ParsedChatChunk) => {
           if (parsed.usage) realUsage = parsed.usage
@@ -1390,6 +1424,15 @@ export function useOrchestration({
                 message: ev.message,
                 files: ev.files,
               })
+            } else if (ev.type === 'team.recruit' && ev.teamRecruitment) {
+              const members = normalizeRecruitedMembers(ev.teamRecruitment.members)
+              if (members.length > 0) {
+                recruitedViaTool = {
+                  projectSummary: ev.teamRecruitment.projectSummary,
+                  members,
+                  preservePmMessages: true,
+                }
+              }
             }
           }
           if (parsed.text) result += parsed.text
@@ -1516,6 +1559,12 @@ export function useOrchestration({
             ...editMessages,
           ],
         }))
+
+        // 1b. Apply AI-driven team recruitment (native `recruit_team` tool call OR fallback ```recruit-team block)
+        const aiRecruitmentPlan = recruitedViaTool ?? extractRecruitTeamBlock(result)
+        if (aiRecruitmentPlan && onRecruitTeam) {
+          onRecruitTeam(text, aiRecruitmentPlan)
+        }
 
         // 2. Two-way reply back to requesting teammate when answering a bridged delegation
         if (bridgeEnabled && options?.replyToAgentId && result) {

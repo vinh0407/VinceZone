@@ -563,8 +563,8 @@ export async function POST(request: Request) {
             .join('\n')
 
           const commandStructureNote = viceCaptain
-            ? `Command Structure: Team Captain (Đội trưởng) = ${coordinator.name}; Vice Captain (Đội phó) = ${viceCaptain.name} (supports planning & execution).`
-            : `Command Structure: Solo Team Captain (Đội trưởng duy nhất, không cần Đội phó) = ${coordinator.name}. You directly analyze, plan, and dispatch executable prompts to every required teammate.`
+            ? `Command Structure: Team Captain = ${coordinator.name}; Vice Captain = ${viceCaptain.name} (supports planning & execution).`
+            : `Command Structure: Solo Team Captain = ${coordinator.name}. You directly analyze, plan, and dispatch executable prompts to every required teammate.`
 
           const planRaw = await complete(
             endpoint,
@@ -572,15 +572,16 @@ export async function POST(request: Request) {
             [
               {
                 role: 'system',
-                content: `You are ${coordinator.name}, the assigned TEAM CAPTAIN (Đội trưởng) commanding the entire AI engineering team in VinceZone Studio.
+                content: `You are ${coordinator.name}, the assigned TEAM CAPTAIN commanding the entire AI engineering team in VinceZone Studio.
 ${commandStructureNote}
 ${buildVinceZoneCoordinatorRules('')}
 Your mission as Team Captain:
-1. Analyze the user's goal and full project context deeply.
-2. Design a complete, step-by-step execution plan for the whole team.
-3. For EACH task, write \`description\` as a COMPLETE, SELF-CONTAINED PROMPT that you (the Captain) are sending directly to that teammate on the user's behalf — specifying exact files to inspect/edit, concrete technical instructions, integration contracts, and verification steps so the team completes the project end-to-end without the user manually prompting each agent.
+1. Analyze the user's goal and full project context deeply — always respond in the same language the user used.
+2. MULTILINGUAL TEAM RECRUITMENT INTENT: If the user — in ANY language or phrasing — is asking to analyze the project and recruit, create, form, assemble, staff, or reorganize a specialist team/squad (rather than immediately executing code edits with the current roster), return \`"recruitTeam"\` in your JSON response choosing 1–6 specialist roles from [arch, fe, be, uiux, db, mobile, ai, sec, qa, devops, perf, docs] (never pm or custom) with project-specific responsibilities in the user's language, and set \`"tasks": []\` unless they also requested immediate implementation:
+   {"summary":"...","recruitTeam":{"projectSummary":"...","members":[{"role":"fe","responsibility":"...","ownedPaths":["src/..."]}]},"tasks":[]}
+3. Otherwise, design a complete, step-by-step execution plan for the whole team. For EACH task, write \`description\` as a COMPLETE, SELF-CONTAINED PROMPT sent directly to that teammate specifying exact files, contracts, and verification steps.
 4. Every coding/feature/fix request MUST assign concrete tasks to the right team members so they execute real tool edits (\`patch_file\` / \`write_file\`) and save files to disk.
-Return ONLY JSON: {"summary":"...","tasks":[{"id":"TASK-001","title":"...","description":"Direct executable prompt from Team Captain to this teammate...","assigneeId":"exact id","dependencies":[],"relevantFiles":["exact known path"],"expectedOutput":"...","constraints":[],"completionCriteria":[]}]}.
+Return ONLY JSON: {"summary":"...","tasks":[{"id":"TASK-001","title":"...","description":"Direct executable prompt from Team Captain to this teammate...","assigneeId":"exact id","dependencies":[],"relevantFiles":["exact known path"],"expectedOutput":"...","constraints":[],"completionCriteria":[]}],"recruitTeam":null}.
 Available team members:
 ${roster || '(none)'}
 Known project files: ${[...paths].join(', ')}
@@ -598,6 +599,15 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
 
           const plan = parsePlan(planRaw, workers, paths)
           planSummary = plan.summary
+
+          if (plan.recruitTeam && plan.recruitTeam.members.length > 0) {
+            emit('team.recruited', {
+              agentId: coordinator.id,
+              message: plan.summary,
+              teamRecruitment: plan.recruitTeam,
+            })
+          }
+
           tasks = sanitizeTaskGraph(
             plan.tasks,
             runId,
