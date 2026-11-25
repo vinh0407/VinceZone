@@ -260,6 +260,70 @@ ipcMain.handle('vincezone:openDirectory', async () => {
   return result.canceled ? null : result.filePaths[0] || null
 })
 
+ipcMain.handle('vincezone:openNewWindow', async (_event, payload) => {
+  const params = new URLSearchParams()
+  if (payload && typeof payload === 'object') {
+    if (typeof payload.projectId === 'string' && payload.projectId.trim()) {
+      params.set('projectId', payload.projectId.trim())
+    }
+    if (typeof payload.rootPath === 'string' && payload.rootPath.trim()) {
+      params.set('projectRoot', payload.rootPath.trim())
+    }
+    if (typeof payload.projectName === 'string' && payload.projectName.trim()) {
+      params.set('projectName', payload.projectName.trim())
+    }
+  }
+  const query = params.toString()
+  const targetUrl = `${APP_ORIGIN}/${query ? `?${query}` : ''}`
+  const winTitle =
+    payload && typeof payload.projectName === 'string' && payload.projectName.trim()
+      ? `${payload.projectName.trim()} — VinceZone Studio`
+      : 'VinceZone Studio'
+
+  const childWin = new BrowserWindow({
+    width: 1440,
+    height: 920,
+    minWidth: 960,
+    minHeight: 480,
+    title: winTitle,
+    icon: path.join(__dirname, 'vincezone-logo.ico'),
+    autoHideMenuBar: true,
+    backgroundColor: '#181818',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#181818',
+      symbolColor: '#cccccc',
+      height: 35,
+    },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webviewTag: true,
+    },
+  })
+
+  childWin.webContents.on('will-attach-webview', (event, webPreferences, webviewParams) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    if (!/^https?:\/\//i.test(webviewParams.src || '')) {
+      event.preventDefault()
+    }
+  })
+
+  childWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  await childWin.loadURL(targetUrl)
+  return { ok: true }
+})
+
 ipcMain.handle('vincezone:openExternal', async (_event, targetUrl) => {
   if (typeof targetUrl === 'string' && /^https?:\/\//i.test(targetUrl)) {
     await shell.openExternal(targetUrl)

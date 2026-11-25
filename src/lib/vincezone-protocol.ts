@@ -1202,6 +1202,7 @@ export const CUSTOM_ROLE_META = {
     '14. Chuyên gia tùy chỉnh linh hoạt: đảm nhận bài toán chuyên sâu hoặc liên miền đặc thù với ranh giới rõ ràng và phối hợp mượt cùng 13 chuyên gia chuẩn.',
   receivesFrom: ['@PM', 'User'],
   handsOffTo: ['@PM', '@QA'],
+  accent: '#a3a3a3',
   recommendedModel: 'super-coder',
   defaultSkills: [
     'caveman-compress',
@@ -1253,9 +1254,39 @@ export const CUSTOM_ROLE_META = {
 - Apply assigned skills (/caveman-compress, /headroom, /ponytail, /surgical-patch, /investigate-first).`,
 }
 
+export const UNIVERSAL_POWER_SKILLS = [
+  'ponytail',
+  'playwright-cli',
+  'cli-anything',
+  'headroom',
+  'caveman-compress',
+  'karpathy-guidelines',
+  'surgical-patch',
+  'verification-before-completion',
+] as const
+
+export const TASTE_UNSLOP_SKILLS = [
+  'unslop',
+  'design-taste-frontend',
+  'hallmark',
+  'ui-styling',
+  'impeccable',
+] as const
+
 export function getRoleBlueprint(roleId: VinceZoneRoleId) {
-  if (roleId === 'custom') return CUSTOM_ROLE_META
-  return ROLE_TERRITORIES[roleId]
+  const base = roleId === 'custom' ? CUSTOM_ROLE_META : ROLE_TERRITORIES[roleId]
+  const needsTasteSkills = ['pm', 'uiux', 'fe', 'mobile'].includes(roleId)
+  const mergedSkills = Array.from(
+    new Set([
+      ...base.defaultSkills,
+      ...(needsTasteSkills ? TASTE_UNSLOP_SKILLS : []),
+      ...UNIVERSAL_POWER_SKILLS,
+    ]),
+  )
+  return {
+    ...base,
+    defaultSkills: mergedSkills,
+  }
 }
 
 export type TerritoryCheckResult = {
@@ -1419,12 +1450,13 @@ export function buildTeamCollaborationPrompt(
 
   const pmRecruitmentDirective =
     roleId === 'pm'
-      ? `TEAM RECRUITMENT CAPABILITY (MULTILINGUAL — ANY LANGUAGE):
-You are the permanent Team Captain (@PM) in 1:6 PM mode. Whenever the user — in ANY language or natural phrasing — asks to analyze the project and assemble, create, recruit, staff, or reorganize a team/squad/specialists for the workspace or a goal:
-1. Inspect the workspace snapshot/files and decide which 1–6 specialist roles are genuinely needed from: arch, fe, be, uiux, db, mobile, ai, sec, qa, devops, perf, docs (never recruit pm or custom).
-2. Call the native \`recruit_team\` tool with \`project_summary\` and \`members\` (writing each specialist's exact project-specific \`responsibility\` in the user's language so every member clearly understands their position and boundaries).
-3. If your model does not support tool calling, emit a fenced \`\`\`recruit-team JSON block with {"projectSummary":"...","members":[{"role":"fe","responsibility":"...","ownedPaths":["src/..."]}]} and present a clear roster summary in the user's language.`
-      : ''
+      ? `TEAM CAPTAIN & PROJECT TEAM COMBO ADVISOR (MULTILINGUAL — ANY LANGUAGE):
+You are the permanent Team Captain (@PM) in 1:6 PM mode.
+1. WHEN ANALYZING A PROJECT: Always include a **"Recommended Project Team Combo"** section recommending the best Project Team Combo for this repository (e.g. **Web Application Team**, **Mobile Application Team**, **Full-Stack SaaS & Security Team**, **AI / LLM & Agentic System Team**, **API, Microservices & Database Team**, or **Desktop App & DevOps Release Team**), listing the exact specialists (@ARCH, @FE, @UIUX, @BE, @MOBILE, @DB, @AI, @SEC, @QA, @DEVOPS, @PERF, @DOCS) and the combo's skill pack (e.g. \`/unslop\`, \`/design-taste-frontend\`, \`/hallmark\`, \`/ponytail\`, \`/playwright-cli\`, \`/cli-anything\`). Tell the user they can activate or customize it via **"New agent → Project Team"** or ask you to recruit the team directly.
+2. WHEN ASKED TO RECRUIT / ASSEMBLE A TEAM (in ANY language): Call the native \`recruit_team\` tool (or emit \`\`\`recruit-team JSON) with 1–6 specialist roles and project-specific responsibilities in the user's language.
+3. AUTONOMOUS EXECUTION & RELAY LOOP: When the user asks to build, fix, refactor, or run code, DO NOT stop at mere advice — use your workspace tools (\`write_file\`, \`patch_file\`, \`delete_file\`, \`move_file\`, \`build_and_test\`, \`run_code\`, \`run_shell\`, \`git_action\`, \`message_agent\`) and coordinate teammates in a relay loop (implement -> build/test/run -> fix any errors -> verify) until the task is 100% done, then send a complete final summary message back to the user.`
+      : `DEEP EXECUTION AUTHORITY:
+You have full workspace permissions to inspect, create, edit, move, and delete project files (\`read_file\`, \`write_file\`, \`patch_file\`, \`delete_file\`, \`move_file\`), execute code & build/test suites (\`build_and_test\`, \`run_code\`, \`run_shell\`, \`run_verify\`), invoke skills (\`use_skill\`, \`/ponytail\`, \`/playwright-cli\`, \`/cli-anything\`, \`/unslop\`, \`/design-taste-frontend\`), and collaborate via \`message_agent\`. When asked to implement or fix something, ALWAYS perform the actual file edits and run build/test verification rather than only describing what to do.`
 
   return [
     GLOBAL_INTELLIGENCE_CORE,

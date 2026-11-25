@@ -155,6 +155,51 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')?.trim() || 'list'
+
+  if (action === 'pick-folder') {
+    const selected = await new Promise<string | null>((resolve) => {
+      if (process.platform === 'win32') {
+        const psScript = [
+          'Add-Type -AssemblyName System.Windows.Forms;',
+          '$dlg = New-Object System.Windows.Forms.FolderBrowserDialog;',
+          '$dlg.Description = "Select Project Folder for VinceZone Studio";',
+          '$dlg.ShowNewFolderButton = $true;',
+          'if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dlg.SelectedPath }',
+        ].join(' ')
+        execFile(
+          'powershell.exe',
+          ['-NoProfile', '-STA', '-Command', psScript],
+          { timeout: 120_000, windowsHide: false },
+          (_err, stdout) => {
+            const picked = (stdout || '').trim()
+            resolve(picked || null)
+          },
+        )
+      } else if (process.platform === 'darwin') {
+        execFile(
+          'osascript',
+          ['-e', 'POSIX path of (choose folder with prompt "Select Project Folder")'],
+          { timeout: 120_000 },
+          (_err, stdout) => {
+            const picked = (stdout || '').trim()
+            resolve(picked || null)
+          },
+        )
+      } else {
+        execFile(
+          'zenity',
+          ['--file-selection', '--directory', '--title=Select Project Folder'],
+          { timeout: 120_000 },
+          (_err, stdout) => {
+            const picked = (stdout || '').trim()
+            resolve(picked || null)
+          },
+        )
+      }
+    })
+    return Response.json({ ok: Boolean(selected), path: selected })
+  }
+
   const requestedRoot =
     searchParams.get('root')?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
   const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ requestedRoot)

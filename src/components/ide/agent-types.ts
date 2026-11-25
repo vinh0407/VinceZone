@@ -321,6 +321,11 @@ export type RuntimeEvent = {
       ownedPaths?: string[]
     }>
   }
+  commandOutput?: {
+    command: string
+    output: string
+    exitCode: number
+  }
 }
 
 export type { EditRevision }

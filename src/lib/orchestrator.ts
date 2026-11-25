@@ -127,7 +127,19 @@ export function parsePlan(
       : undefined
 
   const tasks = (Array.isArray(parsed.tasks) ? parsed.tasks : []).flatMap((task, index) => {
-    const assignee = workers.find((agent) => agent.id === task.assigneeId)
+    const rawAssignee = String(task.assigneeId ?? '')
+      .trim()
+      .replace(/^@/, '')
+      .toLowerCase()
+    const assignee =
+      workers.find((agent) => agent.id === task.assigneeId) ??
+      workers.find(
+        (agent) =>
+          Boolean(rawAssignee) &&
+          (agent.id.toLowerCase() === rawAssignee ||
+            agent.name.toLowerCase() === rawAssignee ||
+            agent.name.toLowerCase().replace(/\s+/g, '-') === rawAssignee),
+      )
     if (!assignee || !task.description) return []
     return [
       {

@@ -8,7 +8,7 @@ import {
   FileText,
   Terminal,
 } from 'lucide-react'
-import { ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
+import { getRoleBlueprint } from '@/lib/vincezone-protocol'
 import type {
   Agent,
   AppSettings,
@@ -107,7 +107,7 @@ export function createSeedAgents(): Agent[] {
     { id: 'qa', name: 'QA Verification Engineer' },
   ]
   return seeds.map(({ id, name }) => {
-    const meta = ROLE_TERRITORIES[id]
+    const meta = getRoleBlueprint(id)
     return {
       id,
       name,
@@ -136,7 +136,7 @@ export const seedAgents: Agent[] = createSeedAgents()
 export const defaultAppSettings: AppSettings = {
   autoSave: true,
   autoSaveDelayMs: 1000,
-  confirmDangerousTools: true,
+  confirmDangerousTools: false,
   restoreWorkspace: true,
   compactMode: true,
   editorFontSize: 13,

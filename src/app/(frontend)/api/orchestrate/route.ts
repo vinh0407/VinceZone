@@ -57,6 +57,7 @@ type RequestBody = {
   planningContext?: string
   planSummary?: string
   mcpServers?: McpServerRuntimeConfig[]
+  autoApproveCommands?: boolean
 }
 
 type ToolChatMessage = {
@@ -145,9 +146,12 @@ async function completeWithTools(options: {
   signal: AbortSignal
   workspaceRoot: string
   allowTools: boolean
+  autoApproveCommands?: boolean
   mcpServers?: McpServerRuntimeConfig[]
   onToken?: (chunk: string) => void
   onFileUpdated?: (file: { path: string; summary: string; nextContent: string; previousContent: string | null }) => void
+  onFileDeleted?: (path: string) => void
+  onCommandOutput?: (out: { command: string; output: string; exitCode: number }) => void
   onAgentHandoff?: (handoff: { toRole: string; message: string; files?: string[] }) => void
   onCommandApproval?: (approval: PendingCommandApproval) => void
 }): Promise<{ text: string; savedFiles: string[] }> {
@@ -159,9 +163,12 @@ async function completeWithTools(options: {
     signal,
     workspaceRoot,
     allowTools,
+    autoApproveCommands = true,
     mcpServers,
     onToken,
     onFileUpdated,
+    onFileDeleted,
+    onCommandOutput,
     onAgentHandoff,
     onCommandApproval,
   } = options
@@ -188,7 +195,7 @@ async function completeWithTools(options: {
   let activeModel = model
   let emittedAnyText = false
 
-  for (let round = 0; round < 6; round += 1) {
+  for (let round = 0; round < 12; round += 1) {
     let roundStreamed = false
     const streamed = await streamCompletionWithTools({
       endpoint,
@@ -248,10 +255,17 @@ async function completeWithTools(options: {
 
       const outcome = await executeAgentTool(toolName, parsedArgs, workspaceRoot, {
         mcpBindings,
+        autoApproveCommands,
       })
       if (outcome.fileUpdated) {
         savedFiles.push(outcome.fileUpdated.path)
         onFileUpdated?.(outcome.fileUpdated)
+      }
+      if (outcome.fileDeleted) {
+        onFileDeleted?.(outcome.fileDeleted.path)
+      }
+      if (outcome.commandOutput) {
+        onCommandOutput?.(outcome.commandOutput)
       }
       if (outcome.agentHandoff) {
         onAgentHandoff?.(outcome.agentHandoff)
@@ -702,6 +716,7 @@ Limits: depth ${limits.maxDepth}, active agents ${limits.maxActiveAgents}, concu
                   signal: request.signal,
                   workspaceRoot: resolvedRoot,
                   allowTools: isLocalReq,
+                  autoApproveCommands: body.autoApproveCommands ?? true,
                   mcpServers: body.mcpServers,
                   messages: [
                     {
@@ -716,7 +731,7 @@ Assigned Task Execution:
 - Constraints: ${task.constraints.join('; ') || 'none'}
 - Dependencies: ${task.dependencies.join(', ') || 'none'}
 - Completion criteria: ${task.completionCriteria.join('; ') || 'report a verifiable result'}
-- IMPORTANT: You have live workspace tools (\`read_file\`, \`patch_file\`, \`write_file\`, \`grep_search\`, \`find_symbol\`, \`run_verify\`, \`run_shell\`, \`message_agent\`, plus any connected MCP server tools). USE \`patch_file\` or \`write_file\` to ACTUALLY EDIT AND SAVE code directly to disk!`,
+- IMPORTANT: You have FULL workspace permissions and live tools (\`read_file\`, \`patch_file\`, \`write_file\`, \`delete_file\`, \`move_file\`, \`grep_search\`, \`find_symbol\`, \`build_and_test\`, \`run_code\`, \`run_verify\`, \`run_shell\`, \`git_action\`, \`use_skill\`, \`message_agent\`). USE \`patch_file\` or \`write_file\` to ACTUALLY EDIT AND SAVE code directly to disk, and run \`build_and_test\` / \`run_code\` to verify your work!`,
                     },
                     {
                       role: 'user',
@@ -729,6 +744,7 @@ Assigned Task Execution:
                   onFileUpdated: (fileUpdated) => {
                     allSavedFiles.add(fileUpdated.path)
                     fileMap.set(fileUpdated.path, fileUpdated.nextContent)
+                    paths.add(fileUpdated.path)
                     emit('file.updated', {
                       agentId: worker.id,
                       taskId: task.id,
@@ -736,6 +752,23 @@ Assigned Task Execution:
                       summary: fileUpdated.summary,
                       previousContent: fileUpdated.previousContent,
                       content: fileUpdated.nextContent,
+                    })
+                  },
+                  onFileDeleted: (deletedPath) => {
+                    fileMap.delete(deletedPath)
+                    paths.delete(deletedPath)
+                    emit('file.deleted', {
+                      agentId: worker.id,
+                      taskId: task.id,
+                      path: deletedPath,
+                    })
+                  },
+                  onCommandOutput: (commandOutput) => {
+                    emit('command.output', {
+                      agentId: worker.id,
+                      agentName: worker.name,
+                      taskId: task.id,
+                      commandOutput,
                     })
                   },
                   onCommandApproval: (approval) => {
@@ -762,13 +795,35 @@ Assigned Task Execution:
                         message: handoff.message,
                         relevantFiles: handoff.files ?? [],
                       })
+                      // Dynamic Relay Loop: enqueue a live follow-up task for the target specialist if within iteration limits
+                      const maxTotalTasks = Math.max(8, limits.maxActiveAgents * limits.maxIterations)
+                      if (
+                        target.id !== coordinator.id &&
+                        workers.some((w) => w.id === target.id) &&
+                        results.length + pending.length < maxTotalTasks
+                      ) {
+                        const relayTaskId = `${runId}-RELAY-${results.length + pending.length + 1}`
+                        const relayTask: PlannedTask = {
+                          id: relayTaskId,
+                          title: `Relay from ${worker.name} to ${target.name}`,
+                          description: handoff.message,
+                          assigneeId: target.id,
+                          dependencies: [task.id],
+                          relevantFiles: (handoff.files ?? []).filter((f) => paths.has(f)),
+                          expectedOutput: 'Execute handoff changes/verification and report outcome.',
+                          constraints: [],
+                          completionCriteria: ['Apply required edits or run verification checks'],
+                        }
+                        pending.push(relayTask)
+                        emit('task.created', { task: { ...relayTask, status: 'planned' } })
+                      }
                     }
                   },
                 })
 
                 const result = toolRun.text
                 const workerRoleId = inferRoleId(`${worker.id} ${worker.role}`)
-                const proposedPatches = extractProposedPatches(result, paths)
+                const proposedPatches = extractProposedPatches(result)
                 for (const patch of proposedPatches) {
                   if (toolRun.savedFiles.includes(patch.path)) continue
                   const baseContent = fileMap.get(patch.path) ?? ''
@@ -843,7 +898,9 @@ Assigned Task Execution:
           }
         }
 
-        // If no worker tasks were delegated, let @PM directly execute with real tools so code fixes still happen!
+        // Final Captain (@PM) Verification & Completion Turn:
+        // Always give @PM full tools so @PM can apply any missing edits, run build/test verification (`build_and_test`),
+        // and send a complete final completion report message back to the user!
         emit('coordinator.review.started', { agentId: coordinator.id })
         const finalRun = await completeWithTools({
           endpoint,
@@ -851,16 +908,16 @@ Assigned Task Execution:
           model: coordinator.model || provider.model,
           signal: request.signal,
           workspaceRoot: resolvedRoot,
-          allowTools: isLocalReq && results.length === 0,
+          allowTools: isLocalReq,
+          autoApproveCommands: body.autoApproveCommands ?? true,
           mcpServers: body.mcpServers,
           messages: [
             {
               role: 'system',
-              content: `You are ${coordinator.name}. Synthesize the team discussion, specialist reports, and saved file changes (${[...allSavedFiles].join(', ') || 'none yet'}) into a clear, factual final summary. ${
-                results.length === 0
-                  ? 'If the user asked to edit or fix code, use `read_file`, `find_symbol`, and `patch_file`/`write_file` right now to apply and save the change directly.'
-                  : 'List exact modified/saved files and verification status honestly.'
-              }`,
+              content: `You are ${coordinator.name} (Team Captain @PM). Review the user's request, specialist reports, and saved file changes (${[...allSavedFiles].join(', ') || 'none yet'}).
+1. If any requested code change, file creation, or fix is still incomplete (or if no worker saved files when the user asked to build/fix/edit), use \`write_file\` / \`patch_file\` right now to complete it directly on disk.
+2. When files were modified or the user asked to build, test, or run code, call \`build_and_test\` or \`run_code\` / \`run_shell\` to verify that the code compiles and tests pass (and fix any remaining error before finishing).
+3. Finally, send a clear, well-structured completion message to the user in their language summarizing what was completed, every modified/created file, and the build/test verification result.`,
             },
             {
               role: 'user',
@@ -885,6 +942,19 @@ Assigned Task Execution:
               summary: fileUpdated.summary,
               previousContent: fileUpdated.previousContent,
               content: fileUpdated.nextContent,
+            })
+          },
+          onFileDeleted: (deletedPath) => {
+            emit('file.deleted', {
+              agentId: coordinator.id,
+              path: deletedPath,
+            })
+          },
+          onCommandOutput: (commandOutput) => {
+            emit('command.output', {
+              agentId: coordinator.id,
+              agentName: coordinator.name,
+              commandOutput,
             })
           },
           onCommandApproval: (approval) => {

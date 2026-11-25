@@ -97,6 +97,11 @@ type ParsedChatChunk = {
         ownedPaths?: string[]
       }>
     }
+    commandOutput?: {
+      command: string
+      output: string
+      exitCode: number
+    }
   }>
 }
 
@@ -196,6 +201,8 @@ export function useOrchestration({
   onBridgeMessage,
   onRecordUsage,
   onApplyDirectEdit,
+  onFileDeleted,
+  onCommandOutput,
   onCommandApproval,
   onPromptRollback,
   onRecruitTeam,
@@ -231,6 +238,13 @@ export function useOrchestration({
     summary: string
     agent: Agent
   }) => { applied: boolean; revisionId?: string }
+  onFileDeleted?: (path: string) => void
+  onCommandOutput?: (entry: {
+    command: string
+    output: string
+    exitCode: number
+    agentName: string
+  }) => void
   onCommandApproval?: (item: CommandApprovalItem) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
   onRecruitTeam?: (instruction: string, aiPlan?: AiRecruitedTeamPlan) => void
@@ -513,6 +527,45 @@ export function useOrchestration({
         })
         return
       }
+      if (event.type === 'file.deleted' && event.path) {
+        onFileDeleted?.(event.path)
+        const sourceAgent =
+          agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
+        if (sourceAgent) {
+          updateAgent(sourceAgent.id, (current) => ({
+            ...current,
+            messages: [
+              ...current.messages,
+              { id: uid(), role: 'tool', change: true, text: `Deleted ${event.path} from workspace.` },
+            ],
+          }))
+        }
+        return
+      }
+      if (event.type === 'command.output' && event.commandOutput) {
+        const sourceAgent =
+          agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
+        const cmdOut = event.commandOutput
+        onCommandOutput?.({
+          ...cmdOut,
+          agentName: event.agentName || sourceAgent?.name || 'Agent',
+        })
+        if (sourceAgent) {
+          updateAgent(sourceAgent.id, (current) => ({
+            ...current,
+            messages: [
+              ...current.messages,
+              {
+                id: uid(),
+                role: 'tool',
+                codeSnippet: cmdOut.output.slice(0, 320),
+                text: `Ran \`${cmdOut.command}\` (exit ${cmdOut.exitCode})`,
+              },
+            ],
+          }))
+        }
+        return
+      }
       if (event.type === 'file.updated' && event.path && typeof event.content === 'string') {
         const sourceAgent =
           agentsRef.current.find((a) => a.id === event.agentId) ?? agentsRef.current[0]
@@ -561,7 +614,6 @@ export function useOrchestration({
         if (
           appSettings.autoApplyTrusted &&
           !patch.conflictWith &&
-          !patch.territoryViolation &&
           sourceAgent &&
           onApplyDirectEdit
         ) {
@@ -1008,6 +1060,7 @@ export function useOrchestration({
               orderedAgentIds: commandOrder,
             },
             mcpServers: appSettings.mcpServers,
+            autoApproveCommands: !appSettings.confirmDangerousTools,
             ...(approvalResume
               ? {
                   approvedTasks: approvalResume.approvedTasks,
@@ -1411,6 +1464,25 @@ export function useOrchestration({
                 codeSnippet: ev.content.slice(0, 220),
                 text: `Edited & saved ${ev.path}${outcome?.revisionId ? ` (${outcome.revisionId})` : ''} directly to disk.`,
               })
+            } else if (ev.type === 'file.deleted' && ev.path) {
+              onFileDeleted?.(ev.path)
+              toolSavedMessages.push({
+                id: uid(),
+                role: 'tool',
+                change: true,
+                text: `Deleted ${ev.path} from workspace.`,
+              })
+            } else if (ev.type === 'command.output' && ev.commandOutput) {
+              onCommandOutput?.({
+                ...ev.commandOutput,
+                agentName: agent.name,
+              })
+              toolSavedMessages.push({
+                id: uid(),
+                role: 'tool',
+                codeSnippet: ev.commandOutput.output.slice(0, 320),
+                text: `Ran \`${ev.commandOutput.command}\` (exit ${ev.commandOutput.exitCode})`,
+              })
             } else if (ev.type === 'command.approval_required' && ev.approval) {
               onCommandApproval?.({
                 ...ev.approval,
@@ -1484,7 +1556,7 @@ export function useOrchestration({
           let appliedStatus: 'applied' | 'pending' = 'pending'
           let appliedRev: string | undefined
 
-          if (territory.allowed && appSettings.autoApplyTrusted && onApplyDirectEdit) {
+          if (appSettings.autoApplyTrusted && onApplyDirectEdit) {
             setAiActivity('editing')
             const outcome = onApplyDirectEdit({
               path: edit.path,
@@ -1605,7 +1677,7 @@ export function useOrchestration({
 
         // 3. Execute live inter-agent handoffs from BOTH native `message_agent` tool calls AND text routes
         const handoffDepth = options?.handoffDepth ?? 0
-        if (bridgeEnabled && handoffDepth < 3 && (result || queuedToolHandoffs.length > 0)) {
+        if (bridgeEnabled && handoffDepth < 6 && (result || queuedToolHandoffs.length > 0)) {
           const textRoutes = result ? extractBridgeRoutes(result, agentsRef.current, agent.id) : []
           const mergedTargets = new Map<
             string,

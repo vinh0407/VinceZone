@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('vincezoneDesktop', {
   webviewSupported: true,
   port: 0,
   openDirectory: () => ipcRenderer.invoke('vincezone:openDirectory'),
+  openNewWindow: (payload) => ipcRenderer.invoke('vincezone:openNewWindow', payload),
   openExternal: (url) => ipcRenderer.invoke('vincezone:openExternal', url),
   openLogsFolder: () => ipcRenderer.invoke('vincezone:openLogsFolder'),
   downloadUpdate: (url) => ipcRenderer.invoke('vincezone:downloadUpdate', url),

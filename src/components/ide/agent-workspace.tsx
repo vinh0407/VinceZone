@@ -485,17 +485,6 @@ export function AgentWorkspace({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {communicationEvents.some((event) => event.recipientId) && (
-            <button
-              onClick={() => setReplayTrigger((count) => count + 1)}
-              className={`flex items-center gap-1.5 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
-                isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
-              }`}
-              title="Replay last mail flights"
-            >
-              <RotateCcw size={isSolo ? 14 : 11} /> Replay
-            </button>
-          )}
           {pendingPatchCount > 0 && (
             <button
               onClick={() => onDiff()}
@@ -548,68 +537,84 @@ export function AgentWorkspace({
               <GitBranch size={isSolo ? 14 : 11} /> Worktrees ({worktrees.length})
             </button>
           )}
-          {onNewThread && (
-            <button
-              type="button"
-              onClick={onNewThread}
-              className={`flex items-center gap-1 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
-                isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
-              }`}
-              title="Bắt đầu cuộc trò chuyện mới (lưu thread hiện tại vào lịch sử)"
-            >
-              <Plus size={isSolo ? 14 : 11} /> New Chat
-            </button>
-          )}
-          {onSelectThread && chatThreads.length > 0 && (
+          {(onNewThread || onSelectThread) && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setThreadsOpen((prev) => !prev)}
-                className={`flex items-center gap-1 rounded border border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white ${
-                  isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'
-                }`}
-                title="Xem lịch sử các đoạn chat cũ của dự án này"
+                className={`flex items-center gap-1.5 rounded border transition ${
+                  threadsOpen
+                    ? 'border-[#c9a24d]/60 bg-[#c9a24d]/15 text-[#f0d394]'
+                    : 'border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white'
+                } ${isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2.5 py-1 text-[11px]'}`}
+                title="Open project chat menu (New Chat & Project Chat History)"
               >
-                <History size={isSolo ? 14 : 11} /> History ({chatThreads.length})
+                <MessageSquare size={isSolo ? 14 : 11} />
+                <span>Chat</span>
+                {chatThreads.length > 0 && (
+                  <span className="rounded bg-[#333333] px-1 py-0.2 font-mono text-[9px] text-[#e6cfa0]">
+                    {chatThreads.length}
+                  </span>
+                )}
+                <ChevronDown
+                  size={isSolo ? 13 : 10}
+                  className={`transition-transform ${threadsOpen ? 'rotate-180' : ''}`}
+                />
               </button>
               {threadsOpen && (
-                <div className="absolute right-0 top-full z-40 mt-1 w-64 rounded-lg border border-[#3a3a3a] bg-[#161616] p-1.5 shadow-2xl">
-                  {chatThreads.map((t) => (
+                <div className="absolute right-0 top-full z-40 mt-1 w-72 rounded-lg border border-[#3a3a3a] bg-[#161616] p-1.5 shadow-2xl">
+                  {onNewThread && (
                     <button
-                      key={t.id}
                       type="button"
                       onClick={() => {
-                        onSelectThread(t.id)
+                        onNewThread()
                         setThreadsOpen(false)
                       }}
-                      className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-[11px] text-[#cccccc] hover:bg-[#262626] hover:text-white"
+                      className="flex w-full items-center gap-2 rounded-md border border-[#c9a24d]/35 bg-[#c9a24d]/12 px-2.5 py-1.5 text-left text-[11.5px] font-semibold text-[#f0d394] transition hover:bg-[#c9a24d]/20"
                     >
-                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
-                      <span className="shrink-0 font-mono text-[9px] text-[#7a7a7a]">
-                        {t.messageCount}
-                      </span>
+                      <Plus size={13} className="shrink-0" />
+                      <span>New Chat (Current Project)</span>
                     </button>
-                  ))}
+                  )}
+                  <div className="my-1.5 h-px bg-[#2c2c2c]" />
+                  <div className="px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8a8a]">
+                    Project Chat History ({chatThreads.length})
+                  </div>
+                  {chatThreads.length === 0 ? (
+                    <p className="px-2 py-2 text-[10.5px] text-[#737373]">
+                      No saved chats for this project yet. Click &ldquo;New Chat&rdquo; above to
+                      archive the current session and start fresh.
+                    </p>
+                  ) : (
+                    <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
+                      {chatThreads.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            onSelectThread?.(t.id)
+                            setThreadsOpen(false)
+                          }}
+                          className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-[11px] text-[#cccccc] hover:bg-[#262626] hover:text-white"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">{t.title}</div>
+                            {t.updatedAt && (
+                              <div className="truncate font-mono text-[8.5px] text-[#737373]">
+                                {new Date(t.updatedAt).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                          <span className="shrink-0 rounded bg-[#222222] px-1.5 py-0.5 font-mono text-[9px] text-[#9a9a9a]">
+                            {t.messageCount} msgs
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-          {onRecruitTeam && (
-            <button
-              type="button"
-              onClick={() => {
-                setLayout('focus1')
-                onRecruitTeam(
-                  'Analyze this repository stack and recruit the optimal specialist engineering team with clear per-role responsibilities.',
-                )
-              }}
-              className={`flex items-center gap-1.5 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.28)] transition hover:from-[#e0bc6c] hover:to-[#bc9542] ${
-                isSolo ? 'px-3.5 py-1.5 text-[12.5px]' : 'px-2.5 py-1 text-[11px]'
-              }`}
-              title="Have Captain @PM analyze the project and recruit the needed specialists (using your pre-configured Role Models)"
-            >
-              <Sparkles size={isSolo ? 14 : 11} /> PM Recruit Team
-            </button>
           )}
           <button
             onClick={onCreate}

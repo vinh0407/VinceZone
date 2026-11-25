@@ -1,4 +1,5 @@
 import type { WorkspaceFile } from '@/components/ide/agent-types'
+import { buildPmComboRecommendationPrompt } from '@/lib/team-combos'
 
 const READ_ONLY_ANALYSIS_RE =
   /\b(phân tích|phan tich|đánh giá|danh gia|giải thích|giai thich|tóm tắt|tom tat|kiến trúc|kien truc|tổng quan|tong quan|còn thiếu|con thieu|điểm yếu|diem yeu|cấu trúc|cau truc|review|analyze|analyse|audit|explain|summarize|overview|architecture|structure|what does this project|how does .* work)\b/i
@@ -114,6 +115,8 @@ export function buildInstantProjectSnapshot(
     .slice(0, 45)
     .join(', ')
 
+  const comboRecommendation = buildPmComboRecommendationPrompt(files)
+
   return [
     `=== INSTANT PROJECT SNAPSHOT (${projectName}) ===`,
     rootPath ? `Workspace Root: ${rootPath}` : '',
@@ -125,9 +128,10 @@ export function buildInstantProjectSnapshot(
     testFiles.length ? `Test Suites (${testFiles.length}): ${testFiles.slice(0, 16).join(', ')}` : '',
     `Sample File Paths: ${keyFilePaths}`,
     readmeSnippet,
+    comboRecommendation,
     '=== END SNAPSHOT ===',
   ]
     .filter(Boolean)
     .join('\n\n')
-    .slice(0, 4_200)
+    .slice(0, 6_000)
 }

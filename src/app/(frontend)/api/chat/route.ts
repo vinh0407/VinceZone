@@ -123,7 +123,7 @@ export async function POST(request: Request) {
           let activeModel = model
           let emittedAnyText = false
 
-          for (let round = 0; round < 8; round++) {
+          for (let round = 0; round < 16; round++) {
             let roundStartedStreaming = false
 
             const streamed = await streamCompletionWithTools({
@@ -318,6 +318,28 @@ export async function POST(request: Request) {
                       summary: outcome.fileUpdated.summary,
                       previousContent: outcome.fileUpdated.previousContent,
                       content: outcome.fileUpdated.nextContent,
+                    },
+                  }),
+                )
+              }
+
+              if (outcome.fileDeleted) {
+                controller.enqueue(
+                  sseFrame({
+                    vincezone_event: {
+                      type: 'file.deleted',
+                      path: outcome.fileDeleted.path,
+                    },
+                  }),
+                )
+              }
+
+              if (outcome.commandOutput) {
+                controller.enqueue(
+                  sseFrame({
+                    vincezone_event: {
+                      type: 'command.output',
+                      commandOutput: outcome.commandOutput,
                     },
                   }),
                 )

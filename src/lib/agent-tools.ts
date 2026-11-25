@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import {
@@ -205,14 +205,30 @@ const IGNORED_DIRS = new Set([
 const SAFE_VERIFY_PREFIXES = [
   'pnpm typecheck',
   'pnpm test',
+  'pnpm build',
+  'pnpm lint',
+  'pnpm check',
   'pnpm exec tsc',
   'pnpm exec vitest',
+  'pnpm exec biome',
+  'pnpm exec playwright',
   'npx tsc',
   'npx vitest',
+  'npx playwright',
   'npm test',
+  'npm run test',
+  'npm run build',
+  'npm run lint',
+  'npm run typecheck',
+  'cargo test',
+  'cargo check',
+  'go test',
+  'go build',
+  'pytest',
   'git status',
   'git diff',
   'git log',
+  'git branch',
   'node -v',
   'python --version',
 ]
@@ -589,6 +605,58 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_file',
+      description: 'Delete a file inside the active workspace.',
+      parameters: {
+        type: 'object',
+        required: ['path'],
+        properties: {
+          path: { type: 'string', description: 'Relative file path to delete.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'move_file',
+      description: 'Move or rename a file inside the active workspace.',
+      parameters: {
+        type: 'object',
+        required: ['from', 'to'],
+        properties: {
+          from: { type: 'string', description: 'Existing relative file path.' },
+          to: { type: 'string', description: 'New relative file path.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'build_and_test',
+      description:
+        'Execute the workspace build, typecheck, unit test, or lint pipeline and stream the real compiler/test output back so you can verify your code changes and fix any errors.',
+      parameters: {
+        type: 'object',
+        required: ['action'],
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['typecheck', 'test', 'build', 'lint', 'verify-all'],
+            description: 'Build or test step to run inside the workspace.',
+          },
+          target: {
+            type: 'string',
+            description: 'Optional test file or filter (e.g. "src/lib/__tests__/orchestrator.test.ts").',
+          },
+        },
+      },
+    },
+  },
 ] as const
 
 function stripReadFileLineNumbers(block: string): string {
@@ -718,6 +786,14 @@ export type ToolExecutionOutcome = {
     files?: string[]
   }
   commandApproval?: PendingCommandApproval
+  fileDeleted?: {
+    path: string
+  }
+  commandOutput?: {
+    command: string
+    output: string
+    exitCode: number
+  }
   teamRecruitment?: {
     projectSummary?: string
     members: AiRecruitedMemberSpec[]
@@ -1072,15 +1148,24 @@ async function executeAgentToolInner(
         maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
       })
+      const cleanOut =
+        `${stdout || ''}${stderr ? `\n[stderr]\n${stderr}` : ''}`.trim().slice(0, 8_000) ||
+        '(no output)'
       return {
         ok: true,
-        output: `$ ${displayCmd} (exit 0)\n${`${stdout || ''}${stderr ? `\n[stderr]\n${stderr}` : ''}`.trim().slice(0, 8_000) || '(no output)'}`,
+        output: `$ ${displayCmd} (exit 0)\n${cleanOut}`,
+        commandOutput: { command: displayCmd, output: cleanOut, exitCode: 0 },
       }
     } catch (error) {
       const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+      const exitCode = typeof err.code === 'number' ? err.code : 1
+      const cleanOut = `${err.stdout || ''}\n${err.stderr || err.message || ''}`
+        .trim()
+        .slice(0, 8_000)
       return {
         ok: false,
-        output: `$ ${displayCmd} (exit ${err.code ?? 1})\n${`${err.stdout || ''}\n${err.stderr || err.message || ''}`.trim().slice(0, 8_000)}`,
+        output: `$ ${displayCmd} (exit ${exitCode})\n${cleanOut}`,
+        commandOutput: { command: displayCmd, output: cleanOut, exitCode },
       }
     }
   }
@@ -1204,15 +1289,22 @@ async function executeAgentToolInner(
         maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
       })
+      const cleanOut = (stdout + '\n' + stderr).trim().slice(0, 8_000)
       return {
         ok: true,
-        output: `Exit 0:\n${(stdout + '\n' + stderr).trim().slice(0, 8_000)}`,
+        output: `Exit 0:\n${cleanOut}`,
+        commandOutput: { command, output: cleanOut, exitCode: 0 },
       }
     } catch (error) {
       const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+      const exitCode = typeof err.code === 'number' ? err.code : 1
+      const cleanOut = (`${err.stdout || ''}\n${err.stderr || err.message || ''}`)
+        .trim()
+        .slice(0, 8_000)
       return {
         ok: false,
-        output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 8_000)}`,
+        output: `Exit ${exitCode}:\n${cleanOut}`,
+        commandOutput: { command, output: cleanOut, exitCode },
       }
     }
   }
@@ -1235,19 +1327,26 @@ async function executeAgentToolInner(
     try {
       const { stdout, stderr } = await execFileAsync(shellBin, shellArgs, {
         cwd: root,
-        timeout: 35_000,
-        maxBuffer: 1024 * 1024,
+        timeout: 60_000,
+        maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
       })
+      const cleanOut = (stdout + '\n' + stderr).trim().slice(0, 6_000)
       return {
         ok: true,
-        output: `Exit 0:\n${(stdout + '\n' + stderr).trim().slice(0, 6_000)}`,
+        output: `Exit 0:\n${cleanOut}`,
+        commandOutput: { command, output: cleanOut, exitCode: 0 },
       }
     } catch (error) {
       const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+      const exitCode = typeof err.code === 'number' ? err.code : 1
+      const cleanOut = (`${err.stdout || ''}\n${err.stderr || err.message || ''}`)
+        .trim()
+        .slice(0, 6_000)
       return {
         ok: false,
-        output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 6_000)}`,
+        output: `Exit ${exitCode}:\n${cleanOut}`,
+        commandOutput: { command, output: cleanOut, exitCode },
       }
     }
   }
@@ -1363,6 +1462,164 @@ async function executeAgentToolInner(
       teamRecruitment: {
         projectSummary,
         members,
+      },
+    }
+  }
+
+  if (name === 'delete_file') {
+    const relPath = String(args.path || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+    if (!relPath) return { ok: false, output: 'Missing "path" argument.' }
+    let full: string
+    try {
+      full = resolvePathInsideWorkspace(root, relPath)
+    } catch (err) {
+      return {
+        ok: false,
+        output: err instanceof Error ? err.message : 'Access denied: path outside workspace root.',
+      }
+    }
+    try {
+      await withFileLock(full, async () => {
+        await rm(full, { force: false })
+      })
+      invalidateCodeIndex(root)
+      return {
+        ok: true,
+        output: `Deleted ${relPath} from workspace disk.`,
+        fileDeleted: { path: relPath },
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        output: `Failed to delete ${relPath}: ${err instanceof Error ? err.message : 'file error'}`,
+      }
+    }
+  }
+
+  if (name === 'move_file') {
+    const fromRel = String(args.from || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+    const toRel = String(args.to || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+    if (!fromRel || !toRel) return { ok: false, output: 'Both "from" and "to" paths are required.' }
+    let fromFull: string
+    let toFull: string
+    try {
+      fromFull = resolvePathInsideWorkspace(root, fromRel)
+      toFull = resolvePathInsideWorkspace(root, toRel)
+    } catch (err) {
+      return {
+        ok: false,
+        output: err instanceof Error ? err.message : 'Access denied: path outside workspace root.',
+      }
+    }
+    try {
+      const content = await readFile(fromFull, 'utf8')
+      await mkdir(path.dirname(toFull), { recursive: true })
+      await rename(fromFull, toFull)
+      updateIndexedFile(root, toRel, content)
+      return {
+        ok: true,
+        output: `Moved ${fromRel} -> ${toRel}.`,
+        fileDeleted: { path: fromRel },
+        fileUpdated: {
+          path: toRel,
+          summary: `Moved ${fromRel} -> ${toRel}`,
+          previousContent: null,
+          nextContent: content,
+        },
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        output: `Failed to move ${fromRel} -> ${toRel}: ${err instanceof Error ? err.message : 'move error'}`,
+      }
+    }
+  }
+
+  if (name === 'build_and_test') {
+    const action = String(args.action || 'verify-all').trim().toLowerCase()
+    const target = String(args.target || '').trim().replace(/[;&|`$><\r\n]/g, '')
+    const isWin = process.platform === 'win32'
+    const npxBin = isWin ? 'npx.cmd' : 'npx'
+    const pnpmBin = isWin ? 'pnpm.cmd' : 'pnpm'
+
+    const runStep = async (label: string, bin: string, binArgs: string[]) => {
+      const cmdLabel = `${bin.replace(/\.cmd$/i, '')} ${binArgs.join(' ')}`
+      try {
+        const { stdout, stderr } = await execFileAsync(bin, binArgs, {
+          cwd: root,
+          timeout: 90_000,
+          maxBuffer: 6 * 1024 * 1024,
+          windowsHide: true,
+        })
+        const out = `${stdout}\n${stderr}`.trim().slice(0, 7_000) || `${label} passed (exit 0).`
+        return { ok: true, cmdLabel, output: out, exitCode: 0 }
+      } catch (error) {
+        const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+        const out = `${err.stdout || ''}\n${err.stderr || err.message || ''}`.trim().slice(0, 7_000)
+        return { ok: false, cmdLabel, output: out, exitCode: typeof err.code === 'number' ? err.code : 1 }
+      }
+    }
+
+    if (action === 'typecheck') {
+      const res = await runStep('TypeScript Check', npxBin, ['tsc', '--noEmit'])
+      return {
+        ok: res.ok,
+        output: `[${res.cmdLabel}] (exit ${res.exitCode}):\n${res.output}`,
+        commandOutput: { command: res.cmdLabel, output: res.output, exitCode: res.exitCode },
+      }
+    }
+    if (action === 'test') {
+      const testArgs = target ? ['vitest', 'run', target] : ['vitest', 'run']
+      const res = await runStep('Vitest Suite', npxBin, testArgs)
+      return {
+        ok: res.ok,
+        output: `[${res.cmdLabel}] (exit ${res.exitCode}):\n${res.output}`,
+        commandOutput: { command: res.cmdLabel, output: res.output, exitCode: res.exitCode },
+      }
+    }
+    if (action === 'build') {
+      const res = await runStep('Production Build', pnpmBin, ['build'])
+      return {
+        ok: res.ok,
+        output: `[${res.cmdLabel}] (exit ${res.exitCode}):\n${res.output}`,
+        commandOutput: { command: res.cmdLabel, output: res.output, exitCode: res.exitCode },
+      }
+    }
+    if (action === 'lint') {
+      const res = await runStep('Lint Check', pnpmBin, ['lint'])
+      return {
+        ok: res.ok,
+        output: `[${res.cmdLabel}] (exit ${res.exitCode}):\n${res.output}`,
+        commandOutput: { command: res.cmdLabel, output: res.output, exitCode: res.exitCode },
+      }
+    }
+    // verify-all: run typecheck then tests
+    const tc = await runStep('TypeScript Check', npxBin, ['tsc', '--noEmit'])
+    if (!tc.ok) {
+      return {
+        ok: false,
+        output: `[${tc.cmdLabel}] FAILED (exit ${tc.exitCode}):\n${tc.output}`,
+        commandOutput: { command: tc.cmdLabel, output: tc.output, exitCode: tc.exitCode },
+      }
+    }
+    const vt = await runStep('Vitest Suite', npxBin, target ? ['vitest', 'run', target] : ['vitest', 'run'])
+    const combinedOut = `[${tc.cmdLabel}] PASSED\n\n[${vt.cmdLabel}] (exit ${vt.exitCode}):\n${vt.output}`
+    return {
+      ok: vt.ok,
+      output: combinedOut,
+      commandOutput: {
+        command: `${tc.cmdLabel} && ${vt.cmdLabel}`,
+        output: combinedOut,
+        exitCode: vt.exitCode,
       },
     }
   }

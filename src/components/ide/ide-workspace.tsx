@@ -34,7 +34,9 @@ import { applyHunkDecisions } from '@/lib/hunk-diff'
 import {
   analyzeProjectAndRecruitTeam,
   type AiRecruitedTeamPlan,
+  type FixedSpecialistRoleId,
 } from '@/lib/pm-team-recruiter'
+import { buildTeamFromCombo, type ProjectTeamCombo } from '@/lib/team-combos'
 import { extractProjectRules } from '@/lib/project-rules'
 import { computeTurnUndoPlan } from '@/lib/turn-undo'
 import {
@@ -109,6 +111,11 @@ declare global {
       isDesktop: boolean
       port: number
       openDirectory: () => Promise<string | null>
+      openNewWindow?: (payload: {
+        projectId?: string
+        rootPath?: string
+        projectName?: string
+      }) => Promise<{ ok: boolean }>
       openExternal?: (url: string) => Promise<boolean>
       openLogsFolder?: () => Promise<{ ok: boolean; logDir?: string; logFile?: string }>
       downloadUpdate?: (url: string) => Promise<{ ok: boolean; error?: string }>
@@ -642,7 +649,20 @@ export function IDEWorkspace() {
     }
 
     // Load the active project's own directory (or default workspace); never leak another project's chat!
-    void loadLocalDirectory(restoredActiveRoot, Boolean(restoredActiveRoot && restoredAgents))
+    const searchParams =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const urlProjectRoot = searchParams?.get('projectRoot')?.trim() || undefined
+    const urlProjectId = searchParams?.get('projectId')?.trim() || undefined
+
+    if (urlProjectRoot) {
+      void loadLocalDirectory(urlProjectRoot, false)
+    } else if (urlProjectId) {
+      setActiveProjectId(urlProjectId)
+      activeProjectIdRef.current = urlProjectId
+      void loadLocalDirectory(restoredActiveRoot, Boolean(restoredActiveRoot && restoredAgents))
+    } else {
+      void loadLocalDirectory(restoredActiveRoot, Boolean(restoredActiveRoot && restoredAgents))
+    }
 
     // Preload discovered skills + Saving Skill Combos for `/` slash commands
     void fetch('/api/extensions', { cache: 'no-store' })
@@ -1068,29 +1088,86 @@ export function IDEWorkspace() {
       }
       return
     }
-    setDialogRequest({
-      kind: 'prompt',
-      title: 'Open Local Folder',
-      description: 'Enter an absolute local directory path to open as your active workspace:',
-      placeholder: 'C:\\path\\to\\project',
-      initialValue: activeProject?.rootPath || '',
-      confirmLabel: 'Open Folder',
-      onConfirm: (typed) => {
-        void loadLocalDirectory(typed, false).then((ok) => {
-          if (!ok) {
-            pushToast({
-              title: 'Could not open folder',
-              detail: 'Falling back to browser folder picker.',
-              variant: 'error',
-            })
-            fileInputRef.current?.click()
-          } else {
-            pushToast({ title: 'Workspace opened', detail: typed, variant: 'success' })
-          }
+    try {
+      const res = await fetch('/api/workspace?action=pick-folder', { cache: 'no-store' })
+      if (res.ok) {
+        const data = (await res.json()) as { ok?: boolean; path?: string | null }
+        if (data.ok && data.path) {
+          await loadLocalDirectory(data.path, false)
+          pushToast({ title: 'Workspace opened', detail: data.path, variant: 'success' })
+          return
+        }
+        if (data.path === null) {
+          return
+        }
+      }
+    } catch {
+      // Fallback to native browser folder picker below
+    }
+    fileInputRef.current?.click()
+  }, [loadLocalDirectory, pushToast])
+
+  const handleRenameProject = useCallback(
+    (projectId: string) => {
+      const target = projects.find((p) => p.id === projectId)
+      if (!target) return
+      setDialogRequest({
+        kind: 'prompt',
+        title: 'Rename Project',
+        description: `Enter a new display name for project "${target.name}":`,
+        placeholder: target.name,
+        initialValue: target.name,
+        confirmLabel: 'Rename',
+        onConfirm: (nextRaw) => {
+          const cleanName = nextRaw.trim()
+          if (!cleanName) return
+          const nextProjects = projects.map((p) =>
+            p.id === projectId ? { ...p, name: cleanName } : p,
+          )
+          setProjects(nextProjects)
+          persistWorkspace({ projects: nextProjects })
+          pushToast({
+            title: 'Project renamed',
+            detail: `${target.name} → ${cleanName}`,
+            variant: 'success',
+          })
+        },
+      })
+    },
+    [persistWorkspace, projects, pushToast],
+  )
+
+  const handleOpenProjectInNewTab = useCallback(
+    (projectId: string) => {
+      const target = projects.find((p) => p.id === projectId)
+      if (!target) return
+      if (window.vincezoneDesktop?.openNewWindow) {
+        void window.vincezoneDesktop.openNewWindow({
+          projectId: target.id,
+          rootPath: target.rootPath,
+          projectName: target.name,
         })
-      },
-    })
-  }, [activeProject?.rootPath, loadLocalDirectory, pushToast])
+        pushToast({
+          title: 'Opened project in new window',
+          detail: target.name,
+          variant: 'info',
+        })
+        return
+      }
+      const params = new URLSearchParams()
+      params.set('projectId', target.id)
+      if (target.rootPath) params.set('projectRoot', target.rootPath)
+      params.set('projectName', target.name)
+      const url = `${window.location.pathname}?${params.toString()}`
+      window.open(url, '_blank', 'noopener')
+      pushToast({
+        title: 'Opened project in new tab',
+        detail: target.name,
+        variant: 'info',
+      })
+    },
+    [projects, pushToast],
+  )
 
   const runTerminalCommand = useCallback(
     async (command: string, options?: { openTerminal?: boolean }) => {
@@ -1754,6 +1831,102 @@ export function IDEWorkspace() {
     [handleRecruitTeam, providers, savedProvider],
   )
 
+  const handleDeployTeamCombo = useCallback(
+    (payload: {
+      combo: ProjectTeamCombo
+      teamName: string
+      selectedRoles: FixedSpecialistRoleId[]
+      customDirective: string
+      includeCustomAgent: { name: string; role: string; model: string; providerId: string } | null
+    }) => {
+      const projectLabel = activeProject?.name ?? 'VinceZone Studio'
+      const built = buildTeamFromCombo({
+        combo: payload.combo,
+        teamName: payload.teamName,
+        projectName: projectLabel,
+        selectedRoles: payload.selectedRoles,
+        customPmInstruction: payload.customDirective,
+        includeCustomAgent: payload.includeCustomAgent,
+        existingAgents: sessionRef.current.agents,
+        roleModels: appSettings.roleModels,
+        defaultProviderId: savedProvider.id,
+        defaultModel: savedProvider.model,
+      })
+      const pm = built.nextAgents[0]
+      setAgents(built.nextAgents)
+      if (pm) setRightChatAgentId(pm.id)
+      setCommunicationEvents((current) => [
+        ...current.slice(-60),
+        ...built.communicationEvents,
+      ])
+      try {
+        window.localStorage.setItem(
+          'baton-agent-layout',
+          JSON.stringify({
+            layout: 'focus1',
+            order: built.nextAgents.map((a) => a.id),
+            minimized: [],
+            mainAgentId: pm?.id,
+          }),
+        )
+      } catch {
+        // ignore
+      }
+      persistWorkspace({
+        session: {
+          ...sessionRef.current,
+          agents: built.nextAgents,
+          communicationEvents: [
+            ...sessionRef.current.communicationEvents.slice(-60),
+            ...built.communicationEvents,
+          ],
+        },
+      })
+      pushToast({
+        title: `Deployed ${payload.teamName}`,
+        detail: `${built.nextAgents.length} agents · 1:6 PM (@PM Captain + ${payload.combo.name})`,
+        variant: 'success',
+      })
+    },
+    [
+      activeProject?.name,
+      appSettings.roleModels,
+      persistWorkspace,
+      pushToast,
+      savedProvider.id,
+      savedProvider.model,
+    ],
+  )
+
+  const handleAgentFileDeleted = useCallback((deletedPath: string) => {
+    const clean = deletedPath.replace(/\\/g, '/').replace(/^\/+/, '')
+    setFiles((current) => {
+      const next = current.filter((f) => f.path.replace(/\\/g, '/') !== clean)
+      filesRef.current = next
+      return next
+    })
+    setOpenPaths((current) => current.filter((p) => p.replace(/\\/g, '/') !== clean))
+  }, [])
+
+  const handleAgentCommandOutput = useCallback(
+    (entry: { command: string; output: string; exitCode: number; agentName: string }) => {
+      setTerminalEntries((current) => [
+        ...current.slice(-79),
+        {
+          id: uid(),
+          command: `[${entry.agentName}] ${entry.command}`,
+          cwd: activeProject?.rootPath || '.',
+          stdout: entry.exitCode === 0 ? entry.output : '',
+          stderr: entry.exitCode === 0 ? '' : entry.output,
+          exitCode: entry.exitCode,
+          durationMs: 0,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ])
+    },
+    [activeProject?.rootPath],
+  )
+
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
     useOrchestration({
       agents,
@@ -1780,6 +1953,8 @@ export function IDEWorkspace() {
       onBridgeMessage: handleBridgeMessage,
       onRecordUsage: handleRecordUsage,
       onApplyDirectEdit: applyDirectAgentEdit,
+      onFileDeleted: handleAgentFileDeleted,
+      onCommandOutput: handleAgentCommandOutput,
       onCommandApproval: handleCommandApprovalRequest,
       onPromptRollback: handlePromptRollback,
       onRecruitTeam: handleRecruitTeam,
@@ -3162,6 +3337,8 @@ export function IDEWorkspace() {
         isDesktop={isDesktop}
         onSwitchProject={switchProject}
         onCloseProject={closeProject}
+        onRenameProject={handleRenameProject}
+        onOpenProjectInNewTab={handleOpenProjectInNewTab}
         onImportFolder={importFolder}
         onOpenLocalDirectory={() => void handleOpenLocalDirectory()}
         onNewFile={() => void createNewFile()}
@@ -3247,15 +3424,6 @@ export function IDEWorkspace() {
               }
             : undefined
         }
-        onPreviewMail={() => {
-          setWorkspaceMode('agents')
-          window.setTimeout(() => {
-            previewMailExchange(
-              'focus1',
-              agents.map((agent) => agent.id),
-            )
-          }, 220)
-        }}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -3791,6 +3959,8 @@ export function IDEWorkspace() {
           defaultProviderId={savedProvider.id}
           defaultModel={savedProvider.model}
           roleModels={appSettings.roleModels}
+          projectName={activeProject?.name ?? 'VinceZone Studio'}
+          files={files}
           initialAgent={editingAgent}
           initialView={editingAgent ? (agentViews[editingAgent.id] ?? 'chat') : 'chat'}
           onClose={() => {
@@ -3798,6 +3968,7 @@ export function IDEWorkspace() {
             setAgentCreatorOpen(false)
           }}
           onSave={saveAgent}
+          onDeployTeamCombo={handleDeployTeamCombo}
         />
       )}
 

@@ -4,11 +4,13 @@ import {
   Bug,
   Check,
   ChevronDown,
+  ExternalLink,
   FolderOpen,
   GitCompareArrows,
   PanelBottom,
   PanelLeft,
   PanelRight,
+  Pencil,
   Play,
   Plus,
   Search,
@@ -56,6 +58,8 @@ export function WorkspaceHeader({
   isDesktop,
   onSwitchProject,
   onCloseProject,
+  onRenameProject,
+  onOpenProjectInNewTab,
   onImportFolder,
   onOpenLocalDirectory,
   onNewFile,
@@ -87,7 +91,6 @@ export function WorkspaceHeader({
   onOpenWelcome,
   onExportDiagnostics,
   onOpenLogsFolder,
-  onPreviewMail,
 }: {
   projects: ProjectTab[]
   activeProjectId: string
@@ -108,6 +111,8 @@ export function WorkspaceHeader({
   isDesktop: boolean
   onSwitchProject: (id: string) => void
   onCloseProject: (id: string) => void
+  onRenameProject?: (id: string) => void
+  onOpenProjectInNewTab?: (id: string) => void
   onImportFolder: (event: React.ChangeEvent<HTMLInputElement>) => void
   onOpenLocalDirectory: () => void
   onNewFile: () => void
@@ -139,28 +144,42 @@ export function WorkspaceHeader({
   onOpenWelcome?: () => void
   onExportDiagnostics?: () => void
   onOpenLogsFolder?: () => void
-  onPreviewMail: () => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
+  const [projectCtxMenu, setProjectCtxMenu] = useState<{
+    projectId: string
+    projectName: string
+    x: number
+    y: number
+  } | null>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
   const projectMenuRef = useRef<HTMLDivElement>(null)
+  const projectCtxRef = useRef<HTMLDivElement>(null)
   const activeProject = projects.find((project) => project.id === activeProjectId)
 
   useEffect(() => {
-    if (!openMenuId && !projectMenuOpen) return
+    if (!openMenuId && !projectMenuOpen && !projectCtxMenu) return
     const handlePointerDown = (event: MouseEvent) => {
       if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
         setOpenMenuId(null)
       }
-      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+      if (
+        projectMenuRef.current &&
+        !projectMenuRef.current.contains(event.target as Node) &&
+        (!projectCtxRef.current || !projectCtxRef.current.contains(event.target as Node))
+      ) {
         setProjectMenuOpen(false)
+      }
+      if (projectCtxRef.current && !projectCtxRef.current.contains(event.target as Node)) {
+        setProjectCtxMenu(null)
       }
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpenMenuId(null)
         setProjectMenuOpen(false)
+        setProjectCtxMenu(null)
       }
     }
     window.addEventListener('mousedown', handlePointerDown)
@@ -169,7 +188,7 @@ export function WorkspaceHeader({
       window.removeEventListener('mousedown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [openMenuId, projectMenuOpen])
+  }, [openMenuId, projectCtxMenu, projectMenuOpen])
 
   const menus: MenuGroup[] = [
     {
@@ -459,9 +478,21 @@ export function WorkspaceHeader({
             aria-expanded={projectMenuOpen}
             onClick={() => {
               setOpenMenuId(null)
+              setProjectCtxMenu(null)
               setProjectMenuOpen((prev) => !prev)
             }}
-            title={activeProject?.rootPath || activeProject?.name || 'Chọn hoặc thêm dự án'}
+            onContextMenu={(event) => {
+              if (!activeProject) return
+              event.preventDefault()
+              event.stopPropagation()
+              setProjectCtxMenu({
+                projectId: activeProject.id,
+                projectName: activeProject.name,
+                x: event.clientX,
+                y: event.clientY,
+              })
+            }}
+            title={`${activeProject?.rootPath || activeProject?.name || 'Select or open a project'} (Right-click to Rename or Open in New Tab)`}
             className={`flex h-6 items-center gap-1.5 rounded border px-2 text-[11px] transition ${
               projectMenuOpen
                 ? 'border-[#c9a24d]/60 bg-[#c9a24d]/18 text-[#f5e7c4]'
@@ -483,8 +514,9 @@ export function WorkspaceHeader({
               role="menu"
               className="absolute left-0 top-[28px] z-50 w-72 rounded-md border border-[#454032] bg-[#1e1d1a] py-1 shadow-[0_12px_34px_rgba(0,0,0,0.72)]"
             >
-              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#9c927d]">
-                Dự án ({projects.length})
+              <div className="flex items-center justify-between px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#9c927d]">
+                <span>Projects ({projects.length})</span>
+                <span className="font-normal normal-case text-[#7c7463]">Right-click for options</span>
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {projects.map((project) => {
@@ -492,6 +524,16 @@ export function WorkspaceHeader({
                   return (
                     <div
                       key={project.id}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setProjectCtxMenu({
+                          projectId: project.id,
+                          projectName: project.name,
+                          x: event.clientX,
+                          y: event.clientY,
+                        })
+                      }}
                       className={`group flex items-center gap-1 px-2 py-0.5 ${
                         isActive ? 'bg-[#c9a24d]/12' : 'hover:bg-[#2a2720]'
                       }`}
@@ -501,6 +543,7 @@ export function WorkspaceHeader({
                         role="menuitem"
                         onClick={() => {
                           setProjectMenuOpen(false)
+                          setProjectCtxMenu(null)
                           onSwitchProject(project.id)
                         }}
                         className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
@@ -526,7 +569,7 @@ export function WorkspaceHeader({
                       {projects.length > 1 && (
                         <button
                           type="button"
-                          title={`Đóng dự án ${project.name}`}
+                          title={`Close project ${project.name}`}
                           onClick={(event) => {
                             event.stopPropagation()
                             onCloseProject(project.id)
@@ -546,6 +589,7 @@ export function WorkspaceHeader({
                 role="menuitem"
                 onClick={() => {
                   setProjectMenuOpen(false)
+                  setProjectCtxMenu(null)
                   onOpenLocalDirectory()
                 }}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-medium text-[#e6cfa0] transition hover:bg-[#c9a24d]/15 hover:text-[#fff3d6]"
@@ -553,6 +597,48 @@ export function WorkspaceHeader({
                 <Plus size={13} className="shrink-0 text-[#c9a24d]" />
                 <span>Thêm dự án mới…</span>
               </button>
+            </div>
+          )}
+
+          {projectCtxMenu && (
+            <div
+              ref={projectCtxRef}
+              style={{ left: Math.min(projectCtxMenu.x, 1100), top: Math.min(projectCtxMenu.y, 600) }}
+              className="fixed z-[70] w-56 rounded-md border border-[#454032] bg-[#1b1a17] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.85)]"
+            >
+              <div className="truncate border-b border-[#2e2b23] px-3 py-1 text-[10px] font-semibold text-[#e6cfa0]">
+                Project: {projectCtxMenu.projectName}
+              </div>
+              {onRenameProject && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = projectCtxMenu.projectId
+                    setProjectCtxMenu(null)
+                    setProjectMenuOpen(false)
+                    onRenameProject(targetId)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] text-[#e5e5e5] transition hover:bg-[#c9a24d]/18 hover:text-white"
+                >
+                  <Pencil size={12} className="shrink-0 text-[#c9a24d]" />
+                  <span>Rename Project…</span>
+                </button>
+              )}
+              {onOpenProjectInNewTab && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = projectCtxMenu.projectId
+                    setProjectCtxMenu(null)
+                    setProjectMenuOpen(false)
+                    onOpenProjectInNewTab(targetId)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] text-[#e5e5e5] transition hover:bg-[#c9a24d]/18 hover:text-white"
+                >
+                  <ExternalLink size={12} className="shrink-0 text-[#c9a24d]" />
+                  <span>Open Project in New Tab</span>
+                </button>
+              )}
             </div>
           )}
         </div>

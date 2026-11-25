@@ -16,7 +16,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-2.2.0-c9a24d?style=flat-square" alt="Version 2.2.0" />
-    <img src="https://img.shields.io/badge/tests-110%20passing-4c9a5e?style=flat-square" alt="Tests Passing" />
+    <img src="https://img.shields.io/badge/tests-114%20passing-4c9a5e?style=flat-square" alt="Tests Passing" />
     <img src="https://img.shields.io/badge/Electron-35-47848F?style=flat-square&logo=electron&logoColor=white" alt="Electron 35" />
     <img src="https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs&logoColor=white" alt="Next.js 16" />
     <img src="https://img.shields.io/badge/license-MIT-858585?style=flat-square" alt="MIT License" />
@@ -74,7 +74,7 @@ pnpm desktop
 
 ```bash
 pnpm typecheck        # TypeScript strict check
-pnpm test             # Vitest suite (27 files / 110 tests)
+pnpm test             # Vitest suite (28 files / 114 tests)
 pnpm build:exe        # Build standalone desktop/VinceZone Studio/VinceZone Studio.exe
 pnpm build:installer  # Build Windows NSIS Setup (.exe) or Portable ZIP
 ```

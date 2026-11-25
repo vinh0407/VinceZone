@@ -5,6 +5,7 @@ import {
   BookMarked,
   Bot,
   Check,
+  ChevronDown,
   Copy,
   Crown,
   Download,
@@ -12,6 +13,7 @@ import {
   ImagePlus,
   Link2,
   Maximize2,
+  MessageSquare,
   MessageSquarePlus,
   Minimize2,
   Plus,
@@ -299,24 +301,26 @@ export function RightAiChatPanel({
               {autoRunCommands ? 'Auto-Run ON' : 'Auto-Run'}
             </button>
           )}
-          {onNewThread && (
+          {(onNewThread || onSelectThread) && (
             <button
               type="button"
-              className="mini-button"
-              title="New Chat Thread (lưu đoạn chat cũ vào History)"
-              onClick={onNewThread}
-            >
-              <MessageSquarePlus size={12} />
-            </button>
-          )}
-          {onSelectThread && (
-            <button
-              type="button"
-              className={`mini-button ${historyOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
-              title={`Chat History (${chatThreads.length} threads)`}
+              className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                historyOpen
+                  ? 'border-[#c9a24d]/60 bg-[#c9a24d]/20 text-[#f0d394]'
+                  : 'border-[#333333] bg-[#202020] text-[#cccccc] hover:text-white'
+              }`}
+              title="Chat Menu — New Chat & Project Chat History"
               onClick={() => setHistoryOpen((prev) => !prev)}
             >
-              <History size={12} />
+              <MessageSquare size={10} />
+              <span>Chat</span>
+              {chatThreads.length > 0 && (
+                <span className="font-mono text-[8.5px] text-[#e6cfa0]">({chatThreads.length})</span>
+              )}
+              <ChevronDown
+                size={10}
+                className={`transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+              />
             </button>
           )}
           <button
@@ -352,9 +356,22 @@ export function RightAiChatPanel({
       </div>
 
       {historyOpen && (
-        <div className="max-h-44 overflow-y-auto border-b border-[#333333] bg-[#141414] p-2">
+        <div className="max-h-56 overflow-y-auto border-b border-[#333333] bg-[#141414] p-2">
+          {onNewThread && (
+            <button
+              type="button"
+              onClick={() => {
+                onNewThread()
+                setHistoryOpen(false)
+              }}
+              className="mb-2 flex w-full items-center gap-1.5 rounded border border-[#c9a24d]/40 bg-[#c9a24d]/15 px-2.5 py-1.5 text-left text-[10.5px] font-semibold text-[#f0d394] transition hover:bg-[#c9a24d]/25"
+            >
+              <Plus size={12} className="shrink-0" />
+              <span>New Chat (Current Project)</span>
+            </button>
+          )}
           <div className="mb-1 flex items-center justify-between text-[9.5px] font-semibold uppercase text-[#a3a3a3]">
-            <span>Chat Threads ({chatThreads.length})</span>
+            <span>Project Chat History ({chatThreads.length})</span>
             <button
               type="button"
               onClick={() => setHistoryOpen(false)}
@@ -365,7 +382,8 @@ export function RightAiChatPanel({
           </div>
           {chatThreads.length === 0 ? (
             <p className="py-1.5 text-[10px] text-[#737373]">
-              Chưa có thread lưu trữ. Bấm + (New Chat) để tách cuộc trò chuyện mới.
+              No archived chats in this project yet. Click &ldquo;New Chat&rdquo; above to start a
+              fresh session.
             </p>
           ) : (
             <div className="space-y-1">
