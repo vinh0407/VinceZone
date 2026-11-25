@@ -3,6 +3,7 @@
 import {
   Bug,
   Check,
+  ChevronDown,
   FolderOpen,
   GitCompareArrows,
   PanelBottom,
@@ -134,18 +135,26 @@ export function WorkspaceHeader({
   onPreviewMail: () => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const menuBarRef = useRef<HTMLDivElement>(null)
+  const projectMenuRef = useRef<HTMLDivElement>(null)
   const activeProject = projects.find((project) => project.id === activeProjectId)
 
   useEffect(() => {
-    if (!openMenuId) return
+    if (!openMenuId && !projectMenuOpen) return
     const handlePointerDown = (event: MouseEvent) => {
       if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
         setOpenMenuId(null)
       }
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+        setProjectMenuOpen(false)
+      }
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpenMenuId(null)
+      if (event.key === 'Escape') {
+        setOpenMenuId(null)
+        setProjectMenuOpen(false)
+      }
     }
     window.addEventListener('mousedown', handlePointerDown)
     window.addEventListener('keydown', handleKeyDown)
@@ -153,7 +162,7 @@ export function WorkspaceHeader({
       window.removeEventListener('mousedown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [openMenuId])
+  }, [openMenuId, projectMenuOpen])
 
   const menus: MenuGroup[] = [
     {
@@ -411,65 +420,110 @@ export function WorkspaceHeader({
 
         <div className="mx-1 hidden h-3.5 w-px bg-[#2b2b2b] md:block" />
 
-        {/* Always-accessible Project Switcher: compact dropdown < 1280px, full tabs >= 1280px */}
-        <div className="flex items-center gap-1 xl:hidden">
-          <select
-            value={activeProjectId}
-            onChange={(e) => onSwitchProject(e.target.value)}
-            title="Switch active project"
-            className="h-6 max-w-36 truncate rounded border border-[#333333] bg-[#222222] px-1.5 text-[11px] text-[#e5e5e5] outline-none"
-          >
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+        {/* Unified Project Switcher Dropdown with chevron + "Add New Project" inside */}
+        <div ref={projectMenuRef} className="relative">
           <button
-            onClick={onOpenLocalDirectory}
-            className="icon-button !size-6 shrink-0"
-            title="Open local folder on disk"
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={projectMenuOpen}
+            onClick={() => {
+              setOpenMenuId(null)
+              setProjectMenuOpen((prev) => !prev)
+            }}
+            title={activeProject?.rootPath || activeProject?.name || 'Chọn hoặc thêm dự án'}
+            className={`flex h-6 items-center gap-1.5 rounded border px-2 text-[11px] transition ${
+              projectMenuOpen
+                ? 'border-[#c9a24d]/60 bg-[#c9a24d]/18 text-[#f5e7c4]'
+                : 'border-[#c9a24d]/35 bg-[#c9a24d]/12 text-[#f0d89d] hover:border-[#c9a24d]/55 hover:bg-[#c9a24d]/18'
+            }`}
           >
-            <Plus size={13} />
-          </button>
-        </div>
-
-        <div className="hidden max-w-[22vw] items-center gap-1 overflow-x-auto xl:flex">
-          {projects.map((project) => (
-            <button
-              key={project.id}
-              onClick={() => onSwitchProject(project.id)}
-              title={project.rootPath || project.name}
-              className={`group flex h-6 shrink-0 items-center gap-1.5 rounded px-2 text-[11px] transition ${
-                activeProjectId === project.id
-                  ? 'border border-[#c9a24d]/35 bg-[#c9a24d]/12 text-[#f0d89d]'
-                  : 'text-[#9d9d9d] hover:bg-[#2a2720]/70 hover:text-[#e6cfa0]'
+            <FolderOpen size={12} className="shrink-0 text-[#c9a24d]" />
+            <span className="max-w-36 truncate">{activeProject?.name || 'VinceZone Studio'}</span>
+            <ChevronDown
+              size={11}
+              className={`shrink-0 text-[#c9a24d]/85 transition-transform ${
+                projectMenuOpen ? 'rotate-180' : ''
               }`}
-            >
-              <FolderOpen
-                size={12}
-                className={activeProjectId === project.id ? 'text-[#c9a24d]' : 'text-[#8e887b]'}
-              />
-              <span className="max-w-28 truncate">{project.name}</span>
-              {projects.length > 1 && (
-                <X
-                  size={10}
-                  className="ml-0.5 opacity-0 group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onCloseProject(project.id)
-                  }}
-                />
-              )}
-            </button>
-          ))}
-          <button
-            onClick={onOpenLocalDirectory}
-            className="icon-button !size-6 shrink-0"
-            title="Open local folder on disk (Desktop)"
-          >
-            <Plus size={13} />
+            />
           </button>
+
+          {projectMenuOpen && (
+            <div
+              role="menu"
+              className="absolute left-0 top-[28px] z-50 w-72 rounded-md border border-[#454032] bg-[#1e1d1a] py-1 shadow-[0_12px_34px_rgba(0,0,0,0.72)]"
+            >
+              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#9c927d]">
+                Dự án ({projects.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {projects.map((project) => {
+                  const isActive = project.id === activeProjectId
+                  return (
+                    <div
+                      key={project.id}
+                      className={`group flex items-center gap-1 px-2 py-0.5 ${
+                        isActive ? 'bg-[#c9a24d]/12' : 'hover:bg-[#2a2720]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setProjectMenuOpen(false)
+                          onSwitchProject(project.id)
+                        }}
+                        className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
+                      >
+                        <span className="grid size-3.5 shrink-0 place-items-center text-[#c9a24d]">
+                          {isActive ? <Check size={12} /> : <FolderOpen size={11} className="text-[#8e887b]" />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`truncate text-[12px] ${
+                              isActive ? 'font-medium text-[#f5e7c4]' : 'text-[#d4d4d4]'
+                            }`}
+                          >
+                            {project.name}
+                          </div>
+                          {project.rootPath && (
+                            <div className="truncate font-mono text-[9.5px] text-[#858585]">
+                              {project.rootPath}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                      {projects.length > 1 && (
+                        <button
+                          type="button"
+                          title={`Đóng dự án ${project.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onCloseProject(project.id)
+                          }}
+                          className="mini-button shrink-0 opacity-0 transition hover:!text-[#f48771] group-hover:opacity-100"
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="my-1 h-px bg-[#322f26]" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProjectMenuOpen(false)
+                  onOpenLocalDirectory()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-medium text-[#e6cfa0] transition hover:bg-[#c9a24d]/15 hover:text-[#fff3d6]"
+              >
+                <Plus size={13} className="shrink-0 text-[#c9a24d]" />
+                <span>Thêm dự án mới…</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <input
