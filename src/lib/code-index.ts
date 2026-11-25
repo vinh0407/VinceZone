@@ -1,24 +1,13 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { withFileLock } from '@/lib/file-lock'
+import {
+  extractSymbolsFromSource,
+  type SymbolDefinition,
+  type SymbolKind,
+} from '@/lib/symbol-outline'
 
-export type SymbolKind =
-  | 'function'
-  | 'class'
-  | 'interface'
-  | 'type'
-  | 'enum'
-  | 'const'
-  | 'method'
-
-export type SymbolDefinition = {
-  name: string
-  kind: SymbolKind
-  path: string
-  line: number
-  column: number
-  signature: string
-  exported: boolean
-}
+export { extractSymbolsFromSource, type SymbolDefinition, type SymbolKind }
 
 export type SymbolReference = {
   path: string
@@ -144,174 +133,6 @@ async function collectSourceFiles(rootDir: string, maxFiles = 1500): Promise<str
   return out
 }
 
-export function extractSymbolsFromSource(relPath: string, content: string): SymbolDefinition[] {
-  const ext = path.extname(relPath).toLowerCase()
-  const lines = content.split(/\r?\n/)
-  const out: SymbolDefinition[] = []
-  const seen = new Set<string>()
-
-  const push = (
-    name: string,
-    kind: SymbolKind,
-    lineIdx: number,
-    rawLine: string,
-    exported: boolean,
-  ) => {
-    if (!name || name.length < 2) return
-    const key = `${name}:${lineIdx}`
-    if (seen.has(key)) return
-    seen.add(key)
-    const col = Math.max(1, rawLine.indexOf(name) + 1)
-    out.push({
-      name,
-      kind,
-      path: relPath,
-      line: lineIdx + 1,
-      column: col,
-      signature: rawLine.trim().slice(0, 140),
-      exported,
-    })
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('#')) {
-      continue
-    }
-
-    // TypeScript / JavaScript
-    if (
-      ext === '.ts' ||
-      ext === '.tsx' ||
-      ext === '.mts' ||
-      ext === '.cts' ||
-      ext === '.js' ||
-      ext === '.jsx' ||
-      ext === '.mjs' ||
-      ext === '.cjs'
-    ) {
-      const exported = /^export\s+/.test(trimmed)
-      let m = trimmed.match(/^(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/)
-      if (m) {
-        push(m[1], 'function', i, line, exported)
-        continue
-      }
-      m = trimmed.match(/^(?:export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/)
-      if (m) {
-        push(m[1], 'class', i, line, exported)
-        continue
-      }
-      m = trimmed.match(/^(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/)
-      if (m) {
-        push(m[1], 'interface', i, line, exported)
-        continue
-      }
-      m = trimmed.match(/^(?:export\s+)?type\s+([A-Za-z_$][\w$]*)\s*(?:<[^>]+>)?\s*=/)
-      if (m) {
-        push(m[1], 'type', i, line, exported)
-        continue
-      }
-      m = trimmed.match(/^(?:export\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/)
-      if (m) {
-        push(m[1], 'enum', i, line, exported)
-        continue
-      }
-      m = trimmed.match(
-        /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:\(|[A-Za-z_$][\w$]*\s*=>|function\b)/,
-      )
-      if (m) {
-        push(m[1], 'function', i, line, exported)
-        continue
-      }
-      if (exported) {
-        m = trimmed.match(/^export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)\b/)
-        if (m) {
-          push(m[1], 'const', i, line, true)
-          continue
-        }
-      }
-      continue
-    }
-
-    // Python
-    if (ext === '.py') {
-      let m = trimmed.match(/^(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(/)
-      if (m) {
-        const isMethod = /^\s+/.test(line)
-        push(m[1], isMethod ? 'method' : 'function', i, line, !m[1].startsWith('_'))
-        continue
-      }
-      m = trimmed.match(/^class\s+([A-Za-z_]\w*)/)
-      if (m) {
-        push(m[1], 'class', i, line, !m[1].startsWith('_'))
-        continue
-      }
-      continue
-    }
-
-    // Kotlin / Java
-    if (ext === '.kt' || ext === '.kts' || ext === '.java') {
-      let m = trimmed.match(
-        /^(?:(?:public|private|protected|internal|override|suspend|inline|static|final)\s+)*fun\s+(?:<[^>]+>\s+)?([A-Za-z_]\w*)\s*\(/,
-      )
-      if (m) {
-        push(m[1], 'function', i, line, !trimmed.includes('private '))
-        continue
-      }
-      m = trimmed.match(
-        /^(?:(?:public|private|protected|internal|data|sealed|abstract|open|final)\s+)*(class|interface|object|enum)\s+([A-Za-z_]\w*)/,
-      )
-      if (m) {
-        const kind: SymbolKind =
-          m[1] === 'interface' ? 'interface' : m[1] === 'enum' ? 'enum' : 'class'
-        push(m[2], kind, i, line, !trimmed.includes('private '))
-        continue
-      }
-      continue
-    }
-
-    // Go
-    if (ext === '.go') {
-      let m = trimmed.match(/^func\s+(?:\([^)]+\)\s+)?([A-Za-z_]\w*)\s*\(/)
-      if (m) {
-        push(m[1], 'function', i, line, /^[A-Z]/.test(m[1]))
-        continue
-      }
-      m = trimmed.match(/^type\s+([A-Za-z_]\w*)\s+(struct|interface)\b/)
-      if (m) {
-        push(m[1], m[2] === 'interface' ? 'interface' : 'class', i, line, /^[A-Z]/.test(m[1]))
-        continue
-      }
-      continue
-    }
-
-    // Rust
-    if (ext === '.rs') {
-      const exported = /^pub\b/.test(trimmed)
-      let m = trimmed.match(/^(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/)
-      if (m) {
-        push(m[1], 'function', i, line, exported)
-        continue
-      }
-      m = trimmed.match(/^(?:pub(?:\([^)]*\))?\s+)?(struct|enum|trait|type)\s+([A-Za-z_]\w*)/)
-      if (m) {
-        const kind: SymbolKind =
-          m[1] === 'trait'
-            ? 'interface'
-            : m[1] === 'enum'
-              ? 'enum'
-              : m[1] === 'type'
-                ? 'type'
-                : 'class'
-        push(m[2], kind, i, line, exported)
-      }
-    }
-  }
-
-  return out
-}
-
 export async function indexWorkspaceSymbols(
   workspaceRoot: string,
   maxFiles = 3000,
@@ -392,7 +213,7 @@ export async function findSymbolReferences(
   const clean = symbolName.trim()
   if (!clean || clean.length < 2) return []
 
-  const root = path.resolve(workspaceRoot)
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
   const idx = await indexWorkspaceSymbols(root)
   const defKeySet = new Set(
     idx.symbols.filter((s) => s.name === clean).map((s) => `${s.path}:${s.line}`),
@@ -453,4 +274,63 @@ export async function searchWorkspaceSymbols(
     })
     .sort((a, b) => b.score - a.score)
   return scored.slice(0, limit).map((item) => item.s)
+}
+
+/**
+ * Safe cross-file identifier rename (`F2`) across indexed source files.
+ * Uses strict word-boundary matching (`\\boldName\\b`) and per-file async locks
+ * so partial substrings and concurrent agent writes are never corrupted.
+ */
+export async function renameSymbolAcrossWorkspace(
+  workspaceRoot: string,
+  oldName: string,
+  newName: string,
+  maxFiles = 3000,
+): Promise<{
+  filesUpdated: number
+  occurrences: number
+  updatedFiles: Array<{ path: string; content: string }>
+}> {
+  const from = oldName.trim()
+  const to = newName.trim()
+  if (!/^[A-Za-z_$][\w$]*$/.test(from) || !/^[A-Za-z_$][\w$]*$/.test(to)) {
+    throw new Error('Symbol names must be valid identifiers (letters, digits, _, $).')
+  }
+  if (from === to) {
+    return { filesUpdated: 0, occurrences: 0, updatedFiles: [] }
+  }
+
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
+  const idx = await indexWorkspaceSymbols(root, maxFiles)
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`\\b${escaped}\\b`, 'g')
+
+  let filesUpdated = 0
+  let occurrences = 0
+  const updatedFiles: Array<{ path: string; content: string }> = []
+
+  for (const rel of idx.files) {
+    const abs = path.join(/*turbopackIgnore: true*/ root, rel)
+    try {
+      const current = await readFile(abs, 'utf8')
+      if (!current.includes(from)) continue
+      const matches = current.match(regex)
+      if (!matches || matches.length === 0) continue
+
+      const next = current.replace(regex, to)
+      if (next === current) continue
+
+      await withFileLock(abs, async () => {
+        await writeFile(abs, next, 'utf8')
+      })
+      updateIndexedFile(root, rel, next)
+      filesUpdated += 1
+      occurrences += matches.length
+      updatedFiles.push({ path: rel, content: next })
+    } catch {
+      // skip unreadable/locked files
+    }
+  }
+
+  return { filesUpdated, occurrences, updatedFiles }
 }

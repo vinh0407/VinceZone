@@ -17,6 +17,7 @@ import {
   Maximize2,
   MessageSquare,
   MessageSquarePlus,
+  Minimize2,
   PanelTopClose,
   Pause,
   Pencil,
@@ -26,6 +27,7 @@ import {
   Send,
   Shield,
   ShieldAlert,
+  SkipForward,
   Sparkles,
   Square,
   TerminalSquare,
@@ -37,6 +39,7 @@ import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
+import { estimateContextMeter } from '@/lib/project-rules'
 import { AgentMailOverlay } from './agent-mail-overlay'
 import { ChatContextMenu } from './chat-context-menu'
 import { CommandApprovalList } from './command-approval-card'
@@ -98,6 +101,9 @@ export function AgentWorkspace({
   onNewThread,
   onSelectThread,
   onUndoTurn,
+  onCompactAgent,
+  onRetryTask,
+  onUpdateTaskStatus,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -136,6 +142,9 @@ export function AgentWorkspace({
   onNewThread?: () => void
   onSelectThread?: (threadId: string) => void
   onUndoTurn?: (agentId: string, messageId: string) => void
+  onCompactAgent?: (agentId: string) => void
+  onRetryTask?: (task: AgentTask) => void
+  onUpdateTaskStatus?: (taskId: string, status: AgentTask['status']) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -160,6 +169,7 @@ export function AgentWorkspace({
   }>({ sendingIds: [], arrivedIds: [] })
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([])
   const [threadsOpen, setThreadsOpen] = useState(false)
+  const [tasksExpanded, setTasksExpanded] = useState(false)
   const gridHostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -293,6 +303,7 @@ export function AgentWorkspace({
       onPause={() => onPause(agent)}
       onDiff={onDiff}
       onUndoTurn={onUndoTurn ? (msgId) => onUndoTurn(agent.id, msgId) : undefined}
+      onCompact={onCompactAgent ? () => onCompactAgent(agent.id) : undefined}
       onMinimize={() =>
         setWorkspace((current) => ({
           ...current,
@@ -329,13 +340,22 @@ export function AgentWorkspace({
             {agents.length} agent{agents.length === 1 ? '' : 's'} · unlimited
           </span>
           {tasks.length > 0 && (
-            <span
-              className={`rounded bg-[#2a2a2a] font-mono text-[#e5e5e5] ${
-                isSolo ? 'px-2 py-0.5 text-[11.5px]' : 'px-1.5 py-0.5 text-[10px]'
-              }`}
+            <button
+              type="button"
+              onClick={() => setTasksExpanded((prev) => !prev)}
+              className={`flex items-center gap-1 rounded border font-mono transition ${
+                tasksExpanded
+                  ? 'border-[#c9a24d]/50 bg-[#c9a24d]/15 text-[#f0d394]'
+                  : 'border-[#333333] bg-[#2a2a2a] text-[#e5e5e5] hover:border-[#555555]'
+              } ${isSolo ? 'px-2 py-0.5 text-[11.5px]' : 'px-1.5 py-0.5 text-[10px]'}`}
+              title="Mở bảng quản lý Sub-Tasks (Retry / Skip từng tác vụ con)"
             >
               {tasks.filter((task) => task.status === 'completed').length}/{tasks.length} tasks
-            </span>
+              <ChevronDown
+                size={isSolo ? 12 : 10}
+                className={`transition-transform ${tasksExpanded ? 'rotate-180' : ''}`}
+              />
+            </button>
           )}
           {captainAgent && (
             <span
@@ -463,6 +483,78 @@ export function AgentWorkspace({
           </button>
         </div>
       </div>
+
+      {tasksExpanded && tasks.length > 0 && (
+        <div className="shrink-0 border-b border-[#2b2b2b] bg-[#161616] px-4 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[10.5px] text-[#a3a3a3]">
+            <span className="font-semibold uppercase tracking-wider text-[#d4d4d4]">
+              Delegated Sub-Tasks ({tasks.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setTasksExpanded(false)}
+              className="rounded p-0.5 text-[#7a7a7a] hover:bg-[#262626] hover:text-white"
+            >
+              <X size={11} />
+            </button>
+          </div>
+          <div className="grid gap-1.5 md:grid-cols-2 lg:grid-cols-3">
+            {tasks.map((task) => {
+              const assignee = agents.find((a) => a.id === task.assigneeId)
+              const statusColor =
+                task.status === 'completed'
+                  ? 'border-[#33543a] bg-[#132417] text-[#89d185]'
+                  : task.status === 'failed' || task.status === 'blocked'
+                    ? 'border-[#5a2a2a] bg-[#261414] text-[#f48771]'
+                    : task.status === 'running'
+                      ? 'border-[#c9a24d]/45 bg-[#c9a24d]/10 text-[#f0d394]'
+                      : 'border-[#333333] bg-[#1d1d1d] text-[#cccccc]'
+              return (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-2 rounded border border-[#2b2b2b] bg-[#1b1b1b] px-2.5 py-1.5 text-[10.5px]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`rounded border px-1 py-0.5 font-mono text-[8.5px] uppercase ${statusColor}`}>
+                        {task.status}
+                      </span>
+                      <span className="truncate font-medium text-[#e5e5e5]" title={task.title}>
+                        {task.title}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[9.5px] text-[#858585]">
+                      → {assignee?.name || task.assigneeId}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {onRetryTask && (
+                      <button
+                        type="button"
+                        onClick={() => onRetryTask(task)}
+                        className="flex items-center gap-1 rounded border border-[#c9a24d]/35 bg-[#c9a24d]/10 px-1.5 py-0.5 text-[9.5px] text-[#e6cfa0] hover:bg-[#c9a24d]/20 hover:text-white"
+                        title="Chạy lại sub-task này cho agent phụ trách"
+                      >
+                        <RotateCcw size={9} /> Retry
+                      </button>
+                    )}
+                    {onUpdateTaskStatus && task.status !== 'completed' && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateTaskStatus(task.id, 'completed')}
+                        className="flex items-center gap-0.5 rounded border border-[#333333] bg-[#222222] px-1.5 py-0.5 text-[9.5px] text-[#a3a3a3] hover:bg-[#2c2c2c] hover:text-white"
+                        title="Bỏ qua / đánh dấu đã xong sub-task này"
+                      >
+                        <SkipForward size={9} /> Skip
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {pendingApproval && pendingApproval.tasks.length > 0 && (
         <div className="shrink-0 border-b border-[#404040] bg-[#1c1c1c] px-4 py-2.5">
@@ -712,6 +804,7 @@ function AgentPanel({
   onPause,
   onDiff,
   onUndoTurn,
+  onCompact,
   onMinimize,
   onPromote,
 }: {
@@ -749,10 +842,12 @@ function AgentPanel({
   onPause: () => void
   onDiff: (patchId?: string) => void
   onUndoTurn?: (messageId: string) => void
+  onCompact?: () => void
   onMinimize: () => void
   onPromote: () => void
 }) {
   const [delegationOpen, setDelegationOpen] = useState(false)
+  const contextMeter = useMemo(() => estimateContextMeter(agent.messages), [agent.messages])
   const [contextPickerOpen, setContextPickerOpen] = useState(false)
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
@@ -1584,6 +1679,38 @@ function AgentPanel({
               >
                 <Mail size={isSolo ? 17 : 11} />
               </button>
+              <div
+                className="ml-1 flex items-center gap-1.5"
+                title={`Context window ước tính: ~${contextMeter.usedTokens.toLocaleString()} / ${contextMeter.maxTokens.toLocaleString()} tokens (${contextMeter.percent}%)`}
+              >
+                <div className={`overflow-hidden rounded-full bg-[#262626] ${isSolo ? 'h-1.5 w-14' : 'h-1 w-9'}`}>
+                  <div
+                    className={`h-full transition-all ${
+                      contextMeter.level === 'high'
+                        ? 'bg-[#e06c75]'
+                        : contextMeter.level === 'medium'
+                          ? 'bg-[#c9a24d]'
+                          : 'bg-[#6b8e6b]'
+                    }`}
+                    style={{ width: `${Math.max(4, contextMeter.percent)}%` }}
+                  />
+                </div>
+                <span className={`font-mono text-[#8a8a8a] ${isSolo ? 'text-[10.5px]' : 'text-[8.5px]'}`}>
+                  {contextMeter.percent}%
+                </span>
+                {onCompact && agent.messages.length >= 6 && (
+                  <button
+                    type="button"
+                    onClick={onCompact}
+                    className={`flex items-center gap-0.5 rounded border border-[#c9a24d]/35 bg-[#c9a24d]/10 text-[#e6cfa0] transition hover:bg-[#c9a24d]/20 hover:text-white ${
+                      isSolo ? 'px-2 py-0.5 text-[10.5px]' : 'px-1 py-0.5 text-[8.5px]'
+                    }`}
+                    title="Nén các tin nhắn cũ thành tóm tắt để giải phóng context"
+                  >
+                    <Minimize2 size={isSolo ? 11 : 8} /> Compact
+                  </button>
+                )}
+              </div>
             </div>
             {agent.status === 'running' || agent.status === 'reviewing' ? (
               <button

@@ -128,7 +128,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const cwd = path.resolve(body.cwd?.trim() || process.cwd())
+  const cwd = path.resolve(/*turbopackIgnore: true*/ body.cwd?.trim() || process.cwd())
 
   if (body.action === 'stop-web') {
     const existing = getManagedServer()
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       })
     }
 
-    const child = spawn(plan.bin, plan.args, {
+    const child = spawn(/*turbopackIgnore: true*/ plan.bin, plan.args, {
       cwd,
       windowsHide: true,
       shell: process.platform === 'win32',

@@ -16,9 +16,11 @@ import type {
   ProposedPatch,
   ProviderConfig,
   RuntimeEvent,
+  TerminalHistoryEntry,
   UsageRecord,
   WorkspaceFile,
 } from '@/components/ide/agent-types'
+import type { EditorDiagnostic } from '@/components/ide/status-bar'
 import { slugifyCommand } from '@/components/ide/slash-command-popover'
 import { uid } from '@/components/ide/workspace-defaults'
 import {
@@ -41,6 +43,10 @@ import {
   extractProposedPatches,
   selectCompactWorkspaceFiles,
 } from '@/lib/orchestrator'
+import {
+  extractProjectRules,
+  resolveDynamicContextMentions,
+} from '@/lib/project-rules'
 import {
   buildInstantProjectSnapshot,
   isReadOnlyAnalysisPrompt,
@@ -159,6 +165,8 @@ export function useOrchestration({
   projectName,
   workspaceRoot,
   memoryNotes,
+  diagnostics = [],
+  terminalEntries = [],
   bridgeMessages = [],
   bridgeEnabled = true,
   providers,
@@ -185,6 +193,8 @@ export function useOrchestration({
   projectName: string
   workspaceRoot?: string
   memoryNotes: MemoryNote[]
+  diagnostics?: EditorDiagnostic[]
+  terminalEntries?: TerminalHistoryEntry[]
   bridgeMessages?: BridgeMessage[]
   bridgeEnabled?: boolean
   providers: ProviderConfig[]
@@ -218,6 +228,10 @@ export function useOrchestration({
   filesRef.current = files
   const bridgeMessagesRef = useRef(bridgeMessages)
   bridgeMessagesRef.current = bridgeMessages
+  const diagnosticsRef = useRef(diagnostics)
+  diagnosticsRef.current = diagnostics
+  const terminalEntriesRef = useRef(terminalEntries)
+  terminalEntriesRef.current = terminalEntries
 
   const publishBridgeMessage = useCallback(
     (input: {
@@ -871,8 +885,22 @@ export function useOrchestration({
       const topology = readSavedTopology(agentsRef.current)
       const activeProvider = resolveProviderForAgent(coordinator)
       const slashResolved = await resolveSlashContext(instruction)
+      const projectRules = extractProjectRules(filesRef.current)
+      const dynamicMentions = await resolveDynamicContextMentions({
+        text: instruction,
+        diagnostics: diagnosticsRef.current,
+        terminalEntries: terminalEntriesRef.current,
+        rootPath: workspaceRoot,
+      })
+      const contextBadges = [
+        ...slashResolved.badges,
+        ...dynamicMentions.badges,
+        ...(projectRules.sources.length > 0 ? [`Rules: ${projectRules.sources.join(', ')}`] : []),
+      ]
       const projectMemory = [
         memoryNotes.map((note) => `- ${note.title}: ${note.content}`).join('\n'),
+        projectRules.promptBlock,
+        dynamicMentions.promptBlock,
         slashResolved.promptBlock,
       ]
         .filter(Boolean)
@@ -892,12 +920,12 @@ export function useOrchestration({
               sentAt: new Date().toISOString(),
               revisionCheckpoint: revCheckpoint,
             },
-            ...(slashResolved.badges.length
+            ...(contextBadges.length
               ? [
                   {
                     id: uid(),
                     role: 'tool' as const,
-                    text: `Loaded via /: ${slashResolved.badges.join(' · ')}`,
+                    text: `Context loaded: ${contextBadges.join(' · ')}`,
                   },
                 ]
               : []),
@@ -1171,6 +1199,18 @@ export function useOrchestration({
       setAiActivity('reading')
       if (!delegated) setDrafts((current) => ({ ...current, [agent.id]: '' }))
       const slashResolved = await resolveSlashContext(text)
+      const projectRules = extractProjectRules(filesRef.current)
+      const dynamicMentions = await resolveDynamicContextMentions({
+        text,
+        diagnostics: diagnosticsRef.current,
+        terminalEntries: terminalEntriesRef.current,
+        rootPath: workspaceRoot,
+      })
+      const contextBadges = [
+        ...slashResolved.badges,
+        ...dynamicMentions.badges,
+        ...(projectRules.sources.length > 0 ? [`Rules: ${projectRules.sources.join(', ')}`] : []),
+      ]
       const streamMsgId = `stream-${uid()}`
 
       updateAgent(agent.id, (current) => ({
@@ -1179,12 +1219,12 @@ export function useOrchestration({
         messages: [
           ...current.messages,
           ...(delegated ? [] : [userMessage]),
-          ...(slashResolved.badges.length
+          ...(contextBadges.length
             ? [
                 {
                   id: uid(),
                   role: 'tool' as const,
-                  text: `Loaded via /: ${slashResolved.badges.join(' · ')}`,
+                  text: `Context loaded: ${contextBadges.join(' · ')}`,
                 },
               ]
             : []),
@@ -1238,10 +1278,12 @@ export function useOrchestration({
 
       const systemPrompt = [
         buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        projectRules.promptBlock,
         fastAnalysisDirective,
         bridgeEnabled
           ? buildBridgeContextPrompt(agent, agentsRef.current, bridgeMessagesRef.current)
           : '',
+        dynamicMentions.promptBlock,
         slashResolved.promptBlock,
         projectSnapshot,
         `Workspace (${projectName}) relevant files:\n${fileContextBlock}`,

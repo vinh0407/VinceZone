@@ -157,10 +157,10 @@ export async function GET(request: Request) {
   const action = searchParams.get('action')?.trim() || 'list'
   const requestedRoot =
     searchParams.get('root')?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd()
-  const resolvedRoot = path.resolve(requestedRoot)
+  const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ requestedRoot)
 
   try {
-    const info = await stat(resolvedRoot)
+    const info = await stat(/*turbopackIgnore: true*/ resolvedRoot)
     if (!info.isDirectory()) {
       return Response.json({ error: 'Workspace path is not a directory.' }, { status: 400 })
     }

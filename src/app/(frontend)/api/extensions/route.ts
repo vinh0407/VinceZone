@@ -277,7 +277,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const root = path.resolve(
-    searchParams.get('root')?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd(),
+    /*turbopackIgnore: true*/ searchParams.get('root')?.trim() ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
   )
   const requestedSkill = searchParams.get('skill')?.trim().toLowerCase()
   const requestedCombo = searchParams.get('combo')?.trim().toLowerCase()
@@ -365,7 +367,9 @@ export async function POST(request: Request) {
   }
 
   const root = path.resolve(
-    body.root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd(),
+    /*turbopackIgnore: true*/ body.root?.trim() ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
   )
   const filePath = customCombosFilePath(root)
   let current: SkillCombo[] = []

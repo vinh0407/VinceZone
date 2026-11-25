@@ -1,11 +1,14 @@
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
+  extractSymbolsFromSource,
   findSymbolDefinitions,
   findSymbolReferences,
   indexWorkspaceSymbols,
+  renameSymbolAcrossWorkspace,
   searchWorkspaceSymbols,
 } from '@/lib/code-index'
-import { isLoopbackRequest } from '@/lib/local-guard'
+import { isLoopbackRequest, resolvePathInsideWorkspace } from '@/lib/local-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,6 +53,15 @@ export async function GET(request: Request) {
       return Response.json({ query: q, symbols })
     }
 
+    if (action === 'outline') {
+      const relPath = searchParams.get('path') || ''
+      if (!relPath) return Response.json({ path: '', symbols: [] })
+      const safePath = resolvePathInsideWorkspace(root, relPath)
+      const content = await readFile(safePath, 'utf8')
+      const symbols = extractSymbolsFromSource(relPath, content)
+      return Response.json({ path: relPath, symbols })
+    }
+
     const idx = await indexWorkspaceSymbols(root)
     return Response.json({
       fileCount: idx.fileCount,
@@ -60,6 +72,42 @@ export async function GET(request: Request) {
     return Response.json(
       { error: err instanceof Error ? err.message : 'Code index lookup failed.' },
       { status: 500 },
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  if (!isLoopbackRequest(request)) {
+    return Response.json({ error: 'Local workspace access required.' }, { status: 403 })
+  }
+
+  let body: { action?: string; root?: string; oldName?: string; newName?: string }
+  try {
+    body = (await request.json()) as typeof body
+  } catch {
+    return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
+  }
+
+  const root = path.resolve(
+    /*turbopackIgnore: true*/ body.root?.trim() ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
+  )
+
+  try {
+    if (body.action === 'rename') {
+      const result = await renameSymbolAcrossWorkspace(
+        root,
+        body.oldName || '',
+        body.newName || '',
+      )
+      return Response.json({ ok: true, ...result })
+    }
+    return Response.json({ error: `Unsupported action: ${body.action}` }, { status: 400 })
+  } catch (err) {
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Rename symbol failed.' },
+      { status: 400 },
     )
   }
 }

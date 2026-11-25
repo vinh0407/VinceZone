@@ -88,10 +88,12 @@ export function createTerminalSession(options?: { cwd?: string; title?: string }
   }
 
   let cwd = path.resolve(
-    options?.cwd?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd(),
+    /*turbopackIgnore: true*/ options?.cwd?.trim() ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
   )
   try {
-    if (!statSync(cwd).isDirectory()) cwd = process.cwd()
+    if (!statSync(/*turbopackIgnore: true*/ cwd).isDirectory()) cwd = process.cwd()
   } catch {
     cwd = process.cwd()
   }

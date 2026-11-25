@@ -11,6 +11,7 @@ import {
   Link2,
   Maximize2,
   MessageSquarePlus,
+  Minimize2,
   Plus,
   Search,
   Send,
@@ -24,6 +25,7 @@ import type { BridgeMessage } from '@/lib/agent-bridge'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
+import { estimateContextMeter } from '@/lib/project-rules'
 import { inferRoleId, ROLE_TERRITORIES } from '@/lib/vincezone-protocol'
 import type {
   Agent,
@@ -72,6 +74,7 @@ export function RightAiChatPanel({
   onNewThread,
   onSelectThread,
   onUndoTurn,
+  onCompactAgent,
   onToggleBridge,
   onRelayToAgent,
   onChangeAgentModel,
@@ -105,6 +108,7 @@ export function RightAiChatPanel({
   onNewThread?: () => void
   onSelectThread?: (threadId: string) => void
   onUndoTurn?: (agentId: string, messageId: string) => void
+  onCompactAgent?: (agentId: string) => void
   onToggleBridge?: () => void
   onRelayToAgent?: (fromAgentId: string, toAgentId: string, prompt: string) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -215,6 +219,11 @@ export function RightAiChatPanel({
       textareaRef.current?.focus()
     }
   }, [focusSeq])
+
+  const contextMeter = useMemo(
+    () => estimateContextMeter(agent?.messages ?? []),
+    [agent?.messages],
+  )
 
   if (!agent) {
     return (
@@ -879,10 +888,40 @@ export function RightAiChatPanel({
                   textareaRef.current?.focus()
                 }}
                 className="mini-button font-mono text-[11px]"
-                title="Mention @ROLE to route via Agent Bridge (e.g. @BE, @FE, @QA)"
+                title="Mention @errors, @git, @terminal, @url: or @ROLE"
               >
                 @
               </button>
+              <div
+                className="ml-1 flex items-center gap-1.5"
+                title={`Context window ước tính: ~${contextMeter.usedTokens.toLocaleString()} / ${contextMeter.maxTokens.toLocaleString()} tokens (${contextMeter.percent}%)`}
+              >
+                <div className="h-1.5 w-11 overflow-hidden rounded-full bg-[#262626]">
+                  <div
+                    className={`h-full transition-all ${
+                      contextMeter.level === 'high'
+                        ? 'bg-[#e06c75]'
+                        : contextMeter.level === 'medium'
+                          ? 'bg-[#c9a24d]'
+                          : 'bg-[#6b8e6b]'
+                    }`}
+                    style={{ width: `${Math.max(4, contextMeter.percent)}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[9.5px] text-[#8a8a8a]">
+                  {contextMeter.percent}%
+                </span>
+                {onCompactAgent && agent.messages.length >= 6 && (
+                  <button
+                    type="button"
+                    onClick={() => onCompactAgent(agent.id)}
+                    className="flex items-center gap-0.5 rounded border border-[#c9a24d]/35 bg-[#c9a24d]/10 px-1.5 py-0.5 text-[9.5px] text-[#e6cfa0] transition hover:bg-[#c9a24d]/20 hover:text-white"
+                    title="Nén các tin nhắn cũ thành tóm tắt để giải phóng context window"
+                  >
+                    <Minimize2 size={9} /> Compact
+                  </button>
+                )}
+              </div>
             </div>
             {agent.status === 'running' ? (
               <button

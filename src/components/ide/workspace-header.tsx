@@ -83,6 +83,8 @@ export function WorkspaceHeader({
   onOpenDiff,
   onOpenSettings,
   onOpenShortcuts,
+  onOpenWelcome,
+  onExportDiagnostics,
   onPreviewMail,
 }: {
   projects: ProjectTab[]
@@ -132,6 +134,8 @@ export function WorkspaceHeader({
   onOpenDiff: () => void
   onOpenSettings: () => void
   onOpenShortcuts?: () => void
+  onOpenWelcome?: () => void
+  onExportDiagnostics?: () => void
   onPreviewMail: () => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -315,12 +319,28 @@ export function WorkspaceHeader({
       id: 'help',
       label: 'Help',
       items: [
+        ...(onOpenWelcome
+          ? [
+              {
+                label: 'Welcome / Recent Projects',
+                onSelect: onOpenWelcome,
+              },
+            ]
+          : []),
         ...(onOpenShortcuts
           ? [
               {
                 label: 'Keyboard Shortcuts Cheatsheet',
                 shortcut: 'Ctrl+K Ctrl+S',
                 onSelect: onOpenShortcuts,
+              },
+            ]
+          : []),
+        ...(onExportDiagnostics
+          ? [
+              {
+                label: 'Export Diagnostic Logs…',
+                onSelect: onExportDiagnostics,
               },
             ]
           : []),

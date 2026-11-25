@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic'
 const MAX_BRIDGE_MESSAGES = 120
 
 function getBridgeFilePath(root?: string) {
-  const base = path.resolve(root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd())
-  return path.join(base, '.vincezone', 'agent-bridge.json')
+  const base = path.resolve(
+    /*turbopackIgnore: true*/ root?.trim() || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd(),
+  )
+  return path.join(/*turbopackIgnore: true*/ base, '.vincezone', 'agent-bridge.json')
 }
 
 async function readBridgeMessages(filePath: string): Promise<BridgeMessage[]> {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebugger } from '@/hooks/use-debugger'
 import { useGitStatus } from '@/hooks/use-git-status'
 import { useOrchestration } from '@/hooks/use-orchestration'
+import { useRecentWorkspaces } from '@/hooks/use-recent-workspaces'
 import { useToast } from '@/hooks/use-toast'
 import type { BridgeMessage } from '@/lib/agent-bridge'
 import {
@@ -13,7 +14,9 @@ import {
   getCaptainAgent,
   toggleViceCaptain,
 } from '@/lib/command-hierarchy'
+import { buildCompactedHistory } from '@/lib/context-compact'
 import type { DebugSnapshot } from '@/lib/debugger-runtime'
+import { buildDiagnosticsReport } from '@/lib/diagnostics-export'
 import {
   createEditRevision,
   findRevisionForIntent,
@@ -27,6 +30,7 @@ import {
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
 import { applyHunkDecisions } from '@/lib/hunk-diff'
+import { extractProjectRules } from '@/lib/project-rules'
 import { computeTurnUndoPlan } from '@/lib/turn-undo'
 import {
   getRoleBlueprint,
@@ -74,6 +78,7 @@ import type { SkillComboItem, SkillIndexItem } from './slash-command-popover'
 import { StatusBar, type EditorDiagnostic } from './status-bar'
 import { ToastStack } from './toast-stack'
 import { WebPreview } from './web-preview'
+import { WelcomeTab } from './welcome-tab'
 import {
   createSeedAgents,
   defaultAppSettings,
@@ -1724,6 +1729,8 @@ export function IDEWorkspace() {
       projectName: activeProject?.name ?? 'VinceZone Studio',
       workspaceRoot: activeProject?.rootPath,
       memoryNotes,
+      diagnostics,
+      terminalEntries,
       bridgeMessages,
       bridgeEnabled,
       providers,
@@ -2887,6 +2894,123 @@ export function IDEWorkspace() {
     [agents, pushToast, rightChatAgentId],
   )
 
+  const { recentWorkspaces, recordRecentWorkspace, removeRecentWorkspace } = useRecentWorkspaces()
+
+  useEffect(() => {
+    if (activeProject?.rootPath) {
+      recordRecentWorkspace(activeProject.name, activeProject.rootPath)
+    }
+  }, [activeProject?.name, activeProject?.rootPath, recordRecentWorkspace])
+
+  const detectedProjectRules = useMemo(
+    () => extractProjectRules(files).sources,
+    [files],
+  )
+
+  const handleCompactAgent = useCallback(
+    (agentId: string) => {
+      const target = sessionRef.current.agents.find((a) => a.id === agentId)
+      if (!target || target.messages.length < 6) return
+      const { summaryBlock, compactedCount } = buildCompactedHistory(target.messages, 6)
+      if (!summaryBlock || compactedCount <= 0) {
+        pushToast({ title: 'Context is already compact', variant: 'info' })
+        return
+      }
+      const tail = target.messages.slice(-6)
+      setAgents((current) =>
+        current.map((a) =>
+          a.id === agentId
+            ? {
+                ...a,
+                messages: [
+                  {
+                    id: uid(),
+                    role: 'tool' as const,
+                    text: `[Compacted ${compactedCount} earlier messages]\n${summaryBlock}`,
+                  },
+                  ...tail,
+                ],
+              }
+            : a,
+        ),
+      )
+      pushToast({
+        title: `Compacted ${compactedCount} earlier messages`,
+        detail: target.name,
+        variant: 'success',
+      })
+    },
+    [pushToast],
+  )
+
+  const handleRetryTask = useCallback(
+    (task: AgentTask) => {
+      const captain = getCaptainAgent(sessionRef.current.agents)
+      const sourceId = captain?.id || sessionRef.current.agents[0]?.id || task.assigneeId
+      setAgentTasks((current) =>
+        current.map((t) => (t.id === task.id ? { ...t, status: 'running' } : t)),
+      )
+      delegateAgent(sourceId, task.assigneeId, task.description || task.title)
+      pushToast({ title: 'Retrying sub-task', detail: task.title, variant: 'info' })
+    },
+    [delegateAgent, pushToast],
+  )
+
+  const handleUpdateTaskStatus = useCallback(
+    (taskId: string, status: AgentTask['status']) => {
+      setAgentTasks((current) =>
+        current.map((t) => (t.id === taskId ? { ...t, status } : t)),
+      )
+    },
+    [],
+  )
+
+  const handleWorkspaceFilesUpdated = useCallback(
+    (updates: Array<{ path: string; content: string }>, summary: string) => {
+      if (updates.length > 0) {
+        const updateMap = new Map(updates.map((u) => [u.path, u.content]))
+        setFiles((current) => {
+          const next = current.map((f) => {
+            const replacement = updateMap.get(f.path)
+            return replacement !== undefined ? { ...f, content: replacement, dirty: false } : f
+          })
+          filesRef.current = next
+          return next
+        })
+      }
+      pushToast({ title: 'Cross-file rename complete', detail: summary, variant: 'success' })
+    },
+    [pushToast],
+  )
+
+  const handleExportDiagnostics = useCallback(() => {
+    const report = buildDiagnosticsReport({
+      projectName: activeProject?.name ?? 'VinceZone Studio',
+      rootPath: activeProject?.rootPath,
+      files: filesRef.current,
+      agents: sessionRef.current.agents,
+      providers,
+      appSettings,
+      diagnostics,
+      terminalEntries,
+      gitBranch: gitSummary.branch,
+    })
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `vincezone-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    pushToast({
+      title: 'Exported diagnostic logs',
+      detail: 'API keys & tokens were redacted automatically.',
+      variant: 'success',
+    })
+  }, [activeProject?.name, activeProject?.rootPath, appSettings, diagnostics, gitSummary.branch, providers, pushToast, terminalEntries])
+
   const dirtyCount = files.filter((file) => file.dirty).length
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
   const activeAgentCount = agents.filter(
@@ -2986,6 +3110,12 @@ export function IDEWorkspace() {
         onOpenDiff={() => setDiffModalState({ open: true })}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenShortcuts={() => setShortcutsOpen(true)}
+        onOpenWelcome={() => {
+          setWorkspaceMode('ide')
+          setOpenPaths([])
+          setActivePath('')
+        }}
+        onExportDiagnostics={handleExportDiagnostics}
         onPreviewMail={() => {
           setWorkspaceMode('agents')
           window.setTimeout(() => {
@@ -3132,6 +3262,28 @@ export function IDEWorkspace() {
                 onSendSelectionToChat={handleSendSelectionToChat}
                 onDiagnosticsChange={setDiagnostics}
                 onCursorChange={setCursor}
+                onWorkspaceFilesUpdated={handleWorkspaceFilesUpdated}
+                emptyState={
+                  <WelcomeTab
+                    projectName={activeProject?.name ?? 'VinceZone Studio'}
+                    rootPath={activeProject?.rootPath}
+                    recentWorkspaces={recentWorkspaces}
+                    providerConnected={Boolean(
+                      savedProvider.apiKey ||
+                        /localhost|127\.0\.0\.1|\[::1\]/i.test(savedProvider.baseUrl || ''),
+                    )}
+                    providerLabel={`${savedProvider.name} · ${savedProvider.model}`}
+                    rulesDetected={detectedProjectRules}
+                    onOpenFolder={() => void handleOpenLocalDirectory()}
+                    onOpenRecentPath={(root) => void loadLocalDirectory(root, false)}
+                    onRemoveRecentPath={removeRecentWorkspace}
+                    onNewFile={() => void createNewFile()}
+                    onOpenAgents={() => setWorkspaceMode('agents')}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                    onOpenShortcuts={() => setShortcutsOpen(true)}
+                    onExportDiagnostics={handleExportDiagnostics}
+                  />
+                }
               />
 
               {terminalOpen && !terminalMaximized && (
@@ -3229,6 +3381,7 @@ export function IDEWorkspace() {
                     onNewThread={handleNewChatThread}
                     onSelectThread={handleSelectChatThread}
                     onUndoTurn={handleUndoAgentTurn}
+                    onCompactAgent={handleCompactAgent}
                     onToggleBridge={() => setBridgeEnabled((prev) => !prev)}
                     onRelayToAgent={(fromId, toId, prompt) => delegateAgent(fromId, toId, prompt)}
                     onChangeAgentModel={handleChangeAgentModel}
@@ -3330,6 +3483,9 @@ export function IDEWorkspace() {
             onNewThread={handleNewChatThread}
             onSelectThread={handleSelectChatThread}
             onUndoTurn={handleUndoAgentTurn}
+            onCompactAgent={handleCompactAgent}
+            onRetryTask={handleRetryTask}
+            onUpdateTaskStatus={handleUpdateTaskStatus}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

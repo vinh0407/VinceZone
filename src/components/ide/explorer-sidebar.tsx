@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildFileTree, searchWorkspaceFiles, type FileTreeItem } from '@/lib/file-tree'
+import { extractSymbolsFromSource } from '@/lib/symbol-outline'
 import type {
   Agent,
   AgentTask,
@@ -161,6 +162,19 @@ export function ExplorerSidebar({
   } | null>(null)
   const [newBranchOpen, setNewBranchOpen] = useState(false)
   const [newBranchName, setNewBranchName] = useState('feat/')
+  const [outlineOpen, setOutlineOpen] = useState(true)
+
+  const activeFileObj = useMemo(
+    () => files.find((f) => f.path === activePath),
+    [files, activePath],
+  )
+  const outlineSymbols = useMemo(
+    () =>
+      activeFileObj && activeFileObj.content
+        ? extractSymbolsFromSource(activeFileObj.path, activeFileObj.content)
+        : [],
+    [activeFileObj],
+  )
 
   // 2A: Disk Search API across all 5,000 files (including lazy files!) when workspace is on disk
   useEffect(() => {
@@ -566,26 +580,70 @@ export function ExplorerSidebar({
       </div>
 
       {sidePanel === 'explorer' && (
-        <div className="min-h-0 flex-1 overflow-y-auto border-y border-[#2b2b2b] py-1">
-          <button
-            onClick={() => onToggleGroup('__root')}
-            className="flex w-full items-center gap-1 px-2 py-1 text-left text-[11px] font-bold uppercase tracking-wide text-[#cccccc] hover:bg-[#2a2d2e]"
-            title={rootPath || projectName}
-          >
-            {collapsedGroups.__root ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-            <span className="truncate">{projectName}</span>
-            {rootPath && (
-              <span className="ml-auto rounded bg-[#262626] px-1 text-[9px] font-normal lowercase text-[#a3a3a3]">
-                disk
+        <div className="flex min-h-0 flex-1 flex-col border-y border-[#2b2b2b]">
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+            <button
+              onClick={() => onToggleGroup('__root')}
+              className="flex w-full items-center gap-1 px-2 py-1 text-left text-[11px] font-bold uppercase tracking-wide text-[#cccccc] hover:bg-[#2a2d2e]"
+              title={rootPath || projectName}
+            >
+              {collapsedGroups.__root ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              <span className="truncate">{projectName}</span>
+              {rootPath && (
+                <span className="ml-auto rounded bg-[#262626] px-1 text-[9px] font-normal lowercase text-[#a3a3a3]">
+                  disk
+                </span>
+              )}
+            </button>
+            {!collapsedGroups.__root &&
+              (tree.length > 0 ? (
+                tree.map((item) => renderTreeItem(item, 0))
+              ) : (
+                <p className="px-3 py-2 text-[11px] text-[#858585]">No files loaded.</p>
+              ))}
+          </div>
+          <div className="shrink-0 border-t border-[#2b2b2b] bg-[#161616]">
+            <button
+              type="button"
+              onClick={() => setOutlineOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#b5b5b5] hover:bg-[#232323] hover:text-white"
+            >
+              <span className="flex items-center gap-1">
+                {outlineOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Outline
               </span>
+              <span className="rounded bg-[#262626] px-1 font-mono text-[9px] text-[#9a9a9a]">
+                {outlineSymbols.length}
+              </span>
+            </button>
+            {outlineOpen && (
+              <div className="max-h-40 overflow-y-auto px-1 pb-1.5">
+                {outlineSymbols.length === 0 ? (
+                  <p className="px-2 py-1 text-[10px] text-[#6e6e6e]">
+                    {activeFileObj ? 'No symbols detected in file.' : 'Open a file to inspect Outline.'}
+                  </p>
+                ) : (
+                  outlineSymbols.slice(0, 80).map((sym) => (
+                    <button
+                      key={`${sym.name}:${sym.line}`}
+                      type="button"
+                      onClick={() => onOpenFile(sym.path, sym.line)}
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-left text-[10.5px] text-[#cccccc] hover:bg-[#2a2d2e] hover:text-white"
+                      title={sym.signature}
+                    >
+                      <span className="shrink-0 rounded border border-[#c9a24d]/30 bg-[#c9a24d]/10 px-1 font-mono text-[8.5px] uppercase text-[#e6cfa0]">
+                        {sym.kind.slice(0, 3)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-mono">{sym.name}</span>
+                      <span className="shrink-0 font-mono text-[9px] text-[#737373]">
+                        :{sym.line}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
             )}
-          </button>
-          {!collapsedGroups.__root &&
-            (tree.length > 0 ? (
-              tree.map((item) => renderTreeItem(item, 0))
-            ) : (
-              <p className="px-3 py-2 text-[11px] text-[#858585]">No files loaded.</p>
-            ))}
+          </div>
         </div>
       )}
 

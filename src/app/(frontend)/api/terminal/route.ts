@@ -30,9 +30,9 @@ export async function POST(request: Request) {
     return Response.json({ error: 'A valid command is required.' }, { status: 400 })
   }
 
-  const cwd = path.resolve(body.cwd?.trim() || process.cwd())
+  const cwd = path.resolve(/*turbopackIgnore: true*/ body.cwd?.trim() || process.cwd())
   try {
-    const info = await stat(cwd)
+    const info = await stat(/*turbopackIgnore: true*/ cwd)
     if (!info.isDirectory()) {
       return Response.json({ error: 'Working directory is invalid.' }, { status: 400 })
     }

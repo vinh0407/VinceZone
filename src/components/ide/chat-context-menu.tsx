@@ -205,34 +205,57 @@ export function ChatContextMenu({
       </div>
 
       {category === 'root' && (
-        <div className="space-y-0.5">
-          {rootItems.map((item) => {
-            const Icon = item.icon
-            return (
+        <div className="space-y-1">
+          <div className="flex flex-wrap gap-1 border-b border-[#262626] px-1 pb-1.5">
+            {[
+              { token: '@errors', label: '@errors', title: 'Đính kèm lỗi IDE Problems hiện tại' },
+              { token: '@git', label: '@git', title: 'Đính kèm git status & commits mới nhất' },
+              { token: '@terminal', label: '@terminal', title: 'Đính kèm output Terminal gần nhất' },
+              { token: '@url:https://', label: '@url:', title: 'Tải nội dung tài liệu từ URL' },
+            ].map((chip) => (
               <button
-                key={item.id}
+                key={chip.token}
                 type="button"
+                title={chip.title}
                 onClick={() => {
-                  setCategory(item.id)
-                  setFilter('')
+                  onInsert(chip.token)
+                  onClose()
                 }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[12px] text-[#e5e5e5] transition hover:bg-[#2a2a2a] hover:text-white"
+                className="rounded border border-[#c9a24d]/35 bg-[#c9a24d]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#e6cfa0] transition hover:border-[#c9a24d]/70 hover:bg-[#c9a24d]/20 hover:text-white"
               >
-                {item.id === 'mentions' ? (
-                  <span className="grid size-4 place-items-center font-mono text-[13px] font-medium text-[#b5b5b5]">
-                    @
-                  </span>
-                ) : item.id === 'actions' ? (
-                  <span className="grid size-4 place-items-center rounded border border-[#737373] font-mono text-[10px] font-semibold text-[#d4d4d4]">
-                    /
-                  </span>
-                ) : (
-                  <Icon size={14} className="shrink-0 text-[#b5b5b5]" />
-                )}
-                <span>{item.label}</span>
+                {chip.label}
               </button>
-            )
-          })}
+            ))}
+          </div>
+          <div className="space-y-0.5">
+            {rootItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setCategory(item.id)
+                    setFilter('')
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[12px] text-[#e5e5e5] transition hover:bg-[#2a2a2a] hover:text-white"
+                >
+                  {item.id === 'mentions' ? (
+                    <span className="grid size-4 place-items-center font-mono text-[13px] font-medium text-[#b5b5b5]">
+                      @
+                    </span>
+                  ) : item.id === 'actions' ? (
+                    <span className="grid size-4 place-items-center rounded border border-[#737373] font-mono text-[10px] font-semibold text-[#d4d4d4]">
+                      /
+                    </span>
+                  ) : (
+                    <Icon size={14} className="shrink-0 text-[#b5b5b5]" />
+                  )}
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -365,18 +388,18 @@ export function ChatContextMenu({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && browserUrl.trim()) {
                   e.preventDefault()
-                  onInsert(`@browser:${browserUrl.trim()}`)
+                  onInsert(`@url:${browserUrl.trim()}`)
                   onClose()
                 }
               }}
-              placeholder="https://example.com or http://localhost:3000"
+              placeholder="https://example.com/docs"
               className="min-w-0 flex-1 rounded border border-[#333333] bg-[#101010] px-2 py-1 text-[10px] text-white outline-none focus:border-[#737373]"
             />
             <button
               type="button"
               disabled={!browserUrl.trim()}
               onClick={() => {
-                onInsert(`@browser:${browserUrl.trim()}`)
+                onInsert(`@url:${browserUrl.trim()}`)
                 onClose()
               }}
               className="rounded bg-[#e5e5e5] px-2.5 py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-30"

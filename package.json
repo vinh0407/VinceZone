@@ -13,6 +13,7 @@
     "build:installer": "pnpm build:exe && node electron/build-installer.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "npx playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

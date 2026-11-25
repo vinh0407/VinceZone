@@ -279,7 +279,11 @@ export async function startDebugSession(options: {
 }): Promise<DebugSnapshot> {
   stopDebugSession()
 
-  const cwd = path.resolve(options.cwd || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd())
+  const cwd = path.resolve(
+    /*turbopackIgnore: true*/ options.cwd ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
+  )
   const absTarget = resolvePathInsideWorkspace(cwd, options.targetFile)
   const lower = absTarget.toLowerCase()
 
@@ -638,7 +642,7 @@ async function startPythonDebugSession(options: {
   breakpoints: DebugBreakpoint[]
 }): Promise<DebugSnapshot> {
   const pyBin = resolvePythonExecutable()
-  const proc = spawn(pyBin, ['-u', '-m', 'pdb', options.absTarget], {
+  const proc = spawn(/*turbopackIgnore: true*/ pyBin, ['-u', '-m', 'pdb', options.absTarget], {
     cwd: options.cwd,
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -727,7 +731,11 @@ export async function attachNodeDebugSession(options: {
   wsUrl?: string
 }): Promise<DebugSnapshot> {
   stopDebugSession()
-  const cwd = path.resolve(options.cwd || process.env.VINCEZONE_WORKSPACE_ROOT || process.cwd())
+  const cwd = path.resolve(
+    /*turbopackIgnore: true*/ options.cwd ||
+      process.env.VINCEZONE_WORKSPACE_ROOT ||
+      process.cwd(),
+  )
   let wsUrl = options.wsUrl?.trim() || ''
   if (!wsUrl) {
     const port = Math.min(65535, Math.max(1024, Number(options.port) || 9229))

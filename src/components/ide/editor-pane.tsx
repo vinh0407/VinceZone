@@ -17,9 +17,10 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeDiffHunks } from '@/lib/hunk-diff'
 import { extractProposedPatches } from '@/lib/orchestrator'
+import { extractSymbolsFromSource } from '@/lib/symbol-outline'
 import type { AppTheme, InlineHunkReview, ProviderConfig, WorkspaceFile } from './agent-types'
 import { MarkdownReply } from './markdown-reply'
 import type { EditorDiagnostic } from './status-bar'
@@ -113,6 +114,8 @@ export function EditorPane({
   onSendSelectionToChat,
   onDiagnosticsChange,
   onCursorChange,
+  onWorkspaceFilesUpdated,
+  emptyState,
 }: {
   projectName: string
   workspaceRoot?: string
@@ -159,6 +162,11 @@ export function EditorPane({
   }) => void
   onDiagnosticsChange?: (diagnostics: EditorDiagnostic[]) => void
   onCursorChange: (pos: { line: number; column: number }) => void
+  onWorkspaceFilesUpdated?: (
+    updates: Array<{ path: string; content: string }>,
+    summary: string,
+  ) => void
+  emptyState?: ReactNode
 }) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
@@ -217,6 +225,89 @@ export function EditorPane({
     symbol: string
     items: Array<{ path: string; line: number; preview: string; badge?: string }>
   } | null>(null)
+
+  // Ctrl+Shift+O: Go to Symbol in File overlay + F2: Cross-File Rename bar
+  const [symbolPickerOpen, setSymbolPickerOpen] = useState(false)
+  const [symbolPickerQuery, setSymbolPickerQuery] = useState('')
+  const [renameBar, setRenameBar] = useState<{
+    oldName: string
+    newName: string
+    busy: boolean
+    error: string
+  } | null>(null)
+
+  const activeFileSymbols = useMemo(
+    () =>
+      activeFile && activeFile.content
+        ? extractSymbolsFromSource(activeFile.path, activeFile.content)
+        : [],
+    [activeFile],
+  )
+  const filteredFileSymbols = useMemo(() => {
+    const q = symbolPickerQuery.trim().toLowerCase()
+    if (!q) return activeFileSymbols
+    return activeFileSymbols.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.kind.toLowerCase().includes(q),
+    )
+  }, [activeFileSymbols, symbolPickerQuery])
+
+  const executeCrossFileRename = async () => {
+    if (!renameBar || renameBar.busy) return
+    const nextName = renameBar.newName.trim()
+    if (!nextName || nextName === renameBar.oldName) {
+      setRenameBar(null)
+      return
+    }
+    setRenameBar((prev) => (prev ? { ...prev, busy: true, error: '' } : null))
+    try {
+      if (workspaceRoot) {
+        const res = await fetch('/api/code-index', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'rename',
+            root: workspaceRoot,
+            oldName: renameBar.oldName,
+            newName: nextName,
+          }),
+        })
+        const data = (await res.json()) as {
+          ok?: boolean
+          filesUpdated?: number
+          occurrences?: number
+          updatedFiles?: Array<{ path: string; content: string }>
+          error?: string
+        }
+        if (!res.ok || !data.ok) {
+          setRenameBar((prev) =>
+            prev ? { ...prev, busy: false, error: data.error || 'Rename failed.' } : null,
+          )
+          return
+        }
+        onWorkspaceFilesUpdated?.(
+          data.updatedFiles ?? [],
+          `Renamed "${renameBar.oldName}" → "${nextName}" (${data.occurrences ?? 0} occurrences across ${data.filesUpdated ?? 0} files)`,
+        )
+        setRenameBar(null)
+      } else if (activeFile) {
+        const escaped = renameBar.oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const regex = new RegExp(`\\b${escaped}\\b`, 'g')
+        const updated = activeFile.content.replace(regex, nextName)
+        onUpdateFile(updated)
+        setRenameBar(null)
+      }
+    } catch (err) {
+      setRenameBar((prev) =>
+        prev
+          ? {
+              ...prev,
+              busy: false,
+              error: err instanceof Error ? err.message : 'Rename failed.',
+            }
+          : null,
+      )
+    }
+  }
 
   // P1-4: Per-Hunk Inline Diff Review state
   const [activeHunkIndex, setActiveHunkIndex] = useState(0)
@@ -407,6 +498,32 @@ export function EditorPane({
       contextMenuOrder: 1.2,
       run: () => {
         void runCrossFileLookup('references')
+      },
+    })
+    editor.addAction({
+      id: 'vincezone.goToSymbolInFile',
+      label: 'VinceZone: Go to Symbol in File (Ctrl+Shift+O)',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyO],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.3,
+      run: () => {
+        setSymbolPickerQuery('')
+        setSymbolPickerOpen(true)
+      },
+    })
+    editor.addAction({
+      id: 'vincezone.crossFileRenameSymbol',
+      label: 'VinceZone: Rename Symbol Across Workspace (F2)',
+      keybindings: [monaco.KeyCode.F2],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.1,
+      run: () => {
+        const model = editor.getModel()
+        const pos = editor.getPosition()
+        if (!model || !pos) return
+        const word = model.getWordAtPosition(pos)?.word
+        if (!word) return
+        setRenameBar({ oldName: word, newName: word, busy: false, error: '' })
       },
     })
     editor.onDidChangeCursorPosition((event) => {
@@ -1175,6 +1292,112 @@ export function EditorPane({
         )
       })()}
 
+      {/* Ctrl+Shift+O: Go to Symbol in File Overlay */}
+      {symbolPickerOpen && activeFile && (
+        <div className="shrink-0 border-b border-[#c9a24d]/35 bg-[#151515] px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Search size={12} className="shrink-0 text-[#ddb968]" />
+            <input
+              autoFocus
+              value={symbolPickerQuery}
+              onChange={(e) => setSymbolPickerQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setSymbolPickerOpen(false)
+                if (e.key === 'Enter' && filteredFileSymbols[0]) {
+                  const target = filteredFileSymbols[0]
+                  editorRef.current?.revealLineInCenter(target.line)
+                  editorRef.current?.setPosition({ lineNumber: target.line, column: target.column })
+                  editorRef.current?.focus()
+                  setSymbolPickerOpen(false)
+                }
+              }}
+              placeholder={`Go to symbol in ${activeFile.name} (Ctrl+Shift+O)…`}
+              className="min-w-0 flex-1 rounded border border-[#333333] bg-[#101010] px-2 py-1 text-[11px] text-white outline-none focus:border-[#c9a24d]"
+            />
+            <button
+              type="button"
+              onClick={() => setSymbolPickerOpen(false)}
+              className="mini-button"
+              title="Close (Esc)"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="mt-1.5 max-h-40 space-y-0.5 overflow-y-auto">
+            {filteredFileSymbols.length === 0 ? (
+              <p className="px-2 py-1 text-[10.5px] text-[#7a7a7a]">No matching symbols in file.</p>
+            ) : (
+              filteredFileSymbols.slice(0, 30).map((sym) => (
+                <button
+                  key={`${sym.name}:${sym.line}`}
+                  type="button"
+                  onClick={() => {
+                    editorRef.current?.revealLineInCenter(sym.line)
+                    editorRef.current?.setPosition({ lineNumber: sym.line, column: sym.column })
+                    editorRef.current?.focus()
+                    setSymbolPickerOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] text-[#d4d4d4] hover:bg-[#262626] hover:text-white"
+                >
+                  <span className="shrink-0 rounded border border-[#c9a24d]/30 bg-[#c9a24d]/10 px-1 font-mono text-[9px] uppercase text-[#e6cfa0]">
+                    {sym.kind}
+                  </span>
+                  <span className="font-mono font-semibold text-white">{sym.name}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[#7a7a7a]">
+                    {sym.signature}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-[#9a9a9a]">:{sym.line}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* F2: Cross-File Rename Symbol Bar */}
+      {renameBar && (
+        <div className="shrink-0 border-b border-[#c9a24d]/40 bg-[#171510] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="font-semibold text-[#f0d394]">Rename Symbol (F2):</span>
+            <code className="rounded bg-[#262626] px-1.5 py-0.5 font-mono text-[10.5px] text-[#cccccc]">
+              {renameBar.oldName}
+            </code>
+            <span className="text-[#858585]">→</span>
+            <input
+              autoFocus
+              value={renameBar.newName}
+              onChange={(e) =>
+                setRenameBar((prev) => (prev ? { ...prev, newName: e.target.value, error: '' } : null))
+              }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void executeCrossFileRename()
+                if (e.key === 'Escape') setRenameBar(null)
+              }}
+              className="min-w-[160px] flex-1 rounded border border-[#c9a24d]/50 bg-[#111111] px-2 py-1 font-mono text-[11px] text-white outline-none focus:border-[#ddb968]"
+            />
+            <button
+              type="button"
+              disabled={renameBar.busy || !renameBar.newName.trim()}
+              onClick={() => void executeCrossFileRename()}
+              className="rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] px-2.5 py-1 text-[10.5px] font-semibold text-[#111111] hover:from-[#e0bc6c] hover:to-[#bc9542] disabled:opacity-40"
+            >
+              {renameBar.busy ? 'Renaming…' : 'Rename Across Workspace'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRenameBar(null)}
+              className="mini-button"
+              title="Cancel (Esc)"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          {renameBar.error && (
+            <p className="mt-1 text-[10px] text-[#f48771]">{renameBar.error}</p>
+          )}
+        </div>
+      )}
+
       {/* P1-3: Cross-File LSP Definitions / References Panel (F12 / Shift+F12) */}
       {lspOverlay && (
         <div className="shrink-0 border-b border-[#3a3a3a] bg-[#151515] px-3 py-2">
@@ -1360,6 +1583,8 @@ export function EditorPane({
                 tabSize: 2,
               }}
             />
+          ) : emptyState ? (
+            <div className="h-full overflow-y-auto">{emptyState}</div>
           ) : (
             <div className="grid h-full place-items-center text-[12px] text-[#858585]">
               Press Ctrl+P to Quick Open a file or Ctrl+K for Inline AI Edit.
