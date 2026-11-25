@@ -12,7 +12,16 @@ import {
   Square,
   Tablet,
 } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type { WorkspaceFile } from '@/components/ide/agent-types'
+import {
+  makePreviewProjectKey,
+  normalizePreviewUrl,
+  resolveInitialPreviewUrl,
+  saveProjectPreviewUrl,
+} from '@/lib/web-preview-store'
+
+export { normalizePreviewUrl }
 
 type ElectronWebviewElement = HTMLElement & {
   src: string
@@ -24,20 +33,6 @@ type ElectronWebviewElement = HTMLElement & {
   loadURL: (url: string) => Promise<void>
 }
 
-export function normalizePreviewUrl(raw: string): string {
-  const trimmed = raw.trim()
-  if (!trimmed) return 'http://localhost:3000'
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  if (/^:\d+/.test(trimmed)) return `http://localhost${trimmed}`
-  if (/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(trimmed)) {
-    return `http://${trimmed}`
-  }
-  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(trimmed)) {
-    return `https://${trimmed}`
-  }
-  return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`
-}
-
 function isLocalUrl(url: string) {
   return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(url)
 }
@@ -45,12 +40,21 @@ function isLocalUrl(url: string) {
 export function WebPreview({
   projectName,
   rootPath,
+  files,
 }: {
   projectName: string
   rootPath?: string
+  files?: WorkspaceFile[]
 }) {
-  const [urlInput, setUrlInput] = useState('http://localhost:3000')
-  const [activeUrl, setActiveUrl] = useState('http://localhost:3000')
+  const projectKey = makePreviewProjectKey(projectName, rootPath)
+  const initialResolvedRef = useRef<ReturnType<typeof resolveInitialPreviewUrl> | null>(null)
+  if (!initialResolvedRef.current) {
+    initialResolvedRef.current = resolveInitialPreviewUrl({ projectName, rootPath, files })
+  }
+
+  const [urlInput, setUrlInput] = useState(initialResolvedRef.current.url)
+  const [activeUrl, setActiveUrl] = useState(initialResolvedRef.current.url)
+  const [recentUrls, setRecentUrls] = useState<string[]>(initialResolvedRef.current.recentUrls)
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const [reloadKey, setReloadKey] = useState(0)
   const [useWebview, setUseWebview] = useState(false)
@@ -62,19 +66,71 @@ export function WebPreview({
   const [serverStarting, setServerStarting] = useState(false)
   const [serverStatusText, setServerStatusText] = useState('')
   const webviewRef = useRef<ElectronWebviewElement | null>(null)
-  const initialWebviewSrcRef = useRef('http://localhost:3000')
+  const initialWebviewSrcRef = useRef(initialResolvedRef.current.url)
+  const lastProjectKeyRef = useRef(projectKey)
+  const activeUrlRef = useRef(activeUrl)
+  activeUrlRef.current = activeUrl
+  const hasSavedUrlRef = useRef(initialResolvedRef.current.hasSavedForProject)
+  const projectMetaRef = useRef({ projectName, rootPath })
+  projectMetaRef.current = { projectName, rootPath }
 
+  const persistCurrentUrl = useCallback((url: string) => {
+    hasSavedUrlRef.current = true
+    const nextRecent = saveProjectPreviewUrl({
+      projectName: projectMetaRef.current.projectName,
+      rootPath: projectMetaRef.current.rootPath,
+      url,
+    })
+    setRecentUrls(nextRecent)
+  }, [])
+
+  // Sync URL cleanly when switching to a different project
+  useEffect(() => {
+    if (lastProjectKeyRef.current === projectKey) return
+    lastProjectKeyRef.current = projectKey
+    const resolved = resolveInitialPreviewUrl({ projectName, rootPath, files })
+    hasSavedUrlRef.current = resolved.hasSavedForProject
+    setRecentUrls(resolved.recentUrls)
+    setUrlInput(resolved.url)
+    setActiveUrl(resolved.url)
+    initialWebviewSrcRef.current = resolved.url
+    setLoadError('')
+    if (useWebview && webviewRef.current) {
+      try {
+        void webviewRef.current.loadURL(resolved.url)
+      } catch {
+        setReloadKey((k) => k + 1)
+      }
+    }
+  }, [files, projectKey, projectName, rootPath, useWebview])
+
+  // Check if a background dev server is already running; never overwrite a URL the user chose
   useEffect(() => {
     void fetch('/api/runner', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { running?: boolean; url?: string; command?: string } | null) => {
         if (data?.running) {
           setServerRunning(true)
-          if (data.url) setServerStatusText(data.command || data.url)
+          if (data.url) {
+            setServerStatusText(data.command || data.url)
+            if (!hasSavedUrlRef.current) {
+              const normalized = normalizePreviewUrl(data.url)
+              setUrlInput(normalized)
+              setActiveUrl(normalized)
+              initialWebviewSrcRef.current = normalized
+              if (useWebview && webviewRef.current) {
+                try {
+                  void webviewRef.current.loadURL(normalized)
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
         }
       })
       .catch(() => {})
-  }, [])
+  }, [useWebview])
 
   useEffect(() => {
     const desktop = window.vincezoneDesktop as
@@ -106,9 +162,11 @@ export function WebPreview({
       syncNav()
     }
     const onNavigate = (event: Event & { url?: string }) => {
-      if (event.url) {
+      if (event.url && event.url !== 'about:blank') {
         setUrlInput(event.url)
         setActiveUrl(event.url)
+        initialWebviewSrcRef.current = event.url
+        persistCurrentUrl(event.url)
       }
       syncNav()
     }
@@ -132,12 +190,14 @@ export function WebPreview({
       el.removeEventListener('did-navigate-in-page', onNavigate as EventListener)
       el.removeEventListener('did-fail-load', onFail as EventListener)
     }
-  }, [useWebview])
+  }, [persistCurrentUrl, useWebview])
 
   const navigate = (customTarget?: string) => {
-    const normalized = normalizePreviewUrl(customTarget ?? urlInput)
+    const normalized = normalizePreviewUrl(customTarget ?? urlInput, activeUrlRef.current)
     setUrlInput(normalized)
     setActiveUrl(normalized)
+    initialWebviewSrcRef.current = normalized
+    persistCurrentUrl(normalized)
     setLoadError('')
     if (useWebview && webviewRef.current) {
       try {
@@ -225,7 +285,7 @@ export function WebPreview({
   const showIframeHint = !useWebview && !isLocalUrl(activeUrl)
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-[#141414]">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#141414]">
       <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-[#2b2b2b] bg-[#181818] px-3">
         <div className="flex items-center gap-2">
           <Monitor size={14} className="text-[#e5e5e5]" />
@@ -259,14 +319,20 @@ export function WebPreview({
           <label className="flex min-w-0 flex-1 items-center gap-2 rounded border border-[#333333] bg-[#121212] px-2.5 py-1 focus-within:border-[#737373]">
             <Globe size={12} className="shrink-0 text-[#858585]" />
             <input
+              list="vincezone-preview-recent-urls"
               value={urlInput}
               onChange={(event) => setUrlInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') navigate()
               }}
               className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-[#e5e5e5] outline-none"
-              placeholder="http://localhost:3000 or https://youtube.com"
+              placeholder="http://localhost:5173, :8080, or any URL"
             />
+            <datalist id="vincezone-preview-recent-urls">
+              {recentUrls.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
           </label>
           <button
             onClick={handleReload}

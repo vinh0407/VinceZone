@@ -147,6 +147,10 @@ export function IDEWorkspace() {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [agentViews, setAgentViews] = useState<Record<string, AgentView>>({})
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('ide')
+  const [hasVisitedWebPreview, setHasVisitedWebPreview] = useState(false)
+  useEffect(() => {
+    if (workspaceMode === 'web') setHasVisitedWebPreview(true)
+  }, [workspaceMode])
   const [sidePanel, setSidePanel] = useState<SidePanel>('explorer')
   const [rightPanelMode, setRightPanelMode] = useState<'chat' | 'phone' | null>('chat')
   const rightChatOpen = rightPanelMode === 'chat'
@@ -3280,7 +3284,8 @@ export function IDEWorkspace() {
           onOpenSettings={() => setSettingsOpen(true)}
         />
 
-        {workspaceMode === 'ide' ? (
+        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          {workspaceMode === 'ide' ? (
           <>
             {explorerOpen && (
               <>
@@ -3674,12 +3679,25 @@ export function IDEWorkspace() {
             activeFile={activeFile}
             onSendLogcatToAi={handleSendLogcatToAi}
           />
-        ) : (
-          <WebPreview
-            projectName={activeProject?.name ?? 'VinceZone Studio'}
-            rootPath={activeProject?.rootPath}
-          />
-        )}
+        ) : null}
+
+          {hasVisitedWebPreview && (
+            <div
+              className={
+                workspaceMode === 'web'
+                  ? 'flex min-h-0 min-w-0 flex-1 flex-col'
+                  : 'pointer-events-none invisible absolute inset-0 -z-10 flex flex-col opacity-0'
+              }
+              aria-hidden={workspaceMode !== 'web'}
+            >
+              <WebPreview
+                projectName={activeProject?.name ?? 'VinceZone Studio'}
+                rootPath={activeProject?.rootPath}
+                files={files}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <StatusBar
