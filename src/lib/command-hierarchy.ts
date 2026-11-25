@@ -89,3 +89,24 @@ export function buildCommandOrder<T extends RankedAgentLike>(agents: T[]): strin
     ...rest.map((a) => a.id),
   ]
 }
+
+export function findPmAgent<T extends RankedAgentLike>(agents: T[]): T | null {
+  return agents.find((a) => a.roleId === 'pm' || a.id === 'pm') ?? null
+}
+
+/**
+ * In `focus1` (1:6 PM) mode, @PM is ALWAYS the sole Team Captain (Đội trưởng)
+ * and sits in the large left panel.
+ */
+export function enforcePmCaptainInFocus1<T extends RankedAgentLike>(
+  agents: T[],
+  layout: string,
+): T[] {
+  if (layout !== 'focus1') return agents
+  const pm = findPmAgent(agents)
+  if (!pm) return agents
+  if (pm.commandRank === 'captain' && agents.filter((a) => a.commandRank === 'captain').length === 1) {
+    return agents
+  }
+  return assignCaptain(agents, pm.id)
+}

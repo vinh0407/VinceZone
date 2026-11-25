@@ -31,6 +31,7 @@ import {
   rollbackPatchInFiles,
 } from '@/lib/file-tree'
 import { applyHunkDecisions } from '@/lib/hunk-diff'
+import { analyzeProjectAndRecruitTeam } from '@/lib/pm-team-recruiter'
 import { extractProjectRules } from '@/lib/project-rules'
 import { computeTurnUndoPlan } from '@/lib/turn-undo'
 import {
@@ -1643,6 +1644,65 @@ export function IDEWorkspace() {
     setBridgeMessages((current) => [...current.slice(-119), msg])
   }, [])
 
+  const handleRecruitTeam = useCallback(
+    (instruction = 'Phân tích dự án và tuyển nhóm thành viên phù hợp') => {
+      const projectLabel = activeProject?.name ?? 'VinceZone Studio'
+      const result = analyzeProjectAndRecruitTeam({
+        projectName: projectLabel,
+        files: filesRef.current,
+        instruction,
+        existingAgents: sessionRef.current.agents,
+        roleModels: appSettings.roleModels,
+        defaultProviderId: savedProvider.id,
+        defaultModel: savedProvider.model,
+      })
+
+      const pm = result.nextAgents[0]
+      setAgents(result.nextAgents)
+      if (pm) setRightChatAgentId(pm.id)
+      setCommunicationEvents((current) => [
+        ...current.slice(-60),
+        ...result.communicationEvents,
+      ])
+      try {
+        window.localStorage.setItem(
+          'baton-agent-layout',
+          JSON.stringify({
+            layout: 'focus1',
+            order: result.nextAgents.map((a) => a.id),
+            minimized: [],
+            mainAgentId: pm?.id,
+          }),
+        )
+      } catch {
+        // ignore storage quota errors
+      }
+      persistWorkspace({
+        session: {
+          ...sessionRef.current,
+          agents: result.nextAgents,
+          communicationEvents: [
+            ...sessionRef.current.communicationEvents.slice(-60),
+            ...result.communicationEvents,
+          ],
+        },
+      })
+      pushToast({
+        title: `Đội trưởng @PM đã tuyển ${result.recruitedCount} chuyên gia`,
+        detail: `${projectLabel} · Chế độ 1:6 PM (PM luôn ở bên trái)`,
+        variant: 'success',
+      })
+    },
+    [
+      activeProject?.name,
+      appSettings.roleModels,
+      persistWorkspace,
+      pushToast,
+      savedProvider.id,
+      savedProvider.model,
+    ],
+  )
+
   const { sendMessage, streamOrchestration, delegateAgent, pauseAgent, previewMailExchange } =
     useOrchestration({
       agents,
@@ -1671,6 +1731,7 @@ export function IDEWorkspace() {
       onApplyDirectEdit: applyDirectAgentEdit,
       onCommandApproval: handleCommandApprovalRequest,
       onPromptRollback: handlePromptRollback,
+      onRecruitTeam: handleRecruitTeam,
       getRevisionCount: () => sessionRef.current.revisions.length,
     })
   sendMessageRef.current = sendMessage
@@ -3534,6 +3595,7 @@ export function IDEWorkspace() {
             onRetryTask={handleRetryTask}
             onUpdateTaskStatus={handleUpdateTaskStatus}
             onAssignAgentWorktree={handleAssignAgentWorktree}
+            onRecruitTeam={handleRecruitTeam}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)
@@ -3631,10 +3693,27 @@ export function IDEWorkspace() {
             setSavedProvider(provider)
             setProviders(nextProviders)
             setAppSettings(nextSettings)
+            // Sync active non-custom agents with any newly configured per-role models (leave @custom free!)
+            const nextRoleModels = nextSettings.roleModels
+            let syncedAgents = sessionRef.current.agents
+            if (nextRoleModels && Object.keys(nextRoleModels).length > 0) {
+              syncedAgents = sessionRef.current.agents.map((a) => {
+                if (!a.roleId || a.roleId === 'custom') return a
+                const assigned = nextRoleModels[a.roleId]
+                if (!assigned?.model) return a
+                return {
+                  ...a,
+                  model: assigned.model,
+                  providerId: assigned.providerId || a.providerId,
+                }
+              })
+              setAgents(syncedAgents)
+            }
             persistWorkspace({
               provider,
               providers: nextProviders,
               settings: nextSettings,
+              session: { ...sessionRef.current, agents: syncedAgents },
             })
             setSettingsOpen(false)
           }}
@@ -3646,6 +3725,7 @@ export function IDEWorkspace() {
           providers={providers}
           defaultProviderId={savedProvider.id}
           defaultModel={savedProvider.model}
+          roleModels={appSettings.roleModels}
           initialAgent={editingAgent}
           initialView={editingAgent ? (agentViews[editingAgent.id] ?? 'chat') : 'chat'}
           onClose={() => {

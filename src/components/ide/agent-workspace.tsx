@@ -38,7 +38,7 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { computeAgentGridPlan } from '@/lib/agent-layout'
 import { copyTextToClipboard } from '@/lib/clipboard'
-import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
+import { findPmAgent, getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
 import { estimateContextMeter } from '@/lib/project-rules'
 import { AgentMailOverlay } from './agent-mail-overlay'
@@ -109,6 +109,7 @@ export function AgentWorkspace({
   onRetryTask,
   onUpdateTaskStatus,
   onAssignAgentWorktree,
+  onRecruitTeam,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -157,6 +158,7 @@ export function AgentWorkspace({
     agentId: string,
     worktree: { worktreePath: string; branch: string } | null,
   ) => void
+  onRecruitTeam?: (instruction?: string) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -277,23 +279,45 @@ export function AgentWorkspace({
   )
   const visibleAgents = orderedAgents.filter((agent) => !workspace.minimized.includes(agent.id))
 
-  const setLayout = (layout: AgentLayout) =>
+  const pmAgent = findPmAgent(visibleAgents) ?? findPmAgent(agents)
+  const captainAgent = getCaptainAgent(agents)
+  const viceAgent = getViceCaptainAgent(agents)
+
+  // In 1:6 PM (`focus1`) mode, @PM is ALWAYS the Captain (Đội trưởng) and pinned to the large left panel
+  useEffect(() => {
+    if (workspace.layout === 'focus1' && pmAgent && captainAgent?.id !== pmAgent.id) {
+      onAssignCaptain?.(pmAgent.id)
+    }
+  }, [workspace.layout, pmAgent?.id, captainAgent?.id, onAssignCaptain])
+
+  const setLayout = (layout: AgentLayout) => {
+    if (layout === 'focus1' && pmAgent) {
+      onAssignCaptain?.(pmAgent.id)
+    }
     setWorkspace((current) => ({
       ...current,
       layout,
       mainAgentId:
-        layout === 'focus1' ? current.mainAgentId || orderedAgents[0]?.id : current.mainAgentId,
+        layout === 'focus1'
+          ? pmAgent?.id || current.mainAgentId || orderedAgents[0]?.id
+          : current.mainAgentId,
     }))
+  }
+
+  // In 1:6 PM (`focus1`), PM is locked to the left large pane; other layouts allow promoting any agent
   const mainAgent =
-    visibleAgents.find((agent) => agent.id === workspace.mainAgentId) ?? visibleAgents[0]
+    workspace.layout === 'focus1'
+      ? (visibleAgents.find((agent) => agent.roleId === 'pm' || agent.id === 'pm') ??
+          visibleAgents.find((agent) => agent.id === captainAgent?.id) ??
+          visibleAgents[0])
+      : (visibleAgents.find((agent) => agent.id === workspace.mainAgentId) ?? visibleAgents[0])
+
   const agentsWithMainFirst = mainAgent
     ? [mainAgent, ...visibleAgents.filter((agent) => agent.id !== mainAgent.id)]
     : visibleAgents
 
   const gridPlan = computeAgentGridPlan(agentsWithMainFirst.length, workspace.layout)
   const isSolo = gridPlan.kind === 'single'
-  const captainAgent = getCaptainAgent(agents)
-  const viceAgent = getViceCaptainAgent(agents)
   const pendingPatchCount = proposedPatches.filter((patch) => patch.status === 'pending').length
 
   const swapPanels = (targetId: string) => {
@@ -335,9 +359,16 @@ export function AgentWorkspace({
       mcpServers={mcpServers}
       plugins={plugins}
       providers={providers}
-      isCaptain={captainAgent?.id === agent.id}
+      isCaptain={workspace.layout === 'focus1' && pmAgent ? pmAgent.id === agent.id : captainAgent?.id === agent.id}
       isViceCaptain={viceAgent?.id === agent.id}
-      onAssignCaptain={() => onAssignCaptain?.(agent.id)}
+      onAssignCaptain={() => {
+        if (workspace.layout === 'focus1' && pmAgent && agent.id !== pmAgent.id) {
+          // In 1:6 PM mode, @PM is locked as Captain on the left large panel
+          onAssignCaptain?.(pmAgent.id)
+          return
+        }
+        onAssignCaptain?.(agent.id)
+      }}
       onToggleViceCaptain={() => onToggleViceCaptain?.(agent.id)}
       commandApprovals={commandApprovals.filter((c) => c.agentId === agent.id)}
       onApproveCommand={onApproveCommand}
@@ -371,8 +402,8 @@ export function AgentWorkspace({
       onPromote={() =>
         setWorkspace((current) => ({
           ...current,
-          layout: 'focus1',
-          mainAgentId: agent.id,
+          layout: current.layout === 'focus1' ? 'focus2' : 'focus1',
+          mainAgentId: current.layout === 'focus1' ? agent.id : pmAgent?.id || agent.id,
         }))
       }
     />
@@ -562,6 +593,21 @@ export function AgentWorkspace({
                 </div>
               )}
             </div>
+          )}
+          {onRecruitTeam && (
+            <button
+              type="button"
+              onClick={() => {
+                setLayout('focus1')
+                onRecruitTeam('Phân tích dự án và tuyển nhóm thành viên phù hợp cho dự án này')
+              }}
+              className={`flex items-center gap-1.5 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.28)] transition hover:from-[#e0bc6c] hover:to-[#bc9542] ${
+                isSolo ? 'px-3.5 py-1.5 text-[12.5px]' : 'px-2.5 py-1 text-[11px]'
+              }`}
+              title="PM tự phân tích dự án và tuyển các thành viên chuyên trách (mỗi người hiểu rõ vị trí & dùng đúng model đã cài sẵn)"
+            >
+              <Sparkles size={isSolo ? 14 : 11} /> PM Tuyển Nhóm
+            </button>
           )}
           <button
             onClick={onCreate}

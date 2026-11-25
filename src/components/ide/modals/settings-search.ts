@@ -38,8 +38,8 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
   {
     tab: 'providers',
-    label: 'AI Providers, API Keys & OmniRoute Combos',
-    keywords: ['provider', 'api key', 'base url', 'omniroute', 'openai', 'model', 'combo'],
+    label: 'AI Providers, API Keys & Role Models (Model theo từng vị trí)',
+    keywords: ['provider', 'api key', 'base url', 'omniroute', 'openai', 'model', 'combo', 'role model', 'vi tri', 'vị trí', 'pm', 'fe', 'be', 'qa', 'custom'],
   },
   {
     tab: 'usage',

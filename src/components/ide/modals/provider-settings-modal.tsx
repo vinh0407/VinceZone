@@ -42,6 +42,7 @@ import {
   SettingsSection,
   SettingsToggle as Toggle,
 } from './settings/agents-permissions-tabs'
+import { RoleModelsSection } from './settings/role-models-section'
 import { searchSettingsEntries } from './settings-search'
 
 type SettingsTab =
@@ -1063,6 +1064,13 @@ export function ProviderSettingsModal({
                     <Trash2 size={11} /> Remove this provider
                   </button>
                 )}
+
+                <RoleModelsSection
+                  settings={settings}
+                  providers={providers}
+                  omniCombos={omniCombos}
+                  onChangeRoleModels={(roleModels) => setSettings({ ...settings, roleModels })}
+                />
 
                 <div className="flex gap-2 rounded-lg border border-[#2f2f2f] bg-[#181818] p-2.5 text-[10px] leading-4 text-[#a3a3a3]">
                   <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#e5e5e5]" />

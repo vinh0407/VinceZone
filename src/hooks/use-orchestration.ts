@@ -43,6 +43,7 @@ import {
   extractProposedPatches,
   selectCompactWorkspaceFiles,
 } from '@/lib/orchestrator'
+import { isTeamRecruitmentPrompt } from '@/lib/pm-team-recruiter'
 import {
   extractProjectRules,
   resolveDynamicContextMentions,
@@ -185,6 +186,7 @@ export function useOrchestration({
   onApplyDirectEdit,
   onCommandApproval,
   onPromptRollback,
+  onRecruitTeam,
   getRevisionCount,
 }: {
   agents: Agent[]
@@ -219,6 +221,7 @@ export function useOrchestration({
   }) => { applied: boolean; revisionId?: string }
   onCommandApproval?: (item: CommandApprovalItem) => void
   onPromptRollback?: (prompt: string) => { restored: boolean; message: string } | null
+  onRecruitTeam?: (instruction: string) => void
   getRevisionCount?: () => number
 }) {
   const aborters = useRef<Record<string, AbortController>>({})
@@ -1073,6 +1076,12 @@ export function useOrchestration({
         drafts[agent.id]?.trim() ||
         (attachedImages.length > 0 ? 'Phân tích hình ảnh đính kèm này và đề xuất/thực hiện chỉnh sửa.' : '')
       if (!text && attachedImages.length === 0) return
+
+      if (!delegated && onRecruitTeam && isTeamRecruitmentPrompt(text)) {
+        setDrafts((current) => ({ ...current, [agent.id]: '' }))
+        onRecruitTeam(text)
+        return
+      }
 
       if (!delegated && onPromptRollback && parseRollbackPrompt(text)) {
         const rollbackOutcome = onPromptRollback(text)

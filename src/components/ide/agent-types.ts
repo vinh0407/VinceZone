@@ -234,6 +234,11 @@ export type ProjectTab = {
 
 export type AppTheme = 'dark' | 'light' | 'high-contrast'
 
+export type RoleModelAssignment = {
+  providerId?: string
+  model: string
+}
+
 export type AppSettings = {
   theme?: AppTheme
   autoSave: boolean
@@ -254,6 +259,8 @@ export type AppSettings = {
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   delegation: DelegationLimits
+  /** Pre-configured default provider/model per fixed specialist role (excludes `custom` which improvises freely). */
+  roleModels?: Record<string, RoleModelAssignment>
 }
 
 export type CliDetectionResult = {

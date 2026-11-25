@@ -16,7 +16,8 @@ import {
   ROLE_TERRITORIES,
   type VinceZoneRoleId,
 } from '@/lib/vincezone-protocol'
-import type { Agent, AgentView, ProviderConfig } from '../agent-types'
+import { resolveModelForRole } from '@/lib/pm-team-recruiter'
+import type { Agent, AgentView, ProviderConfig, RoleModelAssignment } from '../agent-types'
 import { Field } from './provider-settings-modal'
 
 type RolePresetItem = {
@@ -80,6 +81,7 @@ export function AgentCreatorModal({
   providers,
   defaultProviderId,
   defaultModel,
+  roleModels,
   initialAgent,
   initialView = 'chat',
   onClose,
@@ -88,6 +90,7 @@ export function AgentCreatorModal({
   providers: ProviderConfig[]
   defaultProviderId: string
   defaultModel: string
+  roleModels?: Record<string, RoleModelAssignment>
   initialAgent?: Agent | null
   initialView?: AgentView
   onClose: () => void
@@ -138,8 +141,19 @@ export function AgentCreatorModal({
     setSoul(preset.soul)
     setMission(preset.mission)
     setMemory(preset.memory)
-    if (availableModels.includes(preset.recommendedModel)) {
-      setModel(preset.recommendedModel)
+    if (nextRoleId !== 'custom') {
+      const resolved = resolveModelForRole(
+        nextRoleId,
+        roleModels,
+        selectedProvider?.id || defaultProviderId,
+        defaultModel,
+      )
+      if (resolved.providerId && providers.some((p) => p.id === resolved.providerId)) {
+        setProviderId(resolved.providerId)
+      }
+      if (resolved.model) {
+        setModel(resolved.model)
+      }
     }
     if (!initialAgent) {
       setName(preset.title)
