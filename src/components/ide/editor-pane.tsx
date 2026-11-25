@@ -12,6 +12,7 @@ import {
   GitCompareArrows,
   MessageSquarePlus,
   PanelLeftOpen,
+  Play,
   Save,
   Search,
   Sparkles,
@@ -115,6 +116,7 @@ export function EditorPane({
   onSendSelectionToChat,
   onDiagnosticsChange,
   onCursorChange,
+  onRunActiveFile,
   onWorkspaceFilesUpdated,
   emptyState,
 }: {
@@ -163,6 +165,7 @@ export function EditorPane({
   }) => void
   onDiagnosticsChange?: (diagnostics: EditorDiagnostic[]) => void
   onCursorChange: (pos: { line: number; column: number }) => void
+  onRunActiveFile?: () => void
   onWorkspaceFilesUpdated?: (
     updates: Array<{ path: string; content: string }>,
     summary: string,
@@ -1219,6 +1222,16 @@ export function EditorPane({
               title="Bật/tắt Git Blame inline theo dòng con trỏ"
             >
               Blame
+            </button>
+          )}
+          {activeFile && !isBinaryImageFile && onRunActiveFile && (
+            <button
+              type="button"
+              onClick={onRunActiveFile}
+              className="flex items-center gap-1 rounded border border-[#c9a24d]/45 bg-[#c9a24d]/15 px-2 py-0.5 text-[10px] font-medium text-[#f0d394] transition hover:bg-[#c9a24d]/25 hover:text-white"
+              title="Chạy trực tiếp file / dự án hiện tại trong Terminal"
+            >
+              <Play size={10} fill="currentColor" /> Run
             </button>
           )}
           {activeFile && !isBinaryImageFile && (

@@ -15,6 +15,7 @@ import { withFileLock } from './file-lock'
 import { resolvePathInsideWorkspace } from './local-guard'
 import { callMcpServerTool, listMcpServerTools, type McpToolInfo } from './mcp-client'
 import { semanticSearchWorkspace } from './semantic-index'
+import { listInstalledSkills, loadSkillInstructions } from './skill-runner'
 
 const execFileAsync = promisify(execFile)
 
@@ -440,6 +441,93 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'run_code',
+      description:
+        'Execute a code file in the workspace (.ts, .tsx, .js, .mjs, .cjs, .py, .go, .rs, .ps1, .sh) or run a short inline code snippet directly and return stdout, stderr, and exit code.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Relative path to the script/file inside the workspace (e.g. scripts/demo.ts or main.py).',
+          },
+          args: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional CLI arguments passed to the script.',
+          },
+          language: {
+            type: 'string',
+            enum: ['node', 'typescript', 'python'],
+            description: 'Optional language when running inline code without a file path.',
+          },
+          code: {
+            type: 'string',
+            description: 'Optional inline code to run directly when path is omitted.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_action',
+      description:
+        'Perform Git operations inside the active workspace: status, diff, add, commit (with optional stageAll), push (auto-sets upstream on new branches), pull, branch, checkout, or create-branch.',
+      parameters: {
+        type: 'object',
+        required: ['action'],
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['status', 'diff', 'add', 'commit', 'push', 'pull', 'branch', 'checkout', 'create-branch'],
+          },
+          message: { type: 'string', description: 'Commit message (required for commit).' },
+          stageAll: { type: 'boolean', description: 'If true on commit, stages all changes (git add -A) first.' },
+          files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional relative paths for git add or diff.',
+          },
+          branch: { type: 'string', description: 'Branch name for checkout or create-branch.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_skills',
+      description:
+        'Search and list installed AI skills (.agent/skills, .agents/skills, and global skills) available in this app.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Optional keyword to filter skills (e.g. "debug", "nextjs", "security").' },
+          limit: { type: 'number', description: 'Max skills to return (default 30).' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'use_skill',
+      description:
+        'Load the full SKILL.md instructions for a named skill so you can execute its workflow and commands inside the app.',
+      parameters: {
+        type: 'object',
+        required: ['skill'],
+        properties: {
+          skill: { type: 'string', description: 'Skill slug or name (e.g. "systematic-debugging", "tdd", "security-audit").' },
+        },
+      },
+    },
+  },
 ] as const
 
 function stripReadFileLineNumbers(block: string): string {
@@ -575,7 +663,7 @@ export async function executeAgentTool(
   name: string,
   args: Record<string, unknown>,
   workspaceRoot: string,
-  options?: { mcpBindings?: Map<string, DynamicMcpBinding> },
+  options?: { mcpBindings?: Map<string, DynamicMcpBinding>; autoApproveCommands?: boolean },
 ): Promise<ToolExecutionOutcome> {
   try {
     return await executeAgentToolInner(name, args, workspaceRoot, options)
@@ -588,9 +676,9 @@ async function executeAgentToolInner(
   name: string,
   args: Record<string, unknown>,
   workspaceRoot: string,
-  options?: { mcpBindings?: Map<string, DynamicMcpBinding> },
+  options?: { mcpBindings?: Map<string, DynamicMcpBinding>; autoApproveCommands?: boolean },
 ): Promise<ToolExecutionOutcome> {
-  const root = path.resolve(workspaceRoot)
+  const root = path.resolve(/*turbopackIgnore: true*/ workspaceRoot)
 
   // P1-1: Direct live MCP Server tool call
   const mcpBinding = options?.mcpBindings?.get(name)
@@ -824,6 +912,198 @@ async function executeAgentToolInner(
     }
   }
 
+  if (name === 'list_skills') {
+    const query = String(args.query || '').trim()
+    const limit = Math.min(60, Math.max(1, Number(args.limit) || 30))
+    const skills = await listInstalledSkills(root, query, limit)
+    if (skills.length === 0) {
+      return { ok: true, output: `No installed skills matched "${query}".` }
+    }
+    return {
+      ok: true,
+      output: skills
+        .map((s) => `/${s.slug} (${s.source}) — ${s.name}${s.description ? `: ${s.description}` : ''}`)
+        .join('\n'),
+    }
+  }
+
+  if (name === 'use_skill') {
+    const skillName = String(args.skill || '').trim()
+    const loaded = await loadSkillInstructions(root, skillName)
+    if (!loaded.found || !loaded.skill || !loaded.content) {
+      return { ok: false, output: loaded.error || `Skill "${skillName}" not found.` }
+    }
+    return {
+      ok: true,
+      output: `[SKILL LOADED: /${loaded.skill.slug} (${loaded.skill.source})]\nPath: ${loaded.skill.skillFile}\n\n${loaded.content}`,
+    }
+  }
+
+  if (name === 'run_code') {
+    const relPath = String(args.path || '').trim()
+    const inlineCode = String(args.code || '').trim()
+    const language = String(args.language || '').trim().toLowerCase()
+    const extraArgs = Array.isArray(args.args) ? args.args.map((a) => String(a)).slice(0, 12) : []
+
+    let bin = ''
+    let execArgs: string[] = []
+    let displayCmd = ''
+
+    if (relPath) {
+      const absTarget = resolvePathInsideWorkspace(root, relPath)
+      const ext = path.extname(absTarget).toLowerCase()
+      if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
+        bin = process.execPath
+        execArgs = [absTarget, ...extraArgs]
+        displayCmd = `node ${relPath}`
+      } else if (ext === '.ts' || ext === '.mts' || ext === '.tsx') {
+        bin = process.execPath
+        execArgs = ['--experimental-strip-types', absTarget, ...extraArgs]
+        displayCmd = `node --experimental-strip-types ${relPath}`
+      } else if (ext === '.py') {
+        bin = process.platform === 'win32' ? 'python' : 'python3'
+        execArgs = [absTarget, ...extraArgs]
+        displayCmd = `${bin} ${relPath}`
+      } else if (ext === '.go') {
+        bin = 'go'
+        execArgs = ['run', absTarget, ...extraArgs]
+        displayCmd = `go run ${relPath}`
+      } else if (ext === '.ps1') {
+        bin = 'powershell.exe'
+        execArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', absTarget, ...extraArgs]
+        displayCmd = `powershell -File ${relPath}`
+      } else if (ext === '.sh') {
+        bin = 'bash'
+        execArgs = [absTarget, ...extraArgs]
+        displayCmd = `bash ${relPath}`
+      } else {
+        return {
+          ok: false,
+          output: `Unsupported code file extension "${ext}". Supported: .ts, .tsx, .js, .mjs, .cjs, .py, .go, .ps1, .sh (or use run_shell).`,
+        }
+      }
+    } else if (inlineCode) {
+      if (language === 'python') {
+        bin = process.platform === 'win32' ? 'python' : 'python3'
+        execArgs = ['-c', inlineCode]
+        displayCmd = `${bin} -c <inline>`
+      } else if (language === 'typescript') {
+        bin = process.execPath
+        execArgs = ['--experimental-strip-types', '-e', inlineCode]
+        displayCmd = 'node --experimental-strip-types -e <inline>'
+      } else {
+        bin = process.execPath
+        execArgs = ['-e', inlineCode]
+        displayCmd = 'node -e <inline>'
+      }
+    } else {
+      return { ok: false, output: 'Provide either "path" (workspace file) or "code" (inline snippet).' }
+    }
+
+    try {
+      const { stdout, stderr } = await execFileAsync(bin, execArgs, {
+        cwd: root,
+        timeout: 45_000,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+      })
+      return {
+        ok: true,
+        output: `$ ${displayCmd} (exit 0)\n${`${stdout || ''}${stderr ? `\n[stderr]\n${stderr}` : ''}`.trim().slice(0, 8_000) || '(no output)'}`,
+      }
+    } catch (error) {
+      const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
+      return {
+        ok: false,
+        output: `$ ${displayCmd} (exit ${err.code ?? 1})\n${`${err.stdout || ''}\n${err.stderr || err.message || ''}`.trim().slice(0, 8_000)}`,
+      }
+    }
+  }
+
+  if (name === 'git_action') {
+    const action = String(args.action || '').trim().toLowerCase()
+    const runGitCmd = (gitArgs: string[], timeout = 30_000) =>
+      execFileAsync('git', gitArgs, {
+        cwd: root,
+        timeout,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+      })
+
+    if (action === 'status') {
+      const { stdout } = await runGitCmd(['status', '--short', '--branch'])
+      return { ok: true, output: stdout.trim() || '(clean working tree)' }
+    }
+    if (action === 'diff') {
+      const files = Array.isArray(args.files) ? args.files.map(String) : []
+      const { stdout } = await runGitCmd(['diff', ...(files.length ? ['--', ...files] : [])])
+      return { ok: true, output: stdout.trim().slice(0, 8_000) || '(no unstaged diff)' }
+    }
+    if (action === 'branch') {
+      const { stdout } = await runGitCmd(['branch', '-a'])
+      return { ok: true, output: stdout.trim() }
+    }
+    if (action === 'add') {
+      const files = Array.isArray(args.files) ? args.files.map(String).filter(Boolean) : []
+      await runGitCmd(files.length ? ['add', '--', ...files] : ['add', '-A'])
+      return { ok: true, output: files.length ? `Staged: ${files.join(', ')}` : 'Staged all changes (git add -A).' }
+    }
+    if (action === 'checkout' || action === 'create-branch') {
+      const branch = String(args.branch || '').trim()
+      if (!/^[a-zA-Z0-9._/-]+$/.test(branch)) {
+        return { ok: false, output: 'Invalid branch name.' }
+      }
+      const { stdout, stderr } = await runGitCmd(
+        action === 'create-branch' ? ['checkout', '-b', branch] : ['checkout', branch],
+      )
+      return { ok: true, output: (stdout || stderr).trim() || `Switched to ${branch}` }
+    }
+    if (action === 'commit') {
+      const message = String(args.message || '').trim()
+      if (!message) return { ok: false, output: 'Commit message is required.' }
+      if (args.stageAll !== false) {
+        await runGitCmd(['add', '-A'])
+      }
+      const { stdout, stderr } = await runGitCmd(['commit', '-m', message])
+      return { ok: true, output: (stdout || stderr).trim() }
+    }
+    if (action === 'pull') {
+      const { stdout, stderr } = await runGitCmd(['pull', '--ff-only'])
+      return { ok: true, output: (stdout || stderr).trim() || 'Already up to date.' }
+    }
+    if (action === 'push') {
+      if (!options?.autoApproveCommands) {
+        const approval: PendingCommandApproval = {
+          id: `cmd-${randomUUID().slice(0, 8)}`,
+          command: 'git push',
+          reason: 'AI Agent requests pushing local commits to remote Git repository.',
+          cwd: root,
+          riskLevel: 'high',
+        }
+        registerPendingApproval({ id: approval.id, command: approval.command, cwd: approval.cwd })
+        return {
+          ok: true,
+          output: `AWAITING_USER_APPROVAL [${approval.id}]: git push requires user confirmation (Allow / Deny) — or enable Auto-Run in chat header.`,
+          commandApproval: approval,
+        }
+      }
+      try {
+        const { stdout, stderr } = await runGitCmd(['push'])
+        return { ok: true, output: (stdout || stderr).trim() || 'Pushed successfully.' }
+      } catch (err) {
+        const msg = String((err as { stderr?: string; message?: string })?.stderr || (err as Error)?.message || '')
+        if (/no upstream branch|has no upstream/i.test(msg)) {
+          const { stdout: brOut } = await runGitCmd(['rev-parse', '--abbrev-ref', 'HEAD'])
+          const br = brOut.trim()
+          const { stdout, stderr } = await runGitCmd(['push', '-u', 'origin', br])
+          return { ok: true, output: (stdout || stderr).trim() || `Pushed & set upstream origin/${br}.` }
+        }
+        throw err
+      }
+    }
+    return { ok: false, output: `Unsupported git action: ${action}` }
+  }
+
   if (name === 'run_shell') {
     const command = String(args.command || '').trim()
     const userReason = String(args.reason || '').trim()
@@ -831,7 +1111,7 @@ async function executeAgentToolInner(
     if (verdict.status === 'blocked') {
       return { ok: false, output: `Blocked: ${verdict.reason}` }
     }
-    if (verdict.status === 'approval-required') {
+    if (verdict.status === 'approval-required' && !options?.autoApproveCommands) {
       const approval: PendingCommandApproval = {
         id: `cmd-${randomUUID().slice(0, 8)}`,
         command,
@@ -846,7 +1126,7 @@ async function executeAgentToolInner(
         commandApproval: approval,
       }
     }
-    // Safe read-only command executes immediately
+    // Safe read-only command OR user-enabled Auto-Run executes immediately
     const isWin = process.platform === 'win32'
     const shellBin = isWin ? 'powershell.exe' : '/bin/sh'
     const shellArgs = isWin
@@ -855,19 +1135,19 @@ async function executeAgentToolInner(
     try {
       const { stdout, stderr } = await execFileAsync(shellBin, shellArgs, {
         cwd: root,
-        timeout: 35_000,
-        maxBuffer: 1024 * 1024,
+        timeout: 60_000,
+        maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
       })
       return {
         ok: true,
-        output: `Exit 0:\n${(stdout + '\n' + stderr).trim().slice(0, 6_000)}`,
+        output: `Exit 0:\n${(stdout + '\n' + stderr).trim().slice(0, 8_000)}`,
       }
     } catch (error) {
       const err = error as { stdout?: string; stderr?: string; message?: string; code?: number }
       return {
         ok: false,
-        output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 6_000)}`,
+        output: `Exit ${err.code ?? 1}:\n${(`${err.stdout || ''}\n${err.stderr || err.message || ''}`).trim().slice(0, 8_000)}`,
       }
     }
   }

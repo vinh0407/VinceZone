@@ -1318,6 +1318,7 @@ export function useOrchestration({
             ...activeProvider,
             model: agent.model || activeProvider.model,
             enableTools: !isFastAnalysis,
+            autoApproveCommands: !appSettings.confirmDangerousTools,
             fastAnalysis: isFastAnalysis,
             workspaceRoot: effectiveWorkspaceRoot,
             mcpServers: isFastAnalysis ? [] : appSettings.mcpServers,

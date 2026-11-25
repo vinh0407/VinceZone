@@ -150,6 +150,7 @@ export async function POST(request: Request) {
       | 'stage-all'
       | 'unstage'
       | 'commit'
+      | 'commit-and-push'
       | 'push'
       | 'pull'
       | 'fetch'
@@ -388,15 +389,43 @@ export async function POST(request: Request) {
         .slice(0, 88)
       return Response.json({ ok: true, message: suggested || 'chore: update workspace files' })
     }
-    if (body.action === 'commit') {
+    const pushWithAutoUpstream = async () => {
+      try {
+        const { stdout, stderr } = await runGit(['push'], cwd, 30_000)
+        return (stdout || stderr).trim() || 'Pushed to remote.'
+      } catch (pushErr) {
+        const errMsg = String(
+          (pushErr as { stderr?: string; message?: string })?.stderr ||
+            (pushErr as Error)?.message ||
+            '',
+        )
+        if (/no upstream branch|has no upstream/i.test(errMsg)) {
+          const { stdout: branchOut } = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+          const branchName = branchOut.trim()
+          const { stdout, stderr } = await runGit(['push', '-u', 'origin', branchName], cwd, 30_000)
+          return (stdout || stderr).trim() || `Pushed & set upstream origin/${branchName}.`
+        }
+        throw pushErr
+      }
+    }
+
+    if (body.action === 'commit' || body.action === 'commit-and-push') {
       const msg = (body.message || '').trim()
       if (!msg) return Response.json({ ok: false, error: 'Commit message is required.' }, { status: 400 })
+      const stagedCheck = await runGit(['diff', '--cached', '--name-only'], cwd).catch(() => ({ stdout: '' }))
+      if (!stagedCheck.stdout.trim()) {
+        await runGit(['add', '-A'], cwd)
+      }
       const { stdout } = await runGit(['commit', '-m', msg], cwd)
+      if (body.action === 'commit-and-push') {
+        const pushOut = await pushWithAutoUpstream()
+        return Response.json({ ok: true, output: `${stdout.trim()}\n${pushOut}`.trim() })
+      }
       return Response.json({ ok: true, output: stdout.trim() })
     }
     if (body.action === 'push') {
-      const { stdout, stderr } = await runGit(['push'], cwd, 30_000)
-      return Response.json({ ok: true, output: (stdout || stderr).trim() })
+      const out = await pushWithAutoUpstream()
+      return Response.json({ ok: true, output: out })
     }
 
     return Response.json({ ok: false, error: 'Unsupported git action.' }, { status: 400 })

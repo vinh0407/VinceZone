@@ -72,6 +72,8 @@ export function RightAiChatPanel({
   commandApprovals = [],
   chatThreads = [],
   focusSeq = 0,
+  autoRunCommands = false,
+  onToggleAutoRunCommands,
   onApproveCommand,
   onRejectCommand,
   onAssignCaptain,
@@ -106,6 +108,8 @@ export function RightAiChatPanel({
   commandApprovals?: CommandApprovalItem[]
   chatThreads?: ChatThreadSnapshot[]
   focusSeq?: number
+  autoRunCommands?: boolean
+  onToggleAutoRunCommands?: () => void
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
   onAssignCaptain?: (agentId: string) => void
@@ -277,6 +281,24 @@ export function RightAiChatPanel({
           </span>
         </div>
         <div className="flex items-center gap-0.5">
+          {onToggleAutoRunCommands && (
+            <button
+              type="button"
+              onClick={onToggleAutoRunCommands}
+              className={`mr-1 rounded border px-1.5 py-0.5 font-mono text-[9px] font-semibold transition ${
+                autoRunCommands
+                  ? 'border-[#c9a24d]/60 bg-[#c9a24d]/20 text-[#f0d394]'
+                  : 'border-[#333333] bg-[#202020] text-[#858585] hover:text-white'
+              }`}
+              title={
+                autoRunCommands
+                  ? 'Auto-Run ĐANG BẬT: AI Agent được phép tự chạy code, lệnh, skill & Git commit/push'
+                  : 'Auto-Run ĐANG TẮT: Bấm để cho phép AI Agent tự chạy code/lệnh/Git mà không cần bấm Allow từng bước'
+              }
+            >
+              {autoRunCommands ? 'Auto-Run ON' : 'Auto-Run'}
+            </button>
+          )}
           {onNewThread && (
             <button
               type="button"

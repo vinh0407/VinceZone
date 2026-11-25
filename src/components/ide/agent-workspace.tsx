@@ -95,6 +95,8 @@ export function AgentWorkspace({
   mcpServers,
   plugins,
   providers = [],
+  autoRunCommands = false,
+  onToggleAutoRunCommands,
   onApproveCommand,
   onRejectCommand,
   onAssignCaptain,
@@ -138,6 +140,8 @@ export function AgentWorkspace({
   mcpServers: McpServerConfig[]
   plugins: PluginConfig[]
   providers?: ProviderConfig[]
+  autoRunCommands?: boolean
+  onToggleAutoRunCommands?: () => void
   onApproveCommand?: (id: string) => void
   onRejectCommand?: (id: string) => void
   onAssignCaptain?: (agentId: string) => void
@@ -481,6 +485,20 @@ export function AgentWorkspace({
               { id: 'focus1', label: '1:6 PM' },
             ]}
           />
+          {onToggleAutoRunCommands && (
+            <button
+              type="button"
+              onClick={onToggleAutoRunCommands}
+              className={`flex items-center gap-1 rounded border font-mono transition ${
+                autoRunCommands
+                  ? 'border-[#c9a24d]/60 bg-[#c9a24d]/20 text-[#f0d394]'
+                  : 'border-[#333333] bg-[#222222] text-[#a3a3a3] hover:text-white'
+              } ${isSolo ? 'px-3 py-1.5 text-[12px]' : 'px-2 py-1 text-[10.5px]'}`}
+              title="Bật/tắt chế độ cho phép AI Agent tự chạy code, shell, skill và Git commit/push"
+            >
+              {autoRunCommands ? 'Auto-Run: ON' : 'Auto-Run: Ask'}
+            </button>
+          )}
           {workspaceRoot && (
             <button
               type="button"

@@ -407,6 +407,7 @@ export function ExplorerSidebar({
         | 'stage-all'
         | 'unstage'
         | 'commit'
+        | 'commit-and-push'
         | 'push'
         | 'pull'
         | 'fetch'
@@ -430,13 +431,15 @@ export function ExplorerSidebar({
         if (!response.ok || !data.ok) {
           setGitFeedback({ ok: false, text: data.error || `Git ${action} failed.` })
         } else {
-          if (action === 'commit') setGitCommitMessage('')
+          if (action === 'commit' || action === 'commit-and-push') setGitCommitMessage('')
           setGitFeedback({
             ok: true,
             text:
               action === 'commit'
                 ? 'Committed cleanly.'
-                : data.output || `${action} succeeded.`,
+                : action === 'commit-and-push'
+                  ? 'Committed & pushed cleanly.'
+                  : data.output || `${action} succeeded.`,
           })
           await loadGitStatus()
           if (
@@ -988,8 +991,20 @@ export function ExplorerSidebar({
                     disabled={gitBusyAction || !gitCommitMessage.trim()}
                     onClick={() => void runGitAction('commit', { message: gitCommitMessage.trim() })}
                     className="flex flex-1 items-center justify-center gap-1 rounded bg-[#e5e5e5] py-1 text-[10px] font-semibold text-[#111111] hover:bg-white disabled:opacity-35"
+                    title="Commit (tự động stage nếu chưa stage)"
                   >
                     <Check size={11} /> Commit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gitBusyAction || !gitCommitMessage.trim()}
+                    onClick={() =>
+                      void runGitAction('commit-and-push', { message: gitCommitMessage.trim() })
+                    }
+                    className="flex flex-1 items-center justify-center gap-1 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] py-1 text-[10px] font-semibold text-[#111111] hover:from-[#e0bc6c] hover:to-[#bc9542] disabled:opacity-35"
+                    title="Stage, Commit và Push lên Git ngay (tự đặt upstream nếu là nhánh mới)"
+                  >
+                    <Upload size={10} /> Commit &amp; Push
                   </button>
                   <button
                     type="button"

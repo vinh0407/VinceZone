@@ -33,6 +33,7 @@ type ChatRequest = {
   model?: string
   messages?: ChatMessage[]
   enableTools?: boolean
+  autoApproveCommands?: boolean
   workspaceRoot?: string
   mcpServers?: McpServerRuntimeConfig[]
 }
@@ -261,16 +262,22 @@ export async function POST(request: Request) {
               'list_files',
               'read_file',
               'grep_workspace',
+              'grep_search',
+              'semantic_search',
               'find_symbol',
+              'list_skills',
+              'use_skill',
               'read_team_bus',
               'read_android_logcat',
             ])
+            const autoApproveCommands = Boolean(body.autoApproveCommands)
             const allReadOnly = batchCalls.every((item) => READ_ONLY_TOOLS.has(item.toolName))
             const outcomes = allReadOnly
               ? await Promise.all(
                   batchCalls.map((item) =>
                     executeAgentTool(item.toolName, item.parsedArgs, resolvedRoot, {
                       mcpBindings,
+                      autoApproveCommands,
                     }),
                   ),
                 )
@@ -280,6 +287,7 @@ export async function POST(request: Request) {
                     seq.push(
                       await executeAgentTool(item.toolName, item.parsedArgs, resolvedRoot, {
                         mcpBindings,
+                        autoApproveCommands,
                       }),
                     )
                   }

@@ -2748,9 +2748,20 @@ export function IDEWorkspace() {
       setRightPanelMode('phone')
     }
 
-    // Runnable standalone script file
+    // Runnable standalone script / code files
     if (lowerPath.endsWith('.py')) {
       await runTerminalCommand(`python "${currentFile!.path}"`, { openTerminal: true })
+      return
+    }
+    if (
+      (lowerPath.endsWith('.ts') || lowerPath.endsWith('.mts') || lowerPath.endsWith('.tsx')) &&
+      !lowerPath.endsWith('.d.ts') &&
+      !lowerPath.includes('next.config') &&
+      !lowerPath.includes('.test.')
+    ) {
+      await runTerminalCommand(`node --experimental-strip-types "${currentFile!.path}"`, {
+        openTerminal: true,
+      })
       return
     }
     if (
@@ -2758,6 +2769,24 @@ export function IDEWorkspace() {
       !lowerPath.includes('next.config')
     ) {
       await runTerminalCommand(`node "${currentFile!.path}"`, { openTerminal: true })
+      return
+    }
+    if (lowerPath.endsWith('.go')) {
+      await runTerminalCommand(`go run "${currentFile!.path}"`, { openTerminal: true })
+      return
+    }
+    if (lowerPath.endsWith('.rs')) {
+      await runTerminalCommand('cargo run', { openTerminal: true })
+      return
+    }
+    if (lowerPath.endsWith('.ps1')) {
+      await runTerminalCommand(`powershell -NoProfile -ExecutionPolicy Bypass -File "${currentFile!.path}"`, {
+        openTerminal: true,
+      })
+      return
+    }
+    if (lowerPath.endsWith('.sh')) {
+      await runTerminalCommand(`bash "${currentFile!.path}"`, { openTerminal: true })
       return
     }
 
@@ -3252,6 +3281,7 @@ export function IDEWorkspace() {
                 onSendSelectionToChat={handleSendSelectionToChat}
                 onDiagnosticsChange={setDiagnostics}
                 onCursorChange={setCursor}
+                onRunActiveFile={() => void handleRunProject()}
                 onWorkspaceFilesUpdated={handleWorkspaceFilesUpdated}
                 emptyState={
                   <WelcomeTab
@@ -3364,6 +3394,19 @@ export function IDEWorkspace() {
                     commandApprovals={commandApprovals}
                     chatThreads={chatThreads}
                     focusSeq={chatFocusSeq}
+                    autoRunCommands={!appSettings.confirmDangerousTools}
+                    onToggleAutoRunCommands={() => {
+                      setAppSettings((current) => {
+                        const nextConfirm = !current.confirmDangerousTools
+                        pushToast({
+                          title: nextConfirm
+                            ? 'AI Auto-Run: OFF (Hỏi Allow/Deny)'
+                            : 'AI Auto-Run: ON (Tự chạy code, lệnh, skill & Git)',
+                          variant: 'info',
+                        })
+                        return { ...current, confirmDangerousTools: nextConfirm }
+                      })
+                    }}
                     onApproveCommand={(id) => void handleApproveCommand(id)}
                     onRejectCommand={handleRejectCommand}
                     onAssignCaptain={handleAssignCaptain}
@@ -3466,6 +3509,19 @@ export function IDEWorkspace() {
             mcpServers={appSettings.mcpServers}
             plugins={appSettings.plugins}
             providers={providers}
+            autoRunCommands={!appSettings.confirmDangerousTools}
+            onToggleAutoRunCommands={() => {
+              setAppSettings((current) => {
+                const nextConfirm = !current.confirmDangerousTools
+                pushToast({
+                  title: nextConfirm
+                    ? 'AI Auto-Run: OFF (Hỏi Allow/Deny)'
+                    : 'AI Auto-Run: ON (Tự chạy code, lệnh, skill & Git)',
+                  variant: 'info',
+                })
+                return { ...current, confirmDangerousTools: nextConfirm }
+              })
+            }}
             onApproveCommand={(id) => void handleApproveCommand(id)}
             onRejectCommand={handleRejectCommand}
             onAssignCaptain={handleAssignCaptain}
