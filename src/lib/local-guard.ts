@@ -99,17 +99,17 @@ export function resolvePathInsideWorkspace(workspaceRoot: string, relativePath: 
   }
 
   // Verify realpath on disk to prevent symlink escapes outside workspaceRoot
-  let realRoot = resolvedRoot
   if (existsSync(/*turbopackIgnore: true*/ resolvedRoot)) {
+    let realRoot = resolvedRoot
     try {
       realRoot = realpathSync(/*turbopackIgnore: true*/ resolvedRoot)
     } catch {
       realRoot = resolvedRoot
     }
-  }
-  const nearestReal = resolveNearestRealPath(resolvedTarget)
-  if (nearestReal && !isInsideDir(realRoot, nearestReal)) {
-    throw new Error('Path escapes workspace root via symlink.')
+    const nearestReal = resolveNearestRealPath(resolvedTarget)
+    if (nearestReal && !isInsideDir(realRoot, nearestReal)) {
+      throw new Error('Path escapes workspace root via symlink.')
+    }
   }
 
   return resolvedTarget

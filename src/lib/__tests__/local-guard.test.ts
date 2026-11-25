@@ -21,7 +21,7 @@ describe('local-guard desktop security', () => {
   })
 
   it('prevents directory traversal outside workspace root', () => {
-    const root = path.resolve('c:/VisualStudio/V-IDE')
+    const root = path.resolve(process.cwd())
     const ok = resolvePathInsideWorkspace(root, 'src/app/page.tsx')
     expect(ok.startsWith(root)).toBe(true)
     expect(() => resolvePathInsideWorkspace(root, '../../Windows/win.ini')).toThrow()

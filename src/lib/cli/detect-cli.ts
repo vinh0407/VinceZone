@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises'
 import { constants } from 'node:fs'
-import { delimiter as pathDelimiter, join } from 'node:path'
+import path, { delimiter as pathDelimiter, join } from 'node:path'
 
 export const supportedCliTools = [
   { id: 'claude', name: 'Claude Code', executable: 'claude', category: 'ai-agent' },
@@ -85,10 +85,11 @@ async function isExecutable(
     )
   }
 
+  const joinPath = options.platform === 'win32' ? path.win32.join : path.posix.join
   for (const directory of dirs) {
     for (const candidate of candidates) {
       try {
-        await options.accessFn(join(directory, candidate), mode)
+        await options.accessFn(joinPath(directory, candidate), mode)
         return true
       } catch {
         // Continue through PATH without exposing directories or access errors.
