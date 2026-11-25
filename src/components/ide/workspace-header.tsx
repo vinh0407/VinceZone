@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { APP_VERSION } from '@/lib/app-version'
 import type { ProjectTab, SidePanel, WorkspaceMode } from './agent-types'
 
 type MenuOption =
@@ -357,7 +358,7 @@ export function WorkspaceHeader({
         { label: 'Settings & CLI Integrations', shortcut: 'Ctrl+,', onSelect: onOpenSettings },
         { type: 'separator' },
         {
-          label: 'VinceZone Studio v2.2.0 · Local In-Process',
+          label: `VinceZone Studio v${APP_VERSION} · Local In-Process`,
           disabled: true,
           onSelect: () => {},
         },

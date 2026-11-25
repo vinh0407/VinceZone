@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { APP_VERSION } from '@/lib/app-version'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,9 @@ async function readCurrentVersion(): Promise<string> {
   try {
     const raw = await readFile(path.resolve(/*turbopackIgnore: true*/ process.cwd(), 'package.json'), 'utf8')
     const pkg = JSON.parse(raw) as { version?: string }
-    return pkg.version || '2.0.0'
+    return pkg.version || APP_VERSION
   } catch {
-    return '2.0.0'
+    return APP_VERSION
   }
 }
 

@@ -23,8 +23,8 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
   {
     tab: 'general',
-    label: 'Auto-Save & Delay',
-    keywords: ['auto save', 'autosave', 'debounce', 'disk', 'flush'],
+    label: 'Auto-Save, Delay & Format on Save',
+    keywords: ['auto save', 'autosave', 'debounce', 'disk', 'flush', 'format on save', 'prettier', 'biome', 'ruff'],
   },
   {
     tab: 'general',

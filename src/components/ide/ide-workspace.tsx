@@ -1788,24 +1788,56 @@ export function IDEWorkspace() {
       window.clearTimeout(existingTimer)
       autoSaveTimersRef.current.delete(target.path)
     }
-    const previous = diskSnapshotRef.current.get(target.path) ?? null
-    recordRevision({
-      path: target.path,
-      actor: 'User',
-      summary: 'Manual save (Ctrl+S)',
-      previousContent: previous,
-      nextContent: target.content,
-    })
-    void writeFileToDiskIfConnected(target.path, target.content)
 
-    setFiles((current) => {
-      const next = current.map((file) =>
-        file.path === activePath ? { ...file, dirty: false } : file,
-      )
-      persistWorkspace({ files: next })
-      return next
-    })
-    pushToast({ title: `Saved ${target.name}`, detail: target.path, variant: 'success' })
+    const commitSave = (finalContent: string, formattedWith?: string) => {
+      const previous = diskSnapshotRef.current.get(target.path) ?? null
+      recordRevision({
+        path: target.path,
+        actor: 'User',
+        summary: formattedWith ? `Manual save + ${formattedWith} (Ctrl+S)` : 'Manual save (Ctrl+S)',
+        previousContent: previous,
+        nextContent: finalContent,
+      })
+      void writeFileToDiskIfConnected(target.path, finalContent)
+
+      setFiles((current) => {
+        const next = current.map((file) =>
+          file.path === target.path ? { ...file, content: finalContent, dirty: false } : file,
+        )
+        filesRef.current = next
+        persistWorkspace({ files: next })
+        return next
+      })
+      pushToast({
+        title: formattedWith ? `Saved & Formatted ${target.name}` : `Saved ${target.name}`,
+        detail: formattedWith ? `${target.path} (${formattedWith})` : target.path,
+        variant: 'success',
+      })
+    }
+
+    if (appSettings.formatOnSave && target.language !== 'image') {
+      void fetch('/api/format', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          root: activeProject?.rootPath,
+          path: target.path,
+          content: target.content,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { ok?: boolean; formatted?: boolean; formatter?: string; content?: string } | null) => {
+          if (data?.ok && data.formatted && typeof data.content === 'string') {
+            commitSave(data.content, data.formatter)
+          } else {
+            commitSave(target.content)
+          }
+        })
+        .catch(() => commitSave(target.content))
+      return
+    }
+
+    commitSave(target.content)
   }
 
   // P0-2: Real-time File Watcher SSE (auto-syncs external git pull, CLI edits, created/deleted files)
@@ -2887,6 +2919,31 @@ export function IDEWorkspace() {
     [],
   )
 
+  const handleAssignAgentWorktree = useCallback(
+    (agentId: string, worktree: { worktreePath: string; branch: string } | null) => {
+      setAgents((current) =>
+        current.map((a) =>
+          a.id === agentId
+            ? {
+                ...a,
+                worktreePath: worktree?.worktreePath,
+                worktreeBranch: worktree?.branch,
+              }
+            : a,
+        ),
+      )
+      const target = sessionRef.current.agents.find((a) => a.id === agentId)
+      pushToast({
+        title: worktree
+          ? `Assigned ${target?.name || agentId} → ${worktree.branch}`
+          : `Unbound worktree for ${target?.name || agentId}`,
+        detail: worktree?.worktreePath || 'Returned to main workspace',
+        variant: 'info',
+      })
+    },
+    [pushToast],
+  )
+
   const handleWorkspaceFilesUpdated = useCallback(
     (updates: Array<{ path: string; content: string }>, summary: string) => {
       if (updates.length > 0) {
@@ -3420,6 +3477,7 @@ export function IDEWorkspace() {
             onCompactAgent={handleCompactAgent}
             onRetryTask={handleRetryTask}
             onUpdateTaskStatus={handleUpdateTaskStatus}
+            onAssignAgentWorktree={handleAssignAgentWorktree}
             onCreate={() => {
               setEditingAgent(null)
               setAgentCreatorOpen(true)

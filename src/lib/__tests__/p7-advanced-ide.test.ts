@@ -6,6 +6,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { GET as worktreeGet } from '@/app/(frontend)/api/worktree/route'
 import { sanitizeWorktreeSlug } from '@/lib/agent-worktree'
+import { APP_VERSION } from '@/lib/app-version'
 import { exportAgentChatToMarkdown } from '@/lib/chat-export'
 import { formatCodeWithProjectTool } from '@/lib/code-formatter'
 import { parseMergeConflicts, resolveMergeConflict } from '@/lib/merge-conflicts'
@@ -181,7 +182,8 @@ describe('P7 Advanced IDE Engine & Production Hardening', () => {
     expect(md).toContain('All checks passed.')
   })
 
-  it('sanitizes worktree slugs, guards /api/worktree, and rotates desktop crash logs', async () => {
+  it('sanitizes worktree slugs, guards /api/worktree, matches APP_VERSION, and rotates desktop crash logs', async () => {
+    expect(APP_VERSION).toBe('2.2.0')
     expect(sanitizeWorktreeSlug('FE / Login Page!!')).toBe('fe-login-page')
     expect(() => sanitizeWorktreeSlug('!!!')).toThrow()
 

@@ -106,6 +106,7 @@ export function AgentWorkspace({
   onCompactAgent,
   onRetryTask,
   onUpdateTaskStatus,
+  onAssignAgentWorktree,
   onCreate,
   onEditAgent,
   onChangeAgentModel,
@@ -148,6 +149,10 @@ export function AgentWorkspace({
   onCompactAgent?: (agentId: string) => void
   onRetryTask?: (task: AgentTask) => void
   onUpdateTaskStatus?: (taskId: string, status: AgentTask['status']) => void
+  onAssignAgentWorktree?: (
+    agentId: string,
+    worktree: { worktreePath: string; branch: string } | null,
+  ) => void
   onCreate: () => void
   onEditAgent: (agent: Agent) => void
   onChangeAgentModel?: (agentId: string, providerId: string, model: string) => void
@@ -350,6 +355,9 @@ export function AgentWorkspace({
       onDiff={onDiff}
       onUndoTurn={onUndoTurn ? (msgId) => onUndoTurn(agent.id, msgId) : undefined}
       onCompact={onCompactAgent ? () => onCompactAgent(agent.id) : undefined}
+      onClearWorktree={
+        onAssignAgentWorktree ? () => onAssignAgentWorktree(agent.id, null) : undefined
+      }
       onMinimize={() =>
         setWorkspace((current) => ({
           ...current,
@@ -597,6 +605,36 @@ export function AgentWorkspace({
                     <p className="truncate font-mono text-[9px] text-[#7a7a7a]">{wt.worktreePath}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {onAssignAgentWorktree && (
+                      <select
+                        value={
+                          agents.find((a) => a.worktreePath === wt.worktreePath)?.id ?? ''
+                        }
+                        onChange={(e) => {
+                          const targetAgentId = e.target.value
+                          // Clear previous holder if any
+                          const prev = agents.find((a) => a.worktreePath === wt.worktreePath)
+                          if (prev && prev.id !== targetAgentId) {
+                            onAssignAgentWorktree(prev.id, null)
+                          }
+                          if (targetAgentId) {
+                            onAssignAgentWorktree(targetAgentId, {
+                              worktreePath: wt.worktreePath,
+                              branch: wt.branch,
+                            })
+                          }
+                        }}
+                        title="Gán Agent chạy độc lập trong Worktree này"
+                        className="rounded border border-[#3a3528] bg-[#12110e] px-1.5 py-0.5 text-[9.5px] text-[#e6cfa0] outline-none"
+                      >
+                        <option value="">Assign agent…</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <button
                       type="button"
                       disabled={worktreeBusy}
@@ -608,7 +646,11 @@ export function AgentWorkspace({
                     <button
                       type="button"
                       disabled={worktreeBusy}
-                      onClick={() => void runWorktreeAction('remove', wt.slug)}
+                      onClick={() => {
+                        const holder = agents.find((a) => a.worktreePath === wt.worktreePath)
+                        if (holder) onAssignAgentWorktree?.(holder.id, null)
+                        void runWorktreeAction('remove', wt.slug)
+                      }}
                       className="rounded border border-[#5a2a2a] bg-[#261414] px-1.5 py-0.5 text-[9.5px] text-[#f48771] hover:bg-[#3a1d1d]"
                     >
                       Remove
@@ -942,6 +984,7 @@ function AgentPanel({
   onDiff,
   onUndoTurn,
   onCompact,
+  onClearWorktree,
   onMinimize,
   onPromote,
 }: {
@@ -980,6 +1023,7 @@ function AgentPanel({
   onDiff: (patchId?: string) => void
   onUndoTurn?: (messageId: string) => void
   onCompact?: () => void
+  onClearWorktree?: () => void
   onMinimize: () => void
   onPromote: () => void
 }) {
@@ -1141,6 +1185,27 @@ function AgentPanel({
                   {topologyRole}
                 </span>
               ) : null}
+              {agent.worktreeBranch && (
+                <span
+                  className={`flex shrink-0 items-center gap-1 rounded border border-[#c9a24d]/45 bg-[#c9a24d]/15 font-mono text-[#f0d394] ${
+                    isSolo ? 'px-2 py-0.5 text-[10px]' : 'px-1.5 py-0.5 text-[8px]'
+                  }`}
+                  title={`Chạy cô lập trong worktree: ${agent.worktreePath}`}
+                >
+                  <GitBranch size={isSolo ? 10 : 8} />
+                  {agent.worktreeBranch}
+                  {onClearWorktree && (
+                    <button
+                      type="button"
+                      onClick={onClearWorktree}
+                      className="ml-0.5 rounded hover:bg-white/10 hover:text-white"
+                      title="Gỡ gắn worktree (quay về workspace chính)"
+                    >
+                      <X size={isSolo ? 10 : 8} />
+                    </button>
+                  )}
+                </span>
+              )}
             </div>
             <p
               className={`truncate text-[#8f8f8f] ${

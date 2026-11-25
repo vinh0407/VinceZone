@@ -1276,8 +1276,14 @@ export function useOrchestration({
         ? 'FAST ANALYSIS MODE: Complete project snapshot (structure, dependencies, API routes, tests, README, and key files) is ALREADY provided below. Answer directly in ONE comprehensive, well-structured Markdown response (with headings, tables, bold highlights, and Mermaid/ASCII architecture diagram when helpful) WITHOUT wasting turns calling list_files/read_file unless strictly missing a specific detail.'
         : ''
 
+      const effectiveWorkspaceRoot = agent.worktreePath?.trim() || workspaceRoot
+      const worktreeDirective = agent.worktreePath
+        ? `ISOLATED GIT WORKTREE ACTIVE: Your tools execute inside isolated worktree "${agent.worktreePath}" (branch: ${agent.worktreeBranch || 'vz-agent'}). Make edits cleanly on this branch without worrying about interfering with the main working tree.`
+        : ''
+
       const systemPrompt = [
         buildTeamCollaborationPrompt(agent, agentsRef.current, projectMemText),
+        worktreeDirective,
         projectRules.promptBlock,
         fastAnalysisDirective,
         bridgeEnabled
@@ -1313,7 +1319,7 @@ export function useOrchestration({
             model: agent.model || activeProvider.model,
             enableTools: !isFastAnalysis,
             fastAnalysis: isFastAnalysis,
-            workspaceRoot,
+            workspaceRoot: effectiveWorkspaceRoot,
             mcpServers: isFastAnalysis ? [] : appSettings.mcpServers,
             messages: [
               { role: 'system', content: systemPrompt },

@@ -12,6 +12,8 @@ const os = require('node:os')
 const path = require('node:path')
 
 const ROOT = path.resolve(__dirname, '..')
+const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+const APP_VERSION = PKG.version || '2.2.0'
 const STANDALONE_DIR = path.join(ROOT, '.next', 'standalone')
 const DESKTOP_DIR = path.join(ROOT, 'desktop')
 const OUT_DIR = path.join(DESKTOP_DIR, 'VinceZone Studio')
@@ -53,8 +55,8 @@ async function patchExeIconAndMetadata() {
     const rceditFn = typeof rceditMod === 'function' ? rceditMod : rceditMod.rcedit
     await rceditFn(EXE_PATH, {
       icon: ICON_PATH,
-      'file-version': '2.2.0.0',
-      'product-version': '2.2.0.0',
+      'file-version': `${APP_VERSION}.0`,
+      'product-version': `${APP_VERSION}.0`,
       'version-string': {
         ProductName: 'VinceZone Studio',
         FileDescription: 'VinceZone Studio - Autonomous Multi-Agent Local IDE',
@@ -216,7 +218,7 @@ async function main() {
     JSON.stringify(
       {
         name: 'vincezone-studio',
-        version: '2.1.0',
+        version: APP_VERSION,
         private: true,
         main: 'electron/main.cjs',
       },

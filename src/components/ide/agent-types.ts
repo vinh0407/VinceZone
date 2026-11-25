@@ -54,6 +54,8 @@ export type Agent = {
   messages: Message[]
   currentTask?: string
   composingPrompt?: string
+  worktreePath?: string
+  worktreeBranch?: string
 }
 
 export type AgentView = 'chat' | 'terminal'
@@ -236,6 +238,7 @@ export type AppSettings = {
   theme?: AppTheme
   autoSave: boolean
   autoSaveDelayMs: number
+  formatOnSave?: boolean
   confirmDangerousTools: boolean
   restoreWorkspace: boolean
   compactMode: boolean

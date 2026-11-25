@@ -739,6 +739,12 @@ export function ProviderSettingsModal({
                   checked={settings.autoSave}
                   onChange={(autoSave) => setSettings({ ...settings, autoSave })}
                 />
+                <Toggle
+                  label="Format on Save (Ctrl+S)"
+                  description="Run project formatter (Biome / Prettier / Ruff / JSON) automatically whenever you save a file."
+                  checked={Boolean(settings.formatOnSave)}
+                  onChange={(formatOnSave) => setSettings({ ...settings, formatOnSave })}
+                />
                 {settings.autoSave && (
                   <label className="block rounded-lg border border-[#2c2c2c] bg-[#181818] p-3">
                     <span className="text-[10px] font-medium text-[#d4d4d4]">
