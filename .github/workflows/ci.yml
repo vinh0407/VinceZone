@@ -38,7 +38,7 @@ jobs:
 
   e2e-smoke:
     needs: [verify]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,14 +60,14 @@ jobs:
           pnpm build
 
       - name: Install Playwright Chromium
-        run: npx --yes playwright@1.52.0 install chromium --with-deps
+        run: npx --yes @playwright/test@latest install chromium --with-deps
 
       - name: Run IDE E2E Smoke Suite
         run: |
           pnpm start &
           SERVER_PID=$!
           npx wait-on http://127.0.0.1:40704/api/vz-ping --timeout 45000
-          npx --yes @playwright/test@1.52.0 test e2e/ide-smoke.spec.ts --reporter=list
+          npx --yes @playwright/test@latest test e2e/ide-smoke.spec.ts --reporter=list
           EXIT_CODE=$?
           kill $SERVER_PID || true
           exit $EXIT_CODE
