@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   CircleDashed,
   Clock,
+  Download,
   FilePlus,
   FolderOpen,
   Keyboard,
@@ -60,13 +61,24 @@ export function WelcomeTab({
             {rootPath ? <span className="ml-2 font-mono text-[11px] text-[#737373]">{rootPath}</span> : null}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onExportDiagnostics}
-          className="rounded border border-[#333333] bg-[#1a1a1a] px-3 py-1.5 text-[11px] text-[#cccccc] transition hover:border-[#c9a24d]/40 hover:text-white"
-        >
-          Export Diagnostics…
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://github.com/vinh0407/VinceZone/releases/latest"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded bg-gradient-to-b from-[#d1ab59] to-[#a98336] px-3 py-1.5 text-[11px] font-semibold text-[#111111] shadow-[0_1px_8px_rgba(201,162,77,0.28)] transition hover:from-[#e0bc6c] hover:to-[#bc9542]"
+            title="Tải bộ cài đặt VinceZone Studio mới nhất từ GitHub Releases"
+          >
+            <Download size={12} /> Download Setup
+          </a>
+          <button
+            type="button"
+            onClick={onExportDiagnostics}
+            className="rounded border border-[#333333] bg-[#1a1a1a] px-3 py-1.5 text-[11px] text-[#cccccc] transition hover:border-[#c9a24d]/40 hover:text-white"
+          >
+            Export Diagnostics…
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">

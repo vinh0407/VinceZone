@@ -24,6 +24,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Ensure NSIS is installed for Windows Setup (.exe)
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe') -and !(Get-Command makensis -ErrorAction SilentlyContinue)) {
+            choco install nsis -y --no-progress
+          }
       - name: Build Windows Desktop App & Installer
         env:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}

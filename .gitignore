@@ -1,25 +1,33 @@
+# Dependencies & build outputs
 node_modules/
 .next/
 out/
 dist/
+dist-desktop/
 build/
 .cache/
-.env*
-next-env.d.ts
 *.tsbuildinfo
-*-debug.log*
+next-env.d.ts
+
+# Environment & local secrets
+.env*
+
+# Logs & temp files
 logs/
 *.log
-.claude-replay.*
+*-debug.log*
 .tmp/
 .tmp-*
-.playwright-cli/
+.claude-replay.*
+
+# Local workspace session, test artifacts & packaged desktop binaries
 .vincezone/
-dist-desktop/
+.playwright-cli/
+playwright-report/
+test-results/
+coverage/
 tools/
-desktop/*.zip
-desktop/*.exe
-desktop/VinceZone Studio/
+desktop/
 *.lnk
 /.plugins/
 /.opencode-skills/
