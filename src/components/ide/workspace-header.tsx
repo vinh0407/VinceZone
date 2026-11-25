@@ -12,7 +12,6 @@ import {
   Plus,
   Search,
   Square,
-  TerminalSquare,
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
@@ -559,14 +558,6 @@ export function WorkspaceHeader({
         >
           <PanelRight size={14} />
         </button>
-
-        <span
-          className="ml-1 hidden items-center gap-1 rounded border border-[#2f2f2f] bg-[#141414] px-1.5 py-0.5 font-mono text-[9px] text-[#a3a3a3] xl:flex"
-          title="VinceZone Local Desktop Runtime"
-        >
-          <TerminalSquare size={10} />
-          {isDesktop ? 'Local App' : 'Local'}
-        </span>
       </div>
     </header>
   )
