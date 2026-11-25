@@ -162,6 +162,8 @@ export async function POST(request: Request) {
       | 'ai-commit-message'
       | 'diff'
       | 'discard'
+      | 'blame'
+      | 'graph'
     root?: string
     path?: string
     message?: string
@@ -205,6 +207,71 @@ export async function POST(request: Request) {
       const args = body.path ? ['diff', '--', body.path] : ['diff']
       const { stdout } = await runGit(args, cwd)
       return Response.json({ ok: true, diff: stdout.slice(0, 60_000) })
+    }
+    if (body.action === 'blame' && body.path) {
+      const safeRel = body.path.replace(/\\/g, '/')
+      resolvePathInsideWorkspace(cwd, safeRel)
+      const { stdout } = await runGit(['blame', '--line-porcelain', '--', safeRel], cwd, 12_000)
+      const lines = stdout.split(/\r?\n/)
+      const blameByLine: Record<
+        number,
+        { hash: string; author: string; date: string; summary: string }
+      > = {}
+      let curHash = ''
+      let curFinalLine = 0
+      let curAuthor = ''
+      let curDate = ''
+      let curSummary = ''
+      for (const raw of lines) {
+        const hdr = raw.match(/^([0-9a-f]{40})\s+\d+\s+(\d+)/)
+        if (hdr) {
+          curHash = hdr[1].slice(0, 7)
+          curFinalLine = Number.parseInt(hdr[2], 10)
+          continue
+        }
+        if (raw.startsWith('author ')) curAuthor = raw.slice(7).trim()
+        else if (raw.startsWith('author-time ')) {
+          const ts = Number.parseInt(raw.slice(12).trim(), 10)
+          if (Number.isFinite(ts)) {
+            curDate = new Date(ts * 1000).toISOString().slice(0, 10)
+          }
+        } else if (raw.startsWith('summary ')) curSummary = raw.slice(8).trim()
+        else if (raw.startsWith('\t') && curFinalLine > 0) {
+          blameByLine[curFinalLine] = {
+            hash: curHash,
+            author: curAuthor || 'Unknown',
+            date: curDate || '',
+            summary: curSummary || '',
+          }
+        }
+      }
+      return Response.json({ ok: true, path: safeRel, blameByLine })
+    }
+    if (body.action === 'graph') {
+      const { stdout } = await runGit(
+        ['log', '--all', '--date=relative', '--pretty=format:%h|%p|%d|%s|%an|%cr', '-n', '30'],
+        cwd,
+      )
+      const nodes = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [hash, parentsRaw, refsRaw, subject, author, relativeTime] = line.split('|')
+          return {
+            hash: hash || '',
+            parents: (parentsRaw || '').split(' ').filter(Boolean),
+            refs: (refsRaw || '')
+              .replace(/^\s*\(|\)\s*$/g, '')
+              .split(',')
+              .map((r) => r.trim())
+              .filter(Boolean),
+            subject: subject || '',
+            author: author || '',
+            relativeTime: relativeTime || '',
+          }
+        })
+      return Response.json({ ok: true, nodes })
     }
     if (body.action === 'file-diff-contents' && body.path) {
       const safeRel = body.path.replace(/\\/g, '/')

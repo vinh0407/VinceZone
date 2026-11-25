@@ -9,6 +9,13 @@ import {
   searchWorkspaceSymbols,
 } from '@/lib/code-index'
 import { isLoopbackRequest, resolvePathInsideWorkspace } from '@/lib/local-guard'
+import {
+  getTsDefinitionAtPosition,
+  getTsHoverInfoAtPosition,
+  getTsReferencesAtPosition,
+  isTypeScriptFamilyFile,
+  renameTsSymbolAtPosition,
+} from '@/lib/ts-language-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,14 +44,50 @@ export async function GET(request: Request) {
     if (action === 'definition') {
       const symbol = searchParams.get('symbol') || ''
       const currentFile = searchParams.get('currentFile') || undefined
+      const line = Number(searchParams.get('line') || 0)
+      const column = Number(searchParams.get('column') || 0)
+      if (currentFile && line > 0 && column > 0 && isTypeScriptFamilyFile(currentFile)) {
+        try {
+          const tsDefs = getTsDefinitionAtPosition(root, currentFile, line, column)
+          if (tsDefs.length > 0) {
+            return Response.json({ symbol, engine: 'typescript-ast', definitions: tsDefs })
+          }
+        } catch {
+          // fall back to regex index
+        }
+      }
       const definitions = await findSymbolDefinitions(root, symbol, currentFile)
-      return Response.json({ symbol, definitions })
+      return Response.json({ symbol, engine: 'regex-index', definitions })
     }
 
     if (action === 'references') {
       const symbol = searchParams.get('symbol') || ''
+      const currentFile = searchParams.get('currentFile') || undefined
+      const line = Number(searchParams.get('line') || 0)
+      const column = Number(searchParams.get('column') || 0)
+      if (currentFile && line > 0 && column > 0 && isTypeScriptFamilyFile(currentFile)) {
+        try {
+          const tsRefs = getTsReferencesAtPosition(root, currentFile, line, column, 80)
+          if (tsRefs.length > 0) {
+            return Response.json({ symbol, engine: 'typescript-ast', references: tsRefs })
+          }
+        } catch {
+          // fall back to regex index
+        }
+      }
       const references = await findSymbolReferences(root, symbol, 80)
-      return Response.json({ symbol, references })
+      return Response.json({ symbol, engine: 'regex-index', references })
+    }
+
+    if (action === 'hover') {
+      const relPath = searchParams.get('path') || ''
+      const line = Number(searchParams.get('line') || 0)
+      const column = Number(searchParams.get('column') || 0)
+      if (!relPath || line <= 0 || column <= 0 || !isTypeScriptFamilyFile(relPath)) {
+        return Response.json({ hover: null })
+      }
+      const hover = getTsHoverInfoAtPosition(root, relPath, line, column)
+      return Response.json({ hover })
     }
 
     if (action === 'search') {
@@ -81,7 +124,15 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Local workspace access required.' }, { status: 403 })
   }
 
-  let body: { action?: string; root?: string; oldName?: string; newName?: string }
+  let body: {
+    action?: string
+    root?: string
+    oldName?: string
+    newName?: string
+    path?: string
+    line?: number
+    column?: number
+  }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -96,12 +147,33 @@ export async function POST(request: Request) {
 
   try {
     if (body.action === 'rename') {
+      if (
+        body.path &&
+        typeof body.line === 'number' &&
+        body.line > 0 &&
+        typeof body.column === 'number' &&
+        body.column > 0 &&
+        isTypeScriptFamilyFile(body.path)
+      ) {
+        try {
+          const tsResult = await renameTsSymbolAtPosition(
+            root,
+            body.path,
+            body.line,
+            body.column,
+            body.newName || '',
+          )
+          return Response.json({ ok: true, ...tsResult })
+        } catch {
+          // fall back to regex workspace rename if cursor wasn't on a TS-renamable node
+        }
+      }
       const result = await renameSymbolAcrossWorkspace(
         root,
         body.oldName || '',
         body.newName || '',
       )
-      return Response.json({ ok: true, ...result })
+      return Response.json({ ok: true, engine: 'regex-index', ...result })
     }
     return Response.json({ error: `Unsupported action: ${body.action}` }, { status: 400 })
   } catch (err) {

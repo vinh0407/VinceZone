@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebugger } from '@/hooks/use-debugger'
 import { useGitStatus } from '@/hooks/use-git-status'
 import { useOrchestration } from '@/hooks/use-orchestration'
+import { usePanelLayout } from '@/hooks/use-panel-layout'
 import { useRecentWorkspaces } from '@/hooks/use-recent-workspaces'
 import { useToast } from '@/hooks/use-toast'
 import type { BridgeMessage } from '@/lib/agent-bridge'
@@ -32,6 +33,13 @@ import {
 import { applyHunkDecisions } from '@/lib/hunk-diff'
 import { extractProjectRules } from '@/lib/project-rules'
 import { computeTurnUndoPlan } from '@/lib/turn-undo'
+import {
+  cloneProjectSession,
+  createFreshSession,
+  findPmAgentId,
+  makeDiskProjectId,
+  normalizeRootKey,
+} from '@/lib/workspace-session'
 import {
   getRoleBlueprint,
   inferRoleId,
@@ -98,6 +106,8 @@ declare global {
       port: number
       openDirectory: () => Promise<string | null>
       openExternal?: (url: string) => Promise<boolean>
+      openLogsFolder?: () => Promise<{ ok: boolean; logDir?: string; logFile?: string }>
+      downloadUpdate?: (url: string) => Promise<{ ok: boolean; error?: string }>
       secrets?: {
         isAvailable: () => Promise<boolean>
         saveApiKeys: (keyMap: Record<string, string>) => Promise<{ ok: boolean; encrypted: boolean }>
@@ -105,74 +115,6 @@ declare global {
       }
       onMenuAction: (cb: (payload: { action: string; folder?: string }) => void) => () => void
     }
-  }
-}
-
-function normalizeRootKey(root?: string): string {
-  if (!root) return ''
-  return root.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-}
-
-function makeDiskProjectId(root: string): string {
-  return `disk-${normalizeRootKey(root)}`
-}
-
-function cloneProjectSession(session: ProjectSessionData): ProjectSessionData {
-  return {
-    agents: session.agents.map((a) => ({
-      ...a,
-      messages: a.messages.map((m) => ({
-        ...m,
-        images: m.images ? m.images.map((img) => ({ ...img })) : undefined,
-      })),
-    })),
-    agentTasks: session.agentTasks.map((t) => ({ ...t })),
-    communicationEvents: session.communicationEvents.map((e) => ({ ...e })),
-    proposedPatches: session.proposedPatches.map((p) => ({ ...p })),
-    revisions: session.revisions.map((r) => ({ ...r })),
-    memoryNotes: session.memoryNotes.map((n) => ({ ...n })),
-    chatThreads: (session.chatThreads ?? []).map((t) => ({
-      ...t,
-      agents: t.agents.map((a) => ({
-        ...a,
-        messages: a.messages.map((m) => ({ ...m })),
-      })),
-    })),
-  }
-}
-
-function findPmAgentId(list: Agent[]): string {
-  return (
-    getCaptainAgent(list)?.id ??
-    list.find((item) => item.roleId === 'pm' || item.id === 'pm')?.id ??
-    list[0]?.id ??
-    'pm'
-  )
-}
-
-function createFreshSession(projectName: string): ProjectSessionData {
-  const seeded = createSeedAgents().map((agent, index) =>
-    index === 0
-      ? {
-          ...agent,
-          messages: [
-            {
-              id: uid(),
-              role: 'assistant' as const,
-              text: `[${projectName}] PM Orchestrator ready. This project has its own isolated agent chat, memory, and revision timeline.`,
-            },
-          ],
-        }
-      : agent,
-  )
-  return {
-    agents: seeded,
-    agentTasks: [],
-    communicationEvents: [],
-    proposedPatches: [],
-    revisions: [],
-    memoryNotes: defaultMemoryNotes.map((note) => ({ ...note, id: `${note.id}-${uid()}` })),
-    chatThreads: [],
   }
 }
 
@@ -274,9 +216,15 @@ export function IDEWorkspace() {
   const [paletteMode, setPaletteMode] = useState<'files' | 'commands' | null>(null)
   const [formatSeq, setFormatSeq] = useState(0)
   const [chatFocusSeq, setChatFocusSeq] = useState(0)
-  const [explorerWidth, setExplorerWidth] = useState(256)
-  const [rightChatWidth, setRightChatWidth] = useState(320)
-  const [terminalHeight, setTerminalHeight] = useState(200)
+  const {
+    explorerWidth,
+    setExplorerWidth,
+    rightChatWidth,
+    setRightChatWidth,
+    terminalHeight,
+    setTerminalHeight,
+    startDragResize,
+  } = usePanelLayout()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hydratedRef = useRef(false)
@@ -790,32 +738,6 @@ export function IDEWorkspace() {
       // ignore
     }
   }, [explorerWidth, rightChatWidth, terminalHeight])
-
-  const startDragResize = (
-    axis: 'x' | 'y',
-    startPos: number,
-    initialSize: number,
-    min: number,
-    max: number,
-    invert: boolean,
-    onChange: (next: number) => void,
-  ) => {
-    const onMove = (ev: MouseEvent) => {
-      const delta = (axis === 'x' ? ev.clientX : ev.clientY) - startPos
-      const raw = invert ? initialSize - delta : initialSize + delta
-      onChange(Math.min(max, Math.max(min, Math.round(raw))))
-    }
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-    document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
 
   const persistWorkspace = useCallback(
     (overrides?: {
@@ -3116,6 +3038,17 @@ export function IDEWorkspace() {
           setActivePath('')
         }}
         onExportDiagnostics={handleExportDiagnostics}
+        onOpenLogsFolder={
+          isDesktop
+            ? () => {
+                void window.vincezoneDesktop?.openLogsFolder?.().then((res) => {
+                  if (res?.ok) {
+                    pushToast({ title: 'Opened desktop logs folder', detail: res.logDir, variant: 'info' })
+                  }
+                })
+              }
+            : undefined
+        }
         onPreviewMail={() => {
           setWorkspaceMode('agents')
           window.setTimeout(() => {
@@ -3464,6 +3397,7 @@ export function IDEWorkspace() {
             views={agentViews}
             drafts={drafts}
             files={files}
+            workspaceRoot={activeProject?.rootPath}
             tasks={agentTasks}
             communicationEvents={communicationEvents}
             proposedPatches={proposedPatches}

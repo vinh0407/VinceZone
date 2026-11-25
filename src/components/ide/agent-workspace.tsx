@@ -8,6 +8,7 @@ import {
   Copy,
   Crown,
   FileCode2,
+  GitBranch,
   GitCompareArrows,
   GripVertical,
   History,
@@ -82,6 +83,7 @@ export function AgentWorkspace({
   views,
   drafts,
   files,
+  workspaceRoot,
   tasks,
   communicationEvents,
   proposedPatches,
@@ -123,6 +125,7 @@ export function AgentWorkspace({
   views: Record<string, AgentView>
   drafts: Record<string, string>
   files: WorkspaceFile[]
+  workspaceRoot?: string
   tasks: AgentTask[]
   communicationEvents: CommunicationEvent[]
   proposedPatches: ProposedPatch[]
@@ -170,7 +173,50 @@ export function AgentWorkspace({
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([])
   const [threadsOpen, setThreadsOpen] = useState(false)
   const [tasksExpanded, setTasksExpanded] = useState(false)
+  const [worktreesOpen, setWorktreesOpen] = useState(false)
+  const [worktrees, setWorktrees] = useState<
+    Array<{ slug: string; branch: string; worktreePath: string; head: string }>
+  >([])
+  const [newWorktreeSlug, setNewWorktreeSlug] = useState('agent-task')
+  const [worktreeBusy, setWorktreeBusy] = useState(false)
+  const [worktreeMsg, setWorktreeMsg] = useState('')
   const gridHostRef = useRef<HTMLDivElement>(null)
+
+  const refreshWorktrees = async () => {
+    if (!workspaceRoot) return
+    try {
+      const res = await fetch(`/api/worktree?root=${encodeURIComponent(workspaceRoot)}`, {
+        cache: 'no-store',
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        worktrees?: Array<{ slug: string; branch: string; worktreePath: string; head: string }>
+      }
+      if (data.ok && data.worktrees) setWorktrees(data.worktrees)
+    } catch {
+      // ignore
+    }
+  }
+
+  const runWorktreeAction = async (action: 'create' | 'merge' | 'remove', slug: string) => {
+    if (!workspaceRoot || !slug.trim() || worktreeBusy) return
+    setWorktreeBusy(true)
+    setWorktreeMsg('')
+    try {
+      const res = await fetch('/api/worktree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, root: workspaceRoot, slug: slug.trim() }),
+      })
+      const data = (await res.json()) as { ok?: boolean; output?: string; error?: string }
+      setWorktreeMsg(data.ok ? data.output || `Worktree ${action} succeeded.` : data.error || 'Failed.')
+      await refreshWorktrees()
+    } catch (err) {
+      setWorktreeMsg(err instanceof Error ? err.message : 'Worktree action failed.')
+    } finally {
+      setWorktreeBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (pendingApproval) {
@@ -427,6 +473,24 @@ export function AgentWorkspace({
               { id: 'focus1', label: '1:6 PM' },
             ]}
           />
+          {workspaceRoot && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = !worktreesOpen
+                setWorktreesOpen(next)
+                if (next) void refreshWorktrees()
+              }}
+              className={`flex items-center gap-1 rounded border transition ${
+                worktreesOpen
+                  ? 'border-[#c9a24d]/50 bg-[#c9a24d]/15 text-[#f0d394]'
+                  : 'border-[#333333] bg-[#222222] text-[#cccccc] hover:text-white'
+              } ${isSolo ? 'px-3 py-1.5 text-[12.5px]' : 'px-2 py-1 text-[11px]'}`}
+              title="Quản lý Git Worktree cô lập cho từng Agent chạy song song"
+            >
+              <GitBranch size={isSolo ? 14 : 11} /> Worktrees ({worktrees.length})
+            </button>
+          )}
           {onNewThread && (
             <button
               type="button"
@@ -483,6 +547,79 @@ export function AgentWorkspace({
           </button>
         </div>
       </div>
+
+      {worktreesOpen && workspaceRoot && (
+        <div className="shrink-0 border-b border-[#c9a24d]/30 bg-[#151411] px-4 py-2.5 text-[11px]">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 font-semibold text-[#f0d394]">
+              <GitBranch size={12} /> Isolated Agent Git Worktrees
+            </span>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={newWorktreeSlug}
+                onChange={(e) => setNewWorktreeSlug(e.target.value)}
+                placeholder="agent-slug (e.g. fe-login)"
+                className="w-40 rounded border border-[#3a3a3a] bg-[#101010] px-2 py-0.5 font-mono text-[10.5px] text-white outline-none focus:border-[#c9a24d]"
+              />
+              <button
+                type="button"
+                disabled={worktreeBusy || !newWorktreeSlug.trim()}
+                onClick={() => void runWorktreeAction('create', newWorktreeSlug)}
+                className="rounded bg-[#c9a24d] px-2 py-0.5 text-[10px] font-semibold text-[#111111] hover:bg-[#ddb968] disabled:opacity-40"
+              >
+                + Create Worktree
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorktreesOpen(false)}
+                className="mini-button"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          </div>
+          {worktreeMsg && <p className="mb-1.5 text-[10px] text-[#e6cfa0]">{worktreeMsg}</p>}
+          {worktrees.length === 0 ? (
+            <p className="text-[10.5px] text-[#858585]">
+              Chưa có worktree cô lập nào. Tạo worktree để Agent sửa code trên nhánh riêng (vz-agent/*) không đụng độ.
+            </p>
+          ) : (
+            <div className="grid gap-1.5 md:grid-cols-2 lg:grid-cols-3">
+              {worktrees.map((wt) => (
+                <div
+                  key={wt.slug}
+                  className="flex items-center justify-between gap-2 rounded border border-[#2f2b22] bg-[#1a1814] px-2.5 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-[10.5px] font-semibold text-white">
+                      {wt.branch} <span className="text-[#858585]">({wt.head})</span>
+                    </p>
+                    <p className="truncate font-mono text-[9px] text-[#7a7a7a]">{wt.worktreePath}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={worktreeBusy}
+                      onClick={() => void runWorktreeAction('merge', wt.slug)}
+                      className="rounded border border-[#33543a] bg-[#132417] px-1.5 py-0.5 text-[9.5px] text-[#89d185] hover:bg-[#1d3823]"
+                    >
+                      Merge
+                    </button>
+                    <button
+                      type="button"
+                      disabled={worktreeBusy}
+                      onClick={() => void runWorktreeAction('remove', wt.slug)}
+                      className="rounded border border-[#5a2a2a] bg-[#261414] px-1.5 py-0.5 text-[9.5px] text-[#f48771] hover:bg-[#3a1d1d]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {tasksExpanded && tasks.length > 0 && (
         <div className="shrink-0 border-b border-[#2b2b2b] bg-[#161616] px-4 py-2">

@@ -226,7 +226,13 @@ async function main() {
     'utf8',
   )
 
-  for (const file of ['main.cjs', 'preload.cjs', 'in-process-bridge.cjs', 'vincezone-logo.ico']) {
+  for (const file of [
+    'main.cjs',
+    'preload.cjs',
+    'in-process-bridge.cjs',
+    'rotating-logger.cjs',
+    'vincezone-logo.ico',
+  ]) {
     fs.copyFileSync(path.join(ROOT, 'electron', file), path.join(APP_DIR, 'electron', file))
   }
 

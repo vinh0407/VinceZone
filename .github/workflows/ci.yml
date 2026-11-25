@@ -35,3 +35,39 @@ jobs:
 
       - name: Production Next.js build
         run: pnpm build
+
+  e2e-smoke:
+    needs: [verify]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies & build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install Playwright Chromium
+        run: npx --yes playwright@1.52.0 install chromium --with-deps
+
+      - name: Run IDE E2E Smoke Suite
+        run: |
+          pnpm start &
+          SERVER_PID=$!
+          npx wait-on http://127.0.0.1:40704/api/vz-ping --timeout 45000
+          npx --yes @playwright/test@1.52.0 test e2e/ide-smoke.spec.ts --reporter=list
+          EXIT_CODE=$?
+          kill $SERVER_PID || true
+          exit $EXIT_CODE

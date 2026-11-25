@@ -85,6 +85,7 @@ export function WorkspaceHeader({
   onOpenShortcuts,
   onOpenWelcome,
   onExportDiagnostics,
+  onOpenLogsFolder,
   onPreviewMail,
 }: {
   projects: ProjectTab[]
@@ -136,6 +137,7 @@ export function WorkspaceHeader({
   onOpenShortcuts?: () => void
   onOpenWelcome?: () => void
   onExportDiagnostics?: () => void
+  onOpenLogsFolder?: () => void
   onPreviewMail: () => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -341,6 +343,14 @@ export function WorkspaceHeader({
               {
                 label: 'Export Diagnostic Logs…',
                 onSelect: onExportDiagnostics,
+              },
+            ]
+          : []),
+        ...(onOpenLogsFolder
+          ? [
+              {
+                label: 'Open Desktop Logs Folder',
+                onSelect: onOpenLogsFolder,
               },
             ]
           : []),

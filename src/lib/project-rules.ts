@@ -139,6 +139,38 @@ export async function resolveDynamicContextMentions(input: {
     }
   }
 
+  const semanticMatch = text.match(/(?:^|\s)@semantic:([^\n]+)/i)
+  if (semanticMatch && rootPath && typeof fetch === 'function') {
+    const semQuery = semanticMatch[1].trim().slice(0, 140)
+    if (semQuery) {
+      try {
+        const res = await fetch('/api/semantic-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ root: rootPath, query: semQuery, topK: 6 }),
+        })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            ok?: boolean
+            hits?: Array<{ path: string; startLine: number; symbol?: string; preview: string }>
+          }
+          if (data.ok && data.hits && data.hits.length > 0) {
+            badges.push(`@semantic (${data.hits.length})`)
+            const formatted = data.hits
+              .map(
+                (h) =>
+                  `- ${h.path}:${h.startLine}${h.symbol ? ` (${h.symbol})` : ''}\n\`\`\`\n${h.preview}\n\`\`\``,
+              )
+              .join('\n')
+            sections.push(`### @semantic (${semQuery})\n${formatted.slice(0, 3_200)}`)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   return {
     badges,
     promptBlock: sections.join('\n\n'),

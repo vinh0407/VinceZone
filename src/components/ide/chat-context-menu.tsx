@@ -211,6 +211,7 @@ export function ChatContextMenu({
               { token: '@errors', label: '@errors', title: 'Đính kèm lỗi IDE Problems hiện tại' },
               { token: '@git', label: '@git', title: 'Đính kèm git status & commits mới nhất' },
               { token: '@terminal', label: '@terminal', title: 'Đính kèm output Terminal gần nhất' },
+              { token: '@semantic:', label: '@semantic:', title: 'Tìm code theo ngữ nghĩa trong toàn dự án' },
               { token: '@url:https://', label: '@url:', title: 'Tải nội dung tài liệu từ URL' },
             ].map((chip) => (
               <button

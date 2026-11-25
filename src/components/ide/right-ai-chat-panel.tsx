@@ -2,10 +2,12 @@
 
 import {
   ArrowRightLeft,
+  BookMarked,
   Bot,
   Check,
   Copy,
   Crown,
+  Download,
   History,
   ImagePlus,
   Link2,
@@ -21,7 +23,9 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { usePromptLibrary } from '@/hooks/use-prompt-library'
 import type { BridgeMessage } from '@/lib/agent-bridge'
+import { exportAgentChatToMarkdown } from '@/lib/chat-export'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { getCaptainAgent, getViceCaptainAgent } from '@/lib/command-hierarchy'
 import { extractImagesFromFileList } from '@/lib/image-attachment'
@@ -41,6 +45,7 @@ import { ChatContextMenu } from './chat-context-menu'
 import { CommandApprovalList } from './command-approval-card'
 import { HighlightedChatText, HighlightedChatTextarea } from './highlighted-chat-input'
 import { MarkdownReply } from './markdown-reply'
+import { PromptLibraryPopover } from './prompt-library-popover'
 import {
   applySlashSelection,
   buildSlashCommands,
@@ -120,6 +125,8 @@ export function RightAiChatPanel({
   onClose: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
+  const [promptLibOpen, setPromptLibOpen] = useState(false)
+  const { prompts: promptTemplates, savePrompt, deletePrompt } = usePromptLibrary()
   const [bridgeDrawerOpen, setBridgeDrawerOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
@@ -290,6 +297,25 @@ export function RightAiChatPanel({
               <History size={12} />
             </button>
           )}
+          <button
+            type="button"
+            className="mini-button"
+            title="Xuất đoạn chat này ra file Markdown (.md)"
+            onClick={() => {
+              const md = exportAgentChatToMarkdown(agent, activeFilePath || 'VinceZone Studio')
+              const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `vincezone-chat-${agent.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`
+              document.body.appendChild(link)
+              link.click()
+              link.remove()
+              URL.revokeObjectURL(url)
+            }}
+          >
+            <Download size={12} />
+          </button>
           <button
             className="mini-button"
             title="Open Full Multi-Agent Control Center"
@@ -795,6 +821,19 @@ export function RightAiChatPanel({
               }}
             />
           )}
+          {promptLibOpen && (
+            <PromptLibraryPopover
+              prompts={promptTemplates}
+              currentDraft={draft}
+              onInsert={(content) => {
+                onDraft(agent.id, content)
+                textareaRef.current?.focus()
+              }}
+              onSavePrompt={savePrompt}
+              onDeletePrompt={deletePrompt}
+              onClose={() => setPromptLibOpen(false)}
+            />
+          )}
           {contextOpen && (
             <ChatContextMenu
               files={files}
@@ -858,11 +897,25 @@ export function RightAiChatPanel({
           <div className="flex items-center justify-between px-2 pb-1.5">
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setContextOpen((prev) => !prev)}
+                onClick={() => {
+                  setContextOpen((prev) => !prev)
+                  setPromptLibOpen(false)
+                }}
                 className={`mini-button ${contextOpen ? 'bg-[#2e2e2e] text-white' : ''}`}
                 title="Add Context"
               >
                 <Plus size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPromptLibOpen((prev) => !prev)
+                  setContextOpen(false)
+                }}
+                className={`mini-button ${promptLibOpen ? 'bg-[#2e2e2e] text-[#ddb968]' : ''}`}
+                title="Prompt Library (mẫu prompt tái sử dụng)"
+              >
+                <BookMarked size={12} />
               </button>
               <button
                 type="button"

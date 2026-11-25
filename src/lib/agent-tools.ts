@@ -14,6 +14,7 @@ import { registerPendingApproval } from './command-approvals'
 import { withFileLock } from './file-lock'
 import { resolvePathInsideWorkspace } from './local-guard'
 import { callMcpServerTool, listMcpServerTools, type McpToolInfo } from './mcp-client'
+import { semanticSearchWorkspace } from './semantic-index'
 
 const execFileAsync = promisify(execFile)
 
@@ -252,6 +253,25 @@ export const AGENT_TOOL_DEFINITIONS = [
         properties: {
           query: { type: 'string', description: 'Case-insensitive text to search for.' },
           dir: { type: 'string', description: 'Optional relative subfolder (e.g. src).' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'semantic_search',
+      description:
+        'Find code blocks across the repository by natural-language intent/concept (local TF-IDF vector index over symbol chunks). Ideal when you do not know exact symbol or file names.',
+      parameters: {
+        type: 'object',
+        required: ['query'],
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Natural language concept or functionality to locate (e.g. "payment webhook verification").',
+          },
+          topK: { type: 'number', description: 'Number of top matching chunks to return (default 8).' },
         },
       },
     },
@@ -782,6 +802,25 @@ async function executeAgentToolInner(
         .slice(0, 12)
         .map((s) => `${s.kind} ${s.name} — ${s.path}:${s.line}:${s.column} | ${s.signature}`)
         .join('\n'),
+    }
+  }
+
+  if (name === 'semantic_search') {
+    const query = String(args.query || '').trim()
+    if (!query) return { ok: false, output: 'Missing query parameter.' }
+    const topK = Math.min(20, Math.max(1, Number(args.topK) || 8))
+    const result = await semanticSearchWorkspace(root, query, topK)
+    if (result.hits.length === 0) {
+      return { ok: true, output: `No semantic matches for "${query}".` }
+    }
+    return {
+      ok: true,
+      output: result.hits
+        .map(
+          (h) =>
+            `[${h.score}] ${h.path}:${h.startLine}-${h.endLine}${h.symbol ? ` (${h.symbol})` : ''}\n${h.preview}`,
+        )
+        .join('\n---\n'),
     }
   }
 

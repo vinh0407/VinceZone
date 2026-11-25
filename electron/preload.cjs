@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('vincezoneDesktop', {
   port: 0,
   openDirectory: () => ipcRenderer.invoke('vincezone:openDirectory'),
   openExternal: (url) => ipcRenderer.invoke('vincezone:openExternal', url),
+  openLogsFolder: () => ipcRenderer.invoke('vincezone:openLogsFolder'),
+  downloadUpdate: (url) => ipcRenderer.invoke('vincezone:downloadUpdate', url),
   secrets: {
     isAvailable: () => ipcRenderer.invoke('vincezone:secrets:isAvailable'),
     saveApiKeys: (keyMap) => ipcRenderer.invoke('vincezone:secrets:save', keyMap),

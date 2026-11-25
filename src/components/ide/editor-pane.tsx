@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeDiffHunks } from '@/lib/hunk-diff'
+import { parseMergeConflicts, resolveMergeConflict } from '@/lib/merge-conflicts'
 import { extractProposedPatches } from '@/lib/orchestrator'
 import { extractSymbolsFromSource } from '@/lib/symbol-outline'
 import type { AppTheme, InlineHunkReview, ProviderConfig, WorkspaceFile } from './agent-types'
@@ -232,9 +233,73 @@ export function EditorPane({
   const [renameBar, setRenameBar] = useState<{
     oldName: string
     newName: string
+    path?: string
+    line?: number
+    column?: number
     busy: boolean
     error: string
   } | null>(null)
+  const [cursorLineNum, setCursorLineNum] = useState(1)
+  const [blameEnabled, setBlameEnabled] = useState(false)
+  const [blameMap, setBlameMap] = useState<
+    Record<number, { hash: string; author: string; date: string; summary: string }>
+  >({})
+  const [formatting, setFormatting] = useState(false)
+
+  const mergeConflicts = useMemo(
+    () => (activeFile?.content ? parseMergeConflicts(activeFile.content) : []),
+    [activeFile?.content],
+  )
+
+  useEffect(() => {
+    if (!blameEnabled || !workspaceRoot || !activeFile?.path) {
+      setBlameMap({})
+      return
+    }
+    let cancelled = false
+    void fetch('/api/git', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'blame', root: workspaceRoot, path: activeFile.path }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { ok?: boolean; blameByLine?: typeof blameMap } | null) => {
+        if (!cancelled && data?.ok && data.blameByLine) {
+          setBlameMap(data.blameByLine)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [activeFile?.path, blameEnabled, workspaceRoot])
+
+  const formatActiveDocument = async () => {
+    const target = activeFileRef.current
+    if (!target || formatting) return
+    setFormatting(true)
+    try {
+      const res = await fetch('/api/format', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          root: workspaceRootRef.current,
+          path: target.path,
+          content: target.content,
+        }),
+      })
+      const data = (await res.json()) as { ok?: boolean; formatted?: boolean; content?: string }
+      if (data.ok && data.formatted && typeof data.content === 'string') {
+        onUpdateFile(data.content)
+      } else {
+        await editorRef.current?.getAction('editor.action.formatDocument')?.run()
+      }
+    } catch {
+      await editorRef.current?.getAction('editor.action.formatDocument')?.run()
+    } finally {
+      setFormatting(false)
+    }
+  }
 
   const activeFileSymbols = useMemo(
     () =>
@@ -269,6 +334,9 @@ export function EditorPane({
             root: workspaceRoot,
             oldName: renameBar.oldName,
             newName: nextName,
+            path: renameBar.path,
+            line: renameBar.line,
+            column: renameBar.column,
           }),
         })
         const data = (await res.json()) as {
@@ -426,7 +494,12 @@ export function EditorPane({
       if (!model || !pos) return
       const word = model.getWordAtPosition(pos)?.word?.trim()
       if (!word || word.length < 2) return
-      const params = new URLSearchParams({ action: mode, symbol: word })
+      const params = new URLSearchParams({
+        action: mode,
+        symbol: word,
+        line: String(pos.lineNumber),
+        column: String(pos.column),
+      })
       if (activeFileRef.current?.path) params.set('currentFile', activeFileRef.current.path)
       if (workspaceRootRef.current) params.set('root', workspaceRootRef.current)
 
@@ -523,10 +596,29 @@ export function EditorPane({
         if (!model || !pos) return
         const word = model.getWordAtPosition(pos)?.word
         if (!word) return
-        setRenameBar({ oldName: word, newName: word, busy: false, error: '' })
+        setRenameBar({
+          oldName: word,
+          newName: word,
+          path: activeFileRef.current?.path,
+          line: pos.lineNumber,
+          column: pos.column,
+          busy: false,
+          error: '',
+        })
+      },
+    })
+    editor.addAction({
+      id: 'vincezone.formatWithProjectTool',
+      label: 'VinceZone: Format Document (Biome / Prettier / Ruff)',
+      keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.2,
+      run: () => {
+        void formatActiveDocument()
       },
     })
     editor.onDidChangeCursorPosition((event) => {
+      setCursorLineNum(event.position.lineNumber)
       onCursorChange({ line: event.position.lineNumber, column: event.position.column })
     })
     editor.onDidChangeCursorSelection(() => {
@@ -696,6 +788,41 @@ export function EditorPane({
         disposeInlineCompletions: () => {},
       })
       inlineProviderDisposablesRef.current.push(disposable)
+    }
+
+    // Real TypeScript AST Hover Provider (shows true resolved type + JSDoc from workspace tsconfig)
+    for (const tsLang of ['typescript', 'javascript']) {
+      const hoverDisposable = monaco.languages.registerHoverProvider(tsLang, {
+        provideHover: async (_model: unknown, position: { lineNumber: number; column: number }) => {
+          const active = activeFileRef.current
+          const root = workspaceRootRef.current
+          if (!active || !root) return null
+          try {
+            const params = new URLSearchParams({
+              action: 'hover',
+              root,
+              path: active.path,
+              line: String(position.lineNumber),
+              column: String(position.column),
+            })
+            const res = await fetch(`/api/code-index?${params.toString()}`)
+            if (!res.ok) return null
+            const data = (await res.json()) as {
+              hover?: { display: string; documentation: string; kind: string } | null
+            }
+            if (!data.hover?.display) return null
+            return {
+              contents: [
+                { value: `\`\`\`ts\n${data.hover.display}\n\`\`\`` },
+                ...(data.hover.documentation ? [{ value: data.hover.documentation }] : []),
+              ],
+            }
+          } catch {
+            return null
+          }
+        },
+      })
+      inlineProviderDisposablesRef.current.push(hoverDisposable)
     }
   }
 
@@ -1071,6 +1198,40 @@ export function EditorPane({
           ))}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {blameEnabled && blameMap[cursorLineNum] && (
+            <span
+              className="hidden max-w-[340px] truncate rounded border border-[#2f2f2f] bg-[#161616] px-2 py-0.5 font-mono text-[9.5px] text-[#9a9a9a] lg:inline"
+              title={`${blameMap[cursorLineNum].hash} · ${blameMap[cursorLineNum].author} (${blameMap[cursorLineNum].date}) — ${blameMap[cursorLineNum].summary}`}
+            >
+              {blameMap[cursorLineNum].author} · {blameMap[cursorLineNum].date} ·{' '}
+              {blameMap[cursorLineNum].summary}
+            </span>
+          )}
+          {activeFile && workspaceRoot && (
+            <button
+              type="button"
+              onClick={() => setBlameEnabled((prev) => !prev)}
+              className={`rounded px-1.5 py-0.5 text-[10px] transition ${
+                blameEnabled
+                  ? 'border border-[#c9a24d]/45 bg-[#c9a24d]/15 text-[#f0d394]'
+                  : 'bg-[#252525] text-[#9a9a9a] hover:bg-[#323232] hover:text-white'
+              }`}
+              title="Bật/tắt Git Blame inline theo dòng con trỏ"
+            >
+              Blame
+            </button>
+          )}
+          {activeFile && !isBinaryImageFile && (
+            <button
+              type="button"
+              disabled={formatting}
+              onClick={() => void formatActiveDocument()}
+              className="rounded bg-[#252525] px-1.5 py-0.5 text-[10px] text-[#cccccc] transition hover:bg-[#323232] hover:text-white disabled:opacity-40"
+              title="Format Document (Shift+Alt+F — Biome / Prettier / Ruff)"
+            >
+              {formatting ? 'Fmt…' : 'Format'}
+            </button>
+          )}
           {activeFile &&
             (/\.(md|mdx|svg)$/i.test(activeFile.name)) && (
               <button
@@ -1291,6 +1452,69 @@ export function EditorPane({
           </div>
         )
       })()}
+
+      {/* 3-Way Git Merge Conflict Resolver Bar */}
+      {activeFile && mergeConflicts.length > 0 && (
+        <div className="shrink-0 border-b border-[#c9a24d]/45 bg-[#1b1610] px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-[#f0d394]">
+              Git Merge Conflicts Detected ({mergeConflicts.length})
+            </span>
+            <span className="text-[10px] text-[#a3a3a3]">
+              Choose a side per conflict block to resolve cleanly
+            </span>
+          </div>
+          <div className="max-h-28 space-y-1 overflow-y-auto">
+            {mergeConflicts.map((conflict, idx) => (
+              <div
+                key={conflict.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#3a3020] bg-[#14120e] px-2.5 py-1 text-[10.5px]"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    editorRef.current?.revealLineInCenter(conflict.startLine)
+                    editorRef.current?.setPosition({ lineNumber: conflict.startLine, column: 1 })
+                  }}
+                  className="font-mono text-[#e5e5e5] hover:underline"
+                >
+                  #{idx + 1} L{conflict.startLine}–{conflict.endLine} ({conflict.currentLabel} vs{' '}
+                  {conflict.incomingLabel})
+                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateFile(resolveMergeConflict(activeFile.content, conflict.id, 'current'))
+                    }
+                    className="rounded bg-[#1e3620] px-2 py-0.5 text-[10px] font-medium text-[#b8f0b4] hover:bg-[#294a2b]"
+                  >
+                    Accept Current
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateFile(resolveMergeConflict(activeFile.content, conflict.id, 'incoming'))
+                    }
+                    className="rounded bg-[#1b2e42] px-2 py-0.5 text-[10px] font-medium text-[#a9d8ff] hover:bg-[#243f59]"
+                  >
+                    Accept Incoming
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateFile(resolveMergeConflict(activeFile.content, conflict.id, 'both'))
+                    }
+                    className="rounded border border-[#c9a24d]/40 bg-[#c9a24d]/15 px-2 py-0.5 text-[10px] font-medium text-[#f0d394] hover:bg-[#c9a24d]/25"
+                  >
+                    Accept Both
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Ctrl+Shift+O: Go to Symbol in File Overlay */}
       {symbolPickerOpen && activeFile && (

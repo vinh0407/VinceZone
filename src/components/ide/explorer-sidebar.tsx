@@ -141,6 +141,18 @@ export function ExplorerSidebar({
   const tree = useMemo(() => buildFileTree(files), [files])
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false)
   const [searchRegex, setSearchRegex] = useState(false)
+  const [searchSemantic, setSearchSemantic] = useState(false)
+  const [gitGraphOpen, setGitGraphOpen] = useState(false)
+  const [gitGraphNodes, setGitGraphNodes] = useState<
+    Array<{
+      hash: string
+      parents: string[]
+      refs: string[]
+      subject: string
+      author: string
+      relativeTime: string
+    }>
+  >([])
   const [searchIncludeGlob, setSearchIncludeGlob] = useState('')
   const [searchExcludeGlob, setSearchExcludeGlob] = useState('')
   const [diskSearchResults, setDiskSearchResults] = useState<
@@ -189,6 +201,32 @@ export function ExplorerSidebar({
     const timer = window.setTimeout(async () => {
       setDiskSearchStats((prev) => ({ ...prev, loading: true }))
       try {
+        if (searchSemantic) {
+          const res = await fetch('/api/semantic-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({ root: rootPath, query: q, topK: 15 }),
+          })
+          if (!res.ok) return
+          const data = (await res.json()) as {
+            ok?: boolean
+            fileCount?: number
+            hits?: Array<{ path: string; startLine: number; symbol?: string; score: number; preview: string }>
+          }
+          if (data.ok && Array.isArray(data.hits)) {
+            setDiskSearchResults(
+              data.hits.map((h) => ({
+                path: h.path,
+                name: h.path.split('/').pop() || h.path,
+                line: h.startLine,
+                preview: `${h.symbol ? `[${h.symbol}] ` : ''}${h.preview.split('\n')[0] || ''}`.slice(0, 120),
+              })),
+            )
+            setDiskSearchStats({ scanned: data.fileCount ?? 0, loading: false })
+          }
+          return
+        }
         const res = await fetch('/api/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -233,6 +271,7 @@ export function ExplorerSidebar({
     searchIncludeGlob,
     searchQuery,
     searchRegex,
+    searchSemantic,
     sidePanel,
   ])
 
@@ -681,6 +720,18 @@ export function ExplorerSidebar({
                 title="Use Regular Expression (.*)"
               >
                 .*
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchSemantic((v) => !v)}
+                className={`rounded px-1 text-[9.5px] font-semibold transition ${
+                  searchSemantic
+                    ? 'border border-[#c9a24d]/50 bg-[#c9a24d]/20 text-[#f0d394]'
+                    : 'text-[#858585] hover:text-white'
+                }`}
+                title="Local Semantic Code Search (tìm theo ngữ nghĩa / chức năng)"
+              >
+                AI
               </button>
               {searchQuery && (
                 <button
@@ -1222,27 +1273,115 @@ export function ExplorerSidebar({
 
                     {gitStatus.commits.length > 0 && (
                       <div className="border-t border-[#2b2b2b] pt-2">
-                        <p className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
-                          <GitCommitHorizontal size={11} /> Recent Commits
-                        </p>
-                        <div className="space-y-1">
-                          {gitStatus.commits.slice(0, 6).map((commit) => (
-                            <div
-                              key={commit.hash}
-                              className="rounded border border-[#262626] bg-[#141414] px-2 py-1.5 text-[10px]"
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="font-mono text-[9px] text-[#e5e5e5]">
-                                  {commit.hash}
-                                </span>
-                                <span className="text-[9px] text-[#737373]">
-                                  {commit.relativeTime}
-                                </span>
-                              </div>
-                              <p className="mt-0.5 truncate text-[#cccccc]">{commit.subject}</p>
-                            </div>
-                          ))}
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#9d9d9d]">
+                            <GitCommitHorizontal size={11} /> {gitGraphOpen ? 'Git Graph' : 'Recent Commits'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = !gitGraphOpen
+                              setGitGraphOpen(next)
+                              if (next && rootPath) {
+                                void fetch('/api/git', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'graph', root: rootPath }),
+                                })
+                                  .then((r) => (r.ok ? r.json() : null))
+                                  .then((d: { ok?: boolean; nodes?: typeof gitGraphNodes } | null) => {
+                                    if (d?.ok && d.nodes) setGitGraphNodes(d.nodes)
+                                  })
+                                  .catch(() => {})
+                              }
+                            }}
+                            className={`rounded px-1.5 py-0.5 text-[9.5px] transition ${
+                              gitGraphOpen
+                                ? 'border border-[#c9a24d]/45 bg-[#c9a24d]/15 text-[#f0d394]'
+                                : 'bg-[#222222] text-[#9a9a9a] hover:bg-[#2c2c2c] hover:text-white'
+                            }`}
+                          >
+                            {gitGraphOpen ? 'List' : 'Graph'}
+                          </button>
                         </div>
+                        {gitGraphOpen && gitGraphNodes.length > 0 ? (
+                          <div className="max-h-56 space-y-0.5 overflow-y-auto rounded border border-[#262626] bg-[#121212] p-1.5">
+                            {gitGraphNodes.map((node, idx) => {
+                              const isMerge = node.parents.length > 1
+                              const laneX = isMerge ? 14 : 6
+                              return (
+                                <div key={node.hash} className="flex items-start gap-1.5 text-[10px]">
+                                  <svg width="22" height="22" className="shrink-0">
+                                    {idx < gitGraphNodes.length - 1 && (
+                                      <line
+                                        x1="6"
+                                        y1="10"
+                                        x2="6"
+                                        y2="22"
+                                        stroke="#444444"
+                                        strokeWidth="1.5"
+                                      />
+                                    )}
+                                    {isMerge && (
+                                      <line
+                                        x1="14"
+                                        y1="10"
+                                        x2="6"
+                                        y2="20"
+                                        stroke="#c9a24d"
+                                        strokeWidth="1.3"
+                                      />
+                                    )}
+                                    <circle
+                                      cx={laneX}
+                                      cy="10"
+                                      r="3.2"
+                                      fill={idx === 0 ? '#ddb968' : isMerge ? '#c9a24d' : '#9cdcfe'}
+                                    />
+                                  </svg>
+                                  <div className="min-w-0 flex-1 py-0.5">
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      <span className="font-mono text-[9px] text-[#ddb968]">
+                                        {node.hash}
+                                      </span>
+                                      {node.refs.slice(0, 2).map((ref) => (
+                                        <span
+                                          key={ref}
+                                          className="rounded border border-[#c9a24d]/35 bg-[#c9a24d]/10 px-1 font-mono text-[8px] text-[#e6cfa0]"
+                                        >
+                                          {ref}
+                                        </span>
+                                      ))}
+                                      <span className="ml-auto text-[8.5px] text-[#6e6e6e]">
+                                        {node.relativeTime}
+                                      </span>
+                                    </div>
+                                    <p className="truncate text-[#d4d4d4]">{node.subject}</p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {gitStatus.commits.slice(0, 6).map((commit) => (
+                              <div
+                                key={commit.hash}
+                                className="rounded border border-[#262626] bg-[#141414] px-2 py-1.5 text-[10px]"
+                              >
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-mono text-[9px] text-[#e5e5e5]">
+                                    {commit.hash}
+                                  </span>
+                                  <span className="text-[9px] text-[#737373]">
+                                    {commit.relativeTime}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[#cccccc]">{commit.subject}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

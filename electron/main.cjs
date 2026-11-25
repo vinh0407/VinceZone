@@ -3,10 +3,20 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { createInProcessNextHandler } = require('./in-process-bridge.cjs')
+const { createRotatingLogger } = require('./rotating-logger.cjs')
 
 const APP_ORIGIN = 'vincezone://studio'
 let mainWindow = null
 let activeInProcessHandler = null
+let desktopLogger = null
+
+function getDesktopLogger() {
+  if (!desktopLogger) {
+    const logFile = path.join(app.getPath('userData'), 'logs', 'vincezone-main.log')
+    desktopLogger = createRotatingLogger(logFile, { maxBytes: 2 * 1024 * 1024, maxBackups: 3 })
+  }
+  return desktopLogger
+}
 
 // Register custom local protocol BEFORE app.whenReady() — ZERO TCP ports, ZERO localhost!
 protocol.registerSchemesAsPrivileged([
@@ -41,9 +51,19 @@ if (!gotSingleLock) {
 
 process.on('uncaughtException', (err) => {
   console.error('[VinceZone Local App] UncaughtException:', err.message || err)
+  try {
+    getDesktopLogger().error('uncaughtException', err.stack || err.message || String(err))
+  } catch {
+    // ignore
+  }
 })
 process.on('unhandledRejection', (reason) => {
   console.error('[VinceZone Local App] UnhandledRejection:', reason)
+  try {
+    getDesktopLogger().error('unhandledRejection', reason instanceof Error ? reason.stack : String(reason))
+  } catch {
+    // ignore
+  }
 })
 
 function buildNativeMenu(win) {
@@ -248,6 +268,23 @@ ipcMain.handle('vincezone:openExternal', async (_event, targetUrl) => {
   return false
 })
 
+ipcMain.handle('vincezone:openLogsFolder', async () => {
+  const logger = getDesktopLogger()
+  fs.mkdirSync(logger.logDir, { recursive: true })
+  logger.info('User opened desktop logs folder')
+  await shell.openPath(logger.logDir)
+  return { ok: true, logDir: logger.logDir, logFile: logger.logFilePath }
+})
+
+ipcMain.handle('vincezone:downloadUpdate', async (_event, releaseUrl) => {
+  if (typeof releaseUrl === 'string' && /^https:\/\/github\.com\/vinh0407\/VinceZone\//i.test(releaseUrl)) {
+    getDesktopLogger().info('Opening update download URL', releaseUrl)
+    await shell.openExternal(releaseUrl)
+    return { ok: true }
+  }
+  return { ok: false, error: 'Invalid release URL.' }
+})
+
 // P2-2: OS-level API Key Encryption via Electron safeStorage (Windows DPAPI / macOS Keychain)
 function getSecretsVaultPath() {
   return path.join(app.getPath('userData'), 'vincezone-secrets.enc.json')
@@ -310,9 +347,17 @@ ipcMain.handle('vincezone:secrets:load', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  getDesktopLogger().info('VinceZone Studio starting', `version=${app.getVersion()} platform=${process.platform}`)
+  return createWindow()
+})
 
 app.on('before-quit', () => {
+  try {
+    getDesktopLogger().info('VinceZone Studio shutting down cleanly')
+  } catch {
+    // ignore
+  }
   if (activeInProcessHandler) {
     void activeInProcessHandler(
       new Request(`${APP_ORIGIN}/api/vz-ping`, {
