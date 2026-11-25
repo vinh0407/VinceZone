@@ -61,15 +61,15 @@ jobs:
 
       - name: Install Playwright Chromium
         run: |
-          npm install --no-save @playwright/test
-          npx playwright install chromium --with-deps
+          pnpm add -D @playwright/test
+          pnpm exec playwright install chromium --with-deps
 
       - name: Run IDE E2E Smoke Suite
         run: |
           PORT=40704 HOSTNAME=127.0.0.1 node .next/standalone/server.js &
           SERVER_PID=$!
-          npx wait-on http://127.0.0.1:40704/api/vz-ping --timeout 45000
-          npx playwright test e2e/ide-smoke.spec.ts --reporter=list
+          pnpm exec wait-on http://127.0.0.1:40704/api/vz-ping --timeout 45000
+          pnpm exec playwright test e2e/ide-smoke.spec.ts --reporter=list
           EXIT_CODE=$?
           kill $SERVER_PID || true
           exit $EXIT_CODE

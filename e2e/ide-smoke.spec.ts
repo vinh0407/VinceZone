@@ -9,7 +9,7 @@ test.describe('VinceZone Studio IDE Smoke Suite', () => {
     await expect(page.getByRole('menubar', { name: 'Application menu' })).toBeVisible()
 
     // Verify Project Switcher dropdown opens and includes "Thêm dự án mới…"
-    const switcher = page.locator('header button[title*="Chuyển đổi dự án"]')
+    const switcher = page.locator('header button[aria-haspopup="menu"]:not([role="menuitem"])').first()
     await expect(switcher).toBeVisible()
     await switcher.click()
     await expect(page.getByText('Thêm dự án mới…')).toBeVisible()
