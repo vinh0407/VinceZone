@@ -50,21 +50,15 @@
     "productName": "VinceZone Studio",
     "copyright": "Copyright © 2026 VinceZone",
     "directories": {
-      "output": "dist",
+      "output": "dist-desktop",
       "buildResources": "buildResources"
     },
     "files": [
       "electron/**/*",
-      "dist/**/*",
-      "node_modules/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "dist",
-        "to": "app",
-        "filter": "**/*"
-      }
+      ".next/standalone/**/*",
+      "agent-harness/**/*",
+      "package.json",
+      "!node_modules/**/*"
     ],
     "win": {
       "target": [
@@ -76,6 +70,15 @@
         }
       ],
       "icon": "electron/vincezone-logo.ico",
+      "artifactName": "VinceZone-Studio-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "artifactName": "VinceZone-Studio-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development",
       "artifactName": "VinceZone-Studio-${version}-${arch}.${ext}"
     },
     "nsis": {
@@ -88,7 +91,7 @@
     "portable": {
       "artifactName": "VinceZone-Studio-${version}-${arch}-portable.${ext}"
     },
-    "asar": true,
-    "compression": "maximum"
+    "asar": false,
+    "compression": "normal"
   }
 }

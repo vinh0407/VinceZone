@@ -711,7 +711,9 @@ async function startPythonDebugSession(options: {
   for (const bp of options.breakpoints) {
     try {
       const abs = resolvePathInsideWorkspace(options.cwd, bp.path)
-      await sendPdbCommand(dbg, `b ${abs}:${bp.line}`)
+      const isSameTarget =
+        abs.replace(/\\/g, '/').toLowerCase() === options.absTarget.replace(/\\/g, '/').toLowerCase()
+      await sendPdbCommand(dbg, isSameTarget ? `b ${bp.line}` : `b ${abs}:${bp.line}`)
     } catch {
       // ignore invalid bp
     }
