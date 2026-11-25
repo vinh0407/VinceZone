@@ -31,6 +31,7 @@ test.describe('VinceZone Studio IDE Smoke Suite', () => {
     await expect(page.getByText('Welcome / Recent Projects')).toBeVisible()
     await expect(page.getByText('Export Diagnostic Logs…')).toBeVisible()
     await page.getByText('Keyboard Shortcuts Cheatsheet').click()
-    await expect(page.getByText('Ctrl+P')).toBeVisible()
+    await expect(page.locator('input[placeholder*="Search shortcuts"]')).toBeVisible()
+    await expect(page.getByText('Ctrl+P').last()).toBeVisible()
   })
 })
